@@ -361,9 +361,10 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *models.UserLoginInpu
 	log.Info().
 		Int64("user_id", user.UserID).
 		Str("email", input.Body.Email).
-		Msg("User logged in successfully")
+		Bool("jwt_development", h.config.JWT.Development).
+		Msg("User logged in successfully - creating response with cookies")
 
-	return models.NewUserLoginResponse(
+	response := models.NewUserLoginResponse(
 		accessToken,
 		refreshToken, // Include refresh token in response
 		int(user.UserID),
@@ -373,7 +374,17 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *models.UserLoginInpu
 		activePseudonymID,
 		displayName,
 		pseudonymInfos,
-	), nil
+		h.config.JWT.Development,
+	)
+
+	log.Info().
+		Str("access_cookie_name", response.Cookies[0].Name).
+		Bool("access_cookie_secure", response.Cookies[0].Secure).
+		Str("refresh_cookie_name", response.Cookies[1].Name).
+		Bool("refresh_cookie_secure", response.Cookies[1].Secure).
+		Msg("Created login response with cookies")
+
+	return response, nil
 }
 
 // LogoutUser handles user logout
@@ -384,17 +395,26 @@ func (h *AuthHandler) LogoutUser(ctx context.Context, input *models.UserLogoutIn
 		Msg("Processing user logout request")
 
 	// TODO: Implement token blacklisting for logout
-	// For now, just return success - the client should clear cookies/tokens
-	// In a production environment, you would:
-	// 1. Validate the refresh token
-	// 2. Add it to a blacklist (Redis/database)
-	// 3. Clear any server-side session data
+	// For now, validate the refresh token if provided (for future blacklisting)
+	if input.Body.RefreshToken != "" {
+		claims, err := h.validateJWT(input.Body.RefreshToken)
+		if err != nil {
+			log.Warn().
+				Err(err).
+				Msg("Invalid refresh token provided during logout")
+			// Don't return error - still clear cookies even if token is invalid
+		} else {
+			log.Info().
+				Int64("user_id", claims.UserID).
+				Str("email", claims.Email).
+				Msg("Valid refresh token provided during logout - ready for blacklisting")
+			// TODO: Add token to blacklist (Redis/database)
+		}
+	}
 
-	log.Info().Msg("User logged out successfully")
+	log.Info().Msg("User logged out successfully - clearing cookies")
 
-	return &models.UserLogoutResponse{
-		Message: "Logout successful. Please clear your local tokens and cookies.",
-	}, nil
+	return models.NewUserLogoutResponse(h.config.JWT.Development), nil
 }
 
 // validateJWT validates and parses a JWT token
@@ -461,7 +481,7 @@ func (h *AuthHandler) RefreshToken(ctx context.Context, input *models.RefreshTok
 		Msg("Token refreshed successfully")
 
 	// Return new token response with cookie
-	return models.NewTokenRefreshResponse(newAccessToken, int(h.config.JWT.Expiration.Seconds())), nil
+	return models.NewTokenRefreshResponse(newAccessToken, int(h.config.JWT.Expiration.Seconds()), h.config.JWT.Development), nil
 }
 
 // hashPassword hashes a password using SHA-256
@@ -484,4 +504,132 @@ func (h *AuthHandler) generateSessionToken() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(bytes), nil
+}
+
+// GetCurrentUserSession handles getting the current user's session data
+func (h *AuthHandler) GetCurrentUserSession(ctx context.Context, input *middleware.AuthInput) (*models.CurrentUserSessionResponse, error) {
+	log.Info().
+		Str("endpoint", "auth/me").
+		Str("component", "auth_handler").
+		Msg("Processing get current user session request")
+
+	// Extract user context from the authenticated request
+	userCtx, err := middleware.ExtractUserFromHumaInput(input)
+	if err != nil {
+		log.Warn().Err(err).Str("endpoint", "auth/me").Msg("Authentication required for session access")
+		return nil, huma.Error401Unauthorized("Authentication required")
+	}
+
+	userID := int(userCtx.UserID)
+	log.Info().
+		Int("user_id", userID).
+		Str("email", userCtx.Email).
+		Msg("Getting current user session data")
+
+	// Get user from database to ensure they still exist and are active
+	user, err := h.userDAO.GetUserByID(ctx, int64(userID))
+	if err != nil {
+		log.Error().Err(err).Int64("user_id", int64(userID)).Msg("Failed to get user from database")
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	if user == nil {
+		log.Warn().Int64("user_id", int64(userID)).Msg("User not found")
+		return nil, huma.Error404NotFound("User not found")
+	}
+
+	// Check if user is active
+	if !user.IsActive.Valid || !user.IsActive.V {
+		log.Warn().Int64("user_id", int64(userID)).Msg("User account is inactive")
+		return nil, huma.Error403Forbidden("Account inactive")
+	}
+
+	// Check if user is suspended
+	if user.IsSuspended.Valid && user.IsSuspended.V {
+		log.Warn().Int64("user_id", int64(userID)).Msg("User account is suspended")
+		return nil, huma.Error403Forbidden("Account suspended")
+	}
+
+	// Get user's pseudonyms
+	pseudonyms, err := h.pseudonymDAO.GetPseudonymsByUserID(ctx, int64(userID))
+	if err != nil {
+		log.Error().Err(err).Int64("user_id", int64(userID)).Msg("Failed to get user pseudonyms")
+		return nil, fmt.Errorf("failed to get user pseudonyms: %w", err)
+	}
+
+	// Convert to API models
+	pseudonymInfos := make([]models.PseudonymInfo, len(pseudonyms))
+	for i, p := range pseudonyms {
+		karmaScore := 0
+		if p.KarmaScore.Valid {
+			karmaScore = int(p.KarmaScore.V)
+		}
+
+		createdAt := time.Now().Format(time.RFC3339)
+		if p.CreatedAt.Valid {
+			createdAt = p.CreatedAt.V.Format(time.RFC3339)
+		}
+
+		lastActiveAt := time.Now().Format(time.RFC3339)
+		if p.LastActiveAt.Valid {
+			lastActiveAt = p.LastActiveAt.V.Format(time.RFC3339)
+		}
+
+		isActive := true
+		if p.IsActive.Valid {
+			isActive = p.IsActive.V
+		}
+
+		pseudonymInfos[i] = models.PseudonymInfo{
+			PseudonymID:  p.PseudonymID,
+			DisplayName:  p.DisplayName,
+			KarmaScore:   karmaScore,
+			CreatedAt:    createdAt,
+			LastActiveAt: lastActiveAt,
+			IsActive:     isActive,
+		}
+	}
+
+	// Get active pseudonym (use the first one for now, or the one from JWT if available)
+	var activePseudonymID string
+	var displayName string
+
+	if userCtx.ActivePseudonymID != "" {
+		// Use the pseudonym ID from the JWT token
+		activePseudonymID = userCtx.ActivePseudonymID
+		// Find the display name for this pseudonym
+		for _, p := range pseudonymInfos {
+			if p.PseudonymID == activePseudonymID {
+				displayName = p.DisplayName
+				break
+			}
+		}
+	} else if len(pseudonyms) > 0 {
+		// Fallback to the first pseudonym
+		activePseudonymID = pseudonyms[0].PseudonymID
+		displayName = pseudonyms[0].DisplayName
+	}
+
+	// Update last active timestamp
+	err = h.userDAO.UpdateLastActive(ctx, int64(userID))
+	if err != nil {
+		log.Error().Err(err).Int64("user_id", int64(userID)).Msg("Failed to update last active timestamp")
+		// Don't fail the request for this error
+	}
+
+	log.Info().
+		Int("user_id", userID).
+		Str("email", userCtx.Email).
+		Str("active_pseudonym_id", activePseudonymID).
+		Msg("Current user session data retrieved successfully")
+
+	return models.NewCurrentUserSessionResponse(
+		userID,
+		userCtx.Email,
+		userCtx.Roles,
+		userCtx.Capabilities,
+		activePseudonymID,
+		displayName,
+		pseudonymInfos,
+	), nil
 }

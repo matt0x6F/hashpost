@@ -1,7 +1,7 @@
 # HashPost Makefile
 # Provides convenient commands for development and deployment
 
-.PHONY: help build run test clean migrate migrate-up migrate-down migrate-status migrate-create docker-build docker-up docker-down docker-logs generate test-integration docker-test-up docker-test-down test-integration-local test-integration-vscode
+.PHONY: help build run test clean migrate migrate-up migrate-down migrate-status migrate-create docker-build docker-up docker-down docker-logs generate test-integration docker-test-up docker-test-down test-integration-local test-integration-vscode ui-install ui-generate-api ui-dev ui-build
 
 # Default target
 help:
@@ -25,6 +25,12 @@ help:
 	@echo "  test-integration Run integration tests (requires test database)"
 	@echo "  docker-test-up  Start test environment"
 	@echo "  docker-test-down Stop test environment"
+	@echo ""
+	@echo "UI Development:"
+	@echo "  ui-install      Install UI dependencies"
+	@echo "  ui-generate-api Generate TypeScript API client from OpenAPI schema"
+	@echo "  ui-dev          Start UI development server"
+	@echo "  ui-build        Build UI for production"
 	@echo ""
 	@echo "Development:"
 	@echo "  build           Build the application"
@@ -171,3 +177,21 @@ setup-dev: install-tools
 
 generate:
 	cd internal/database && go run github.com/stephenafamo/bob/gen/bobgen-psql@latest -c ../../bobgen.yaml 
+
+# UI Development commands
+ui-install:
+	@echo "Installing UI dependencies..."
+	cd ui && npm install
+
+ui-generate-api:
+	@echo "Generating TypeScript API client from OpenAPI schema..."
+	@echo "Make sure the HashPost server is running (make dev)"
+	cd ui && npm run generate-api
+
+ui-dev:
+	@echo "Starting UI development server..."
+	cd ui && npm run dev
+
+ui-build:
+	@echo "Building UI for production..."
+	cd ui && npm run build 

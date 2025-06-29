@@ -56,4 +56,15 @@ func RegisterAuthRoutes(api huma.API, cfg *config.Config, db bob.Executor) {
 		Description: "Refreshes an expired access token using a valid refresh token. The client should update the access token cookie with the new token.",
 		Tags:        []string{"Authentication"},
 	}, authHandler.RefreshToken)
+
+	// Get current user session
+	huma.Register(api, huma.Operation{
+		OperationID: "get-current-user-session",
+		Method:      http.MethodGet,
+		Path:        "/auth/me",
+		Summary:     "Get current user session data",
+		Description: "Retrieves the current user's session data including pseudonyms and metadata. Returns the same structure as login response.",
+		Tags:        []string{"Authentication"},
+		Security:    []map[string][]string{{"jwt": {}}},
+	}, authHandler.GetCurrentUserSession)
 }

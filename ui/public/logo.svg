@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" xmlns:bx="https://boxy-svg.com">
+  <defs>
+    <linearGradient id="iconGradient" x1="0%" y1="0%" x2="100%" y2="100%" gradientTransform="matrix(0.973378, -0.02468, -0.02867, 0.973268, 0, 0)">
+      <stop offset="0" style="stop-opacity: 1; stop-color: rgb(88, 167, 152);"/>
+      <stop offset="1" style="stop-color:#3a7a6b;stop-opacity:1"/>
+    </linearGradient>
+    <bx:guide x="461.998" y="619.028" angle="90"/>
+    <bx:guide x="520.678" y="406.625" angle="90"/>
+    <bx:guide x="741.347" y="513.24" angle="0"/>
+    <bx:guide x="185.957" y="495.884" angle="0"/>
+  </defs>
+  <rect x="86" y="86" width="852" height="852" rx="188" ry="188" fill="url(#iconGradient)" style="stroke-width: 3px; stroke: rgb(59, 164, 141);">
+    <title>Background</title>
+  </rect>
+  <g transform="matrix(1, 0, -0.212557, 1, 511.999969, 510.347046)">
+    <rect x="-163.58" y="-329.54" width="105.995" height="664.025" fill="#a8d5cc" stroke="#1f4a41" stroke-width="17" style="">
+      <title>Left</title>
+    </rect>
+    <rect x="48.412" y="-329.54" width="105.995" height="664.025" fill="#a8d5cc" stroke="#1f4a41" stroke-width="17" style="">
+      <title>Right</title>
+    </rect>
+    <polygon points="-269.58 -50.517 260.401 -50.517 330.678 -103.8 260.401 -156.5 -269.58 -156.5 -334.883 -103.8" fill="#a8d5cc" stroke="#1f4a41" stroke-width="17" style="">
+      <title>Top</title>
+    </polygon>
+    <polygon points="-328 108.761 -269.58 55.477 260.401 55.477 330.803 108.761 260.401 161.472 -269.58 161.472" fill="#a8d5cc" stroke="#1f4a41" stroke-width="17" style="">
+      <title>Bottom</title>
+    </polygon>
+  </g>
+</svg>

@@ -712,7 +712,7 @@ func (ts *IntegrationTestSuite) createTestServer() *api.Server {
 
 	// Add router-agnostic middleware
 	humaAPI.UseMiddleware(middleware.LoggingMiddleware)
-	humaAPI.UseMiddleware(middleware.CORSMiddleware)
+	humaAPI.UseMiddleware(middleware.CORSMiddleware(&ts.Config.CORS))
 
 	// Add authentication middleware to extract user context
 	humaAPI.UseMiddleware(middleware.AuthenticateUserHuma)
@@ -731,9 +731,10 @@ func (ts *IntegrationTestSuite) createTestServer() *api.Server {
 	routes.RegisterCorrelationRoutes(humaAPI, db, ibeSystem, pseudonymDAO, identityMappingDAO, postDAO, commentDAO)
 
 	return &api.Server{
-		API:    humaAPI,
-		Mux:    mux,
-		Config: config,
+		API:       humaAPI,
+		Mux:       mux,
+		Config:    config,
+		AppConfig: ts.Config,
 	}
 }
 

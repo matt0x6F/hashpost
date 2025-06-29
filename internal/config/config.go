@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -16,6 +17,7 @@ type Config struct {
 	IBE      IBEConfig
 	JWT      JWTConfig
 	Security SecurityConfig
+	CORS     CORSConfig
 }
 
 // DatabaseConfig holds database connection configuration
@@ -59,6 +61,15 @@ type JWTConfig struct {
 	Secret      string
 	Expiration  time.Duration
 	Development bool // Controls cookie security settings
+}
+
+// CORSConfig holds CORS configuration
+type CORSConfig struct {
+	AllowedOrigins   []string
+	AllowedMethods   []string
+	AllowedHeaders   []string
+	AllowCredentials bool
+	MaxAge           int
 }
 
 // SecurityConfig holds security-related configuration
@@ -125,6 +136,13 @@ func Load() (*Config, error) {
 				RequireSpecialChar: getEnvAsBool("PASSWORD_REQUIRE_SPECIAL", true),
 				DisallowCommon:     getEnvAsBool("PASSWORD_DISALLOW_COMMON", true),
 			},
+		},
+		CORS: CORSConfig{
+			AllowedOrigins:   getEnvAsSlice("CORS_ALLOWED_ORIGINS", []string{"*"}),
+			AllowedMethods:   getEnvAsSlice("CORS_ALLOWED_METHODS", []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}),
+			AllowedHeaders:   getEnvAsSlice("CORS_ALLOWED_HEADERS", []string{"Authorization", "Content-Type"}),
+			AllowCredentials: getEnvAsBool("CORS_ALLOW_CREDENTIALS", true),
+			MaxAge:           getEnvAsInt("CORS_MAX_AGE", 300),
 		},
 	}
 
@@ -215,6 +233,13 @@ func getEnvAsBool(key string, defaultValue bool) bool {
 		if boolValue, err := strconv.ParseBool(value); err == nil {
 			return boolValue
 		}
+	}
+	return defaultValue
+}
+
+func getEnvAsSlice(key string, defaultValue []string) []string {
+	if value := os.Getenv(key); value != "" {
+		return strings.Split(value, ",")
 	}
 	return defaultValue
 }
