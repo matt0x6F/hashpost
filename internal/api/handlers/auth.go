@@ -1,0 +1,487 @@
+package handlers
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"github.com/danielgtaylor/huma/v2"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/matt0x6f/hashpost/internal/api/middleware"
+	"github.com/matt0x6f/hashpost/internal/api/models"
+	"github.com/matt0x6f/hashpost/internal/api/validation"
+	"github.com/matt0x6f/hashpost/internal/config"
+	"github.com/matt0x6f/hashpost/internal/database/dao"
+	"github.com/rs/zerolog/log"
+	"github.com/stephenafamo/bob"
+)
+
+// AuthHandler handles authentication requests
+type AuthHandler struct {
+	config       *config.Config
+	userDAO      *dao.UserDAO
+	pseudonymDAO *dao.PseudonymDAO
+}
+
+// NewAuthHandler creates a new authentication handler
+func NewAuthHandler(cfg *config.Config, db bob.Executor) *AuthHandler {
+	return &AuthHandler{
+		config:       cfg,
+		userDAO:      dao.NewUserDAO(db),
+		pseudonymDAO: dao.NewPseudonymDAO(db),
+	}
+}
+
+// RegisterUser handles user registration
+func (h *AuthHandler) RegisterUser(ctx context.Context, input *models.UserRegistrationInput) (*models.UserRegistrationResponse, error) {
+	log.Info().
+		Str("endpoint", "auth/register").
+		Str("component", "auth_handler").
+		Msg("Processing user registration request")
+
+	// Enhanced validation using the validation package
+	if err := validation.ValidateEmail(input.Body.Email); err != nil {
+		return nil, huma.Error422UnprocessableEntity(err.Error())
+	}
+
+	if err := validation.ValidatePassword(input.Body.Password, h.config.Security.PasswordValidation); err != nil {
+		return nil, huma.Error422UnprocessableEntity(err.Error())
+	}
+
+	if err := validation.ValidateDisplayName(input.Body.DisplayName); err != nil {
+		return nil, huma.Error422UnprocessableEntity(err.Error())
+	}
+
+	// Check if user already exists
+	existingUser, err := h.userDAO.GetUserByEmail(ctx, input.Body.Email)
+	if err == nil && existingUser != nil {
+		log.Warn().
+			Str("email", input.Body.Email).
+			Msg("User registration failed - email already exists")
+		return nil, fmt.Errorf("user with email %s already exists", input.Body.Email)
+	}
+
+	// Hash password
+	hashedPassword := h.hashPassword(input.Body.Password)
+
+	// Create user
+	user, err := h.userDAO.CreateUser(ctx, input.Body.Email, hashedPassword)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("email", input.Body.Email).
+			Msg("Failed to create user")
+		return nil, fmt.Errorf("failed to create user: %w", err)
+	}
+
+	// Create pseudonym for the user
+	pseudonym, err := h.pseudonymDAO.CreatePseudonym(ctx, user.UserID, input.Body.DisplayName)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Int64("user_id", user.UserID).
+			Msg("Failed to create pseudonym for user")
+		return nil, fmt.Errorf("failed to create pseudonym: %w", err)
+	}
+
+	// Get user roles and capabilities from database
+	roles := []string{"user"}                                                                  // Default role for new users
+	capabilities := []string{"create_content", "vote", "message", "report", "create_subforum"} // Default capabilities
+
+	// If user has roles/capabilities stored in database, use those
+	if user.Roles.Valid {
+		rawValue, err := user.Roles.V.Value()
+		if err == nil {
+			var userRoles []string
+			if err := json.Unmarshal(rawValue.([]byte), &userRoles); err == nil && len(userRoles) > 0 {
+				roles = userRoles
+			}
+		}
+	}
+
+	if user.Capabilities.Valid {
+		rawValue, err := user.Capabilities.V.Value()
+		if err == nil {
+			var userCapabilities []string
+			if err := json.Unmarshal(rawValue.([]byte), &userCapabilities); err == nil && len(userCapabilities) > 0 {
+				capabilities = userCapabilities
+			}
+		}
+	}
+
+	// Create user context for JWT generation
+	userCtx := &middleware.UserContext{
+		UserID:            user.UserID,
+		Email:             user.Email,
+		Roles:             roles,
+		Capabilities:      capabilities,
+		MFAEnabled:        false, // TODO: Implement MFA
+		ActivePseudonymID: pseudonym.PseudonymID,
+		DisplayName:       pseudonym.DisplayName,
+	}
+
+	// Generate JWT tokens
+	accessToken, err := middleware.GenerateJWT(userCtx, h.config.JWT.Secret, h.config.JWT.Expiration)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Int64("user_id", user.UserID).
+			Msg("Failed to generate access token")
+		return nil, fmt.Errorf("failed to generate access token: %w", err)
+	}
+
+	// Generate refresh token (longer expiration)
+	refreshToken, err := middleware.GenerateJWT(userCtx, h.config.JWT.Secret, 7*24*time.Hour) // 7 days
+	if err != nil {
+		log.Error().
+			Err(err).
+			Int64("user_id", user.UserID).
+			Msg("Failed to generate refresh token")
+		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
+	}
+
+	log.Info().
+		Int64("user_id", user.UserID).
+		Str("email", input.Body.Email).
+		Str("pseudonym_id", pseudonym.PseudonymID).
+		Msg("User registered successfully")
+
+	return models.NewUserRegistrationResponse(
+		int(user.UserID),
+		user.Email,
+		roles,
+		capabilities,
+		pseudonym.PseudonymID,
+		pseudonym.DisplayName,
+		accessToken,
+		refreshToken,
+	), nil
+}
+
+// LoginUser handles user login
+func (h *AuthHandler) LoginUser(ctx context.Context, input *models.UserLoginInput) (*models.UserLoginResponse, error) {
+	log.Info().
+		Str("endpoint", "auth/login").
+		Str("component", "auth_handler").
+		Msg("Processing user login request")
+
+	// Enhanced validation using the validation package
+	if err := validation.ValidateEmail(input.Body.Email); err != nil {
+		return nil, huma.Error422UnprocessableEntity(err.Error())
+	}
+
+	if input.Body.Password == "" {
+		return nil, huma.Error422UnprocessableEntity("password is required")
+	}
+
+	// Debug: Log the input to see what we're receiving
+	log.Debug().
+		Str("input_email", input.Body.Email).
+		Str("input_password_length", fmt.Sprintf("%d", len(input.Body.Password))).
+		Msg("Login input received")
+
+	// Find the user by email
+	user, err := h.userDAO.GetUserByEmail(ctx, input.Body.Email)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("email", input.Body.Email).
+			Msg("Failed to find user by email")
+		return nil, fmt.Errorf("failed to find user by email: %w", err)
+	}
+
+	if user == nil {
+		log.Warn().
+			Str("email", input.Body.Email).
+			Msg("User not found")
+		return nil, fmt.Errorf("invalid credentials")
+	}
+
+	// Check if user is active
+	if !user.IsActive.Valid || !user.IsActive.V {
+		log.Warn().
+			Int64("user_id", user.UserID).
+			Msg("User account is inactive")
+		return nil, fmt.Errorf("account inactive")
+	}
+
+	// Check if user is suspended
+	if user.IsSuspended.Valid && user.IsSuspended.V {
+		log.Warn().
+			Int64("user_id", user.UserID).
+			Msg("User account is suspended")
+		return nil, fmt.Errorf("account suspended")
+	}
+
+	// Verify password (in a real app, you'd use bcrypt.CompareHashAndPassword)
+	if !h.verifyPassword(input.Body.Password, user.PasswordHash) {
+		log.Warn().
+			Int64("user_id", user.UserID).
+			Msg("Invalid password")
+		return nil, fmt.Errorf("invalid credentials")
+	}
+
+	// Update last active timestamp
+	err = h.userDAO.UpdateLastActive(ctx, user.UserID)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Int64("user_id", user.UserID).
+			Msg("Failed to update last active timestamp")
+		// Don't fail the login for this error
+	}
+
+	// Get user's pseudonyms
+	pseudonyms, err := h.pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Int64("user_id", user.UserID).
+			Msg("Failed to get user pseudonyms")
+		return nil, fmt.Errorf("failed to get user pseudonyms: %w", err)
+	}
+
+	// If user has no pseudonyms, this is a data error
+	if len(pseudonyms) == 0 {
+		log.Error().
+			Int64("user_id", user.UserID).
+			Msg("User has no pseudonyms; cannot proceed with login")
+		return nil, fmt.Errorf("user has no pseudonyms; please contact support")
+	}
+
+	// Convert to API models
+	pseudonymInfos := make([]models.PseudonymInfo, len(pseudonyms))
+	for i, p := range pseudonyms {
+		karmaScore := 0
+		if p.KarmaScore.Valid {
+			karmaScore = int(p.KarmaScore.V)
+		}
+
+		createdAt := time.Now().Format(time.RFC3339)
+		if p.CreatedAt.Valid {
+			createdAt = p.CreatedAt.V.Format(time.RFC3339)
+		}
+
+		lastActiveAt := time.Now().Format(time.RFC3339)
+		if p.LastActiveAt.Valid {
+			lastActiveAt = p.LastActiveAt.V.Format(time.RFC3339)
+		}
+
+		isActive := true
+		if p.IsActive.Valid {
+			isActive = p.IsActive.V
+		}
+
+		pseudonymInfos[i] = models.PseudonymInfo{
+			PseudonymID:  p.PseudonymID,
+			DisplayName:  p.DisplayName,
+			KarmaScore:   karmaScore,
+			CreatedAt:    createdAt,
+			LastActiveAt: lastActiveAt,
+			IsActive:     isActive,
+		}
+	}
+
+	// Get user roles and capabilities from database
+	roles := []string{"user"}                                                                  // Default role
+	capabilities := []string{"create_content", "vote", "message", "report", "create_subforum"} // Default capabilities
+
+	// If user has roles/capabilities stored in database, use those
+	if user.Roles.Valid {
+		rawValue, err := user.Roles.V.Value()
+		if err == nil {
+			var userRoles []string
+			if err := json.Unmarshal(rawValue.([]byte), &userRoles); err == nil && len(userRoles) > 0 {
+				roles = userRoles
+			}
+		}
+	}
+
+	if user.Capabilities.Valid {
+		rawValue, err := user.Capabilities.V.Value()
+		if err == nil {
+			var userCapabilities []string
+			if err := json.Unmarshal(rawValue.([]byte), &userCapabilities); err == nil && len(userCapabilities) > 0 {
+				capabilities = userCapabilities
+			}
+		}
+	}
+
+	// Get active pseudonym (use the first one for now)
+	var activePseudonymID string
+	var displayName string
+	if len(pseudonyms) > 0 {
+		activePseudonymID = pseudonyms[0].PseudonymID
+		displayName = pseudonyms[0].DisplayName
+	}
+
+	log.Info().
+		Str("active_pseudonym_id", activePseudonymID).
+		Str("display_name", displayName).
+		Msg("Injecting pseudonym context into JWT")
+
+	// Create user context for JWT generation
+	userCtx := &middleware.UserContext{
+		UserID:            user.UserID,
+		Email:             user.Email,
+		Roles:             roles,
+		Capabilities:      capabilities,
+		MFAEnabled:        false, // TODO: Implement MFA
+		ActivePseudonymID: activePseudonymID,
+		DisplayName:       displayName,
+	}
+
+	// Generate JWT tokens
+	accessToken, err := middleware.GenerateJWT(userCtx, h.config.JWT.Secret, h.config.JWT.Expiration)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Int64("user_id", user.UserID).
+			Msg("Failed to generate access token")
+		return nil, fmt.Errorf("failed to generate access token: %w", err)
+	}
+
+	// Generate refresh token (longer expiration)
+	refreshToken, err := middleware.GenerateJWT(userCtx, h.config.JWT.Secret, 7*24*time.Hour) // 7 days
+	if err != nil {
+		log.Error().
+			Err(err).
+			Int64("user_id", user.UserID).
+			Msg("Failed to generate refresh token")
+		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
+	}
+
+	// JWT cookies are automatically set by Huma's response handling
+	// The UserLoginResponse includes AccessTokenCookie and RefreshTokenCookie fields
+	// with header:"Set-Cookie" tags that Huma automatically processes
+	log.Info().
+		Int64("user_id", user.UserID).
+		Str("email", input.Body.Email).
+		Msg("User logged in successfully")
+
+	return models.NewUserLoginResponse(
+		accessToken,
+		refreshToken, // Include refresh token in response
+		int(user.UserID),
+		user.Email,
+		roles,
+		capabilities,
+		activePseudonymID,
+		displayName,
+		pseudonymInfos,
+	), nil
+}
+
+// LogoutUser handles user logout
+func (h *AuthHandler) LogoutUser(ctx context.Context, input *models.UserLogoutInput) (*models.UserLogoutResponse, error) {
+	log.Info().
+		Str("endpoint", "auth/logout").
+		Str("component", "auth_handler").
+		Msg("Processing user logout request")
+
+	// TODO: Implement token blacklisting for logout
+	// For now, just return success - the client should clear cookies/tokens
+	// In a production environment, you would:
+	// 1. Validate the refresh token
+	// 2. Add it to a blacklist (Redis/database)
+	// 3. Clear any server-side session data
+
+	log.Info().Msg("User logged out successfully")
+
+	return &models.UserLogoutResponse{
+		Message: "Logout successful. Please clear your local tokens and cookies.",
+	}, nil
+}
+
+// validateJWT validates and parses a JWT token
+func (h *AuthHandler) validateJWT(tokenString string) (*middleware.JWTClaims, error) {
+	// Parse the token
+	token, err := jwt.ParseWithClaims(tokenString, &middleware.JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
+		// Validate signing method
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(h.config.JWT.Secret), nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse JWT: %w", err)
+	}
+
+	if claims, ok := token.Claims.(*middleware.JWTClaims); ok && token.Valid {
+		return claims, nil
+	}
+
+	return nil, fmt.Errorf("invalid token")
+}
+
+// RefreshToken handles token refresh
+func (h *AuthHandler) RefreshToken(ctx context.Context, input *models.RefreshTokenInput) (*models.TokenRefreshResponse, error) {
+	log.Info().
+		Str("endpoint", "auth/refresh").
+		Str("component", "auth_handler").
+		Msg("Processing token refresh request")
+
+	// Validate the refresh token
+	claims, err := h.validateJWT(input.Body.RefreshToken)
+	if err != nil {
+		log.Warn().
+			Err(err).
+			Msg("Invalid refresh token provided")
+		return nil, fmt.Errorf("invalid refresh token: %w", err)
+	}
+
+	// Create user context from the refresh token claims
+	userCtx := &middleware.UserContext{
+		UserID:            claims.UserID,
+		Email:             claims.Email,
+		Roles:             claims.Roles,
+		Capabilities:      claims.Capabilities,
+		MFAEnabled:        claims.MFAEnabled,
+		ActivePseudonymID: claims.ActivePseudonymID,
+		DisplayName:       claims.DisplayName,
+	}
+
+	// Generate new access token
+	newAccessToken, err := middleware.GenerateJWT(userCtx, h.config.JWT.Secret, h.config.JWT.Expiration)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Int64("user_id", userCtx.UserID).
+			Msg("Failed to generate new access token")
+		return nil, fmt.Errorf("failed to generate new access token: %w", err)
+	}
+
+	log.Info().
+		Int64("user_id", userCtx.UserID).
+		Msg("Token refreshed successfully")
+
+	// Return new token response with cookie
+	return models.NewTokenRefreshResponse(newAccessToken, int(h.config.JWT.Expiration.Seconds())), nil
+}
+
+// hashPassword hashes a password using SHA-256
+func (h *AuthHandler) hashPassword(password string) string {
+	hash := sha256.Sum256([]byte(password))
+	return hex.EncodeToString(hash[:])
+}
+
+// verifyPassword verifies a password against a SHA-256 hash
+func (h *AuthHandler) verifyPassword(password, hash string) bool {
+	// Hash the provided password and compare with stored hash
+	passwordHash := h.hashPassword(password)
+	return passwordHash == hash
+}
+
+// generateSessionToken generates a random session token
+func (h *AuthHandler) generateSessionToken() (string, error) {
+	bytes := make([]byte, 32)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bytes), nil
+}

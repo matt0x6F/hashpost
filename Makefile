@@ -1,0 +1,173 @@
+# HashPost Makefile
+# Provides convenient commands for development and deployment
+
+.PHONY: help build run test clean migrate migrate-up migrate-down migrate-status migrate-create docker-build docker-up docker-down docker-logs generate test-integration docker-test-up docker-test-down test-integration-local test-integration-vscode
+
+# Default target
+help:
+	@echo "HashPost Development Commands"
+	@echo ""
+	@echo "Database Migrations:"
+	@echo "  migrate-up      Run pending database migrations"
+	@echo "  migrate-down    Rollback last migration"
+	@echo "  migrate-status  Show migration status"
+	@echo "  migrate-create  Create a new migration file"
+	@echo ""
+	@echo "Docker Commands:"
+	@echo "  docker-build    Build Docker images"
+	@echo "  docker-up       Start development environment"
+	@echo "  docker-down     Stop development environment"
+	@echo "  docker-logs     Show application logs"
+	@echo "  docker-prod     Start production environment"
+	@echo ""
+	@echo "Testing:"
+	@echo "  test            Run unit tests"
+	@echo "  test-integration Run integration tests (requires test database)"
+	@echo "  docker-test-up  Start test environment"
+	@echo "  docker-test-down Stop test environment"
+	@echo ""
+	@echo "Development:"
+	@echo "  build           Build the application"
+	@echo "  run             Run the application locally"
+	@echo "  clean           Clean build artifacts"
+
+# Database migration commands (run inside Docker Compose app container)
+migrate-up:
+	@echo "Running database migrations in Docker Compose app container..."
+	docker-compose exec app ./scripts/migrate.sh up
+
+migrate-down:
+	@echo "Rolling back last migration in Docker Compose app container..."
+	docker-compose exec app ./scripts/migrate.sh down
+
+migrate-status:
+	@echo "Migration status in Docker Compose app container:"
+	docker-compose exec app ./scripts/migrate.sh status
+
+migrate-create:
+	@if [ -z "$(name)" ]; then \
+		echo "Usage: make migrate-create name=migration_name"; \
+		exit 1; \
+	fi
+	@echo "Creating migration: $(name) in Docker Compose app container"
+	docker-compose exec app ./scripts/migrate.sh create $(name)
+
+# Docker commands
+docker-build:
+	@echo "Building Docker images..."
+	docker-compose build
+
+docker-up:
+	@echo "Starting development environment..."
+	docker-compose up -d --build
+
+docker-down:
+	@echo "Stopping development environment..."
+	docker-compose down
+
+docker-logs:
+	@echo "Showing application logs..."
+	docker-compose logs -f app
+
+docker-prod:
+	@echo "Starting production environment..."
+	docker-compose --profile production up -d
+
+# Test environment commands
+docker-test-up:
+	@echo "Starting test environment..."
+	docker-compose --profile test up -d --build
+
+docker-test-down:
+	@echo "Stopping test environment..."
+	docker-compose --profile test down
+
+# Development commands
+build:
+	@echo "Building application..."
+	go build -o bin/hashpost ./cmd/server
+
+run:
+	@echo "Running application locally..."
+	go run ./cmd/server
+
+test:
+	@echo "Running unit tests..."
+	go test ./...
+
+test-integration:
+	@echo "Running integration tests..."
+	@if [ -z "$(DATABASE_URL)" ]; then \
+		echo "Error: DATABASE_URL environment variable is required for integration tests"; \
+		echo "Example: DATABASE_URL='postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable' make test-integration"; \
+		echo "Or use: make docker-test-up to start test environment"; \
+		exit 1; \
+	fi
+	go test -v -tags=integration ./internal/api/handlers/... ./internal/api/middleware/... ./internal/database/dao/...
+
+test-integration-local:
+	@echo "Setting up clean test database..."
+	@echo "Starting test PostgreSQL container..."
+	docker-compose up -d postgres-test
+	@echo "Waiting for database to be ready..."
+	@sleep 3
+	@echo "Dropping test database if it exists..."
+	@docker-compose exec -T postgres-test psql -U hashpost -d postgres -c "DROP DATABASE IF EXISTS hashpost_test;" || true
+	@echo "Creating fresh test database..."
+	@docker-compose exec -T postgres-test psql -U hashpost -d postgres -c "CREATE DATABASE hashpost_test;" || true
+	@echo "Running migrations on test database..."
+	@DATABASE_URL='postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable' ./scripts/migrate.sh up
+	@echo "Running integration tests..."
+	@LOG_LEVEL=$${LOG_LEVEL:-error} DATABASE_URL='postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable' go test -v -tags=integration ./internal/api/integration/...
+	@echo "Cleaning up test database..."
+	@docker-compose exec -T postgres-test psql -U hashpost -d postgres -c "DROP DATABASE IF EXISTS hashpost_test;" || true
+
+# For VSCode test runner compatibility (runs integration tests if DATABASE_URL is set)
+test-integration-vscode:
+	@if [ -z "$(DATABASE_URL)" ]; then \
+		echo "Error: DATABASE_URL environment variable is required for integration tests"; \
+		echo "Example: DATABASE_URL='postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable' make test-integration-vscode"; \
+		exit 1; \
+	fi
+	go test -v -tags=integration ./internal/api/integration/...
+
+clean:
+	@echo "Cleaning build artifacts..."
+	rm -rf bin/
+	go clean
+
+# Database commands (local)
+db-create:
+	@echo "Creating database..."
+	createdb hashpost
+
+db-drop:
+	@echo "Dropping database..."
+	dropdb hashpost
+
+db-reset: db-drop db-create migrate-up
+	@echo "Database reset complete"
+
+# Utility commands
+install-tools:
+	@echo "Installing development tools..."
+	go install github.com/air-verse/air@latest
+	go install github.com/rubenv/sql-migrate/...@latest
+
+setup-dev: install-tools
+	@echo "Setting up development environment..."
+	@if ! command -v docker &> /dev/null; then \
+		echo "Docker is required but not installed"; \
+		exit 1; \
+	fi
+	@if ! command -v docker-compose &> /dev/null; then \
+		echo "Docker Compose is required but not installed"; \
+		exit 1; \
+	fi
+	@echo "Development environment setup complete"
+
+# Show help by default
+.DEFAULT_GOAL := help
+
+generate:
+	cd internal/database && go run github.com/stephenafamo/bob/gen/bobgen-psql@latest -c ../../bobgen.yaml 

@@ -1,0 +1,79 @@
+# Bob configuration for HashPost Identity-Based Encryption system
+# This file configures how Bob generates Go code from our database schema
+
+# Type system to use for optional and nullable types
+type_system: "github.com/aarondl/opt"
+
+# Struct tags to generate
+tags:
+  - "scan"
+  - "json"
+
+# Disable generating factories for models (we can enable this later if needed)
+no_factory: false
+
+# Disable generating go test files (we can enable this later if needed)
+no_tests: false
+
+# Disable back referencing in the loaded relationship structs
+no_back_referencing: false
+
+# Decides the casing for go structure tag names
+struct_tag_casing: "snake"
+
+# Relationship struct tag name
+relation_tag: "rel"
+
+# List of column names that should have tags values set to '-' (ignored during parsing)
+tag_ignore: []
+
+# Customize the generator name in the top level comment of generated files
+generator: "HashPost Generated Code"
+
+# PostgreSQL driver configuration
+psql:
+  dsn: "postgres://hashpost:hashpost_dev@localhost:5432/hashpost?sslmode=disable"
+
+# Schema to generate code for
+schema: "public"
+
+# Tables to include (empty means all tables)
+# tables: []
+
+# Tables to exclude
+# exclude: []
+
+# Custom types configuration
+types:
+  # We can add custom types here if needed
+  # For example, if we have custom PostgreSQL types
+
+# Aliases for table and column names
+aliases:
+  # We can customize generated names here if needed
+  # For example:
+  # users:
+  #   up_plural: "Users"
+  #   up_singular: "User"
+  #   down_plural: "users"
+  #   down_singular: "user"
+
+# Additional constraints (useful if database doesn't support them)
+constraints:
+  # We can define additional constraints here if needed
+
+# Additional relationships (useful for complex relationships)
+relationships:
+  # We can define additional relationships here if needed
+  # For example, many-to-many relationships through junction tables
+
+# Replacements for types
+replacements:
+  # We can override inferred types here if needed
+
+# Inflections for pluralization
+inflections:
+  # We can customize pluralization rules here if needed
+
+# Output directory for generated code
+wipe: true 

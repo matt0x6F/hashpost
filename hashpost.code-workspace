@@ -1,0 +1,39 @@
+{
+  "folders": [
+    {
+      "name": "HashPost",
+      "path": "."
+    }
+  ],
+  "settings": {
+    "go.useLanguageServer": true,
+    "go.languageServerExperimentalFeatures": {
+      "diagnostics": true,
+      "documentLink": true
+    },
+    "go.testEnvVars": {
+      "DATABASE_URL": "postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable"
+    },
+    "go.testFlags": ["-v"],
+    "go.testTimeout": "30s",
+    "go.toolsManagement.autoUpdate": true,
+    "go.gopath": "",
+    "go.goroot": "",
+    "go.alternateTools": {},
+    "go.buildTags": "",
+    "go.testTags": "",
+    "go.installDependenciesWhenBuilding": true,
+    "go.gocodeAutoBuild": false,
+    "go.testOnSave": false,
+    "go.coverOnSave": false,
+    "go.buildOnSave": "off",
+    "go.lintOnSave": "off",
+    "go.vetOnSave": "off"
+  },
+  "extensions": {
+    "recommendations": [
+      "golang.go",
+      "premparihar.gotestexplorer"
+    ]
+  }
+} 

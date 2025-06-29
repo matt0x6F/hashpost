@@ -1,0 +1,327 @@
+# HashPost Cursor Rules
+
+## Huma Framework Patterns
+
+### Request Inputs
+When working with Huma request inputs, follow these patterns from the [Huma Request Inputs documentation](https://huma.rocks/features/request-inputs/):
+
+1. **Input Structs**: Use Go structs with special tags for parameters and body
+2. **Parameter Tags**:
+   - `path:"param-name"` for path parameters
+   - `query:"param-name"` for query string parameters  
+   - `header:"Header-Name"` for HTTP headers
+   - `cookie:"cookie-name"` for cookies
+   - `required:"true"` for required query/header params (use sparingly)
+
+3. **Body Handling**:
+   - Use `Body` field for structured request bodies
+   - Use `RawBody []byte` for raw/unstructured data
+   - Use `contentType:"application/type"` to override content type
+
+4. **Input Composition**: Compose reusable input structs by embedding them:
+   ```go
+   type AuthParam struct {
+       Authorization string `header:"Authorization"`
+   }
+   
+   type MyInput struct {
+       AuthParam
+       ID   string `path:"id"`
+       Body MyBody
+   }
+   ```
+
+### Response Outputs
+When working with Huma response outputs, follow the [Huma Response Outputs documentation](https://huma.rocks/features/response-outputs/):
+
+1. **Output Structs**: Use Go structs with special fields for responses
+2. **Status Code**: Use `Status` field with integer value (e.g., `Status: 201`)
+3. **Headers**: Use `header:"Header-Name"` tags for response headers
+4. **Cookies**: Use `http.Cookie` type with `header:"Set-Cookie"` tag
+5. **Body**: Use `Body` field for structured response bodies
+6. **Raw Responses**: Use `[]byte` type to bypass serialization
+
+### Huma Input Schema vs. Actual Requests
+- The `Body` field in Huma input structs is for schema definition and OpenAPI documentation only.
+- Actual API requests and integration tests should send payloads as flat JSON objects, not nested under a `body` key.
+
+## Database Operations
+
+### Migrations
+Follow this workflow for database schema changes:
+
+1. **Create Migration**: `make migrate-create name=descriptive_migration_name`
+2. **Edit Migration**: Modify the generated file in `internal/database/migrations/`
+3. **Apply Migration**: `make migrate-up`
+4. **Verify Status**: `make migrate-status`
+5. **Generate Models**: `make generate` (regenerates Bob models)
+6. **Test Compilation**: `go build ./...`
+
+### Bob Model Generation
+After applying migrations, always regenerate the Bob models:
+- **Generate**: `make generate`
+- **Clean**: `make clean` (if needed)
+
+## Testing
+
+### Integration Tests
+For integration testing, use the isolated test framework:
+
+1. **Run Locally**: `make test-integration-local`
+   - This drops/recreates the test database
+   - Runs migrations on clean database
+   - Executes integration tests
+   - Cleans up after completion
+
+2. **Test Structure**: Each test should be self-contained:
+   - Create all required test data using `suite.CreateTestUser()`, `suite.CreateTestSubforum()`, etc.
+   - The framework automatically tracks and cleans up all created entities
+   - Tests run in isolation - no shared state between tests
+
+3. **Test Data Creation**:
+   ```go
+   // Create test user with roles
+   testUser := suite.CreateTestUser(t, "test@example.com", "password123", []string{"user"})
+   
+   // Create test subforum
+   testSubforum := suite.CreateTestSubforum(t, "test-sub", "Description", testUser.UserID, false)
+   
+   // Create test post
+   testPost := suite.CreateTestPost(t, "Title", "Content", testSubforum.SubforumID, testUser.UserID, testUser.PseudonymID)
+   ```
+
+4. **HTTP Testing**: Use the test suite helpers:
+   ```go
+   // Login and get token
+   loginResp := suite.LoginUser(t, server, testUser.Email, testUser.Password)
+   token := suite.ExtractTokenFromResponse(t, loginResp)
+   
+   // Make authenticated requests
+   resp := suite.MakeAuthenticatedRequest(t, server, "POST", "/endpoint", token, requestBody)
+   ```
+
+### Unit Tests
+- Run with: `make test`
+- Use table-driven tests where appropriate
+- Mock external dependencies
+- Test both success and error cases
+
+## Development Workflow
+
+### Environment Setup
+1. **Start Development**: `make dev` (starts Docker Compose with hot reload)
+2. **Database Operations**: Use Makefile targets for migrations
+3. **Code Generation**: Run `make generate` after schema changes
+
+### Configuration
+- The application uses environment variables for configuration
+- `DATABASE_URL` takes precedence over individual DB_* variables
+- Test database runs on port 5433 (vs 5432 for development)
+
+### Code Style
+- Use explicit keys on all models across the codebase
+- Use zerolog for logging instead of Go standard logger
+- Follow Go naming conventions
+- Use proper error handling with wrapped errors
+- Include comprehensive tests for new functionality
+
+### API Development
+- Use Huma's struct-based input/output patterns
+- Leverage input composition for reusable patterns
+- Use proper HTTP status codes and headers
+- Document APIs with meaningful operation IDs and summaries
+
+### Authentication
+The system supports two authentication methods:
+
+1. **JWT Tokens** - For user sessions (stored in cookies)
+   - JWTs are transmitted via HTTP cookies for security (prevents XSS attacks)
+   - The auth middleware automatically extracts JWT tokens from cookies
+   - For API clients that can't use cookies, JWT tokens can be passed in Authorization header: `Authorization: Bearer <jwt_token>`
+   - JWT tokens contain user context and permissions
+   - Tokens are automatically refreshed via refresh tokens
+
+2. **API Keys (Bot Tokens)** - For programmatic access
+   - Stored statically in the database with associated permissions
+   - Passed in Authorization header: `Authorization: Bearer <api_key>`
+   - Each API key is associated with a specific pseudonym
+   - API keys have granular permissions (roles and capabilities)
+   - Keys are hashed with SHA-256 before storage
+
+**Implementation Notes:**
+- The auth middleware automatically detects the token type and validates accordingly
+- JWT tokens take precedence over API keys when both are present
+- For integration tests, use the test suite helpers that handle authentication automatically
+- When creating API endpoints, the middleware automatically injects user context into the request
+
+**Security Considerations:**
+- JWT cookies should use `httpOnly` and `secure` flags in production
+- API keys should be rotated regularly
+- Both authentication methods support role-based access control (RBAC)
+- Failed authentication attempts are logged for security monitoring
+
+### Database Operations
+- All development is done in Docker Compose
+- Database migrations are automatically run on container startup
+- Use the Makefile targets for database operations
+- Always test migrations in development before applying to production
+
+## Common Commands
+
+### Development
+- `make dev` - Start development environment
+- `make build` - Build application
+- `make run` - Run locally (without Docker)
+- `make clean` - Clean build artifacts
+
+### Database
+- `make migrate-up` - Apply pending migrations
+- `make migrate-down` - Rollback last migration
+- `make migrate-status` - Show migration status
+- `make migrate-create name=migration_name` - Create new migration
+
+### Testing
+- `make test` - Run unit tests
+- `make test-integration-local` - Run integration tests with clean database
+- `make test-integration` - Run integration tests (requires DATABASE_URL)
+
+### Code Quality
+- `make fmt` - Format code
+- `make lint` - Lint code
+
+## Best Practices
+
+1. **Always run integration tests locally before committing**
+2. **Use the isolated test framework for all integration tests**
+3. **Follow Huma patterns for request/response handling**
+4. **Keep migrations small and focused**
+5. **Regenerate Bob models after schema changes**
+6. **Use proper error handling and logging**
+7. **Write comprehensive tests for new functionality**
+8. **Use environment variables for configuration**
+9. **Follow Go naming conventions and style guidelines**
+
+## Common Operations
+
+### Database Migrations
+
+When working with database migrations, follow this workflow:
+
+1. **Create a new migration:**
+   ```bash
+   make migrate-create name=descriptive_migration_name
+   ```
+
+2. **Apply migrations:**
+   ```bash
+   make migrate-up
+   ```
+
+3. **Check migration status:**
+   ```bash
+   make migrate-status
+   ```
+
+4. **Rollback migrations (if needed):**
+   ```bash
+   make migrate-down
+   ```
+
+### Bob Model Generation
+
+After applying database migrations, always regenerate the Bob models:
+
+1. **Generate models:**
+   ```bash
+   make generate
+   ```
+
+2. **Clean generated files (if needed):**
+   ```bash
+   make clean
+   ```
+
+### Complete Migration Workflow
+
+When making database schema changes:
+
+1. Create migration: `make migrate-create name=your_migration_name`
+2. Edit the generated migration file in `internal/database/migrations/`
+3. Apply migration: `make migrate-up`
+4. Verify status: `make migrate-status`
+5. Generate models: `make generate`
+6. Test that everything compiles: `go build ./...`
+
+### Development Commands
+
+- **Start development environment:** `make dev`
+- **Run tests:** `make test`
+- **Build application:** `make build`
+- **Clean build artifacts:** `make clean`
+- **Format code:** `make fmt`
+- **Lint code:** `make lint`
+
+### API Key Management
+
+When working with API keys:
+
+- API keys are now associated with pseudonyms via `pseudonym_id`
+- Use the `APIKeyDAO` for all API key operations
+- API keys are hashed with SHA-256 before storage
+- Permissions are stored as JSON with roles and capabilities
+- Always validate API keys through the DAO, not directly
+
+### Authentication
+
+The system supports two authentication methods:
+
+1. **JWT Tokens** - For user sessions (stored in cookies)
+2. **API Keys** - For programmatic access (passed in Authorization header)
+
+Both are handled by the auth middleware automatically.
+
+### Code Style
+
+- Use explicit keys on all models across the codebase
+- Use zerolog for logging instead of the Go standard logger
+- Follow Go naming conventions
+- Use proper error handling with wrapped errors
+- Include comprehensive tests for new functionality
+
+### Database Operations
+
+- All development is done in Docker Compose
+- Database migrations are automatically run on container startup
+- Use the Makefile targets for database operations
+- Always test migrations in development before applying to production
+
+### Testing
+
+- Write tests for all new functionality
+- Use table-driven tests where appropriate
+- Mock external dependencies
+- Test both success and error cases
+- Run tests before committing: `make test`
+
+## Integration Test Payloads
+
+- When writing integration tests, always send request payloads as flat JSON objects.
+- Do NOT nest payloads under a 'body' key in test requests.
+- The 'body' key is only used in Huma input schemas to delineate body fields, not in actual API requests.
+- Example:
+  ```go
+  // Correct:
+  payload := map[string]string{
+      "display_name": "TestPseudonym",
+      "bio": "Test bio",
+  }
+  resp := suite.MakeAuthenticatedRequest(t, server, "POST", "/pseudonyms", token, payload)
+  // Incorrect:
+  payload := map[string]interface{}{
+      "body": map[string]string{
+          "display_name": "TestPseudonym",
+          "bio": "Test bio",
+      },
+  }
+  resp := suite.MakeAuthenticatedRequest(t, server, "POST", "/pseudonyms", token, payload)
+  ``` 

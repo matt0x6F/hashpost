@@ -1,0 +1,451 @@
+@startuml HashPost Database ERD
+
+!define table(x) class x << (T,#FFAAAA) >>
+!define view(x) class x << (V,#FFAAAA) >>
+
+' Core User Tables
+table(users) {
+  + user_id : BIGINT PK
+  + email : VARCHAR(255) UK
+  + password_hash : VARCHAR(255)
+  + created_at : TIMESTAMP
+  + last_active_at : TIMESTAMP
+  + is_active : BOOLEAN
+  + is_suspended : BOOLEAN
+  + suspension_reason : TEXT
+  + suspension_expires_at : TIMESTAMP
+  + roles : JSON
+  + capabilities : JSON
+  + admin_username : VARCHAR(100) UK
+  + admin_password_hash : VARCHAR(255)
+  + mfa_enabled : BOOLEAN
+  + mfa_secret : VARCHAR(255)
+  + moderated_subforums : JSON
+  + admin_scope : VARCHAR(100)
+}
+
+table(pseudonyms) {
+  + pseudonym_id : VARCHAR(64) PK
+  + user_id : BIGINT
+  + display_name : VARCHAR(50)
+  + karma_score : INTEGER
+  + created_at : TIMESTAMP
+  + last_active_at : TIMESTAMP
+  + is_active : BOOLEAN
+  + bio : TEXT
+  + avatar_url : VARCHAR(255)
+  + website_url : VARCHAR(255)
+  + show_karma : BOOLEAN
+  + allow_direct_messages : BOOLEAN
+}
+
+table(user_preferences) {
+  + user_id : BIGINT PK
+  + timezone : VARCHAR(50)
+  + language : VARCHAR(10)
+  + theme : VARCHAR(20)
+  + email_notifications : BOOLEAN
+  + push_notifications : BOOLEAN
+  + auto_hide_nsfw : BOOLEAN
+  + auto_hide_spoilers : BOOLEAN
+  + created_at : TIMESTAMP
+  + updated_at : TIMESTAMP
+}
+
+' Identity Management Tables
+table(identity_mappings) {
+  + mapping_id : UUID PK
+  + fingerprint : VARCHAR(32)
+  + pseudonym_id : VARCHAR(64)
+  + encrypted_real_identity : BYTEA
+  + encrypted_pseudonym_mapping : BYTEA
+  + key_version : INTEGER
+  + created_at : TIMESTAMP
+  + updated_at : TIMESTAMP
+  + is_active : BOOLEAN
+}
+
+table(role_keys) {
+  + key_id : UUID PK
+  + role_name : VARCHAR(100)
+  + scope : VARCHAR(100)
+  + key_data : BYTEA
+  + key_version : INTEGER
+  + capabilities : JSON
+  + created_at : TIMESTAMP
+  + expires_at : TIMESTAMP
+  + is_active : BOOLEAN
+  + created_by : BIGINT
+}
+
+' Community Tables
+table(subforums) {
+  + subforum_id : INTEGER PK
+  + name : VARCHAR(50) UK
+  + display_name : VARCHAR(100)
+  + description : TEXT
+  + sidebar_text : TEXT
+  + rules_text : TEXT
+  + created_at : TIMESTAMP
+  + created_by_user_id : BIGINT
+  + subscriber_count : INTEGER
+  + post_count : INTEGER
+  + is_private : BOOLEAN
+  + is_restricted : BOOLEAN
+  + is_nsfw : BOOLEAN
+  + is_quarantined : BOOLEAN
+  + allow_images : BOOLEAN
+  + allow_videos : BOOLEAN
+  + allow_polls : BOOLEAN
+  + require_flair : BOOLEAN
+  + minimum_account_age_hours : INTEGER
+  + minimum_karma_required : INTEGER
+}
+
+table(subforum_subscriptions) {
+  + subscription_id : BIGINT PK
+  + pseudonym_id : VARCHAR(64)
+  + subforum_id : INTEGER
+  + subscribed_at : TIMESTAMP
+  + is_favorite : BOOLEAN
+}
+
+table(subforum_moderators) {
+  + moderator_id : BIGINT PK
+  + subforum_id : INTEGER
+  + user_id : BIGINT
+  + pseudonym_id : VARCHAR(64)
+  + role : VARCHAR(20)
+  + added_at : TIMESTAMP
+  + added_by_user_id : BIGINT
+  + permissions : JSON
+}
+
+' Content Tables
+table(posts) {
+  + post_id : BIGINT PK
+  + user_id : BIGINT
+  + subforum_id : INTEGER
+  + title : VARCHAR(300)
+  + content : TEXT
+  + post_type : VARCHAR(20)
+  + url : VARCHAR(2048)
+  + is_self_post : BOOLEAN
+  + is_nsfw : BOOLEAN
+  + is_spoiler : BOOLEAN
+  + is_locked : BOOLEAN
+  + is_stickied : BOOLEAN
+  + is_archived : BOOLEAN
+  + created_at : TIMESTAMP
+  + updated_at : TIMESTAMP
+  + score : INTEGER
+  + upvotes : INTEGER
+  + downvotes : INTEGER
+  + comment_count : INTEGER
+  + view_count : INTEGER
+  + is_removed : BOOLEAN
+  + removed_by_user_id : BIGINT
+  + removed_by_pseudonym_id : VARCHAR(64)
+  + removal_reason : VARCHAR(100)
+  + removed_at : TIMESTAMP
+}
+
+table(comments) {
+  + comment_id : BIGINT PK
+  + post_id : BIGINT
+  + parent_comment_id : BIGINT
+  + user_id : BIGINT
+  + content : TEXT
+  + created_at : TIMESTAMP
+  + updated_at : TIMESTAMP
+  + score : INTEGER
+  + upvotes : INTEGER
+  + downvotes : INTEGER
+  + is_edited : BOOLEAN
+  + edited_at : TIMESTAMP
+  + edit_reason : VARCHAR(100)
+  + is_removed : BOOLEAN
+  + removed_by_user_id : BIGINT
+  + removed_by_pseudonym_id : VARCHAR(64)
+  + removal_reason : VARCHAR(100)
+  + removed_at : TIMESTAMP
+}
+
+table(votes) {
+  + vote_id : BIGINT PK
+  + pseudonym_id : VARCHAR(64)
+  + content_type : VARCHAR(10)
+  + content_id : BIGINT
+  + vote_value : INTEGER
+  + created_at : TIMESTAMP
+  + updated_at : TIMESTAMP
+}
+
+' Media and Attachments
+table(media_attachments) {
+  + attachment_id : BIGINT PK
+  + post_id : BIGINT
+  + file_name : VARCHAR(255)
+  + file_path : VARCHAR(500)
+  + file_size : BIGINT
+  + mime_type : VARCHAR(100)
+  + width : INTEGER
+  + height : INTEGER
+  + duration_seconds : INTEGER
+  + created_at : TIMESTAMP
+}
+
+table(polls) {
+  + poll_id : BIGINT PK
+  + post_id : BIGINT UK
+  + question : TEXT
+  + options : JSON
+  + allow_multiple_votes : BOOLEAN
+  + expires_at : TIMESTAMP
+  + created_at : TIMESTAMP
+}
+
+table(poll_votes) {
+  + vote_id : BIGINT PK
+  + poll_id : BIGINT
+  + pseudonym_id : VARCHAR(64)
+  + selected_options : JSON
+  + created_at : TIMESTAMP
+}
+
+' User Interaction Tables
+table(user_blocks) {
+  + block_id : BIGINT PK
+  + blocked_pseudonym_id : VARCHAR(64) // nullable, set for persona block
+  + blocked_user_id : BIGINT // nullable, set for 'block all personas' (admin/backend only)
+  + created_at : TIMESTAMP
+  -- Only one of blocked_pseudonym_id or blocked_user_id is set per row
+}
+
+table(direct_messages) {
+  + message_id : BIGINT PK
+  + sender_pseudonym_id : VARCHAR(64)
+  + recipient_pseudonym_id : VARCHAR(64)
+  + content : TEXT
+  + is_read : BOOLEAN
+  + created_at : TIMESTAMP
+}
+
+' Moderation Tables
+table(reports) {
+  + report_id : BIGINT PK
+  + reporter_user_id : BIGINT
+  + content_type : VARCHAR(10)
+  + content_id : BIGINT
+  + reported_user_id : BIGINT
+  + report_reason : VARCHAR(100)
+  + report_details : TEXT
+  + created_at : TIMESTAMP
+  + status : VARCHAR(20)
+  + resolved_by_user_id : BIGINT
+  + resolved_by_pseudonym_id : VARCHAR(64)
+  + resolution_notes : TEXT
+  + resolved_at : TIMESTAMP
+}
+
+table(user_bans) {
+  + ban_id : BIGINT PK
+  + subforum_id : INTEGER
+  + banned_user_id : BIGINT
+  + banned_by_user_id : BIGINT
+  + banned_by_pseudonym_id : VARCHAR(64)
+  + ban_reason : TEXT
+  + is_permanent : BOOLEAN
+  + expires_at : TIMESTAMP
+  + created_at : TIMESTAMP
+  + is_active : BOOLEAN
+}
+
+table(moderation_actions) {
+  + action_id : BIGINT PK
+  + moderator_user_id : BIGINT
+  + moderator_pseudonym_id : VARCHAR(64)
+  + subforum_id : INTEGER
+  + action_type : VARCHAR(50)
+  + target_content_type : VARCHAR(10)
+  + target_content_id : BIGINT
+  + target_user_id : BIGINT
+  + action_details : JSON
+  + created_at : TIMESTAMP
+}
+
+' Audit and Compliance Tables
+table(correlation_audit) {
+  + audit_id : UUID PK
+  + user_id : BIGINT
+  + pseudonym_id : VARCHAR(64)
+  + admin_username : VARCHAR(100)
+  + role_used : VARCHAR(50)
+  + requested_pseudonym : VARCHAR(64)
+  + requested_fingerprint : VARCHAR(32)
+  + justification : TEXT
+  + correlation_type : VARCHAR(20)
+  + correlation_result : JSON
+  + timestamp : TIMESTAMP
+  + legal_basis : VARCHAR(100)
+  + incident_id : VARCHAR(100)
+  + request_source : VARCHAR(50)
+  + ip_address : INET
+  + user_agent : TEXT
+}
+
+table(key_usage_audit) {
+  + usage_id : UUID PK
+  + key_id : UUID
+  + user_id : BIGINT
+  + operation_type : VARCHAR(50)
+  + target_fingerprint : VARCHAR(32)
+  + target_pseudonym : VARCHAR(64)
+  + success : BOOLEAN
+  + error_message : TEXT
+  + timestamp : TIMESTAMP
+  + ip_address : INET
+  + user_agent : TEXT
+}
+
+table(compliance_reports) {
+  + report_id : UUID PK
+  + report_type : VARCHAR(50)
+  + requesting_authority : VARCHAR(255)
+  + request_id : VARCHAR(100)
+  + request_date : DATE
+  + due_date : DATE
+  + status : VARCHAR(20)
+  + scope_description : TEXT
+  + legal_basis : TEXT
+  + assigned_user_id : BIGINT
+  + created_at : TIMESTAMP
+  + completed_at : TIMESTAMP
+  + notes : TEXT
+}
+
+table(compliance_correlations) {
+  + correlation_id : UUID PK
+  + report_id : UUID
+  + audit_id : UUID
+  + correlation_scope : TEXT
+  + created_at : TIMESTAMP
+}
+
+' System Tables
+table(system_settings) {
+  + setting_key : VARCHAR(100) PK
+  + setting_value : TEXT
+  + setting_type : VARCHAR(20)
+  + description : TEXT
+  + updated_at : TIMESTAMP
+  + updated_by : BIGINT
+}
+
+table(api_keys) {
+  + key_id : BIGINT PK
+  + key_name : VARCHAR(100)
+  + key_hash : VARCHAR(255)
+  + permissions : JSON
+  + created_at : TIMESTAMP
+  + expires_at : TIMESTAMP
+  + is_active : BOOLEAN
+  + last_used_at : TIMESTAMP
+}
+
+table(system_events) {
+  + event_id : UUID PK
+  + event_type : VARCHAR(50)
+  + event_severity : VARCHAR(20)
+  + event_message : TEXT
+  + event_data : JSON
+  + source_component : VARCHAR(100)
+  + timestamp : TIMESTAMP
+}
+
+table(performance_metrics) {
+  + metric_id : UUID PK
+  + metric_name : VARCHAR(100)
+  + metric_value : DECIMAL(15,4)
+  + metric_unit : VARCHAR(20)
+  + component : VARCHAR(100)
+  + timestamp : TIMESTAMP
+}
+
+table(role_definitions) {
+  + role_id : INTEGER PK
+  + role_name : VARCHAR(50) UK
+  + display_name : VARCHAR(100)
+  + description : TEXT
+  + capabilities : JSON
+  + correlation_access : VARCHAR(20)
+  + scope : VARCHAR(100)
+  + time_window : VARCHAR(20)
+  + created_at : TIMESTAMP
+}
+
+' Relationships - Core User
+users ||--o{ user_preferences : "has"
+users ||--o{ pseudonyms : "has"
+users ||--o{ identity_mappings : "maps to"
+users ||--o{ role_keys : "creates"
+users ||--o{ subforums : "creates"
+users ||--o{ user_bans : "bans"
+users ||--o{ user_bans : "banned"
+users ||--o{ moderation_actions : "performs"
+users ||--o{ correlation_audit : "performs"
+users ||--o{ key_usage_audit : "uses"
+users ||--o{ compliance_reports : "assigned to"
+users ||--o{ system_settings : "updates"
+
+' Relationships - Pseudonyms
+pseudonyms ||--o{ posts : "creates"
+pseudonyms ||--o{ comments : "creates"
+pseudonyms ||--o{ votes : "casts"
+pseudonyms ||--o{ user_blocks : "blocks"
+pseudonyms ||--o{ user_blocks : "blocked by"
+pseudonyms ||--o{ direct_messages : "sends"
+pseudonyms ||--o{ direct_messages : "receives"
+pseudonyms ||--o{ reports : "reports"
+pseudonyms ||--o{ reports : "reported"
+pseudonyms ||--o{ subforum_subscriptions : "subscribes"
+pseudonyms ||--o{ subforum_moderators : "moderates"
+pseudonyms ||--o{ poll_votes : "votes"
+
+' Relationships - Community
+subforums ||--o{ subforum_subscriptions : "has subscribers"
+subforums ||--o{ subforum_moderators : "has moderators"
+subforums ||--o{ posts : "contains"
+subforums ||--o{ user_bans : "bans users"
+subforums ||--o{ moderation_actions : "moderated"
+
+' Relationships - Content
+posts ||--o{ comments : "has"
+posts ||--o{ votes : "receives"
+posts ||--o{ media_attachments : "has"
+posts ||--|| polls : "has"
+posts ||--o{ reports : "reported"
+comments ||--o{ comments : "replies to"
+comments ||--o{ votes : "receives"
+comments ||--o{ reports : "reported"
+polls ||--o{ poll_votes : "receives"
+
+' Relationships - Identity & Audit
+identity_mappings ||--o{ correlation_audit : "audited"
+role_keys ||--o{ key_usage_audit : "used"
+correlation_audit ||--o{ compliance_correlations : "linked"
+compliance_reports ||--o{ compliance_correlations : "includes"
+
+' Relationships - Moderation
+reports ||--o{ moderation_actions : "resolved by"
+user_bans ||--o{ moderation_actions : "created by"
+
+' Self-referencing relationships
+comments ||--o{ comments : "parent_comment_id"
+users ||--o{ subforum_moderators : "added_by_user_id"
+users ||--o{ posts : "removed_by_user_id"
+users ||--o{ comments : "removed_by_user_id"
+users ||--o{ reports : "resolved_by_user_id"
+users ||--o{ moderation_actions : "target_user_id"
+
+@enduml 

@@ -1,0 +1,20 @@
+# sql-migrate configuration for HashPost
+# This file configures the migration tool to work with our PostgreSQL database
+
+development:
+  dialect: postgres
+  datasource: "${DATABASE_URL}"
+  dir: "internal/database/migrations"
+  table: "schema_migrations"
+
+production:
+  dialect: postgres
+  datasource: "${DATABASE_URL}"
+  dir: "internal/database/migrations"
+  table: "schema_migrations"
+
+test:
+  dialect: postgres
+  datasource: "postgres://hashpost:hashpost_test@localhost:5432/hashpost_test?sslmode=disable"
+  dir: "internal/database/migrations"
+  table: "schema_migrations" 

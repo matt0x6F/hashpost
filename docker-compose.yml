@@ -1,0 +1,89 @@
+services:
+  # PostgreSQL database
+  postgres:
+    image: postgres:16-alpine
+    container_name: hashpost-postgres
+    environment:
+      POSTGRES_DB: hashpost
+      POSTGRES_USER: hashpost
+      POSTGRES_PASSWORD: hashpost_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hashpost -d hashpost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hashpost-network
+
+  # Test PostgreSQL database for integration tests
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: hashpost-postgres-test
+    environment:
+      POSTGRES_DB: hashpost_test
+      POSTGRES_USER: hashpost
+      POSTGRES_PASSWORD: hashpost_test
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hashpost -d hashpost_test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hashpost-network
+    profiles:
+      - test
+
+  # Application with Air for hot reloading
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: hashpost-app
+    ports:
+      - "8888:8888"
+    volumes:
+      # Mount source code for hot reloading
+      - .:/app
+      # Exclude node_modules and other unnecessary files
+      - /app/tmp
+      - /app/.git
+    environment:
+      # Database connection - individual variables for the application
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: hashpost
+      DB_PASSWORD: hashpost_dev
+      DB_NAME: hashpost
+      DB_SSLMODE: disable
+      # Database connection - URL format for compatibility
+      DATABASE_URL: postgres://hashpost:hashpost_dev@postgres:5432/hashpost?sslmode=disable
+      # Air configuration
+      AIR_WD: /app
+      # Application environment
+      ENV: development
+      # Migration configuration
+      MIGRATIONS_DIR: /app/internal/database/migrations
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - hashpost-network
+    # The entrypoint script will handle migrations and starting the app
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  postgres_test_data:
+
+networks:
+  hashpost-network:
+    driver: bridge 
