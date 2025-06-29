@@ -145,8 +145,7 @@ type UserLoginResponse struct {
 	Status int                   `json:"-" example:"200"`
 	Body   UserLoginResponseBody `json:"body"`
 	// JWT cookies set automatically by Huma
-	AccessTokenCookie  http.Cookie `header:"Set-Cookie"`
-	RefreshTokenCookie http.Cookie `header:"Set-Cookie"`
+	Cookies []http.Cookie `header:"Set-Cookie"`
 }
 
 // TokenRefreshResponse represents a token refresh response
@@ -154,12 +153,35 @@ type TokenRefreshResponse struct {
 	Status int                      `json:"-" example:"200"`
 	Body   TokenRefreshResponseBody `json:"body"`
 	// JWT cookie set automatically by Huma
-	AccessTokenCookie http.Cookie `header:"Set-Cookie"`
+	Cookies []http.Cookie `header:"Set-Cookie"`
 }
 
 // UserLogoutResponse represents user logout response
 type UserLogoutResponse struct {
-	Message string `json:"message" example:"Logout successful"`
+	Status  int           `json:"-" example:"200"`
+	Message string        `json:"message" example:"Logout successful"`
+	Cookies []http.Cookie `header:"Set-Cookie"`
+}
+
+// CurrentUserSessionResponseBody represents the body of current user session response
+type CurrentUserSessionResponseBody struct {
+	UserID            int             `json:"user_id" example:"123"`
+	Email             string          `json:"email" example:"user@example.com"`
+	CreatedAt         string          `json:"created_at" example:"2024-01-01T12:00:00Z"`
+	LastActiveAt      string          `json:"last_active_at" example:"2024-01-01T18:00:00Z"`
+	IsActive          bool            `json:"is_active" example:"true"`
+	IsSuspended       bool            `json:"is_suspended" example:"false"`
+	Roles             []string        `json:"roles" example:"[\"user\"]"`
+	Capabilities      []string        `json:"capabilities" example:"[\"create_content\",\"vote\",\"message\",\"report\"]"`
+	ActivePseudonymID string          `json:"active_pseudonym_id" example:"pseudonym_123"`
+	DisplayName       string          `json:"display_name" example:"User123"`
+	Pseudonyms        []PseudonymInfo `json:"pseudonyms"`
+}
+
+// CurrentUserSessionResponse represents current user session response
+type CurrentUserSessionResponse struct {
+	Status int                            `json:"-" example:"200"`
+	Body   CurrentUserSessionResponseBody `json:"body"`
 }
 
 // NewUserRegistrationResponse creates a new user registration response
@@ -187,14 +209,15 @@ func NewUserRegistrationResponse(userID int, email string, roles, capabilities [
 }
 
 // NewUserLoginResponse creates a new user login response
-func NewUserLoginResponse(accessToken, refreshToken string, userID int, email string, roles, capabilities []string, activePseudonymID, displayName string, pseudonyms []PseudonymInfo) *UserLoginResponse {
+func NewUserLoginResponse(accessToken, refreshToken string, userID int, email string, roles, capabilities []string, activePseudonymID, displayName string, pseudonyms []PseudonymInfo, isDevelopment bool) *UserLoginResponse {
 	// Create cookies for JWT tokens
 	accessCookie := http.Cookie{
 		Name:     "access_token",
 		Value:    accessToken,
 		Path:     "/",
+		Domain:   "", // Empty domain means current domain
 		HttpOnly: true,
-		Secure:   true, // Set to false in development
+		Secure:   !isDevelopment, // Secure only in production
 		SameSite: http.SameSiteStrictMode,
 		Expires:  time.Now().Add(24 * time.Hour), // 24 hours
 	}
@@ -203,8 +226,9 @@ func NewUserLoginResponse(accessToken, refreshToken string, userID int, email st
 		Name:     "refresh_token",
 		Value:    refreshToken,
 		Path:     "/",
+		Domain:   "", // Empty domain means current domain
 		HttpOnly: true,
-		Secure:   true, // Set to false in development
+		Secure:   !isDevelopment, // Secure only in production
 		SameSite: http.SameSiteStrictMode,
 		Expires:  time.Now().Add(7 * 24 * time.Hour), // 7 days
 	}
@@ -226,20 +250,20 @@ func NewUserLoginResponse(accessToken, refreshToken string, userID int, email st
 			DisplayName:       displayName,
 			Pseudonyms:        pseudonyms,
 		},
-		AccessTokenCookie:  accessCookie,
-		RefreshTokenCookie: refreshCookie,
+		Cookies: []http.Cookie{accessCookie, refreshCookie},
 	}
 }
 
 // NewTokenRefreshResponse creates a new token refresh response
-func NewTokenRefreshResponse(accessToken string, expiresIn int) *TokenRefreshResponse {
+func NewTokenRefreshResponse(accessToken string, expiresIn int, isDevelopment bool) *TokenRefreshResponse {
 	// Create cookie for the new access token
 	accessCookie := http.Cookie{
 		Name:     "access_token",
 		Value:    accessToken,
 		Path:     "/",
+		Domain:   "", // Empty domain means current domain
 		HttpOnly: true,
-		Secure:   true, // Set to false in development
+		Secure:   !isDevelopment, // Secure only in production
 		SameSite: http.SameSiteStrictMode,
 		Expires:  time.Now().Add(time.Duration(expiresIn) * time.Second),
 	}
@@ -250,6 +274,60 @@ func NewTokenRefreshResponse(accessToken string, expiresIn int) *TokenRefreshRes
 			AccessToken: accessToken,
 			ExpiresIn:   expiresIn,
 		},
-		AccessTokenCookie: accessCookie,
+		Cookies: []http.Cookie{accessCookie},
+	}
+}
+
+// NewCurrentUserSessionResponse creates a new current user session response
+func NewCurrentUserSessionResponse(userID int, email string, roles, capabilities []string, activePseudonymID, displayName string, pseudonyms []PseudonymInfo) *CurrentUserSessionResponse {
+	return &CurrentUserSessionResponse{
+		Status: 200,
+		Body: CurrentUserSessionResponseBody{
+			UserID:            userID,
+			Email:             email,
+			CreatedAt:         time.Now().Format(time.RFC3339),
+			LastActiveAt:      time.Now().Format(time.RFC3339),
+			IsActive:          true,
+			IsSuspended:       false,
+			Roles:             roles,
+			Capabilities:      capabilities,
+			ActivePseudonymID: activePseudonymID,
+			DisplayName:       displayName,
+			Pseudonyms:        pseudonyms,
+		},
+	}
+}
+
+// NewUserLogoutResponse creates a new user logout response with expired cookies
+func NewUserLogoutResponse(isDevelopment bool) *UserLogoutResponse {
+	// Create expired cookies to clear the existing JWT cookies
+	accessCookie := http.Cookie{
+		Name:     "access_token",
+		Value:    "",
+		Path:     "/",
+		Domain:   "", // Empty domain means current domain
+		HttpOnly: true,
+		Secure:   !isDevelopment, // Secure only in production
+		SameSite: http.SameSiteStrictMode,
+		Expires:  time.Now().Add(-1 * time.Hour), // Expired in the past
+		MaxAge:   -1,                             // Immediate expiration
+	}
+
+	refreshCookie := http.Cookie{
+		Name:     "refresh_token",
+		Value:    "",
+		Path:     "/",
+		Domain:   "", // Empty domain means current domain
+		HttpOnly: true,
+		Secure:   !isDevelopment, // Secure only in production
+		SameSite: http.SameSiteStrictMode,
+		Expires:  time.Now().Add(-1 * time.Hour), // Expired in the past
+		MaxAge:   -1,                             // Immediate expiration
+	}
+
+	return &UserLogoutResponse{
+		Status:  200,
+		Message: "Logout successful. Cookies have been cleared.",
+		Cookies: []http.Cookie{accessCookie, refreshCookie},
 	}
 }

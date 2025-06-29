@@ -17,9 +17,10 @@ import (
 
 // Server represents the API server
 type Server struct {
-	API    huma.API
-	Mux    *http.ServeMux
-	Config huma.Config
+	API       huma.API
+	Mux       *http.ServeMux
+	Config    huma.Config
+	AppConfig *config.Config
 }
 
 // NewServer creates a new API server with middleware and routes
@@ -68,7 +69,7 @@ func NewServer() *Server {
 
 	// Add router-agnostic middleware
 	api.UseMiddleware(middleware.LoggingMiddleware)
-	api.UseMiddleware(middleware.CORSMiddleware)
+	api.UseMiddleware(middleware.CORSMiddleware(&cfg.CORS))
 
 	// Add authentication middleware to extract user context
 	api.UseMiddleware(middleware.AuthenticateUserHuma)
@@ -90,9 +91,10 @@ func NewServer() *Server {
 	routes.RegisterCorrelationRoutes(api, db, ibeSystem, pseudonymDAO, identityMappingDAO, postDAO, commentDAO)
 
 	return &Server{
-		API:    api,
-		Mux:    mux,
-		Config: config,
+		API:       api,
+		Mux:       mux,
+		Config:    config,
+		AppConfig: cfg,
 	}
 }
 
@@ -103,6 +105,6 @@ func (s *Server) GetMux() *http.ServeMux {
 
 // GetHandler returns the HTTP handler with router-specific middleware applied
 func (s *Server) GetHandler() http.Handler {
-	// Apply router-specific middleware to the entire mux
-	return middleware.NewRouterMiddleware(s.Mux)
+	// Apply CORS middleware first, then router middleware
+	return middleware.CORSMiddlewareHTTP(&s.AppConfig.CORS)(middleware.NewRouterMiddleware(s.Mux))
 }

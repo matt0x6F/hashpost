@@ -324,4 +324,59 @@ Both are handled by the auth middleware automatically.
       },
   }
   resp := suite.MakeAuthenticatedRequest(t, server, "POST", "/pseudonyms", token, payload)
-  ``` 
+  ```
+
+## UI Development
+
+### Technology Stack
+The UI in the `@/ui` directory uses:
+
+1. **Next.js** - React framework for production
+   - Use App Router (not Pages Router)
+   - Follow Next.js 13+ conventions
+   - Use TypeScript for all components
+   - Implement proper error boundaries and loading states
+
+2. **ShadCN/UI** - Component library
+   - Use ShadCN components for consistent design
+   - Follow ShadCN patterns and conventions
+   - Customize components through CSS variables when needed
+   - Use the `components.json` configuration for theming
+
+### UI Development Guidelines
+
+1. **Component Structure**:
+   - Use functional components with TypeScript
+   - Implement proper prop interfaces
+   - Use React hooks appropriately
+   - Follow ShadCN component patterns
+
+2. **Styling**:
+   - Use Tailwind CSS for styling
+   - Leverage ShadCN's design system
+   - Maintain consistent spacing and typography
+   - Use CSS variables for theming
+
+3. **State Management**:
+   - Use React hooks for local state
+   - Consider context for global state when needed
+   - Implement proper loading and error states
+
+4. **API Integration**:
+   - Use the API client in `lib/api.ts`
+   - Handle authentication properly
+   - Implement proper error handling
+   - Use optimistic updates where appropriate
+
+5. **Performance**:
+   - Use Next.js Image component for images
+   - Implement proper loading states
+   - Use React.memo for expensive components
+   - Follow Next.js best practices for optimization
+
+### UI Commands
+
+- **Start UI development server**: `cd ui && npm run dev`
+- **Build UI**: `cd ui && npm run build`
+- **Lint UI**: `cd ui && npm run lint`
+- **Type check**: `cd ui && npm run type-check` 
