@@ -1,16 +1,21 @@
 //go:build integration
 
-package dao
+package integration
 
 import (
 	"context"
+	"crypto/sha256"
+	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/matt0x6f/hashpost/internal/database/models"
+	dbmodels "github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/matt0x6f/hashpost/internal/testutil"
 	"github.com/stephenafamo/bob"
+	"github.com/stephenafamo/bob/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -229,29 +234,66 @@ func TestEnsureDefaultKeys_KeyUpdate(t *testing.T) {
 	roleKeyDAO := suite.RoleKeyDAO
 	ibeSystem := suite.IBESystem
 
-	// Create test user
-	testUser := suite.CreateTestUser(t, "update@example.com", "password123", []string{"user"})
+	// Create test user without calling EnsureDefaultKeys first
+	// This simulates a user that was created before the role key system was implemented
+	passwordHash := hashPassword("password123")
+	user, err := suite.UserDAO.CreateUser(ctx, "update@example.com", passwordHash)
+	require.NoError(t, err, "Failed to create test user")
 
-	// Create a key with missing capabilities
+	// Set user roles
+	rolesJSON, _ := json.Marshal([]string{"user"})
+	capabilities := getCapabilitiesForRoles([]string{"user"})
+	capabilitiesJSON, _ := json.Marshal(capabilities)
+
+	rolesNull := sql.Null[types.JSON[json.RawMessage]]{}
+	rolesNull.Scan(rolesJSON)
+
+	capabilitiesNull := sql.Null[types.JSON[json.RawMessage]]{}
+	capabilitiesNull.Scan(capabilitiesJSON)
+
+	updates := &dbmodels.UserSetter{
+		Roles:        &rolesNull,
+		Capabilities: &capabilitiesNull,
+	}
+
+	err = suite.UserDAO.UpdateUser(ctx, user.UserID, updates)
+	require.NoError(t, err, "Failed to update test user roles")
+
+	// Track user for cleanup
+	suite.Tracker.TrackUser(user.UserID)
+
+	// Create a key with missing capabilities (simulating an incomplete key)
 	keyData := ibeSystem.GenerateTestRoleKey("user", "authentication")
 	expiresAt := time.Now().AddDate(1, 0, 0)
-	_, err := roleKeyDAO.CreateRoleKey(ctx, "user", "authentication", keyData, []string{"login"}, expiresAt, testUser.UserID)
+	_, err = roleKeyDAO.CreateRoleKey(ctx, "user", "authentication", keyData, []string{"login"}, expiresAt, user.UserID)
 	require.NoError(t, err, "Failed to create incomplete key")
 
-	// Ensure default keys (should update existing key)
-	err = roleKeyDAO.EnsureDefaultKeys(ctx, ibeSystem, testUser.UserID)
+	// Verify we have only 1 key initially
+	roleKeys := getRoleKeysForUser(t, suite.DB, user.UserID)
+	assert.Len(t, roleKeys, 1, "Should have 1 role key initially")
+
+	// Ensure default keys (should update existing key and create missing ones)
+	err = roleKeyDAO.EnsureDefaultKeys(ctx, ibeSystem, user.UserID)
 	require.NoError(t, err, "Failed to ensure default keys")
 
-	// Verify the key was updated with all required capabilities
-	roleKeys := getRoleKeysForUser(t, suite.DB, testUser.UserID)
-	assert.Len(t, roleKeys, 2, "Should have 2 role keys")
+	// Verify the keys were properly created/updated
+	roleKeys = getRoleKeysForUser(t, suite.DB, user.UserID)
+	assert.Len(t, roleKeys, 2, "Should have 2 role keys after ensuring defaults")
 
+	// Check that the authentication key was updated with all required capabilities
 	authKey := findRoleKey(roleKeys, "user", "authentication")
 	require.NotNil(t, authKey, "Authentication key should exist")
-	capabilities := getCapabilities(t, authKey)
+	capabilities = getCapabilities(t, authKey)
 	assert.Contains(t, capabilities, "access_own_pseudonyms")
 	assert.Contains(t, capabilities, "login")
 	assert.Contains(t, capabilities, "session_management")
+
+	// Check that the self-correlation key was created
+	selfKey := findRoleKey(roleKeys, "user", "self_correlation")
+	require.NotNil(t, selfKey, "Self-correlation key should exist")
+	capabilities = getCapabilities(t, selfKey)
+	assert.Contains(t, capabilities, "verify_own_pseudonym_ownership")
+	assert.Contains(t, capabilities, "manage_own_profile")
 }
 
 func TestEnsureDefaultKeys_UserNotFound(t *testing.T) {
@@ -302,4 +344,29 @@ func getRoleKeysForUser(t *testing.T, db bob.DB, userID int64) []*models.RoleKey
 	require.NoError(t, err, "Failed to get role keys for user")
 
 	return roleKeys
+}
+
+// Helper functions for user creation
+func hashPassword(password string) string {
+	hash := sha256.Sum256([]byte(password))
+	return hex.EncodeToString(hash[:])
+}
+
+func getCapabilitiesForRoles(roles []string) []string {
+	capabilities := []string{}
+
+	for _, role := range roles {
+		switch role {
+		case "user":
+			capabilities = append(capabilities, "create_content", "vote", "message", "report")
+		case "platform_admin":
+			capabilities = append(capabilities, "create_content", "vote", "message", "report", "create_subforum", "moderation", "compliance", "legal_requests")
+		case "trust_safety":
+			capabilities = append(capabilities, "create_content", "vote", "message", "report", "moderation", "compliance")
+		case "legal_team":
+			capabilities = append(capabilities, "create_content", "vote", "message", "report", "compliance", "legal_requests")
+		}
+	}
+
+	return capabilities
 }
