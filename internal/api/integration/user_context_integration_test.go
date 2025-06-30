@@ -363,7 +363,7 @@ func TestUserContext_MultiplePseudonyms_Integration(t *testing.T) {
 		server := suite.CreateTestServer()
 		defer server.Close()
 
-		testUser := suite.CreateTestUser(t, "update@example.com", "TestPassword123!", []string{"user"})
+		testUser := suite.CreateTestUser(t, "updateprofile@example.com", "TestPassword123!", []string{"user"})
 		loginResp := suite.LoginUser(t, server, testUser.Email, testUser.Password)
 		token := suite.ExtractTokenFromResponse(t, loginResp)
 

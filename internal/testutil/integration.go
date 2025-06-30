@@ -245,6 +245,14 @@ func (t *TestEntityTracker) Cleanup(ctx context.Context, db bob.DB) error {
 		}
 	}
 
+	// 10. Role Keys (depend on users)
+	for keyID := range t.roleKeys {
+		log.Info().Str("key_id", keyID).Msg("[TestEntityTracker] Deleting role key")
+		if _, err := db.ExecContext(ctx, "DELETE FROM role_keys WHERE key_id = $1", keyID); err != nil {
+			return fmt.Errorf("failed to cleanup role key %s: %w", keyID, err)
+		}
+	}
+
 	// 11. Pseudonyms (depend on users)
 	for pseudonymID := range t.pseudonyms {
 		log.Info().Str("pseudonym_id", pseudonymID).Msg("[TestEntityTracker] Deleting pseudonym")
@@ -329,6 +337,18 @@ func (ts *IntegrationTestSuite) EnsureDefaultKeys(t *testing.T, createdBy int64)
 	// Ensure default keys exist for the user's actual roles
 	if err := ts.RoleKeyDAO.EnsureDefaultKeys(ctx, ts.IBESystem, createdBy); err != nil {
 		t.Fatalf("Failed to ensure default keys: %v", err)
+	}
+
+	// DEBUG: Print all role keys for this user (createdBy)
+	roleKeys, err := dbmodels.RoleKeys.Query(dbmodels.SelectWhere.RoleKeys.CreatedBy.EQ(createdBy)).All(ctx, ts.DB)
+	if err != nil {
+		t.Fatalf("[DEBUG] Failed to fetch role keys for user %d: %v", createdBy, err)
+	}
+	fmt.Printf("[DEBUG] Role keys for user %d: %v\n", createdBy, roleKeys)
+
+	// Track role keys for cleanup
+	for _, roleKey := range roleKeys {
+		ts.Tracker.TrackRoleKey(roleKey.KeyID.String())
 	}
 
 	// Role key tracking removed: Role keys are global entities that persist across tests
@@ -697,6 +717,16 @@ func (ts *IntegrationTestSuite) CreateTestUser(t *testing.T, email, password str
 	if err := ts.RoleKeyDAO.EnsureDefaultKeys(ctx, ts.IBESystem, user.UserID); err != nil {
 		t.Fatalf("Failed to ensure default keys for test user: %v", err)
 	}
+
+	// Track role keys for cleanup
+	roleKeys, err := dbmodels.RoleKeys.Query(dbmodels.SelectWhere.RoleKeys.CreatedBy.EQ(user.UserID)).All(ctx, ts.DB)
+	if err != nil {
+		t.Fatalf("[DEBUG] Failed to fetch role keys for user %d: %v", user.UserID, err)
+	}
+	for _, roleKey := range roleKeys {
+		ts.Tracker.TrackRoleKey(roleKey.KeyID.String())
+	}
+	fmt.Printf("[DEBUG] Role keys for user %d: %v\n", user.UserID, roleKeys)
 
 	// Create pseudonym for the user
 	displayName := fmt.Sprintf("test_user_%d", user.UserID)

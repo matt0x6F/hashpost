@@ -27,16 +27,8 @@ func TestEnsureDefaultKeys_RegularUser(t *testing.T) {
 	}
 	defer suite.Cleanup()
 
-	ctx := context.Background()
-	roleKeyDAO := suite.RoleKeyDAO
-	ibeSystem := suite.IBESystem
-
-	// Create test user with "user" role
+	// Create test user with "user" role (EnsureDefaultKeys is called automatically)
 	testUser := suite.CreateTestUser(t, "testuser@example.com", "password123", []string{"user"})
-
-	// Ensure default keys
-	err := roleKeyDAO.EnsureDefaultKeys(ctx, ibeSystem, testUser.UserID)
-	require.NoError(t, err, "Failed to ensure default keys")
 
 	// Verify per-user role keys were created
 	roleKeys := getPerUserRoleKeys(t, suite.DB, testUser.UserID)
@@ -67,16 +59,8 @@ func TestEnsureDefaultKeys_PlatformAdmin(t *testing.T) {
 	}
 	defer suite.Cleanup()
 
-	ctx := context.Background()
-	roleKeyDAO := suite.RoleKeyDAO
-	ibeSystem := suite.IBESystem
-
-	// Create test user with "platform_admin" role
-	testUser := suite.CreateTestUser(t, "admin@example.com", "password123", []string{"platform_admin"})
-
-	// Ensure default keys
-	err := roleKeyDAO.EnsureDefaultKeys(ctx, ibeSystem, testUser.UserID)
-	require.NoError(t, err, "Failed to ensure default keys")
+	// Create test user with "platform_admin" role (EnsureDefaultKeys is called automatically)
+	suite.CreateTestUser(t, "admin@example.com", "password123", []string{"platform_admin"})
 
 	// Verify global role keys exist for platform_admin
 	roleKeys := getGlobalRoleKeysForRoles(t, suite.DB, []string{"platform_admin"})
@@ -110,16 +94,8 @@ func TestEnsureDefaultKeys_TrustSafety(t *testing.T) {
 	}
 	defer suite.Cleanup()
 
-	ctx := context.Background()
-	roleKeyDAO := suite.RoleKeyDAO
-	ibeSystem := suite.IBESystem
-
-	// Create test user with "trust_safety" role
+	// Create test user with "trust_safety" role (EnsureDefaultKeys is called automatically)
 	testUser := suite.CreateTestUser(t, "trustsafety@example.com", "password123", []string{"trust_safety"})
-
-	// Ensure default keys
-	err := roleKeyDAO.EnsureDefaultKeys(ctx, ibeSystem, testUser.UserID)
-	require.NoError(t, err, "Failed to ensure default keys")
 
 	// Verify role keys were created
 	roleKeys := getPerUserRoleKeys(t, suite.DB, testUser.UserID)
@@ -138,16 +114,8 @@ func TestEnsureDefaultKeys_LegalTeam(t *testing.T) {
 	}
 	defer suite.Cleanup()
 
-	ctx := context.Background()
-	roleKeyDAO := suite.RoleKeyDAO
-	ibeSystem := suite.IBESystem
-
-	// Create test user with "legal_team" role
+	// Create test user with "legal_team" role (EnsureDefaultKeys is called automatically)
 	testUser := suite.CreateTestUser(t, "legal@example.com", "password123", []string{"legal_team"})
-
-	// Ensure default keys
-	err := roleKeyDAO.EnsureDefaultKeys(ctx, ibeSystem, testUser.UserID)
-	require.NoError(t, err, "Failed to ensure default keys")
 
 	// Verify role keys were created
 	roleKeys := getPerUserRoleKeys(t, suite.DB, testUser.UserID)
@@ -166,16 +134,8 @@ func TestEnsureDefaultKeys_UserWithoutRoles(t *testing.T) {
 	}
 	defer suite.Cleanup()
 
-	ctx := context.Background()
-	roleKeyDAO := suite.RoleKeyDAO
-	ibeSystem := suite.IBESystem
-
-	// Create test user without roles
+	// Create test user without roles (EnsureDefaultKeys is called automatically)
 	testUser := suite.CreateTestUser(t, "noroles@example.com", "password123", nil)
-
-	// Ensure default keys
-	err := roleKeyDAO.EnsureDefaultKeys(ctx, ibeSystem, testUser.UserID)
-	require.NoError(t, err, "Failed to ensure default keys")
 
 	// Verify only basic user keys were created
 	roleKeys := getPerUserRoleKeys(t, suite.DB, testUser.UserID)
@@ -194,16 +154,8 @@ func TestEnsureDefaultKeys_UserWithMultipleRoles(t *testing.T) {
 	}
 	defer suite.Cleanup()
 
-	ctx := context.Background()
-	roleKeyDAO := suite.RoleKeyDAO
-	ibeSystem := suite.IBESystem
-
-	// Create test user with multiple roles
+	// Create test user with multiple roles (EnsureDefaultKeys is called automatically)
 	testUser := suite.CreateTestUser(t, "multi@example.com", "password123", []string{"user", "platform_admin"})
-
-	// Ensure default keys
-	err := roleKeyDAO.EnsureDefaultKeys(ctx, ibeSystem, testUser.UserID)
-	require.NoError(t, err, "Failed to ensure default keys")
 
 	// Verify role keys were created
 	roleKeys := getPerUserRoleKeys(t, suite.DB, testUser.UserID)
@@ -220,7 +172,7 @@ func TestEnsureDefaultKeys_UserWithMultipleRoles(t *testing.T) {
 			count++
 		}
 	}
-	assert.Equal(t, 1, count, "Should only have one correlation key for admin role")
+	assert.Equal(t, 1, count, "Should have exactly one correlation key")
 }
 
 func TestEnsureDefaultKeys_KeyUpdate(t *testing.T) {
@@ -278,8 +230,13 @@ func TestEnsureDefaultKeys_KeyUpdate(t *testing.T) {
 	err = roleKeyDAO.EnsureDefaultKeys(ctx, ibeSystem, user.UserID)
 	require.NoError(t, err, "Failed to ensure default keys")
 
-	// Verify the keys were properly created/updated
+	// Track all role keys for cleanup
 	roleKeys = getPerUserRoleKeys(t, suite.DB, user.UserID)
+	for _, roleKey := range roleKeys {
+		suite.Tracker.TrackRoleKey(roleKey.KeyID.String())
+	}
+
+	// Verify the keys were properly created/updated
 	assert.Len(t, roleKeys, 2, "Should have 2 per-user role keys after ensuring defaults")
 
 	// Check that the authentication key was updated with all required capabilities
@@ -350,10 +307,18 @@ func getPerUserRoleKeys(t *testing.T, db bob.DB, userID int64) []*models.RoleKey
 
 func getGlobalRoleKeysForRoles(t *testing.T, db bob.DB, roles []string) []*models.RoleKey {
 	ctx := context.Background()
+
+	// First, find the bootstrap user ID
+	bootstrapUser, err := models.Users.Query(
+		models.SelectWhere.Users.Email.EQ("bootstrap@test.local"),
+	).One(ctx, db)
+	require.NoError(t, err, "Failed to find bootstrap user")
+
 	var allRoleKeys []*models.RoleKey
 	for _, roleName := range roles {
 		roleKeys, err := models.RoleKeys.Query(
 			models.SelectWhere.RoleKeys.RoleName.EQ(roleName),
+			models.SelectWhere.RoleKeys.CreatedBy.EQ(bootstrapUser.UserID),
 		).All(ctx, db)
 		require.NoError(t, err, "Failed to get global role keys for role %s", roleName)
 		allRoleKeys = append(allRoleKeys, roleKeys...)
@@ -373,7 +338,7 @@ func getCapabilitiesForRoles(roles []string) []string {
 	for _, role := range roles {
 		switch role {
 		case "user":
-			capabilities = append(capabilities, "create_content", "vote", "message", "report")
+			capabilities = append(capabilities, "create_content", "vote", "message", "report", "create_subforum")
 		case "platform_admin":
 			capabilities = append(capabilities, "create_content", "vote", "message", "report", "create_subforum", "moderation", "compliance", "legal_requests")
 		case "trust_safety":

@@ -70,7 +70,7 @@ func (dao *RoleKeyDAO) CreateRoleKey(ctx context.Context, roleName, scope string
 	return roleKey, nil
 }
 
-// GetRoleKey retrieves a role key by role name and scope
+// GetRoleKey retrieves a role key by role name and scope (global keys)
 func (dao *RoleKeyDAO) GetRoleKey(ctx context.Context, roleName, scope string) (*models.RoleKey, error) {
 	roleKey, err := models.RoleKeys.Query(
 		models.SelectWhere.RoleKeys.RoleName.EQ(roleName),
@@ -81,6 +81,23 @@ func (dao *RoleKeyDAO) GetRoleKey(ctx context.Context, roleName, scope string) (
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get role key for role=%s scope=%s: %w", roleName, scope, err)
+	}
+
+	return roleKey, nil
+}
+
+// GetPerUserRoleKey retrieves a per-user role key by role name, scope, and createdBy
+func (dao *RoleKeyDAO) GetPerUserRoleKey(ctx context.Context, roleName, scope string, createdBy int64) (*models.RoleKey, error) {
+	roleKey, err := models.RoleKeys.Query(
+		models.SelectWhere.RoleKeys.RoleName.EQ(roleName),
+		models.SelectWhere.RoleKeys.Scope.EQ(scope),
+		models.SelectWhere.RoleKeys.CreatedBy.EQ(createdBy),
+		models.SelectWhere.RoleKeys.IsActive.EQ(true),
+		models.SelectWhere.RoleKeys.ExpiresAt.GT(time.Now()),
+	).One(ctx, dao.db)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get per-user role key for role=%s scope=%s createdBy=%d: %w", roleName, scope, createdBy, err)
 	}
 
 	return roleKey, nil
@@ -231,6 +248,7 @@ func (dao *RoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interfac
 		userRoles = []string{"user"}
 	}
 
+	fmt.Printf("[DEBUG] EnsureDefaultKeys: user_id=%d, user_roles=%v\n", userID, userRoles)
 	log.Debug().Int64("user_id", userID).Strs("user_roles", userRoles).Msg("Provisioning role keys for user")
 
 	// Define default keys for each user role
@@ -294,32 +312,40 @@ func (dao *RoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interfac
 		}
 	}
 
+	fmt.Printf("[DEBUG] EnsureDefaultKeys: defaultKeys to provision: %+v\n", defaultKeys)
 	log.Debug().Int64("user_id", userID).Msgf("defaultKeys to provision: %+v", defaultKeys)
 
 	// Check if each default key exists, create if not
 	for _, keyDef := range defaultKeys {
+		fmt.Printf("[DEBUG] EnsureDefaultKeys: checking role=%s scope=%s\n", keyDef.roleName, keyDef.scope)
 		log.Debug().Str("role", keyDef.roleName).Str("scope", keyDef.scope).Msg("Checking if role key exists")
-		existingKey, err := dao.GetRoleKey(ctx, keyDef.roleName, keyDef.scope)
+		existingKey, err := dao.GetPerUserRoleKey(ctx, keyDef.roleName, keyDef.scope, userID)
 		if errors.Is(err, sql.ErrNoRows) {
 			// Key doesn't exist, create it with proper IBE key
+			fmt.Printf("[DEBUG] EnsureDefaultKeys: role key doesn't exist, creating role=%s scope=%s\n", keyDef.roleName, keyDef.scope)
 			log.Debug().Str("role", keyDef.roleName).Str("scope", keyDef.scope).Msg("Role key doesn't exist, creating it")
 			expiresAt := time.Now().AddDate(1, 0, 0) // Expire in 1 year
 
 			// Generate key data using the actual role name and scope
 			keyData := ibe.GenerateTestRoleKey(keyDef.roleName, keyDef.scope)
+			fmt.Printf("[DEBUG] EnsureDefaultKeys: generated IBE key data for role=%s scope=%s, length=%d\n", keyDef.roleName, keyDef.scope, len(keyData))
 			log.Debug().Str("role", keyDef.roleName).Str("scope", keyDef.scope).Int("key_data_length", len(keyData)).Msg("Generated IBE key data")
 
 			createdKey, err := dao.CreateRoleKey(ctx, keyDef.roleName, keyDef.scope, keyData, keyDef.capabilities, expiresAt, userID)
 			if err != nil {
+				fmt.Printf("[DEBUG] EnsureDefaultKeys: FAILED to create role key role=%s scope=%s: %v\n", keyDef.roleName, keyDef.scope, err)
 				log.Error().Str("role", keyDef.roleName).Str("scope", keyDef.scope).Err(err).Msg("Failed to create role key")
 				return fmt.Errorf("failed to create default key for role=%s scope=%s: %w", keyDef.roleName, keyDef.scope, err)
 			}
+			fmt.Printf("[DEBUG] EnsureDefaultKeys: SUCCESSFULLY created role key role=%s scope=%s, key_id=%s\n", keyDef.roleName, keyDef.scope, createdKey.KeyID.String())
 			log.Debug().Str("role", keyDef.roleName).Str("scope", keyDef.scope).Str("key_id", createdKey.KeyID.String()).Msg("Successfully created role key")
 		} else if err != nil {
 			// Unexpected error, log and return
+			fmt.Printf("[DEBUG] EnsureDefaultKeys: ERROR retrieving role key role=%s scope=%s: %v\n", keyDef.roleName, keyDef.scope, err)
 			log.Error().Str("role", keyDef.roleName).Str("scope", keyDef.scope).Err(err).Msg("Failed to retrieve role key")
 			return fmt.Errorf("failed to retrieve role key for role=%s scope=%s: %w", keyDef.roleName, keyDef.scope, err)
 		} else {
+			fmt.Printf("[DEBUG] EnsureDefaultKeys: role key already exists role=%s scope=%s\n", keyDef.roleName, keyDef.scope)
 			log.Debug().Str("role", keyDef.roleName).Str("scope", keyDef.scope).Msg("Role key already exists, checking if update needed")
 			// Key exists, check if it needs updating
 			capabilitiesBytes, err := existingKey.Capabilities.Value()
@@ -347,6 +373,7 @@ func (dao *RoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interfac
 			}
 
 			if needsUpdate {
+				fmt.Printf("[DEBUG] EnsureDefaultKeys: updating role key capabilities role=%s scope=%s\n", keyDef.roleName, keyDef.scope)
 				log.Debug().Str("role", keyDef.roleName).Str("scope", keyDef.scope).Msg("Updating role key capabilities")
 				// Update the key with new capabilities
 				capabilitiesJSON, _ := json.Marshal(keyDef.capabilities)
@@ -368,10 +395,13 @@ func (dao *RoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interfac
 	// After provisioning, log all role keys for the user
 	roleKeys, err := models.RoleKeys.Query(models.SelectWhere.RoleKeys.CreatedBy.EQ(userID)).All(ctx, dao.db)
 	if err == nil {
+		fmt.Printf("[DEBUG] EnsureDefaultKeys: after provisioning, found %d role keys for user %d\n", len(roleKeys), userID)
 		for _, k := range roleKeys {
+			fmt.Printf("[DEBUG] EnsureDefaultKeys: role key present in DB: role=%s scope=%s\n", k.RoleName, k.Scope)
 			log.Debug().Str("role", k.RoleName).Str("scope", k.Scope).Msg("Role key present in DB after provisioning")
 		}
 	} else {
+		fmt.Printf("[DEBUG] EnsureDefaultKeys: FAILED to query role keys after provisioning for user %d: %v\n", userID, err)
 		log.Error().Int64("user_id", userID).Err(err).Msg("Failed to query role keys after provisioning")
 	}
 

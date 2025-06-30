@@ -115,7 +115,7 @@ test-integration:
 		echo "Or use: make docker-test-up to start test environment"; \
 		exit 1; \
 	fi
-	go test -v -tags=integration ./internal/api/handlers/... ./internal/api/middleware/... ./internal/database/dao/...
+	go test -v -tags=integration ./...
 
 test-integration-local:
 	@echo "Setting up clean test database..."
@@ -128,7 +128,7 @@ test-integration-local:
 	@docker-compose --profile test exec -T postgres-test psql -U hashpost -d postgres -c "CREATE DATABASE hashpost_test;" || true
 	@DATABASE_URL='postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable' ./scripts/migrate.sh up
 	@echo "Running integration tests..."
-	@LOG_LEVEL=$${LOG_LEVEL:-error} DATABASE_URL='postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable' go test -v -tags=integration ./internal/api/integration/...
+	@LOG_LEVEL=$${LOG_LEVEL:-error} DATABASE_URL='postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable' go test -v -tags=integration ./...
 
 # For VSCode test runner compatibility (runs integration tests if DATABASE_URL is set)
 test-integration-vscode:
@@ -137,7 +137,7 @@ test-integration-vscode:
 		echo "Example: DATABASE_URL='postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable' make test-integration-vscode"; \
 		exit 1; \
 	fi
-	go test -v -tags=integration ./internal/api/integration/...
+	go test -v -tags=integration ./...
 
 clean:
 	@echo "Cleaning build artifacts..."
