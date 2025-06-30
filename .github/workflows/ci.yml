@@ -106,6 +106,10 @@ jobs:
             pg_isready -h localhost -p 5433 -U hashpost && break
             sleep 2
           done
+      - name: Run database migrations
+        env:
+          DATABASE_URL: postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable
+        run: ./scripts/migrate.sh up
       - name: Run integration tests
         env:
           DATABASE_URL: postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable
