@@ -69,7 +69,6 @@ type userR struct {
 	ModeratorUserModerationActions []*userRModeratorUserModerationActionsR
 	TargetUserModerationActions    []*userRTargetUserModerationActionsR
 	RemovedByUserPosts             []*userRRemovedByUserPostsR
-	Pseudonyms                     []*userRPseudonymsR
 	ResolvedByUserReports          []*userRResolvedByUserReportsR
 	CreatedByRoleKeys              []*userRCreatedByRoleKeysR
 	AddedByUserSubforumModerators  []*userRAddedByUserSubforumModeratorsR
@@ -113,10 +112,6 @@ type userRTargetUserModerationActionsR struct {
 type userRRemovedByUserPostsR struct {
 	number int
 	o      *PostTemplate
-}
-type userRPseudonymsR struct {
-	number int
-	o      *PseudonymTemplate
 }
 type userRResolvedByUserReportsR struct {
 	number int
@@ -270,19 +265,6 @@ func (t UserTemplate) setModelRels(o *models.User) {
 			rel = append(rel, related...)
 		}
 		o.R.RemovedByUserPosts = rel
-	}
-
-	if t.r.Pseudonyms != nil {
-		rel := models.PseudonymSlice{}
-		for _, r := range t.r.Pseudonyms {
-			related := r.o.BuildMany(r.number)
-			for _, rel := range related {
-				rel.UserID = o.UserID // h2
-				rel.R.User = o
-			}
-			rel = append(rel, related...)
-		}
-		o.R.Pseudonyms = rel
 	}
 
 	if t.r.ResolvedByUserReports != nil {
@@ -735,34 +717,17 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 		}
 	}
 
-	isPseudonymsDone, _ := userRelPseudonymsCtx.Value(ctx)
-	if !isPseudonymsDone && o.r.Pseudonyms != nil {
-		ctx = userRelPseudonymsCtx.WithValue(ctx, true)
-		for _, r := range o.r.Pseudonyms {
-			var rel8 models.PseudonymSlice
+	isResolvedByUserReportsDone, _ := userRelResolvedByUserReportsCtx.Value(ctx)
+	if !isResolvedByUserReportsDone && o.r.ResolvedByUserReports != nil {
+		ctx = userRelResolvedByUserReportsCtx.WithValue(ctx, true)
+		for _, r := range o.r.ResolvedByUserReports {
+			var rel8 models.ReportSlice
 			ctx, rel8, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachPseudonyms(ctx, exec, rel8...)
-			if err != nil {
-				return ctx, err
-			}
-		}
-	}
-
-	isResolvedByUserReportsDone, _ := userRelResolvedByUserReportsCtx.Value(ctx)
-	if !isResolvedByUserReportsDone && o.r.ResolvedByUserReports != nil {
-		ctx = userRelResolvedByUserReportsCtx.WithValue(ctx, true)
-		for _, r := range o.r.ResolvedByUserReports {
-			var rel9 models.ReportSlice
-			ctx, rel9, err = r.o.createMany(ctx, exec, r.number)
-			if err != nil {
-				return ctx, err
-			}
-
-			err = m.AttachResolvedByUserReports(ctx, exec, rel9...)
+			err = m.AttachResolvedByUserReports(ctx, exec, rel8...)
 			if err != nil {
 				return ctx, err
 			}
@@ -773,13 +738,13 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 	if !isCreatedByRoleKeysDone && o.r.CreatedByRoleKeys != nil {
 		ctx = userRelCreatedByRoleKeysCtx.WithValue(ctx, true)
 		for _, r := range o.r.CreatedByRoleKeys {
-			var rel10 models.RoleKeySlice
-			ctx, rel10, err = r.o.createMany(ctx, exec, r.number)
+			var rel9 models.RoleKeySlice
+			ctx, rel9, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachCreatedByRoleKeys(ctx, exec, rel10...)
+			err = m.AttachCreatedByRoleKeys(ctx, exec, rel9...)
 			if err != nil {
 				return ctx, err
 			}
@@ -790,13 +755,13 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 	if !isAddedByUserSubforumModeratorsDone && o.r.AddedByUserSubforumModerators != nil {
 		ctx = userRelAddedByUserSubforumModeratorsCtx.WithValue(ctx, true)
 		for _, r := range o.r.AddedByUserSubforumModerators {
-			var rel11 models.SubforumModeratorSlice
-			ctx, rel11, err = r.o.createMany(ctx, exec, r.number)
+			var rel10 models.SubforumModeratorSlice
+			ctx, rel10, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachAddedByUserSubforumModerators(ctx, exec, rel11...)
+			err = m.AttachAddedByUserSubforumModerators(ctx, exec, rel10...)
 			if err != nil {
 				return ctx, err
 			}
@@ -807,13 +772,13 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 	if !isSubforumModeratorsDone && o.r.SubforumModerators != nil {
 		ctx = userRelSubforumModeratorsCtx.WithValue(ctx, true)
 		for _, r := range o.r.SubforumModerators {
-			var rel12 models.SubforumModeratorSlice
-			ctx, rel12, err = r.o.createMany(ctx, exec, r.number)
+			var rel11 models.SubforumModeratorSlice
+			ctx, rel11, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachSubforumModerators(ctx, exec, rel12...)
+			err = m.AttachSubforumModerators(ctx, exec, rel11...)
 			if err != nil {
 				return ctx, err
 			}
@@ -824,13 +789,13 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 	if !isCreatedByUserSubforumsDone && o.r.CreatedByUserSubforums != nil {
 		ctx = userRelCreatedByUserSubforumsCtx.WithValue(ctx, true)
 		for _, r := range o.r.CreatedByUserSubforums {
-			var rel13 models.SubforumSlice
-			ctx, rel13, err = r.o.createMany(ctx, exec, r.number)
+			var rel12 models.SubforumSlice
+			ctx, rel12, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachCreatedByUserSubforums(ctx, exec, rel13...)
+			err = m.AttachCreatedByUserSubforums(ctx, exec, rel12...)
 			if err != nil {
 				return ctx, err
 			}
@@ -841,13 +806,13 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 	if !isUpdatedBySystemSettingsDone && o.r.UpdatedBySystemSettings != nil {
 		ctx = userRelUpdatedBySystemSettingsCtx.WithValue(ctx, true)
 		for _, r := range o.r.UpdatedBySystemSettings {
-			var rel14 models.SystemSettingSlice
-			ctx, rel14, err = r.o.createMany(ctx, exec, r.number)
+			var rel13 models.SystemSettingSlice
+			ctx, rel13, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachUpdatedBySystemSettings(ctx, exec, rel14...)
+			err = m.AttachUpdatedBySystemSettings(ctx, exec, rel13...)
 			if err != nil {
 				return ctx, err
 			}
@@ -858,13 +823,13 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 	if !isBannedByUserUserBansDone && o.r.BannedByUserUserBans != nil {
 		ctx = userRelBannedByUserUserBansCtx.WithValue(ctx, true)
 		for _, r := range o.r.BannedByUserUserBans {
-			var rel15 models.UserBanSlice
-			ctx, rel15, err = r.o.createMany(ctx, exec, r.number)
+			var rel14 models.UserBanSlice
+			ctx, rel14, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachBannedByUserUserBans(ctx, exec, rel15...)
+			err = m.AttachBannedByUserUserBans(ctx, exec, rel14...)
 			if err != nil {
 				return ctx, err
 			}
@@ -875,13 +840,13 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 	if !isBannedUserUserBansDone && o.r.BannedUserUserBans != nil {
 		ctx = userRelBannedUserUserBansCtx.WithValue(ctx, true)
 		for _, r := range o.r.BannedUserUserBans {
-			var rel16 models.UserBanSlice
-			ctx, rel16, err = r.o.createMany(ctx, exec, r.number)
+			var rel15 models.UserBanSlice
+			ctx, rel15, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachBannedUserUserBans(ctx, exec, rel16...)
+			err = m.AttachBannedUserUserBans(ctx, exec, rel15...)
 			if err != nil {
 				return ctx, err
 			}
@@ -892,13 +857,13 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 	if !isBlockedUserUserBlocksDone && o.r.BlockedUserUserBlocks != nil {
 		ctx = userRelBlockedUserUserBlocksCtx.WithValue(ctx, true)
 		for _, r := range o.r.BlockedUserUserBlocks {
-			var rel17 models.UserBlockSlice
-			ctx, rel17, err = r.o.createMany(ctx, exec, r.number)
+			var rel16 models.UserBlockSlice
+			ctx, rel16, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachBlockedUserUserBlocks(ctx, exec, rel17...)
+			err = m.AttachBlockedUserUserBlocks(ctx, exec, rel16...)
 			if err != nil {
 				return ctx, err
 			}
@@ -908,12 +873,12 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 	isUserPreferenceDone, _ := userRelUserPreferenceCtx.Value(ctx)
 	if !isUserPreferenceDone && o.r.UserPreference != nil {
 		ctx = userRelUserPreferenceCtx.WithValue(ctx, true)
-		var rel18 *models.UserPreference
-		ctx, rel18, err = o.r.UserPreference.o.create(ctx, exec)
+		var rel17 *models.UserPreference
+		ctx, rel17, err = o.r.UserPreference.o.create(ctx, exec)
 		if err != nil {
 			return ctx, err
 		}
-		err = m.AttachUserPreference(ctx, exec, rel18)
+		err = m.AttachUserPreference(ctx, exec, rel17)
 		if err != nil {
 			return ctx, err
 		}
@@ -2273,44 +2238,6 @@ func (m userMods) AddNewRemovedByUserPosts(number int, mods ...PostMod) UserMod 
 func (m userMods) WithoutRemovedByUserPosts() UserMod {
 	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
 		o.r.RemovedByUserPosts = nil
-	})
-}
-
-func (m userMods) WithPseudonyms(number int, related *PseudonymTemplate) UserMod {
-	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
-		o.r.Pseudonyms = []*userRPseudonymsR{{
-			number: number,
-			o:      related,
-		}}
-	})
-}
-
-func (m userMods) WithNewPseudonyms(number int, mods ...PseudonymMod) UserMod {
-	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
-		related := o.f.NewPseudonym(ctx, mods...)
-		m.WithPseudonyms(number, related).Apply(ctx, o)
-	})
-}
-
-func (m userMods) AddPseudonyms(number int, related *PseudonymTemplate) UserMod {
-	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
-		o.r.Pseudonyms = append(o.r.Pseudonyms, &userRPseudonymsR{
-			number: number,
-			o:      related,
-		})
-	})
-}
-
-func (m userMods) AddNewPseudonyms(number int, mods ...PseudonymMod) UserMod {
-	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
-		related := o.f.NewPseudonym(ctx, mods...)
-		m.AddPseudonyms(number, related).Apply(ctx, o)
-	})
-}
-
-func (m userMods) WithoutPseudonyms() UserMod {
-	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
-		o.r.Pseudonyms = nil
 	})
 }
 

@@ -40,7 +40,7 @@ func TestCommentWorkflow(t *testing.T) {
 		assert.Nil(t, testComment.ParentID) // Should be a root comment
 
 		// Create a handler to test the API
-		handler := handlers.NewContentHandler(suite.DB)
+		handler := handlers.NewContentHandler(suite.DB, suite.DB.DB, suite.IBESystem, suite.IdentityMappingDAO, suite.UserDAO)
 
 		// Test: Get post details and verify comment appears
 		ctx := context.Background()
@@ -90,7 +90,7 @@ func TestCommentWorkflow(t *testing.T) {
 		replyComment := suite.CreateTestComment(t, "Reply to root", testPost.PostID, testUser.UserID, testUser.PseudonymID, &rootComment.CommentID)
 
 		// Create handler
-		handler := handlers.NewContentHandler(suite.DB)
+		handler := handlers.NewContentHandler(suite.DB, suite.DB.DB, suite.IBESystem, suite.IdentityMappingDAO, suite.UserDAO)
 
 		// Get post details
 		ctx := context.Background()
@@ -137,7 +137,7 @@ func TestCommentWorkflow(t *testing.T) {
 		testPost := suite.CreateTestPost(t, "Test Post", "Test post content", testSubforum.SubforumID, testUser.UserID, testUser.PseudonymID)
 
 		// Create handler
-		handler := handlers.NewContentHandler(suite.DB)
+		handler := handlers.NewContentHandler(suite.DB, suite.DB.DB, suite.IBESystem, suite.IdentityMappingDAO, suite.UserDAO)
 
 		// Test comment creation via handler
 		ctx := context.Background()

@@ -46,6 +46,7 @@ type IdentityMappingTemplate struct {
 	UpdatedAt                 func() sql.Null[time.Time]
 	IsActive                  func() sql.Null[bool]
 	UserID                    func() int64
+	KeyScope                  func() string
 
 	r identityMappingR
 	f *Factory
@@ -122,6 +123,10 @@ func (o IdentityMappingTemplate) BuildSetter() *models.IdentityMappingSetter {
 		val := o.UserID()
 		m.UserID = &val
 	}
+	if o.KeyScope != nil {
+		val := o.KeyScope()
+		m.KeyScope = &val
+	}
 
 	return m
 }
@@ -173,6 +178,9 @@ func (o IdentityMappingTemplate) Build() *models.IdentityMapping {
 	}
 	if o.UserID != nil {
 		m.UserID = o.UserID()
+	}
+	if o.KeyScope != nil {
+		m.KeyScope = o.KeyScope()
 	}
 
 	o.setModelRels(m)
@@ -355,6 +363,7 @@ func (m identityMappingMods) RandomizeAllColumns(f *faker.Faker) IdentityMapping
 		IdentityMappingMods.RandomUpdatedAt(f),
 		IdentityMappingMods.RandomIsActive(f),
 		IdentityMappingMods.RandomUserID(f),
+		IdentityMappingMods.RandomKeyScope(f),
 	}
 }
 
@@ -730,6 +739,37 @@ func (m identityMappingMods) RandomUserID(f *faker.Faker) IdentityMappingMod {
 	return IdentityMappingModFunc(func(_ context.Context, o *IdentityMappingTemplate) {
 		o.UserID = func() int64 {
 			return random_int64(f)
+		}
+	})
+}
+
+// Set the model columns to this value
+func (m identityMappingMods) KeyScope(val string) IdentityMappingMod {
+	return IdentityMappingModFunc(func(_ context.Context, o *IdentityMappingTemplate) {
+		o.KeyScope = func() string { return val }
+	})
+}
+
+// Set the Column from the function
+func (m identityMappingMods) KeyScopeFunc(f func() string) IdentityMappingMod {
+	return IdentityMappingModFunc(func(_ context.Context, o *IdentityMappingTemplate) {
+		o.KeyScope = f
+	})
+}
+
+// Clear any values for the column
+func (m identityMappingMods) UnsetKeyScope() IdentityMappingMod {
+	return IdentityMappingModFunc(func(_ context.Context, o *IdentityMappingTemplate) {
+		o.KeyScope = nil
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+func (m identityMappingMods) RandomKeyScope(f *faker.Faker) IdentityMappingMod {
+	return IdentityMappingModFunc(func(_ context.Context, o *IdentityMappingTemplate) {
+		o.KeyScope = func() string {
+			return random_string(f, "50")
 		}
 	})
 }

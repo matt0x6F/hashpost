@@ -201,6 +201,7 @@ var ColumnNames = struct {
 		UpdatedAt:                 "updated_at",
 		IsActive:                  "is_active",
 		UserID:                    "user_id",
+		KeyScope:                  "key_scope",
 	},
 	KeyUsageAudits: keyUsageAuditColumnNames{
 		UsageID:           "usage_id",
@@ -292,7 +293,6 @@ var ColumnNames = struct {
 	},
 	Pseudonyms: pseudonymColumnNames{
 		PseudonymID:         "pseudonym_id",
-		UserID:              "user_id",
 		DisplayName:         "display_name",
 		KarmaScore:          "karma_score",
 		CreatedAt:           "created_at",
@@ -303,6 +303,7 @@ var ColumnNames = struct {
 		WebsiteURL:          "website_url",
 		ShowKarma:           "show_karma",
 		AllowDirectMessages: "allow_direct_messages",
+		IsDefault:           "is_default",
 	},
 	Reports: reportColumnNames{
 		ReportID:              "report_id",

@@ -52,8 +52,14 @@ type LoggingConfig struct {
 
 // IBEConfig holds Identity-Based Encryption configuration
 type IBEConfig struct {
-	MasterKeyPath string
-	KeyVersion    int
+	MasterKeyPath string // Path to master key file (for persistence)
+	KeyVersion    int    // Current key version
+	Salt          string // Salt for fingerprint generation (defaults to "fingerprint_salt_v1")
+	KeyRotation   struct {
+		Enabled     bool
+		Interval    time.Duration
+		GracePeriod time.Duration
+	}
 }
 
 // JWTConfig holds JWT configuration
@@ -120,6 +126,16 @@ func Load() (*Config, error) {
 		IBE: IBEConfig{
 			MasterKeyPath: getEnv("IBE_MASTER_KEY_PATH", "./keys/master.key"),
 			KeyVersion:    getEnvAsInt("IBE_KEY_VERSION", 1),
+			Salt:          getEnv("IBE_SALT", "fingerprint_salt_v1"),
+			KeyRotation: struct {
+				Enabled     bool
+				Interval    time.Duration
+				GracePeriod time.Duration
+			}{
+				Enabled:     getEnvAsBool("IBE_KEY_ROTATION_ENABLED", false),
+				Interval:    getEnvAsDuration("IBE_KEY_ROTATION_INTERVAL", 365*24*time.Hour),    // 1 year
+				GracePeriod: getEnvAsDuration("IBE_KEY_ROTATION_GRACE_PERIOD", 30*24*time.Hour), // 30 days
+			},
 		},
 		JWT: JWTConfig{
 			Secret:      getEnv("JWT_SECRET", "your-jwt-secret-key-change-in-production"),
@@ -228,10 +244,14 @@ func getEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
 	return defaultValue
 }
 
+// getEnvAsBool gets an environment variable as a boolean
 func getEnvAsBool(key string, defaultValue bool) bool {
 	if value := os.Getenv(key); value != "" {
-		if boolValue, err := strconv.ParseBool(value); err == nil {
-			return boolValue
+		switch value {
+		case "true", "1", "yes", "on":
+			return true
+		case "false", "0", "no", "off":
+			return false
 		}
 	}
 	return defaultValue

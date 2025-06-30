@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -9,31 +10,43 @@ import (
 	"github.com/matt0x6f/hashpost/internal/api/models"
 	"github.com/matt0x6f/hashpost/internal/database/dao"
 	dbmodels "github.com/matt0x6f/hashpost/internal/database/models"
+	"github.com/matt0x6f/hashpost/internal/ibe"
 	"github.com/rs/zerolog/log"
 	"github.com/stephenafamo/bob"
 )
 
 // ContentHandler handles content-related requests
 type ContentHandler struct {
-	db                bob.Executor
-	postDAO           *dao.PostDAO
-	commentDAO        *dao.CommentDAO
-	subforumDAO       *dao.SubforumDAO
-	pseudonymDAO      *dao.PseudonymDAO
-	voteDAO           *dao.VoteDAO
-	permissionChecker *middleware.PermissionChecker
+	db                 bob.Executor
+	rawDB              *sql.DB
+	ibeSystem          *ibe.IBESystem
+	identityMappingDAO *dao.IdentityMappingDAO
+	userDAO            *dao.UserDAO
+	postDAO            *dao.PostDAO
+	commentDAO         *dao.CommentDAO
+	subforumDAO        *dao.SubforumDAO
+	securePseudonymDAO *dao.SecurePseudonymDAO
+	voteDAO            *dao.VoteDAO
+	permissionChecker  *middleware.PermissionChecker
 }
 
 // NewContentHandler creates a new content handler
-func NewContentHandler(db bob.Executor) *ContentHandler {
+func NewContentHandler(db bob.Executor, rawDB *sql.DB, ibeSystem *ibe.IBESystem, identityMappingDAO *dao.IdentityMappingDAO, userDAO *dao.UserDAO) *ContentHandler {
+	roleKeyDAO := dao.NewRoleKeyDAO(db)
+	securePseudonymDAO := dao.NewSecurePseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO)
+
 	return &ContentHandler{
-		db:                db,
-		postDAO:           dao.NewPostDAO(db),
-		commentDAO:        dao.NewCommentDAO(db),
-		subforumDAO:       dao.NewSubforumDAO(db),
-		pseudonymDAO:      dao.NewPseudonymDAO(db),
-		voteDAO:           dao.NewVoteDAO(db),
-		permissionChecker: middleware.NewPermissionChecker(db),
+		db:                 db,
+		rawDB:              rawDB,
+		ibeSystem:          ibeSystem,
+		identityMappingDAO: identityMappingDAO,
+		userDAO:            userDAO,
+		postDAO:            dao.NewPostDAO(db),
+		commentDAO:         dao.NewCommentDAO(db),
+		subforumDAO:        dao.NewSubforumDAO(db),
+		securePseudonymDAO: securePseudonymDAO,
+		voteDAO:            dao.NewVoteDAO(db),
+		permissionChecker:  middleware.NewPermissionChecker(db),
 	}
 }
 

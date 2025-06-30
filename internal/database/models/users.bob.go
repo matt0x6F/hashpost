@@ -68,7 +68,6 @@ type userR struct {
 	ModeratorUserModerationActions ModerationActionSlice  `scan:"ModeratorUserModerationActions" json:"ModeratorUserModerationActions"` // moderation_actions.moderation_actions_moderator_user_id_fkey
 	TargetUserModerationActions    ModerationActionSlice  `scan:"TargetUserModerationActions" json:"TargetUserModerationActions"`       // moderation_actions.moderation_actions_target_user_id_fkey
 	RemovedByUserPosts             PostSlice              `scan:"RemovedByUserPosts" json:"RemovedByUserPosts"`                         // posts.posts_removed_by_user_id_fkey
-	Pseudonyms                     PseudonymSlice         `scan:"Pseudonyms" json:"Pseudonyms"`                                         // pseudonyms.pseudonyms_user_id_fkey
 	ResolvedByUserReports          ReportSlice            `scan:"ResolvedByUserReports" json:"ResolvedByUserReports"`                   // reports.reports_resolved_by_user_id_fkey
 	CreatedByRoleKeys              RoleKeySlice           `scan:"CreatedByRoleKeys" json:"CreatedByRoleKeys"`                           // role_keys.role_keys_created_by_fkey
 	AddedByUserSubforumModerators  SubforumModeratorSlice `scan:"AddedByUserSubforumModerators" json:"AddedByUserSubforumModerators"`   // subforum_moderators.subforum_moderators_added_by_user_id_fkey
@@ -883,7 +882,6 @@ type userJoins[Q dialect.Joinable] struct {
 	ModeratorUserModerationActions modAs[Q, moderationActionColumns]
 	TargetUserModerationActions    modAs[Q, moderationActionColumns]
 	RemovedByUserPosts             modAs[Q, postColumns]
-	Pseudonyms                     modAs[Q, pseudonymColumns]
 	ResolvedByUserReports          modAs[Q, reportColumns]
 	CreatedByRoleKeys              modAs[Q, roleKeyColumns]
 	AddedByUserSubforumModerators  modAs[Q, subforumModeratorColumns]
@@ -1009,20 +1007,6 @@ func buildUserJoins[Q dialect.Joinable](cols userColumns, typ string) userJoins[
 				{
 					mods = append(mods, dialect.Join[Q](typ, Posts.Name().As(to.Alias())).On(
 						to.RemovedByUserID.EQ(cols.UserID),
-					))
-				}
-
-				return mods
-			},
-		},
-		Pseudonyms: modAs[Q, pseudonymColumns]{
-			c: PseudonymColumns,
-			f: func(to pseudonymColumns) bob.Mod[Q] {
-				mods := make(mods.QueryMods[Q], 0, 1)
-
-				{
-					mods = append(mods, dialect.Join[Q](typ, Pseudonyms.Name().As(to.Alias())).On(
-						to.UserID.EQ(cols.UserID),
 					))
 				}
 
@@ -1337,27 +1321,6 @@ func (os UserSlice) RemovedByUserPosts(mods ...bob.Mod[*dialect.SelectQuery]) Po
 
 	return Posts.Query(append(mods,
 		sm.Where(psql.Group(PostColumns.RemovedByUserID).OP("IN", PKArgExpr)),
-	)...)
-}
-
-// Pseudonyms starts a query for related objects on pseudonyms
-func (o *User) Pseudonyms(mods ...bob.Mod[*dialect.SelectQuery]) PseudonymsQuery {
-	return Pseudonyms.Query(append(mods,
-		sm.Where(PseudonymColumns.UserID.EQ(psql.Arg(o.UserID))),
-	)...)
-}
-
-func (os UserSlice) Pseudonyms(mods ...bob.Mod[*dialect.SelectQuery]) PseudonymsQuery {
-	pkUserID := make(pgtypes.Array[int64], len(os))
-	for i, o := range os {
-		pkUserID[i] = o.UserID
-	}
-	PKArgExpr := psql.Select(sm.Columns(
-		psql.F("unnest", psql.Cast(psql.Arg(pkUserID), "bigint[]")),
-	))
-
-	return Pseudonyms.Query(append(mods,
-		sm.Where(psql.Group(PseudonymColumns.UserID).OP("IN", PKArgExpr)),
 	)...)
 }
 
@@ -1689,20 +1652,6 @@ func (o *User) Preload(name string, retrieved any) error {
 			}
 		}
 		return nil
-	case "Pseudonyms":
-		rels, ok := retrieved.(PseudonymSlice)
-		if !ok {
-			return fmt.Errorf("user cannot load %T as %q", retrieved, name)
-		}
-
-		o.R.Pseudonyms = rels
-
-		for _, rel := range rels {
-			if rel != nil {
-				rel.R.User = o
-			}
-		}
-		return nil
 	case "ResolvedByUserReports":
 		rels, ok := retrieved.(ReportSlice)
 		if !ok {
@@ -1881,7 +1830,6 @@ type userThenLoader[Q orm.Loadable] struct {
 	ModeratorUserModerationActions func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	TargetUserModerationActions    func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	RemovedByUserPosts             func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	Pseudonyms                     func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	ResolvedByUserReports          func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	CreatedByRoleKeys              func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	AddedByUserSubforumModerators  func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
@@ -1918,9 +1866,6 @@ func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
 	}
 	type RemovedByUserPostsLoadInterface interface {
 		LoadRemovedByUserPosts(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
-	}
-	type PseudonymsLoadInterface interface {
-		LoadPseudonyms(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 	type ResolvedByUserReportsLoadInterface interface {
 		LoadResolvedByUserReports(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
@@ -2000,12 +1945,6 @@ func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
 			"RemovedByUserPosts",
 			func(ctx context.Context, exec bob.Executor, retrieved RemovedByUserPostsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
 				return retrieved.LoadRemovedByUserPosts(ctx, exec, mods...)
-			},
-		),
-		Pseudonyms: thenLoadBuilder[Q](
-			"Pseudonyms",
-			func(ctx context.Context, exec bob.Executor, retrieved PseudonymsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
-				return retrieved.LoadPseudonyms(ctx, exec, mods...)
 			},
 		),
 		ResolvedByUserReports: thenLoadBuilder[Q](
@@ -2481,58 +2420,6 @@ func (os UserSlice) LoadRemovedByUserPosts(ctx context.Context, exec bob.Executo
 			rel.R.RemovedByUserUser = o
 
 			o.R.RemovedByUserPosts = append(o.R.RemovedByUserPosts, rel)
-		}
-	}
-
-	return nil
-}
-
-// LoadPseudonyms loads the user's Pseudonyms into the .R struct
-func (o *User) LoadPseudonyms(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
-	if o == nil {
-		return nil
-	}
-
-	// Reset the relationship
-	o.R.Pseudonyms = nil
-
-	related, err := o.Pseudonyms(mods...).All(ctx, exec)
-	if err != nil {
-		return err
-	}
-
-	for _, rel := range related {
-		rel.R.User = o
-	}
-
-	o.R.Pseudonyms = related
-	return nil
-}
-
-// LoadPseudonyms loads the user's Pseudonyms into the .R struct
-func (os UserSlice) LoadPseudonyms(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
-	if len(os) == 0 {
-		return nil
-	}
-
-	pseudonyms, err := os.Pseudonyms(mods...).All(ctx, exec)
-	if err != nil {
-		return err
-	}
-
-	for _, o := range os {
-		o.R.Pseudonyms = nil
-	}
-
-	for _, o := range os {
-		for _, rel := range pseudonyms {
-			if o.UserID != rel.UserID {
-				continue
-			}
-
-			rel.R.User = o
-
-			o.R.Pseudonyms = append(o.R.Pseudonyms, rel)
 		}
 	}
 
@@ -3617,74 +3504,6 @@ func (user0 *User) AttachRemovedByUserPosts(ctx context.Context, exec bob.Execut
 
 	for _, rel := range related {
 		rel.R.RemovedByUserUser = user0
-	}
-
-	return nil
-}
-
-func insertUserPseudonyms0(ctx context.Context, exec bob.Executor, pseudonyms1 []*PseudonymSetter, user0 *User) (PseudonymSlice, error) {
-	for i := range pseudonyms1 {
-		pseudonyms1[i].UserID = &user0.UserID
-	}
-
-	ret, err := Pseudonyms.Insert(bob.ToMods(pseudonyms1...)).All(ctx, exec)
-	if err != nil {
-		return ret, fmt.Errorf("insertUserPseudonyms0: %w", err)
-	}
-
-	return ret, nil
-}
-
-func attachUserPseudonyms0(ctx context.Context, exec bob.Executor, count int, pseudonyms1 PseudonymSlice, user0 *User) (PseudonymSlice, error) {
-	setter := &PseudonymSetter{
-		UserID: &user0.UserID,
-	}
-
-	err := pseudonyms1.UpdateAll(ctx, exec, *setter)
-	if err != nil {
-		return nil, fmt.Errorf("attachUserPseudonyms0: %w", err)
-	}
-
-	return pseudonyms1, nil
-}
-
-func (user0 *User) InsertPseudonyms(ctx context.Context, exec bob.Executor, related ...*PseudonymSetter) error {
-	if len(related) == 0 {
-		return nil
-	}
-
-	var err error
-
-	pseudonyms1, err := insertUserPseudonyms0(ctx, exec, related, user0)
-	if err != nil {
-		return err
-	}
-
-	user0.R.Pseudonyms = append(user0.R.Pseudonyms, pseudonyms1...)
-
-	for _, rel := range pseudonyms1 {
-		rel.R.User = user0
-	}
-	return nil
-}
-
-func (user0 *User) AttachPseudonyms(ctx context.Context, exec bob.Executor, related ...*Pseudonym) error {
-	if len(related) == 0 {
-		return nil
-	}
-
-	var err error
-	pseudonyms1 := PseudonymSlice(related)
-
-	_, err = attachUserPseudonyms0(ctx, exec, len(related), pseudonyms1, user0)
-	if err != nil {
-		return err
-	}
-
-	user0.R.Pseudonyms = append(user0.R.Pseudonyms, pseudonyms1...)
-
-	for _, rel := range related {
-		rel.R.User = user0
 	}
 
 	return nil

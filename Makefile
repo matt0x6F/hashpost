@@ -36,6 +36,10 @@ help:
 	@echo "  build           Build the application"
 	@echo "  run             Run the application locally"
 	@echo "  clean           Clean build artifacts"
+	@echo ""
+	@echo "Setup:"
+	@echo "  setup-ibe-keys  Setup IBE master keys"
+	@echo "  setup-roles     Setup role keys for all roles"
 
 # Database migration commands (run inside Docker Compose app container)
 migrate-up:
@@ -114,19 +118,15 @@ test-integration:
 test-integration-local:
 	@echo "Setting up clean test database..."
 	@echo "Starting test PostgreSQL container..."
-	docker-compose up -d postgres-test
+	docker-compose --profile test up -d postgres-test
 	@echo "Waiting for database to be ready..."
 	@sleep 3
-	@echo "Dropping test database if it exists..."
-	@docker-compose exec -T postgres-test psql -U hashpost -d postgres -c "DROP DATABASE IF EXISTS hashpost_test;" || true
-	@echo "Creating fresh test database..."
-	@docker-compose exec -T postgres-test psql -U hashpost -d postgres -c "CREATE DATABASE hashpost_test;" || true
-	@echo "Running migrations on test database..."
+	@echo "Ensuring test database exists and is migrated..."
+	@docker-compose --profile test exec -T postgres-test psql -U hashpost -d postgres -c "DROP DATABASE IF EXISTS hashpost_test;" || true
+	@docker-compose --profile test exec -T postgres-test psql -U hashpost -d postgres -c "CREATE DATABASE hashpost_test;" || true
 	@DATABASE_URL='postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable' ./scripts/migrate.sh up
 	@echo "Running integration tests..."
 	@LOG_LEVEL=$${LOG_LEVEL:-error} DATABASE_URL='postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable' go test -v -tags=integration ./internal/api/integration/...
-	@echo "Cleaning up test database..."
-	@docker-compose exec -T postgres-test psql -U hashpost -d postgres -c "DROP DATABASE IF EXISTS hashpost_test;" || true
 
 # For VSCode test runner compatibility (runs integration tests if DATABASE_URL is set)
 test-integration-vscode:
@@ -144,12 +144,15 @@ clean:
 
 # Database commands (local)
 db-create:
-	@echo "Creating database..."
-	createdb hashpost
+	@echo "Creating database in Docker Compose PostgreSQL..."
+	docker-compose exec postgres createdb -U hashpost hashpost || true
 
 db-drop:
+	@echo "Dropping database in Docker Compose PostgreSQL..."
+	@echo "Terminating active connections..."
+	docker-compose exec postgres psql -U hashpost -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'hashpost' AND pid <> pg_backend_pid();" || true
 	@echo "Dropping database..."
-	dropdb hashpost
+	docker-compose exec postgres dropdb -U hashpost hashpost || true
 
 db-reset: db-drop db-create migrate-up
 	@echo "Database reset complete"
@@ -176,7 +179,7 @@ setup-dev: install-tools
 .DEFAULT_GOAL := help
 
 generate:
-	cd internal/database && go run github.com/stephenafamo/bob/gen/bobgen-psql@latest -c ../../bobgen.yaml 
+	cd internal/database && go run github.com/stephenafamo/bob/gen/bobgen-psql@latest -c ../../bobgen.yaml
 
 # UI Development commands
 ui-install:
@@ -194,4 +197,13 @@ ui-dev:
 
 ui-build:
 	@echo "Building UI for production..."
-	cd ui && npm run build 
+	cd ui && npm run build
+
+# IBE Key Management
+setup-ibe-keys:
+	@echo "Setting up IBE master keys..."
+	./scripts/setup-ibe-keys.sh 
+
+setup-roles:
+	@echo "Setting up role keys for all roles..."
+	docker-compose exec app ./tmp/main setup-roles 

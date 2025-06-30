@@ -50,6 +50,7 @@ type TestEntityTracker struct {
 	reports      map[int64]bool
 	modActions   map[int64]bool
 	correlations map[int64]bool
+	roleKeys     map[string]bool // Track role keys by key ID
 }
 
 // NewTestEntityTracker creates a new entity tracker
@@ -67,6 +68,7 @@ func NewTestEntityTracker() *TestEntityTracker {
 		reports:      make(map[int64]bool),
 		modActions:   make(map[int64]bool),
 		correlations: make(map[int64]bool),
+		roleKeys:     make(map[string]bool),
 	}
 }
 
@@ -154,14 +156,24 @@ func (t *TestEntityTracker) TrackCorrelation(correlationID int64) {
 	t.correlations[correlationID] = true
 }
 
+// TrackRoleKey marks a role key as created for cleanup
+func (t *TestEntityTracker) TrackRoleKey(keyID string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.roleKeys[keyID] = true
+}
+
 // Cleanup removes all tracked entities in the correct order
 func (t *TestEntityTracker) Cleanup(ctx context.Context, db bob.DB) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	log.Info().Msg("[TestEntityTracker] Starting cleanup of test entities...")
+
 	// Clean up in reverse dependency order
 	// 1. Votes (depend on posts/comments)
 	for voteID := range t.votes {
+		log.Info().Int64("vote_id", voteID).Msg("[TestEntityTracker] Deleting vote")
 		if _, err := db.ExecContext(ctx, "DELETE FROM votes WHERE vote_id = $1", voteID); err != nil {
 			return fmt.Errorf("failed to cleanup vote %d: %w", voteID, err)
 		}
@@ -169,6 +181,7 @@ func (t *TestEntityTracker) Cleanup(ctx context.Context, db bob.DB) error {
 
 	// 2. Comments (depend on posts)
 	for commentID := range t.comments {
+		log.Info().Int64("comment_id", commentID).Msg("[TestEntityTracker] Deleting comment")
 		if _, err := db.ExecContext(ctx, "DELETE FROM comments WHERE comment_id = $1", commentID); err != nil {
 			return fmt.Errorf("failed to cleanup comment %d: %w", commentID, err)
 		}
@@ -176,6 +189,7 @@ func (t *TestEntityTracker) Cleanup(ctx context.Context, db bob.DB) error {
 
 	// 3. Posts (depend on subforums)
 	for postID := range t.posts {
+		log.Info().Int64("post_id", postID).Msg("[TestEntityTracker] Deleting post")
 		if _, err := db.ExecContext(ctx, "DELETE FROM posts WHERE post_id = $1", postID); err != nil {
 			return fmt.Errorf("failed to cleanup post %d: %w", postID, err)
 		}
@@ -183,6 +197,7 @@ func (t *TestEntityTracker) Cleanup(ctx context.Context, db bob.DB) error {
 
 	// 4. User blocks
 	for blockID := range t.userBlocks {
+		log.Info().Int64("block_id", blockID).Msg("[TestEntityTracker] Deleting user block")
 		if _, err := db.ExecContext(ctx, "DELETE FROM user_blocks WHERE block_id = $1", blockID); err != nil {
 			return fmt.Errorf("failed to cleanup user block %d: %w", blockID, err)
 		}
@@ -190,13 +205,15 @@ func (t *TestEntityTracker) Cleanup(ctx context.Context, db bob.DB) error {
 
 	// 5. User preferences
 	for prefID := range t.userPrefs {
-		if _, err := db.ExecContext(ctx, "DELETE FROM user_preferences WHERE preference_id = $1", prefID); err != nil {
-			return fmt.Errorf("failed to cleanup user preference %d: %w", prefID, err)
+		log.Info().Int64("pref_id", prefID).Msg("[TestEntityTracker] Deleting user preferences")
+		if _, err := db.ExecContext(ctx, "DELETE FROM user_preferences WHERE user_id = $1", prefID); err != nil {
+			return fmt.Errorf("failed to cleanup user preferences %d: %w", prefID, err)
 		}
 	}
 
 	// 6. Reports
 	for reportID := range t.reports {
+		log.Info().Int64("report_id", reportID).Msg("[TestEntityTracker] Deleting report")
 		if _, err := db.ExecContext(ctx, "DELETE FROM reports WHERE report_id = $1", reportID); err != nil {
 			return fmt.Errorf("failed to cleanup report %d: %w", reportID, err)
 		}
@@ -204,6 +221,7 @@ func (t *TestEntityTracker) Cleanup(ctx context.Context, db bob.DB) error {
 
 	// 7. Moderation actions
 	for actionID := range t.modActions {
+		log.Info().Int64("action_id", actionID).Msg("[TestEntityTracker] Deleting moderation action")
 		if _, err := db.ExecContext(ctx, "DELETE FROM moderation_actions WHERE action_id = $1", actionID); err != nil {
 			return fmt.Errorf("failed to cleanup moderation action %d: %w", actionID, err)
 		}
@@ -211,58 +229,145 @@ func (t *TestEntityTracker) Cleanup(ctx context.Context, db bob.DB) error {
 
 	// 8. Correlations
 	for correlationID := range t.correlations {
+		log.Info().Int64("correlation_id", correlationID).Msg("[TestEntityTracker] Deleting correlation")
 		if _, err := db.ExecContext(ctx, "DELETE FROM compliance_correlations WHERE correlation_id = $1", correlationID); err != nil {
 			return fmt.Errorf("failed to cleanup correlation %d: %w", correlationID, err)
 		}
 	}
 
-	// 9. API keys
+	// 9. API Keys
 	for apiKeyID := range t.apiKeys {
+		log.Info().Str("api_key_id", apiKeyID).Msg("[TestEntityTracker] Deleting API key")
 		if _, err := db.ExecContext(ctx, "DELETE FROM api_keys WHERE api_key_id = $1", apiKeyID); err != nil {
 			return fmt.Errorf("failed to cleanup API key %s: %w", apiKeyID, err)
 		}
 	}
 
-	// 10. Subforums (depend on users for moderators)
-	for subforumID := range t.subforums {
-		if _, err := db.ExecContext(ctx, "DELETE FROM subforums WHERE subforum_id = $1", subforumID); err != nil {
-			return fmt.Errorf("failed to cleanup subforum %d: %w", subforumID, err)
+	// 10. Role Keys (must be deleted before users due to foreign key constraint)
+	// Delete ALL role keys for tracked users, not just explicitly tracked ones
+	for userID := range t.users {
+		log.Info().Int64("user_id", userID).Msg("[TestEntityTracker] Deleting all role keys for user")
+		if _, err := db.ExecContext(ctx, "DELETE FROM role_keys WHERE created_by = $1", userID); err != nil {
+			return fmt.Errorf("failed to cleanup role keys for user %d: %w", userID, err)
+		}
+	}
+
+	// Also delete any explicitly tracked role keys
+	for keyID := range t.roleKeys {
+		log.Info().Str("key_id", keyID).Msg("[TestEntityTracker] Deleting explicitly tracked role key")
+		if _, err := db.ExecContext(ctx, "DELETE FROM role_keys WHERE key_id = $1", keyID); err != nil {
+			return fmt.Errorf("failed to cleanup role key %s: %w", keyID, err)
 		}
 	}
 
 	// 11. Pseudonyms (depend on users)
 	for pseudonymID := range t.pseudonyms {
+		log.Info().Str("pseudonym_id", pseudonymID).Msg("[TestEntityTracker] Deleting pseudonym")
 		if _, err := db.ExecContext(ctx, "DELETE FROM pseudonyms WHERE pseudonym_id = $1", pseudonymID); err != nil {
 			return fmt.Errorf("failed to cleanup pseudonym %s: %w", pseudonymID, err)
 		}
 	}
 
-	// 12. Users (clean up last as everything depends on them)
+	// 12. Subforums (depend on users)
+	for subforumID := range t.subforums {
+		log.Info().Int64("subforum_id", subforumID).Msg("[TestEntityTracker] Deleting subforum")
+		if _, err := db.ExecContext(ctx, "DELETE FROM subforums WHERE subforum_id = $1", subforumID); err != nil {
+			return fmt.Errorf("failed to cleanup subforum %d: %w", subforumID, err)
+		}
+	}
+
+	// 13. Users (last, as everything depends on them)
 	for userID := range t.users {
+		log.Info().Int64("user_id", userID).Msg("[TestEntityTracker] Deleting user")
 		if _, err := db.ExecContext(ctx, "DELETE FROM users WHERE user_id = $1", userID); err != nil {
 			return fmt.Errorf("failed to cleanup user %d: %w", userID, err)
 		}
 	}
 
+	log.Info().Msg("[TestEntityTracker] Cleanup completed successfully")
 	return nil
 }
 
-// IntegrationTestSuite provides utilities for integration testing
+// IntegrationTestSuite provides a complete test environment
 type IntegrationTestSuite struct {
-	DB           bob.DB
-	Server       *api.Server
-	Config       *config.Config
-	UserDAO      *dao.UserDAO
-	PseudonymDAO *dao.PseudonymDAO
-	SubforumDAO  *dao.SubforumDAO
-	PostDAO      *dao.PostDAO
-	CommentDAO   *dao.CommentDAO
-	VoteDAO      *dao.VoteDAO
-	APIKeyDAO    *dao.APIKeyDAO
-	UserBlockDAO *dao.UserBlocksDAO
-	UserPrefDAO  *dao.UserPreferencesDAO
-	Tracker      *TestEntityTracker
-	Cleanup      func()
+	DB                 bob.DB
+	Server             *api.Server
+	Config             *config.Config
+	UserDAO            *dao.UserDAO
+	SecurePseudonymDAO *dao.SecurePseudonymDAO
+	RoleKeyDAO         *dao.RoleKeyDAO
+	SubforumDAO        *dao.SubforumDAO
+	PostDAO            *dao.PostDAO
+	CommentDAO         *dao.CommentDAO
+	VoteDAO            *dao.VoteDAO
+	APIKeyDAO          *dao.APIKeyDAO
+	UserBlockDAO       *dao.UserBlocksDAO
+	UserPrefDAO        *dao.UserPreferencesDAO
+	IdentityMappingDAO *dao.IdentityMappingDAO
+	Tracker            *TestEntityTracker
+	Cleanup            func()
+	IBESystem          *ibe.IBESystem
+}
+
+// GetIBESystem returns the IBE system instance for this test suite
+func (ts *IntegrationTestSuite) GetIBESystem() *ibe.IBESystem {
+	return ts.IBESystem
+}
+
+// EnsureDefaultKeys ensures default role keys exist and tracks them for cleanup
+func (ts *IntegrationTestSuite) EnsureDefaultKeys(t *testing.T, createdBy int64) {
+	ctx := context.Background()
+
+	// Get the user to determine their roles
+	user, err := ts.UserDAO.GetUserByID(ctx, createdBy)
+	if err != nil {
+		t.Fatalf("Failed to get user for role key creation: %v", err)
+	}
+
+	// Parse user roles
+	var userRoles []string
+	if user.Roles.Valid {
+		rolesBytes, err := user.Roles.V.Value()
+		if err != nil {
+			t.Fatalf("Failed to get user roles value: %v", err)
+		}
+		if err := json.Unmarshal(rolesBytes.([]byte), &userRoles); err != nil {
+			t.Fatalf("Failed to parse user roles: %v", err)
+		}
+	}
+
+	// If no roles, default to "user"
+	if len(userRoles) == 0 {
+		userRoles = []string{"user"}
+	}
+
+	// Ensure default keys exist for the user's actual roles
+	if err := ts.RoleKeyDAO.EnsureDefaultKeys(ctx, ts.IBESystem, createdBy); err != nil {
+		t.Fatalf("Failed to ensure default keys: %v", err)
+	}
+
+	// Track the default role keys for cleanup
+	// Create keys for each of the user's roles
+	for _, roleName := range userRoles {
+		defaultKeys := []struct {
+			scope string
+		}{
+			{"authentication"},
+			{"self_correlation"},
+		}
+
+		// Add correlation key for admin roles
+		if roleName == "admin" || roleName == "platform_admin" || roleName == "moderator" {
+			defaultKeys = append(defaultKeys, struct{ scope string }{"correlation"})
+		}
+
+		for _, keyDef := range defaultKeys {
+			roleKey, err := ts.RoleKeyDAO.GetRoleKey(ctx, roleName, keyDef.scope)
+			if err == nil && roleKey != nil {
+				ts.Tracker.TrackRoleKey(roleKey.KeyID.String())
+			}
+		}
+	}
 }
 
 // TestUser represents a test user for integration tests
@@ -353,6 +458,45 @@ func parseDSN(dsn string) (*config.DatabaseConfig, error) {
 	}, nil
 }
 
+// forceDropTestDatabase forcibly drops and recreates the test database
+func forceDropTestDatabase(t *testing.T, dbConfig *config.DatabaseConfig) {
+	// Connect to postgres database to manage the test database
+	postgresConfig := *dbConfig
+	postgresConfig.Database = "postgres"
+
+	postgresDB, err := database.NewConnection(&postgresConfig)
+	if err != nil {
+		t.Fatalf("Failed to connect to postgres database: %v", err)
+	}
+	defer postgresDB.Close()
+
+	ctx := context.Background()
+
+	// Terminate all connections to the test database
+	_, err = postgresDB.ExecContext(ctx, `
+		SELECT pg_terminate_backend(pid) 
+		FROM pg_stat_activity 
+		WHERE datname = $1 AND pid <> pg_backend_pid()
+	`, dbConfig.Database)
+	if err != nil {
+		t.Logf("Warning: failed to terminate connections to test database: %v", err)
+	}
+
+	// Drop the test database
+	_, err = postgresDB.ExecContext(ctx, "DROP DATABASE IF EXISTS "+dbConfig.Database)
+	if err != nil {
+		t.Logf("Warning: failed to drop test database: %v", err)
+	}
+
+	// Recreate the test database
+	_, err = postgresDB.ExecContext(ctx, "CREATE DATABASE "+dbConfig.Database)
+	if err != nil {
+		t.Fatalf("Failed to create test database: %v", err)
+	}
+
+	t.Logf("Test database %s dropped and recreated", dbConfig.Database)
+}
+
 // NewIntegrationTestSuite creates a new integration test suite
 func NewIntegrationTestSuite(t *testing.T) *IntegrationTestSuite {
 	// Check if we have a database URL for testing
@@ -380,44 +524,155 @@ func NewIntegrationTestSuite(t *testing.T) *IntegrationTestSuite {
 		cfg.Database = *dbConfig
 	}
 
+	// For test databases, check if we need to drop and recreate
+	// Only do this if the database doesn't exist or has no tables
+	if strings.Contains(cfg.Database.Database, "test") {
+		// Check if database exists and has tables
+		postgresConfig := cfg.Database
+		postgresConfig.Database = "postgres"
+
+		postgresDB, err := database.NewConnection(&postgresConfig)
+		if err != nil {
+			t.Fatalf("Failed to connect to postgres database: %v", err)
+		}
+		defer postgresDB.Close()
+
+		ctx := context.Background()
+
+		// Check if test database exists
+		var exists bool
+		err = postgresDB.QueryRowContext(ctx,
+			"SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)",
+			cfg.Database.Database).Scan(&exists)
+		if err != nil {
+			t.Fatalf("Failed to check if database exists: %v", err)
+		}
+
+		if !exists {
+			// Database doesn't exist, create it
+			_, err = postgresDB.ExecContext(ctx, "CREATE DATABASE "+cfg.Database.Database)
+			if err != nil {
+				t.Fatalf("Failed to create test database: %v", err)
+			}
+			t.Logf("Created test database %s", cfg.Database.Database)
+		} else {
+			// Database exists, check if it has tables
+			testDB, err := database.NewConnection(&cfg.Database)
+			if err != nil {
+				t.Fatalf("Failed to connect to test database: %v", err)
+			}
+			defer testDB.Close()
+
+			var tableCount int
+			err = testDB.QueryRowContext(ctx,
+				"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'").Scan(&tableCount)
+			if err != nil {
+				t.Fatalf("Failed to check table count: %v", err)
+			}
+
+			if tableCount == 0 {
+				// Database exists but has no tables, drop and recreate
+				t.Logf("Test database %s exists but has no tables, dropping and recreating", cfg.Database.Database)
+				forceDropTestDatabase(t, &cfg.Database)
+			} else {
+				t.Logf("Test database %s exists with %d tables, using existing database", cfg.Database.Database, tableCount)
+			}
+		}
+	}
+
 	// Create database connection
 	db, err := database.NewConnection(&cfg.Database)
 	if err != nil {
 		t.Fatalf("Failed to connect to test database: %v", err)
 	}
 
-	// Create server
-	server := api.NewServer()
+	// Get the raw *sql.DB from bob.DB
+	rawDB := db.DB
+
+	// Create IBE system for correlation operations with deterministic test key
+	testMasterSecret := []byte("test_master_secret_32_bytes_long_key")
+	ibeSystem := ibe.NewIBESystemWithOptions(ibe.IBEOptions{
+		MasterSecret: testMasterSecret,
+		KeyVersion:   1,
+		Salt:         "test_fingerprint_salt_v1",
+	})
 
 	// Create DAOs
 	userDAO := dao.NewUserDAO(db)
-	pseudonymDAO := dao.NewPseudonymDAO(db)
-	subforumDAO := dao.NewSubforumDAO(db)
+	identityMappingDAO := dao.NewIdentityMappingDAO(db)
+	roleKeyDAO := dao.NewRoleKeyDAO(db)
+	securePseudonymDAO := dao.NewSecurePseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO)
 	postDAO := dao.NewPostDAO(db)
 	commentDAO := dao.NewCommentDAO(db)
+	userPreferencesDAO := dao.NewUserPreferencesDAO(db)
+	userBlocksDAO := dao.NewUserBlocksDAO(db)
+	subforumDAO := dao.NewSubforumDAO(db)
 	voteDAO := dao.NewVoteDAO(db)
 	apiKeyDAO := dao.NewAPIKeyDAO(db)
-	userBlockDAO := dao.NewUserBlocksDAO(db)
-	userPrefDAO := dao.NewUserPreferencesDAO(db)
+
+	// Create auth middleware with test configuration
+	authMiddleware := middleware.NewAuthMiddleware(cfg.JWT.Secret, apiKeyDAO, &cfg.JWT, &cfg.Security)
+
+	// Set the global auth middleware for Huma functions
+	middleware.SetGlobalAuthMiddleware(authMiddleware)
+
+	// Create a new HTTP mux
+	mux := http.NewServeMux()
+
+	// Create Huma configuration
+	config := huma.DefaultConfig("HashPost API", "1.0.0")
+
+	// Create a new Huma API with humago adapter
+	humaAPI := humago.New(mux, config)
+
+	// Add router-agnostic middleware
+	humaAPI.UseMiddleware(middleware.LoggingMiddleware)
+	humaAPI.UseMiddleware(middleware.CORSMiddleware(&cfg.CORS))
+
+	// Add authentication middleware to extract user context
+	humaAPI.UseMiddleware(middleware.AuthenticateUserHuma)
+	log.Info().Str("jwt_secret_length", fmt.Sprintf("%d", len(cfg.JWT.Secret))).Msg("JWT configuration loaded")
+
+	// Register routes with test configuration
+	routes.RegisterHealthRoutes(humaAPI)
+	routes.RegisterHelloRoutes(humaAPI)
+	routes.RegisterAuthRoutes(humaAPI, cfg, db, rawDB, ibeSystem)
+	routes.RegisterUserRoutes(humaAPI, userDAO, securePseudonymDAO, userPreferencesDAO, userBlocksDAO, postDAO, commentDAO, ibeSystem)
+	routes.RegisterSubforumRoutes(humaAPI, db)
+	routes.RegisterMessagesRoutes(humaAPI)
+	routes.RegisterSearchRoutes(humaAPI)
+	routes.RegisterModerationRoutes(humaAPI)
+	routes.RegisterContentRoutes(humaAPI, db, rawDB, ibeSystem, identityMappingDAO, userDAO)
+	routes.RegisterCorrelationRoutes(humaAPI, db, ibeSystem, securePseudonymDAO, identityMappingDAO, postDAO, commentDAO)
+
+	server := &api.Server{
+		API:       humaAPI,
+		Mux:       mux,
+		Config:    config,
+		AppConfig: cfg,
+	}
 
 	// Create entity tracker
 	tracker := NewTestEntityTracker()
 
-	// Return test suite
-	return &IntegrationTestSuite{
-		DB:           db,
-		Server:       server,
-		Config:       cfg,
-		UserDAO:      userDAO,
-		PseudonymDAO: pseudonymDAO,
-		SubforumDAO:  subforumDAO,
-		PostDAO:      postDAO,
-		CommentDAO:   commentDAO,
-		VoteDAO:      voteDAO,
-		APIKeyDAO:    apiKeyDAO,
-		UserBlockDAO: userBlockDAO,
-		UserPrefDAO:  userPrefDAO,
-		Tracker:      tracker,
+	// Create test suite with consistent IBE system
+	suite := &IntegrationTestSuite{
+		DB:                 db,
+		Server:             server,
+		Config:             cfg,
+		UserDAO:            userDAO,
+		SecurePseudonymDAO: securePseudonymDAO,
+		RoleKeyDAO:         roleKeyDAO,
+		SubforumDAO:        subforumDAO,
+		PostDAO:            postDAO,
+		CommentDAO:         commentDAO,
+		VoteDAO:            voteDAO,
+		APIKeyDAO:          apiKeyDAO,
+		UserBlockDAO:       userBlocksDAO,
+		UserPrefDAO:        userPreferencesDAO,
+		IdentityMappingDAO: identityMappingDAO,
+		Tracker:            tracker,
+		IBESystem:          ibeSystem,
 		Cleanup: func() {
 			// Clean up test data
 			ctx := context.Background()
@@ -426,6 +681,8 @@ func NewIntegrationTestSuite(t *testing.T) *IntegrationTestSuite {
 			}
 		},
 	}
+
+	return suite
 }
 
 // CreateTestUser creates a test user in the database and tracks it for cleanup
@@ -466,9 +723,12 @@ func (ts *IntegrationTestSuite) CreateTestUser(t *testing.T, email, password str
 		}
 	}
 
+	// Ensure default role keys exist for this user BEFORE creating pseudonym
+	ts.EnsureDefaultKeys(t, user.UserID)
+
 	// Create pseudonym for the user
 	displayName := fmt.Sprintf("test_user_%d", user.UserID)
-	pseudonym, err := ts.PseudonymDAO.CreatePseudonym(ctx, user.UserID, displayName)
+	pseudonym, err := ts.SecurePseudonymDAO.CreatePseudonymWithIdentityMapping(ctx, user.UserID, displayName)
 	if err != nil {
 		t.Fatalf("Failed to create test user pseudonym: %v", err)
 	}
@@ -476,7 +736,7 @@ func (ts *IntegrationTestSuite) CreateTestUser(t *testing.T, email, password str
 	// Track pseudonym for cleanup
 	ts.Tracker.TrackPseudonym(pseudonym.PseudonymID)
 
-	return &TestUser{
+	testUser := &TestUser{
 		UserID:       user.UserID,
 		Email:        email,
 		Password:     password,
@@ -486,6 +746,7 @@ func (ts *IntegrationTestSuite) CreateTestUser(t *testing.T, email, password str
 		PseudonymID:  pseudonym.PseudonymID,
 		DisplayName:  displayName,
 	}
+	return testUser
 }
 
 // CreateTestSubforum creates a test subforum and tracks it for cleanup
@@ -592,7 +853,7 @@ func (ts *IntegrationTestSuite) CreateTestVote(t *testing.T, userID, postID int6
 	}
 
 	// Get user's pseudonym
-	pseudonyms, err := ts.PseudonymDAO.GetPseudonymsByUserID(ctx, userID)
+	pseudonyms, err := ts.SecurePseudonymDAO.GetPseudonymsByUserID(ctx, userID, "user", "authentication")
 	if err != nil {
 		t.Fatalf("Failed to get user pseudonyms for vote: %v", err)
 	}
@@ -654,7 +915,7 @@ func (ts *IntegrationTestSuite) CreateTestPseudonym(t *testing.T, userID int64, 
 	ctx := context.Background()
 
 	// Create pseudonym
-	pseudonym, err := ts.PseudonymDAO.CreatePseudonym(ctx, userID, displayName)
+	pseudonym, err := ts.SecurePseudonymDAO.CreatePseudonymWithIdentityMapping(ctx, userID, displayName)
 	if err != nil {
 		t.Fatalf("Failed to create test pseudonym: %v", err)
 	}
@@ -674,26 +935,16 @@ func (ts *IntegrationTestSuite) CreateTestServer() *httptest.Server {
 
 // createTestServer creates a new API server with test database configuration
 func (ts *IntegrationTestSuite) createTestServer() *api.Server {
-	// Create database connection using test configuration
-	db, err := database.NewConnection(&ts.Config.Database)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to connect to test database: %v", err))
-	}
-
-	// Create API key DAO for authentication
-	apiKeyDAO := dao.NewAPIKeyDAO(db)
-
-	// Create DAOs
-	pseudonymDAO := dao.NewPseudonymDAO(db)
-	identityMappingDAO := dao.NewIdentityMappingDAO(db)
-	postDAO := dao.NewPostDAO(db)
-	commentDAO := dao.NewCommentDAO(db)
-	userDAO := dao.NewUserDAO(db)
-	userPreferencesDAO := dao.NewUserPreferencesDAO(db)
-	userBlocksDAO := dao.NewUserBlocksDAO(db)
-
-	// Create IBE system for correlation operations
-	ibeSystem := ibe.NewIBESystem()
+	// Use the existing IBE system and DAOs from the test suite
+	ibeSystem := ts.IBESystem
+	userDAO := ts.UserDAO
+	identityMappingDAO := ts.IdentityMappingDAO
+	pseudonymDAO := ts.SecurePseudonymDAO
+	postDAO := ts.PostDAO
+	commentDAO := ts.CommentDAO
+	userPreferencesDAO := ts.UserPrefDAO
+	userBlocksDAO := ts.UserBlockDAO
+	apiKeyDAO := ts.APIKeyDAO
 
 	// Create auth middleware with test configuration
 	authMiddleware := middleware.NewAuthMiddleware(ts.Config.JWT.Secret, apiKeyDAO, &ts.Config.JWT, &ts.Config.Security)
@@ -721,14 +972,14 @@ func (ts *IntegrationTestSuite) createTestServer() *api.Server {
 	// Register routes with test configuration
 	routes.RegisterHealthRoutes(humaAPI)
 	routes.RegisterHelloRoutes(humaAPI)
-	routes.RegisterAuthRoutes(humaAPI, ts.Config, db)
-	routes.RegisterUserRoutes(humaAPI, userDAO, pseudonymDAO, userPreferencesDAO, userBlocksDAO, postDAO, commentDAO)
-	routes.RegisterSubforumRoutes(humaAPI, db)
+	routes.RegisterAuthRoutes(humaAPI, ts.Config, ts.DB, ts.DB.DB, ibeSystem)
+	routes.RegisterUserRoutes(humaAPI, userDAO, pseudonymDAO, userPreferencesDAO, userBlocksDAO, postDAO, commentDAO, ibeSystem)
+	routes.RegisterSubforumRoutes(humaAPI, ts.DB)
 	routes.RegisterMessagesRoutes(humaAPI)
 	routes.RegisterSearchRoutes(humaAPI)
 	routes.RegisterModerationRoutes(humaAPI)
-	routes.RegisterContentRoutes(humaAPI, db)
-	routes.RegisterCorrelationRoutes(humaAPI, db, ibeSystem, pseudonymDAO, identityMappingDAO, postDAO, commentDAO)
+	routes.RegisterContentRoutes(humaAPI, ts.DB, ts.DB.DB, ibeSystem, identityMappingDAO, userDAO)
+	routes.RegisterCorrelationRoutes(humaAPI, ts.DB, ibeSystem, pseudonymDAO, identityMappingDAO, postDAO, commentDAO)
 
 	return &api.Server{
 		API:       humaAPI,

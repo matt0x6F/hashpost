@@ -36,7 +36,6 @@ func (mods PseudonymModSlice) Apply(ctx context.Context, n *PseudonymTemplate) {
 // all columns are optional and should be set by mods
 type PseudonymTemplate struct {
 	PseudonymID         func() string
-	UserID              func() int64
 	DisplayName         func() string
 	KarmaScore          func() sql.Null[int32]
 	CreatedAt           func() sql.Null[time.Time]
@@ -47,6 +46,7 @@ type PseudonymTemplate struct {
 	WebsiteURL          func() sql.Null[string]
 	ShowKarma           func() sql.Null[bool]
 	AllowDirectMessages func() sql.Null[bool]
+	IsDefault           func() bool
 
 	r pseudonymR
 	f *Factory
@@ -63,7 +63,6 @@ type pseudonymR struct {
 	PollVotes                           []*pseudonymRPollVotesR
 	Posts                               []*pseudonymRPostsR
 	RemovedByPseudonymPosts             []*pseudonymRRemovedByPseudonymPostsR
-	User                                *pseudonymRUserR
 	ReportedPseudonymReports            []*pseudonymRReportedPseudonymReportsR
 	ReporterPseudonymReports            []*pseudonymRReporterPseudonymReportsR
 	ResolvedByPseudonymReports          []*pseudonymRResolvedByPseudonymReportsR
@@ -114,9 +113,6 @@ type pseudonymRPostsR struct {
 type pseudonymRRemovedByPseudonymPostsR struct {
 	number int
 	o      *PostTemplate
-}
-type pseudonymRUserR struct {
-	o *UserTemplate
 }
 type pseudonymRReportedPseudonymReportsR struct {
 	number int
@@ -295,13 +291,6 @@ func (t PseudonymTemplate) setModelRels(o *models.Pseudonym) {
 		o.R.RemovedByPseudonymPosts = rel
 	}
 
-	if t.r.User != nil {
-		rel := t.r.User.o.Build()
-		rel.R.Pseudonyms = append(rel.R.Pseudonyms, o)
-		o.UserID = rel.UserID // h2
-		o.R.User = rel
-	}
-
 	if t.r.ReportedPseudonymReports != nil {
 		rel := models.ReportSlice{}
 		for _, r := range t.r.ReportedPseudonymReports {
@@ -429,10 +418,6 @@ func (o PseudonymTemplate) BuildSetter() *models.PseudonymSetter {
 		val := o.PseudonymID()
 		m.PseudonymID = &val
 	}
-	if o.UserID != nil {
-		val := o.UserID()
-		m.UserID = &val
-	}
 	if o.DisplayName != nil {
 		val := o.DisplayName()
 		m.DisplayName = &val
@@ -473,6 +458,10 @@ func (o PseudonymTemplate) BuildSetter() *models.PseudonymSetter {
 		val := o.AllowDirectMessages()
 		m.AllowDirectMessages = &val
 	}
+	if o.IsDefault != nil {
+		val := o.IsDefault()
+		m.IsDefault = &val
+	}
 
 	return m
 }
@@ -497,9 +486,6 @@ func (o PseudonymTemplate) Build() *models.Pseudonym {
 
 	if o.PseudonymID != nil {
 		m.PseudonymID = o.PseudonymID()
-	}
-	if o.UserID != nil {
-		m.UserID = o.UserID()
 	}
 	if o.DisplayName != nil {
 		m.DisplayName = o.DisplayName()
@@ -531,6 +517,9 @@ func (o PseudonymTemplate) Build() *models.Pseudonym {
 	if o.AllowDirectMessages != nil {
 		m.AllowDirectMessages = o.AllowDirectMessages()
 	}
+	if o.IsDefault != nil {
+		m.IsDefault = o.IsDefault()
+	}
 
 	o.setModelRels(m)
 
@@ -554,10 +543,6 @@ func ensureCreatablePseudonym(m *models.PseudonymSetter) {
 	if m.PseudonymID == nil {
 		val := random_string(nil, "64")
 		m.PseudonymID = &val
-	}
-	if m.UserID == nil {
-		val := random_int64(nil)
-		m.UserID = &val
 	}
 	if m.DisplayName == nil {
 		val := random_string(nil, "50")
@@ -745,13 +730,13 @@ func (o *PseudonymTemplate) insertOptRels(ctx context.Context, exec bob.Executor
 	if !isReportedPseudonymReportsDone && o.r.ReportedPseudonymReports != nil {
 		ctx = pseudonymRelReportedPseudonymReportsCtx.WithValue(ctx, true)
 		for _, r := range o.r.ReportedPseudonymReports {
-			var rel11 models.ReportSlice
-			ctx, rel11, err = r.o.createMany(ctx, exec, r.number)
+			var rel10 models.ReportSlice
+			ctx, rel10, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachReportedPseudonymReports(ctx, exec, rel11...)
+			err = m.AttachReportedPseudonymReports(ctx, exec, rel10...)
 			if err != nil {
 				return ctx, err
 			}
@@ -762,13 +747,13 @@ func (o *PseudonymTemplate) insertOptRels(ctx context.Context, exec bob.Executor
 	if !isReporterPseudonymReportsDone && o.r.ReporterPseudonymReports != nil {
 		ctx = pseudonymRelReporterPseudonymReportsCtx.WithValue(ctx, true)
 		for _, r := range o.r.ReporterPseudonymReports {
-			var rel12 models.ReportSlice
-			ctx, rel12, err = r.o.createMany(ctx, exec, r.number)
+			var rel11 models.ReportSlice
+			ctx, rel11, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachReporterPseudonymReports(ctx, exec, rel12...)
+			err = m.AttachReporterPseudonymReports(ctx, exec, rel11...)
 			if err != nil {
 				return ctx, err
 			}
@@ -779,13 +764,13 @@ func (o *PseudonymTemplate) insertOptRels(ctx context.Context, exec bob.Executor
 	if !isResolvedByPseudonymReportsDone && o.r.ResolvedByPseudonymReports != nil {
 		ctx = pseudonymRelResolvedByPseudonymReportsCtx.WithValue(ctx, true)
 		for _, r := range o.r.ResolvedByPseudonymReports {
-			var rel13 models.ReportSlice
-			ctx, rel13, err = r.o.createMany(ctx, exec, r.number)
+			var rel12 models.ReportSlice
+			ctx, rel12, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachResolvedByPseudonymReports(ctx, exec, rel13...)
+			err = m.AttachResolvedByPseudonymReports(ctx, exec, rel12...)
 			if err != nil {
 				return ctx, err
 			}
@@ -796,13 +781,13 @@ func (o *PseudonymTemplate) insertOptRels(ctx context.Context, exec bob.Executor
 	if !isSubforumModeratorsDone && o.r.SubforumModerators != nil {
 		ctx = pseudonymRelSubforumModeratorsCtx.WithValue(ctx, true)
 		for _, r := range o.r.SubforumModerators {
-			var rel14 models.SubforumModeratorSlice
-			ctx, rel14, err = r.o.createMany(ctx, exec, r.number)
+			var rel13 models.SubforumModeratorSlice
+			ctx, rel13, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachSubforumModerators(ctx, exec, rel14...)
+			err = m.AttachSubforumModerators(ctx, exec, rel13...)
 			if err != nil {
 				return ctx, err
 			}
@@ -813,13 +798,13 @@ func (o *PseudonymTemplate) insertOptRels(ctx context.Context, exec bob.Executor
 	if !isSubforumSubscriptionsDone && o.r.SubforumSubscriptions != nil {
 		ctx = pseudonymRelSubforumSubscriptionsCtx.WithValue(ctx, true)
 		for _, r := range o.r.SubforumSubscriptions {
-			var rel15 models.SubforumSubscriptionSlice
-			ctx, rel15, err = r.o.createMany(ctx, exec, r.number)
+			var rel14 models.SubforumSubscriptionSlice
+			ctx, rel14, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachSubforumSubscriptions(ctx, exec, rel15...)
+			err = m.AttachSubforumSubscriptions(ctx, exec, rel14...)
 			if err != nil {
 				return ctx, err
 			}
@@ -830,13 +815,13 @@ func (o *PseudonymTemplate) insertOptRels(ctx context.Context, exec bob.Executor
 	if !isBannedByPseudonymUserBansDone && o.r.BannedByPseudonymUserBans != nil {
 		ctx = pseudonymRelBannedByPseudonymUserBansCtx.WithValue(ctx, true)
 		for _, r := range o.r.BannedByPseudonymUserBans {
-			var rel16 models.UserBanSlice
-			ctx, rel16, err = r.o.createMany(ctx, exec, r.number)
+			var rel15 models.UserBanSlice
+			ctx, rel15, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachBannedByPseudonymUserBans(ctx, exec, rel16...)
+			err = m.AttachBannedByPseudonymUserBans(ctx, exec, rel15...)
 			if err != nil {
 				return ctx, err
 			}
@@ -847,13 +832,13 @@ func (o *PseudonymTemplate) insertOptRels(ctx context.Context, exec bob.Executor
 	if !isBlockedPseudonymUserBlocksDone && o.r.BlockedPseudonymUserBlocks != nil {
 		ctx = pseudonymRelBlockedPseudonymUserBlocksCtx.WithValue(ctx, true)
 		for _, r := range o.r.BlockedPseudonymUserBlocks {
-			var rel17 models.UserBlockSlice
-			ctx, rel17, err = r.o.createMany(ctx, exec, r.number)
+			var rel16 models.UserBlockSlice
+			ctx, rel16, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachBlockedPseudonymUserBlocks(ctx, exec, rel17...)
+			err = m.AttachBlockedPseudonymUserBlocks(ctx, exec, rel16...)
 			if err != nil {
 				return ctx, err
 			}
@@ -864,13 +849,13 @@ func (o *PseudonymTemplate) insertOptRels(ctx context.Context, exec bob.Executor
 	if !isBlockerPseudonymUserBlocksDone && o.r.BlockerPseudonymUserBlocks != nil {
 		ctx = pseudonymRelBlockerPseudonymUserBlocksCtx.WithValue(ctx, true)
 		for _, r := range o.r.BlockerPseudonymUserBlocks {
-			var rel18 models.UserBlockSlice
-			ctx, rel18, err = r.o.createMany(ctx, exec, r.number)
+			var rel17 models.UserBlockSlice
+			ctx, rel17, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachBlockerPseudonymUserBlocks(ctx, exec, rel18...)
+			err = m.AttachBlockerPseudonymUserBlocks(ctx, exec, rel17...)
 			if err != nil {
 				return ctx, err
 			}
@@ -881,13 +866,13 @@ func (o *PseudonymTemplate) insertOptRels(ctx context.Context, exec bob.Executor
 	if !isVotesDone && o.r.Votes != nil {
 		ctx = pseudonymRelVotesCtx.WithValue(ctx, true)
 		for _, r := range o.r.Votes {
-			var rel19 models.VoteSlice
-			ctx, rel19, err = r.o.createMany(ctx, exec, r.number)
+			var rel18 models.VoteSlice
+			ctx, rel18, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachVotes(ctx, exec, rel19...)
+			err = m.AttachVotes(ctx, exec, rel18...)
 			if err != nil {
 				return ctx, err
 			}
@@ -936,27 +921,11 @@ func (o *PseudonymTemplate) create(ctx context.Context, exec bob.Executor) (cont
 	opt := o.BuildSetter()
 	ensureCreatablePseudonym(opt)
 
-	if o.r.User == nil {
-		PseudonymMods.WithNewUser().Apply(ctx, o)
-	}
-
-	rel10, ok := userCtx.Value(ctx)
-	if !ok {
-		ctx, rel10, err = o.r.User.o.create(ctx, exec)
-		if err != nil {
-			return ctx, nil, err
-		}
-	}
-
-	opt.UserID = &rel10.UserID
-
 	m, err := models.Pseudonyms.Insert(opt).One(ctx, exec)
 	if err != nil {
 		return ctx, nil, err
 	}
 	ctx = pseudonymCtx.WithValue(ctx, m)
-
-	m.R.User = rel10
 
 	ctx, err = o.insertOptRels(ctx, exec, m)
 	return ctx, m, err
@@ -1018,7 +987,6 @@ type pseudonymMods struct{}
 func (m pseudonymMods) RandomizeAllColumns(f *faker.Faker) PseudonymMod {
 	return PseudonymModSlice{
 		PseudonymMods.RandomPseudonymID(f),
-		PseudonymMods.RandomUserID(f),
 		PseudonymMods.RandomDisplayName(f),
 		PseudonymMods.RandomKarmaScore(f),
 		PseudonymMods.RandomCreatedAt(f),
@@ -1029,6 +997,7 @@ func (m pseudonymMods) RandomizeAllColumns(f *faker.Faker) PseudonymMod {
 		PseudonymMods.RandomWebsiteURL(f),
 		PseudonymMods.RandomShowKarma(f),
 		PseudonymMods.RandomAllowDirectMessages(f),
+		PseudonymMods.RandomIsDefault(f),
 	}
 }
 
@@ -1059,37 +1028,6 @@ func (m pseudonymMods) RandomPseudonymID(f *faker.Faker) PseudonymMod {
 	return PseudonymModFunc(func(_ context.Context, o *PseudonymTemplate) {
 		o.PseudonymID = func() string {
 			return random_string(f, "64")
-		}
-	})
-}
-
-// Set the model columns to this value
-func (m pseudonymMods) UserID(val int64) PseudonymMod {
-	return PseudonymModFunc(func(_ context.Context, o *PseudonymTemplate) {
-		o.UserID = func() int64 { return val }
-	})
-}
-
-// Set the Column from the function
-func (m pseudonymMods) UserIDFunc(f func() int64) PseudonymMod {
-	return PseudonymModFunc(func(_ context.Context, o *PseudonymTemplate) {
-		o.UserID = f
-	})
-}
-
-// Clear any values for the column
-func (m pseudonymMods) UnsetUserID() PseudonymMod {
-	return PseudonymModFunc(func(_ context.Context, o *PseudonymTemplate) {
-		o.UserID = nil
-	})
-}
-
-// Generates a random value for the column using the given faker
-// if faker is nil, a default faker is used
-func (m pseudonymMods) RandomUserID(f *faker.Faker) PseudonymMod {
-	return PseudonymModFunc(func(_ context.Context, o *PseudonymTemplate) {
-		o.UserID = func() int64 {
-			return random_int64(f)
 		}
 	})
 }
@@ -1602,39 +1540,43 @@ func (m pseudonymMods) RandomAllowDirectMessagesNotNull(f *faker.Faker) Pseudony
 	})
 }
 
+// Set the model columns to this value
+func (m pseudonymMods) IsDefault(val bool) PseudonymMod {
+	return PseudonymModFunc(func(_ context.Context, o *PseudonymTemplate) {
+		o.IsDefault = func() bool { return val }
+	})
+}
+
+// Set the Column from the function
+func (m pseudonymMods) IsDefaultFunc(f func() bool) PseudonymMod {
+	return PseudonymModFunc(func(_ context.Context, o *PseudonymTemplate) {
+		o.IsDefault = f
+	})
+}
+
+// Clear any values for the column
+func (m pseudonymMods) UnsetIsDefault() PseudonymMod {
+	return PseudonymModFunc(func(_ context.Context, o *PseudonymTemplate) {
+		o.IsDefault = nil
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+func (m pseudonymMods) RandomIsDefault(f *faker.Faker) PseudonymMod {
+	return PseudonymModFunc(func(_ context.Context, o *PseudonymTemplate) {
+		o.IsDefault = func() bool {
+			return random_bool(f)
+		}
+	})
+}
+
 func (m pseudonymMods) WithParentsCascading() PseudonymMod {
 	return PseudonymModFunc(func(ctx context.Context, o *PseudonymTemplate) {
 		if isDone, _ := pseudonymWithParentsCascadingCtx.Value(ctx); isDone {
 			return
 		}
 		ctx = pseudonymWithParentsCascadingCtx.WithValue(ctx, true)
-		{
-
-			related := o.f.NewUser(ctx, UserMods.WithParentsCascading())
-			m.WithUser(related).Apply(ctx, o)
-		}
-	})
-}
-
-func (m pseudonymMods) WithUser(rel *UserTemplate) PseudonymMod {
-	return PseudonymModFunc(func(ctx context.Context, o *PseudonymTemplate) {
-		o.r.User = &pseudonymRUserR{
-			o: rel,
-		}
-	})
-}
-
-func (m pseudonymMods) WithNewUser(mods ...UserMod) PseudonymMod {
-	return PseudonymModFunc(func(ctx context.Context, o *PseudonymTemplate) {
-		related := o.f.NewUser(ctx, mods...)
-
-		m.WithUser(related).Apply(ctx, o)
-	})
-}
-
-func (m pseudonymMods) WithoutUser() PseudonymMod {
-	return PseudonymModFunc(func(ctx context.Context, o *PseudonymTemplate) {
-		o.r.User = nil
 	})
 }
 

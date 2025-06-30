@@ -29,6 +29,14 @@ func (dao *IdentityMappingDAO) GetIdentityMappingByPseudonymID(ctx context.Conte
 	).One(ctx, dao.db)
 }
 
+// GetIdentityMappingsByPseudonymID retrieves all identity mappings for a pseudonym ID
+func (dao *IdentityMappingDAO) GetIdentityMappingsByPseudonymID(ctx context.Context, pseudonymID string) (models.IdentityMappingSlice, error) {
+	return models.IdentityMappings.Query(
+		models.SelectWhere.IdentityMappings.PseudonymID.EQ(pseudonymID),
+		models.SelectWhere.IdentityMappings.IsActive.EQ(true),
+	).All(ctx, dao.db)
+}
+
 // GetIdentityMappingsByFingerprint retrieves all identity mappings for a given fingerprint
 func (dao *IdentityMappingDAO) GetIdentityMappingsByFingerprint(ctx context.Context, fingerprint string) (models.IdentityMappingSlice, error) {
 	return models.IdentityMappings.Query(

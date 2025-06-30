@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -16,23 +17,53 @@ import (
 	"github.com/matt0x6f/hashpost/internal/api/validation"
 	"github.com/matt0x6f/hashpost/internal/config"
 	"github.com/matt0x6f/hashpost/internal/database/dao"
+	"github.com/matt0x6f/hashpost/internal/ibe"
 	"github.com/rs/zerolog/log"
 	"github.com/stephenafamo/bob"
 )
 
 // AuthHandler handles authentication requests
 type AuthHandler struct {
-	config       *config.Config
-	userDAO      *dao.UserDAO
-	pseudonymDAO *dao.PseudonymDAO
+	config             *config.Config
+	db                 bob.Executor
+	userDAO            *dao.UserDAO
+	securePseudonymDAO *dao.SecurePseudonymDAO
+	identityMappingDAO *dao.IdentityMappingDAO
+	ibeSystem          *ibe.IBESystem
 }
 
 // NewAuthHandler creates a new authentication handler
-func NewAuthHandler(cfg *config.Config, db bob.Executor) *AuthHandler {
+func NewAuthHandler(cfg *config.Config, db bob.Executor, rawDB *sql.DB) *AuthHandler {
+	userDAO := dao.NewUserDAO(db)
+	ibeSystem := ibe.NewIBESystem()
+	identityMappingDAO := dao.NewIdentityMappingDAO(db)
+	roleKeyDAO := dao.NewRoleKeyDAO(db)
+	securePseudonymDAO := dao.NewSecurePseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO)
+
 	return &AuthHandler{
-		config:       cfg,
-		userDAO:      dao.NewUserDAO(db),
-		pseudonymDAO: dao.NewPseudonymDAO(db),
+		config:             cfg,
+		db:                 db,
+		userDAO:            userDAO,
+		securePseudonymDAO: securePseudonymDAO,
+		identityMappingDAO: identityMappingDAO,
+		ibeSystem:          ibeSystem,
+	}
+}
+
+// NewAuthHandlerWithIBE creates a new authentication handler with a specific IBE system
+func NewAuthHandlerWithIBE(cfg *config.Config, db bob.Executor, rawDB *sql.DB, ibeSystem *ibe.IBESystem) *AuthHandler {
+	userDAO := dao.NewUserDAO(db)
+	identityMappingDAO := dao.NewIdentityMappingDAO(db)
+	roleKeyDAO := dao.NewRoleKeyDAO(db)
+	securePseudonymDAO := dao.NewSecurePseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO)
+
+	return &AuthHandler{
+		config:             cfg,
+		db:                 db,
+		userDAO:            userDAO,
+		securePseudonymDAO: securePseudonymDAO,
+		identityMappingDAO: identityMappingDAO,
+		ibeSystem:          ibeSystem,
 	}
 }
 
@@ -78,18 +109,29 @@ func (h *AuthHandler) RegisterUser(ctx context.Context, input *models.UserRegist
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
+	// Create default role keys for the user
+	roleKeyDAO := dao.NewRoleKeyDAO(h.db)
+	if err := roleKeyDAO.EnsureDefaultKeys(ctx, h.ibeSystem, user.UserID); err != nil {
+		log.Error().
+			Err(err).
+			Int64("user_id", user.UserID).
+			Msg("Failed to create default role keys")
+		return nil, fmt.Errorf("failed to create default role keys: %w", err)
+	}
+
 	// Create pseudonym for the user
-	pseudonym, err := h.pseudonymDAO.CreatePseudonym(ctx, user.UserID, input.Body.DisplayName)
+	pseudonym, err := h.securePseudonymDAO.CreatePseudonymWithIdentityMapping(ctx, user.UserID, input.Body.DisplayName)
 	if err != nil {
 		log.Error().
 			Err(err).
 			Int64("user_id", user.UserID).
-			Msg("Failed to create pseudonym for user")
+			Str("display_name", input.Body.DisplayName).
+			Msg("Failed to create pseudonym in database")
 		return nil, fmt.Errorf("failed to create pseudonym: %w", err)
 	}
 
 	// Get user roles and capabilities from database
-	roles := []string{"user"}                                                                  // Default role for new users
+	roles := []string{"user"}                                                                  // Default role
 	capabilities := []string{"create_content", "vote", "message", "report", "create_subforum"} // Default capabilities
 
 	// If user has roles/capabilities stored in database, use those
@@ -235,12 +277,41 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *models.UserLoginInpu
 		// Don't fail the login for this error
 	}
 
-	// Get user's pseudonyms
-	pseudonyms, err := h.pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID)
+	// Get user roles and capabilities from database
+	roles := []string{"user"}                                                                  // Default role
+	capabilities := []string{"create_content", "vote", "message", "report", "create_subforum"} // Default capabilities
+
+	// If user has roles/capabilities stored in database, use those
+	if user.Roles.Valid {
+		rawValue, err := user.Roles.V.Value()
+		if err == nil {
+			var userRoles []string
+			if err := json.Unmarshal(rawValue.([]byte), &userRoles); err == nil && len(userRoles) > 0 {
+				roles = userRoles
+			}
+		}
+	}
+
+	if user.Capabilities.Valid {
+		rawValue, err := user.Capabilities.V.Value()
+		if err == nil {
+			var userCapabilities []string
+			if err := json.Unmarshal(rawValue.([]byte), &userCapabilities); err == nil && len(userCapabilities) > 0 {
+				capabilities = userCapabilities
+			}
+		}
+	}
+
+	// Get user's pseudonyms for the response
+	// Use IBE-based correlation to get user's pseudonyms
+	// Use the user's actual roles, not hardcoded "user"
+	primaryRole := roles[0] // Use the first role for authentication
+	pseudonyms, err := h.securePseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, primaryRole, "authentication")
 	if err != nil {
 		log.Error().
 			Err(err).
 			Int64("user_id", user.UserID).
+			Str("role", primaryRole).
 			Msg("Failed to get user pseudonyms")
 		return nil, fmt.Errorf("failed to get user pseudonyms: %w", err)
 	}
@@ -251,6 +322,17 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *models.UserLoginInpu
 			Int64("user_id", user.UserID).
 			Msg("User has no pseudonyms; cannot proceed with login")
 		return nil, fmt.Errorf("user has no pseudonyms; please contact support")
+	}
+
+	// Get the default pseudonym for the user
+	defaultPseudonym, err := h.securePseudonymDAO.GetDefaultPseudonymByUserID(ctx, user.UserID, primaryRole, "authentication")
+	if err != nil {
+		log.Error().
+			Err(err).
+			Int64("user_id", user.UserID).
+			Str("role", primaryRole).
+			Msg("Failed to get default pseudonym")
+		return nil, fmt.Errorf("failed to get default pseudonym: %w", err)
 	}
 
 	// Convert to API models
@@ -286,43 +368,15 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *models.UserLoginInpu
 		}
 	}
 
-	// Get user roles and capabilities from database
-	roles := []string{"user"}                                                                  // Default role
-	capabilities := []string{"create_content", "vote", "message", "report", "create_subforum"} // Default capabilities
-
-	// If user has roles/capabilities stored in database, use those
-	if user.Roles.Valid {
-		rawValue, err := user.Roles.V.Value()
-		if err == nil {
-			var userRoles []string
-			if err := json.Unmarshal(rawValue.([]byte), &userRoles); err == nil && len(userRoles) > 0 {
-				roles = userRoles
-			}
-		}
-	}
-
-	if user.Capabilities.Valid {
-		rawValue, err := user.Capabilities.V.Value()
-		if err == nil {
-			var userCapabilities []string
-			if err := json.Unmarshal(rawValue.([]byte), &userCapabilities); err == nil && len(userCapabilities) > 0 {
-				capabilities = userCapabilities
-			}
-		}
-	}
-
-	// Get active pseudonym (use the first one for now)
-	var activePseudonymID string
-	var displayName string
-	if len(pseudonyms) > 0 {
-		activePseudonymID = pseudonyms[0].PseudonymID
-		displayName = pseudonyms[0].DisplayName
-	}
+	// Use the default pseudonym as the active one
+	activePseudonymID := defaultPseudonym.PseudonymID
+	displayName := defaultPseudonym.DisplayName
 
 	log.Info().
 		Str("active_pseudonym_id", activePseudonymID).
 		Str("display_name", displayName).
-		Msg("Injecting pseudonym context into JWT")
+		Bool("is_default", defaultPseudonym.IsDefault).
+		Msg("Using default pseudonym as active pseudonym")
 
 	// Create user context for JWT generation
 	userCtx := &middleware.UserContext{
@@ -378,10 +432,6 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *models.UserLoginInpu
 	)
 
 	log.Info().
-		Str("access_cookie_name", response.Cookies[0].Name).
-		Bool("access_cookie_secure", response.Cookies[0].Secure).
-		Str("refresh_cookie_name", response.Cookies[1].Name).
-		Bool("refresh_cookie_secure", response.Cookies[1].Secure).
 		Msg("Created login response with cookies")
 
 	return response, nil
@@ -550,10 +600,30 @@ func (h *AuthHandler) GetCurrentUserSession(ctx context.Context, input *middlewa
 		return nil, huma.Error403Forbidden("Account suspended")
 	}
 
-	// Get user's pseudonyms
-	pseudonyms, err := h.pseudonymDAO.GetPseudonymsByUserID(ctx, int64(userID))
+	// Get user roles and capabilities from database
+	roles := []string{"user"} // Default role
+
+	// If user has roles stored in database, use those
+	if user.Roles.Valid {
+		rawValue, err := user.Roles.V.Value()
+		if err == nil {
+			var userRoles []string
+			if err := json.Unmarshal(rawValue.([]byte), &userRoles); err == nil && len(userRoles) > 0 {
+				roles = userRoles
+			}
+		}
+	}
+
+	// Get user's pseudonyms for the response
+	// Use IBE-based correlation to get user's pseudonyms
+	// Use the user's actual roles, not hardcoded "user"
+	primaryRole := roles[0] // Use the first role for authentication
+	pseudonyms, err := h.securePseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, primaryRole, "authentication")
 	if err != nil {
-		log.Error().Err(err).Int64("user_id", int64(userID)).Msg("Failed to get user pseudonyms")
+		log.Error().
+			Err(err).
+			Int("user_id", userID).
+			Msg("Failed to get user pseudonyms")
 		return nil, fmt.Errorf("failed to get user pseudonyms: %w", err)
 	}
 

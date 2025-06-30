@@ -1,16 +1,19 @@
 package routes
 
 import (
+	"database/sql"
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/matt0x6f/hashpost/internal/api/handlers"
+	"github.com/matt0x6f/hashpost/internal/database/dao"
+	"github.com/matt0x6f/hashpost/internal/ibe"
 	"github.com/stephenafamo/bob"
 )
 
 // RegisterContentRoutes registers content-related routes
-func RegisterContentRoutes(api huma.API, db bob.Executor) {
-	contentHandler := handlers.NewContentHandler(db)
+func RegisterContentRoutes(api huma.API, db bob.Executor, rawDB *sql.DB, ibeSystem *ibe.IBESystem, identityMappingDAO *dao.IdentityMappingDAO, userDAO *dao.UserDAO) {
+	contentHandler := handlers.NewContentHandler(db, rawDB, ibeSystem, identityMappingDAO, userDAO)
 
 	// Get posts from subforum
 	huma.Register(api, huma.Operation{

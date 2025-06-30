@@ -1,17 +1,19 @@
 package routes
 
 import (
+	"database/sql"
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/matt0x6f/hashpost/internal/api/handlers"
 	"github.com/matt0x6f/hashpost/internal/config"
+	"github.com/matt0x6f/hashpost/internal/ibe"
 	"github.com/stephenafamo/bob"
 )
 
 // RegisterAuthRoutes registers authentication-related routes
-func RegisterAuthRoutes(api huma.API, cfg *config.Config, db bob.Executor) {
-	authHandler := handlers.NewAuthHandler(cfg, db)
+func RegisterAuthRoutes(api huma.API, cfg *config.Config, db bob.Executor, rawDB *sql.DB, ibeSystem *ibe.IBESystem) {
+	authHandler := handlers.NewAuthHandlerWithIBE(cfg, db, rawDB, ibeSystem)
 
 	// User registration
 	huma.Register(api, huma.Operation{
