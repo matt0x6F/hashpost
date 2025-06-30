@@ -38,9 +38,9 @@ func TestEnsureDefaultKeys_RegularUser(t *testing.T) {
 	err := roleKeyDAO.EnsureDefaultKeys(ctx, ibeSystem, testUser.UserID)
 	require.NoError(t, err, "Failed to ensure default keys")
 
-	// Verify role keys were created
-	roleKeys := getRoleKeysForUser(t, suite.DB, testUser.UserID)
-	assert.Len(t, roleKeys, 2, "Should have 2 role keys for regular user")
+	// Verify per-user role keys were created
+	roleKeys := getPerUserRoleKeys(t, suite.DB, testUser.UserID)
+	assert.Len(t, roleKeys, 2, "Should have 2 per-user role keys for regular user")
 
 	// Check authentication key
 	authKey := findRoleKey(roleKeys, "user", "authentication")
@@ -78,9 +78,9 @@ func TestEnsureDefaultKeys_PlatformAdmin(t *testing.T) {
 	err := roleKeyDAO.EnsureDefaultKeys(ctx, ibeSystem, testUser.UserID)
 	require.NoError(t, err, "Failed to ensure default keys")
 
-	// Verify role keys were created
-	roleKeys := getRoleKeysForUser(t, suite.DB, testUser.UserID)
-	assert.Len(t, roleKeys, 3, "Should have 3 role keys for platform admin")
+	// Verify global role keys exist for platform_admin
+	roleKeys := getGlobalRoleKeysForRoles(t, suite.DB, []string{"platform_admin"})
+	assert.Len(t, roleKeys, 3, "Should have 3 global role keys for platform admin")
 
 	// Check authentication key
 	authKey := findRoleKey(roleKeys, "platform_admin", "authentication")
@@ -122,8 +122,8 @@ func TestEnsureDefaultKeys_TrustSafety(t *testing.T) {
 	require.NoError(t, err, "Failed to ensure default keys")
 
 	// Verify role keys were created
-	roleKeys := getRoleKeysForUser(t, suite.DB, testUser.UserID)
-	assert.Len(t, roleKeys, 3, "Should have 3 role keys for trust_safety user")
+	roleKeys := getPerUserRoleKeys(t, suite.DB, testUser.UserID)
+	assert.Len(t, roleKeys, 3, "Should have 3 per-user role keys for trust_safety user")
 
 	// Check correlation key with correct role name
 	corrKey := findRoleKey(roleKeys, "trust_safety", "correlation")
@@ -150,8 +150,8 @@ func TestEnsureDefaultKeys_LegalTeam(t *testing.T) {
 	require.NoError(t, err, "Failed to ensure default keys")
 
 	// Verify role keys were created
-	roleKeys := getRoleKeysForUser(t, suite.DB, testUser.UserID)
-	assert.Len(t, roleKeys, 3, "Should have 3 role keys for legal_team user")
+	roleKeys := getPerUserRoleKeys(t, suite.DB, testUser.UserID)
+	assert.Len(t, roleKeys, 3, "Should have 3 per-user role keys for legal_team user")
 
 	// Check correlation key with correct role name
 	corrKey := findRoleKey(roleKeys, "legal_team", "correlation")
@@ -178,8 +178,8 @@ func TestEnsureDefaultKeys_UserWithoutRoles(t *testing.T) {
 	require.NoError(t, err, "Failed to ensure default keys")
 
 	// Verify only basic user keys were created
-	roleKeys := getRoleKeysForUser(t, suite.DB, testUser.UserID)
-	assert.Len(t, roleKeys, 2, "Should have 2 role keys for user without roles")
+	roleKeys := getPerUserRoleKeys(t, suite.DB, testUser.UserID)
+	assert.Len(t, roleKeys, 2, "Should have 2 per-user role keys for user without roles")
 
 	// Should not have any admin keys
 	for _, key := range roleKeys {
@@ -206,8 +206,8 @@ func TestEnsureDefaultKeys_UserWithMultipleRoles(t *testing.T) {
 	require.NoError(t, err, "Failed to ensure default keys")
 
 	// Verify role keys were created
-	roleKeys := getRoleKeysForUser(t, suite.DB, testUser.UserID)
-	assert.Len(t, roleKeys, 5, "Should have 5 role keys for user with multiple roles (2 for user + 3 for platform_admin)")
+	roleKeys := getPerUserRoleKeys(t, suite.DB, testUser.UserID)
+	assert.Len(t, roleKeys, 5, "Should have 5 per-user role keys for user with multiple roles (2 for user + 3 for platform_admin)")
 
 	// Check that correlation key exists for platform_admin
 	corrKey := findRoleKey(roleKeys, "platform_admin", "correlation")
@@ -228,7 +228,6 @@ func TestEnsureDefaultKeys_KeyUpdate(t *testing.T) {
 	if suite == nil {
 		return
 	}
-	defer suite.Cleanup()
 
 	ctx := context.Background()
 	roleKeyDAO := suite.RoleKeyDAO
@@ -265,20 +264,23 @@ func TestEnsureDefaultKeys_KeyUpdate(t *testing.T) {
 	// Create a key with missing capabilities (simulating an incomplete key)
 	keyData := ibeSystem.GenerateTestRoleKey("user", "authentication")
 	expiresAt := time.Now().AddDate(1, 0, 0)
-	_, err = roleKeyDAO.CreateRoleKey(ctx, "user", "authentication", keyData, []string{"login"}, expiresAt, user.UserID)
+	createdKey, err := roleKeyDAO.CreateRoleKey(ctx, "user", "authentication", keyData, []string{"login"}, expiresAt, user.UserID)
 	require.NoError(t, err, "Failed to create incomplete key")
 
+	// Track the created role key for cleanup
+	suite.Tracker.TrackRoleKey(createdKey.KeyID.String())
+
 	// Verify we have only 1 key initially
-	roleKeys := getRoleKeysForUser(t, suite.DB, user.UserID)
-	assert.Len(t, roleKeys, 1, "Should have 1 role key initially")
+	roleKeys := getPerUserRoleKeys(t, suite.DB, user.UserID)
+	assert.Len(t, roleKeys, 1, "Should have 1 per-user role key initially")
 
 	// Ensure default keys (should update existing key and create missing ones)
 	err = roleKeyDAO.EnsureDefaultKeys(ctx, ibeSystem, user.UserID)
 	require.NoError(t, err, "Failed to ensure default keys")
 
 	// Verify the keys were properly created/updated
-	roleKeys = getRoleKeysForUser(t, suite.DB, user.UserID)
-	assert.Len(t, roleKeys, 2, "Should have 2 role keys after ensuring defaults")
+	roleKeys = getPerUserRoleKeys(t, suite.DB, user.UserID)
+	assert.Len(t, roleKeys, 2, "Should have 2 per-user role keys after ensuring defaults")
 
 	// Check that the authentication key was updated with all required capabilities
 	authKey := findRoleKey(roleKeys, "user", "authentication")
@@ -294,6 +296,8 @@ func TestEnsureDefaultKeys_KeyUpdate(t *testing.T) {
 	capabilities = getCapabilities(t, selfKey)
 	assert.Contains(t, capabilities, "verify_own_pseudonym_ownership")
 	assert.Contains(t, capabilities, "manage_own_profile")
+
+	defer suite.Cleanup()
 }
 
 func TestEnsureDefaultKeys_UserNotFound(t *testing.T) {
@@ -335,15 +339,26 @@ func getCapabilities(t *testing.T, roleKey *models.RoleKey) []string {
 	return capabilities
 }
 
-func getRoleKeysForUser(t *testing.T, db bob.DB, userID int64) []*models.RoleKey {
+func getPerUserRoleKeys(t *testing.T, db bob.DB, userID int64) []*models.RoleKey {
 	ctx := context.Background()
-
 	roleKeys, err := models.RoleKeys.Query(
 		models.SelectWhere.RoleKeys.CreatedBy.EQ(userID),
 	).All(ctx, db)
-	require.NoError(t, err, "Failed to get role keys for user")
-
+	require.NoError(t, err, "Failed to get per-user role keys for user")
 	return roleKeys
+}
+
+func getGlobalRoleKeysForRoles(t *testing.T, db bob.DB, roles []string) []*models.RoleKey {
+	ctx := context.Background()
+	var allRoleKeys []*models.RoleKey
+	for _, roleName := range roles {
+		roleKeys, err := models.RoleKeys.Query(
+			models.SelectWhere.RoleKeys.RoleName.EQ(roleName),
+		).All(ctx, db)
+		require.NoError(t, err, "Failed to get global role keys for role %s", roleName)
+		allRoleKeys = append(allRoleKeys, roleKeys...)
+	}
+	return allRoleKeys
 }
 
 // Helper functions for user creation

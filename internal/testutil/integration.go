@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
@@ -243,23 +245,6 @@ func (t *TestEntityTracker) Cleanup(ctx context.Context, db bob.DB) error {
 		}
 	}
 
-	// 10. Role Keys (must be deleted before users due to foreign key constraint)
-	// Delete ALL role keys for tracked users, not just explicitly tracked ones
-	for userID := range t.users {
-		log.Info().Int64("user_id", userID).Msg("[TestEntityTracker] Deleting all role keys for user")
-		if _, err := db.ExecContext(ctx, "DELETE FROM role_keys WHERE created_by = $1", userID); err != nil {
-			return fmt.Errorf("failed to cleanup role keys for user %d: %w", userID, err)
-		}
-	}
-
-	// Also delete any explicitly tracked role keys
-	for keyID := range t.roleKeys {
-		log.Info().Str("key_id", keyID).Msg("[TestEntityTracker] Deleting explicitly tracked role key")
-		if _, err := db.ExecContext(ctx, "DELETE FROM role_keys WHERE key_id = $1", keyID); err != nil {
-			return fmt.Errorf("failed to cleanup role key %s: %w", keyID, err)
-		}
-	}
-
 	// 11. Pseudonyms (depend on users)
 	for pseudonymID := range t.pseudonyms {
 		log.Info().Str("pseudonym_id", pseudonymID).Msg("[TestEntityTracker] Deleting pseudonym")
@@ -346,28 +331,7 @@ func (ts *IntegrationTestSuite) EnsureDefaultKeys(t *testing.T, createdBy int64)
 		t.Fatalf("Failed to ensure default keys: %v", err)
 	}
 
-	// Track the default role keys for cleanup
-	// Create keys for each of the user's roles
-	for _, roleName := range userRoles {
-		defaultKeys := []struct {
-			scope string
-		}{
-			{"authentication"},
-			{"self_correlation"},
-		}
-
-		// Add correlation key for admin roles
-		if roleName == "admin" || roleName == "platform_admin" || roleName == "moderator" {
-			defaultKeys = append(defaultKeys, struct{ scope string }{"correlation"})
-		}
-
-		for _, keyDef := range defaultKeys {
-			roleKey, err := ts.RoleKeyDAO.GetRoleKey(ctx, roleName, keyDef.scope)
-			if err == nil && roleKey != nil {
-				ts.Tracker.TrackRoleKey(roleKey.KeyID.String())
-			}
-		}
-	}
+	// Role key tracking removed: Role keys are global entities that persist across tests
 }
 
 // TestUser represents a test user for integration tests
@@ -655,6 +619,12 @@ func NewIntegrationTestSuite(t *testing.T) *IntegrationTestSuite {
 	// Create entity tracker
 	tracker := NewTestEntityTracker()
 
+	// Bootstrap role keys for all test scenarios
+	// This ensures role keys exist before any tests run, preventing race conditions
+	if err := bootstrapRoleKeys(context.Background(), db, roleKeyDAO, ibeSystem); err != nil {
+		t.Fatalf("Failed to bootstrap role keys: %v", err)
+	}
+
 	// Create test suite with consistent IBE system
 	suite := &IntegrationTestSuite{
 		DB:                 db,
@@ -723,8 +693,10 @@ func (ts *IntegrationTestSuite) CreateTestUser(t *testing.T, email, password str
 		}
 	}
 
-	// Ensure default role keys exist for this user BEFORE creating pseudonym
-	ts.EnsureDefaultKeys(t, user.UserID)
+	// Ensure default role keys are created for the user
+	if err := ts.RoleKeyDAO.EnsureDefaultKeys(ctx, ts.IBESystem, user.UserID); err != nil {
+		t.Fatalf("Failed to ensure default keys for test user: %v", err)
+	}
 
 	// Create pseudonym for the user
 	displayName := fmt.Sprintf("test_user_%d", user.UserID)
@@ -1087,17 +1059,122 @@ func hashPassword(password string) string {
 
 func getCapabilitiesForRoles(roles []string) []string {
 	capabilities := []string{}
+
 	for _, role := range roles {
 		switch role {
-		case "platform_admin":
-			capabilities = append(capabilities, "system_admin", "user_management", "correlate_identities", "access_private_subforums", "cross_platform_access", "system_moderation")
-		case "trust_safety":
-			capabilities = append(capabilities, "correlate_identities", "cross_platform_access", "system_moderation", "harassment_investigation")
-		case "legal_team":
-			capabilities = append(capabilities, "correlate_identities", "legal_compliance", "court_orders", "cross_platform_access")
-		default:
+		case "user":
 			capabilities = append(capabilities, "create_content", "vote", "message", "report", "create_subforum")
+		case "platform_admin":
+			capabilities = append(capabilities, "create_content", "vote", "message", "report", "create_subforum", "moderation", "compliance", "legal_requests")
+		case "trust_safety":
+			capabilities = append(capabilities, "create_content", "vote", "message", "report", "moderation", "compliance")
+		case "legal_team":
+			capabilities = append(capabilities, "create_content", "vote", "message", "report", "compliance", "legal_requests")
 		}
 	}
+
 	return capabilities
+}
+
+// bootstrapRoleKeys creates all necessary role keys for testing scenarios
+// This ensures role keys exist before any tests run, preventing race conditions
+func bootstrapRoleKeys(ctx context.Context, db bob.DB, roleKeyDAO *dao.RoleKeyDAO, ibeSystem *ibe.IBESystem) error {
+	// Create a bootstrap user for creating role keys
+	userDAO := dao.NewUserDAO(db)
+	bootstrapEmail := "bootstrap@test.local"
+
+	// Check if bootstrap user already exists
+	bootstrapUser, err := userDAO.GetUserByEmail(ctx, bootstrapEmail)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("failed to check if bootstrap user exists: %w", err)
+	}
+
+	if bootstrapUser == nil {
+		// Create bootstrap user if it doesn't exist
+		bootstrapPasswordHash := hashPassword("bootstrap_password")
+		bootstrapUser, err = userDAO.CreateUser(ctx, bootstrapEmail, bootstrapPasswordHash)
+		if err != nil {
+			return fmt.Errorf("failed to create bootstrap user: %w", err)
+		}
+	}
+
+	// Define all roles that might be used in tests
+	allRoles := []string{"user", "platform_admin", "trust_safety", "legal_team", "moderator", "admin"}
+
+	// Define default keys for each role
+	defaultKeys := []struct {
+		roleName     string
+		scope        string
+		capabilities []string
+	}{}
+
+	// Add authentication and self_correlation keys for each role
+	for _, roleName := range allRoles {
+		defaultKeys = append(defaultKeys, struct {
+			roleName     string
+			scope        string
+			capabilities []string
+		}{
+			roleName: roleName,
+			scope:    "authentication",
+			capabilities: []string{
+				"access_own_pseudonyms",
+				"login",
+				"session_management",
+			},
+		})
+		defaultKeys = append(defaultKeys, struct {
+			roleName     string
+			scope        string
+			capabilities []string
+		}{
+			roleName: roleName,
+			scope:    "self_correlation",
+			capabilities: []string{
+				"verify_own_pseudonym_ownership",
+				"manage_own_profile",
+			},
+		})
+	}
+
+	// Add correlation keys for admin roles
+	adminRoles := []string{"platform_admin", "trust_safety", "legal_team", "moderator", "admin"}
+	for _, roleName := range adminRoles {
+		defaultKeys = append(defaultKeys, struct {
+			roleName     string
+			scope        string
+			capabilities []string
+		}{
+			roleName: roleName,
+			scope:    "correlation",
+			capabilities: []string{
+				"access_all_pseudonyms",
+				"cross_user_correlation",
+				"moderation",
+				"compliance",
+				"legal_requests",
+			},
+		})
+	}
+
+	// Create each role key if it doesn't exist
+	for _, keyDef := range defaultKeys {
+		existingKey, err := roleKeyDAO.GetRoleKey(ctx, keyDef.roleName, keyDef.scope)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("failed to check if role key exists for role=%s scope=%s: %w", keyDef.roleName, keyDef.scope, err)
+		}
+
+		if existingKey == nil {
+			// Key doesn't exist, create it
+			expiresAt := time.Now().AddDate(1, 0, 0) // Expire in 1 year
+			keyData := ibeSystem.GenerateTestRoleKey(keyDef.roleName, keyDef.scope)
+
+			_, err = roleKeyDAO.CreateRoleKey(ctx, keyDef.roleName, keyDef.scope, keyData, keyDef.capabilities, expiresAt, bootstrapUser.UserID)
+			if err != nil {
+				return fmt.Errorf("failed to create bootstrap role key for role=%s scope=%s: %w", keyDef.roleName, keyDef.scope, err)
+			}
+		}
+	}
+
+	return nil
 }
