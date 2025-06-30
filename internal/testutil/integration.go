@@ -206,7 +206,7 @@ func (t *TestEntityTracker) Cleanup(ctx context.Context, db bob.DB) error {
 	// 5. User preferences
 	for prefID := range t.userPrefs {
 		log.Info().Int64("pref_id", prefID).Msg("[TestEntityTracker] Deleting user preferences")
-		if _, err := db.ExecContext(ctx, "DELETE FROM user_preferences WHERE user_id = $1", prefID); err != nil {
+		if _, err := db.ExecContext(ctx, "DELETE FROM user_preferences WHERE preference_id = $1", prefID); err != nil {
 			return fmt.Errorf("failed to cleanup user preferences %d: %w", prefID, err)
 		}
 	}

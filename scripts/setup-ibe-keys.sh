@@ -47,7 +47,8 @@ if [ -f "$MASTER_KEY_PATH" ]; then
         3)
             echo "🔄 Creating test key..."
             # Create a deterministic test key (32 bytes as hex, no newline)
-            printf 'test_master_secret_32_bytes_long_key_hex' | xxd -p -c 64 | tr -d '\n' > "$MASTER_KEY_PATH"
+            # Use a proper 64-character hex string for 32 bytes
+            printf "746573745f6d61737465725f7365637265745f33325f62797465735f6c6f6e67" > "$MASTER_KEY_PATH"
             chmod 600 "$MASTER_KEY_PATH"
             echo "✅ Test key created"
             echo "⚠️  WARNING: This will break all existing identity mappings!"
@@ -77,7 +78,8 @@ else
         2)
             echo "🔄 Creating test key..."
             # Create a deterministic test key (32 bytes as hex, no newline)
-            printf 'test_master_secret_32_bytes_long_key_hex' | xxd -p -c 64 | tr -d '\n' > "$MASTER_KEY_PATH"
+            # Use a proper 64-character hex string for 32 bytes
+            printf "746573745f6d61737465725f7365637265745f33325f62797465735f6c6f6e67" > "$MASTER_KEY_PATH"
             chmod 600 "$MASTER_KEY_PATH"
             echo "✅ Test key created"
             echo "⚠️  WARNING: This will break all existing identity mappings!"

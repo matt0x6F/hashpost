@@ -27,7 +27,7 @@ jobs:
       - name: Install dependencies
         run: go mod download
       - name: Run unit tests
-        run: make test
+        run: make test-unit
 
   build:
     runs-on: ubuntu-latest

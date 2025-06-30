@@ -286,7 +286,7 @@ func NewIBESystemFromEnv() *IBESystem {
 	}
 	salt := os.Getenv("IBE_SALT")
 	if salt == "" {
-		salt = "hashpost_fingerprint_salt_v1"
+		salt = "fingerprint_salt_v1"
 	}
 	ibeSystem, err := NewIBESystemFromConfig(masterKeyPath, keyVersion, salt)
 	if err != nil {

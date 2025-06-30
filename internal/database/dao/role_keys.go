@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -297,20 +298,29 @@ func (dao *RoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interfac
 
 	// Check if each default key exists, create if not
 	for _, keyDef := range defaultKeys {
+		log.Debug().Str("role", keyDef.roleName).Str("scope", keyDef.scope).Msg("Checking if role key exists")
 		existingKey, err := dao.GetRoleKey(ctx, keyDef.roleName, keyDef.scope)
-		if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
 			// Key doesn't exist, create it with proper IBE key
+			log.Debug().Str("role", keyDef.roleName).Str("scope", keyDef.scope).Msg("Role key doesn't exist, creating it")
 			expiresAt := time.Now().AddDate(1, 0, 0) // Expire in 1 year
 
 			// Generate key data using the actual role name and scope
 			keyData := ibe.GenerateTestRoleKey(keyDef.roleName, keyDef.scope)
+			log.Debug().Str("role", keyDef.roleName).Str("scope", keyDef.scope).Int("key_data_length", len(keyData)).Msg("Generated IBE key data")
 
-			_, err = dao.CreateRoleKey(ctx, keyDef.roleName, keyDef.scope, keyData, keyDef.capabilities, expiresAt, userID)
+			createdKey, err := dao.CreateRoleKey(ctx, keyDef.roleName, keyDef.scope, keyData, keyDef.capabilities, expiresAt, userID)
 			if err != nil {
 				log.Error().Str("role", keyDef.roleName).Str("scope", keyDef.scope).Err(err).Msg("Failed to create role key")
 				return fmt.Errorf("failed to create default key for role=%s scope=%s: %w", keyDef.roleName, keyDef.scope, err)
 			}
+			log.Debug().Str("role", keyDef.roleName).Str("scope", keyDef.scope).Str("key_id", createdKey.KeyID.String()).Msg("Successfully created role key")
+		} else if err != nil {
+			// Unexpected error, log and return
+			log.Error().Str("role", keyDef.roleName).Str("scope", keyDef.scope).Err(err).Msg("Failed to retrieve role key")
+			return fmt.Errorf("failed to retrieve role key for role=%s scope=%s: %w", keyDef.roleName, keyDef.scope, err)
 		} else {
+			log.Debug().Str("role", keyDef.roleName).Str("scope", keyDef.scope).Msg("Role key already exists, checking if update needed")
 			// Key exists, check if it needs updating
 			capabilitiesBytes, err := existingKey.Capabilities.Value()
 			if err != nil {
@@ -337,6 +347,7 @@ func (dao *RoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interfac
 			}
 
 			if needsUpdate {
+				log.Debug().Str("role", keyDef.roleName).Str("scope", keyDef.scope).Msg("Updating role key capabilities")
 				// Update the key with new capabilities
 				capabilitiesJSON, _ := json.Marshal(keyDef.capabilities)
 				var capabilitiesType types.JSON[json.RawMessage]

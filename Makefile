@@ -100,8 +100,10 @@ build:
 run:
 	@echo "Running application locally..."
 	go run ./cmd/server
+ 
+test: test-unit test-integration-local
 
-test:
+test-unit:
 	@echo "Running unit tests..."
 	go test ./...
 
