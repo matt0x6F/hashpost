@@ -1,6 +1,8 @@
 package ibe
 
 import (
+	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -226,4 +228,54 @@ func TestIBESystem_FingerprintBasedCorrelation(t *testing.T) {
 	if !strings.Contains(mapping1, expectedFingerprint) || !strings.Contains(mapping2, expectedFingerprint) {
 		t.Errorf("Both mappings should contain the same fingerprint: %s", expectedFingerprint)
 	}
+}
+
+func TestIBESystem_TestConfiguration(t *testing.T) {
+	// Create IBE system with test configuration (same as in integration tests)
+	testMasterSecret := []byte("test_master_secret_32_bytes_long_key")
+	ibeSystem := NewIBESystemWithOptions(IBEOptions{
+		MasterSecret: testMasterSecret,
+		KeyVersion:   1,
+		Salt:         "test_fingerprint_salt_v1",
+	})
+
+	// Test that fingerprint generation is consistent
+	email := "test@example.com"
+	fingerprint1 := ibeSystem.GenerateFingerprint(email)
+	fingerprint2 := ibeSystem.GenerateFingerprint(email)
+
+	if fingerprint1 != fingerprint2 {
+		t.Errorf("Fingerprint generation is not consistent: %s != %s", fingerprint1, fingerprint2)
+	}
+
+	// Test that role key generation is consistent
+	roleKey1 := ibeSystem.GenerateTestRoleKey("user", "self_correlation")
+	roleKey2 := ibeSystem.GenerateTestRoleKey("user", "self_correlation")
+
+	if !bytes.Equal(roleKey1, roleKey2) {
+		t.Errorf("Role key generation is not consistent")
+	}
+
+	// Test that encryption/decryption works with test keys
+	pseudonymID := "test_pseudonym_123"
+	encrypted, err := ibeSystem.EncryptIdentity(email, pseudonymID, roleKey1)
+	if err != nil {
+		t.Fatalf("Failed to encrypt identity: %v", err)
+	}
+
+	decrypted, _, err := ibeSystem.DecryptIdentity(encrypted, roleKey1)
+	if err != nil {
+		t.Fatalf("Failed to decrypt identity: %v", err)
+	}
+
+	expectedMapping := fmt.Sprintf("%s:%s", fingerprint1, pseudonymID)
+	if decrypted != expectedMapping {
+		t.Errorf("Decrypted mapping mismatch: expected %s, got %s", expectedMapping, decrypted)
+	}
+
+	t.Logf("Test IBE system configuration verified:")
+	t.Logf("  Email: %s", email)
+	t.Logf("  Fingerprint: %s", fingerprint1)
+	t.Logf("  Role key length: %d", len(roleKey1))
+	t.Logf("  Decrypted mapping: %s", decrypted)
 }

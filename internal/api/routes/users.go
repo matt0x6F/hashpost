@@ -6,11 +6,12 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/matt0x6f/hashpost/internal/api/handlers"
 	"github.com/matt0x6f/hashpost/internal/database/dao"
+	"github.com/matt0x6f/hashpost/internal/ibe"
 )
 
 // RegisterUserRoutes registers user management-related routes
-func RegisterUserRoutes(api huma.API, userDAO *dao.UserDAO, pseudonymDAO *dao.PseudonymDAO, userPreferencesDAO *dao.UserPreferencesDAO, userBlocksDAO *dao.UserBlocksDAO, postDAO *dao.PostDAO, commentDAO *dao.CommentDAO) {
-	userHandler := handlers.NewUserHandler(userDAO, pseudonymDAO, userPreferencesDAO, userBlocksDAO, postDAO, commentDAO)
+func RegisterUserRoutes(api huma.API, userDAO *dao.UserDAO, securePseudonymDAO *dao.SecurePseudonymDAO, userPreferencesDAO *dao.UserPreferencesDAO, userBlocksDAO *dao.UserBlocksDAO, postDAO *dao.PostDAO, commentDAO *dao.CommentDAO, ibeSystem *ibe.IBESystem) {
+	userHandler := handlers.NewUserHandler(userDAO, securePseudonymDAO, userPreferencesDAO, userBlocksDAO, postDAO, commentDAO, ibeSystem)
 
 	// Get pseudonym profile (public)
 	huma.Register(api, huma.Operation{

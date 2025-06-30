@@ -35,6 +35,7 @@ type IdentityMapping struct {
 	UpdatedAt                 sql.Null[time.Time] `db:"updated_at" scan:"updated_at" json:"updated_at"`
 	IsActive                  sql.Null[bool]      `db:"is_active" scan:"is_active" json:"is_active"`
 	UserID                    int64               `db:"user_id" scan:"user_id" json:"user_id"`
+	KeyScope                  string              `db:"key_scope" scan:"key_scope" json:"key_scope"`
 
 	R identityMappingR `db:"-" scan:"rel" json:"rel"`
 }
@@ -65,6 +66,7 @@ type identityMappingColumnNames struct {
 	UpdatedAt                 string
 	IsActive                  string
 	UserID                    string
+	KeyScope                  string
 }
 
 var IdentityMappingColumns = buildIdentityMappingColumns("identity_mappings")
@@ -81,6 +83,7 @@ type identityMappingColumns struct {
 	UpdatedAt                 psql.Expression
 	IsActive                  psql.Expression
 	UserID                    psql.Expression
+	KeyScope                  psql.Expression
 }
 
 func (c identityMappingColumns) Alias() string {
@@ -104,6 +107,7 @@ func buildIdentityMappingColumns(alias string) identityMappingColumns {
 		UpdatedAt:                 psql.Quote(alias, "updated_at"),
 		IsActive:                  psql.Quote(alias, "is_active"),
 		UserID:                    psql.Quote(alias, "user_id"),
+		KeyScope:                  psql.Quote(alias, "key_scope"),
 	}
 }
 
@@ -118,6 +122,7 @@ type identityMappingWhere[Q psql.Filterable] struct {
 	UpdatedAt                 psql.WhereNullMod[Q, time.Time]
 	IsActive                  psql.WhereNullMod[Q, bool]
 	UserID                    psql.WhereMod[Q, int64]
+	KeyScope                  psql.WhereMod[Q, string]
 }
 
 func (identityMappingWhere[Q]) AliasedAs(alias string) identityMappingWhere[Q] {
@@ -136,6 +141,7 @@ func buildIdentityMappingWhere[Q psql.Filterable](cols identityMappingColumns) i
 		UpdatedAt:                 psql.WhereNull[Q, time.Time](cols.UpdatedAt),
 		IsActive:                  psql.WhereNull[Q, bool](cols.IsActive),
 		UserID:                    psql.Where[Q, int64](cols.UserID),
+		KeyScope:                  psql.Where[Q, string](cols.KeyScope),
 	}
 }
 
@@ -146,10 +152,19 @@ var IdentityMappingErrors = &identityMappingErrors{
 		columns: []string{"mapping_id"},
 		s:       "identity_mappings_pkey",
 	},
+
+	ErrUniqueUniqueFingerprintPseudonymScope: &UniqueConstraintError{
+		schema:  "",
+		table:   "identity_mappings",
+		columns: []string{"fingerprint", "pseudonym_id", "key_scope"},
+		s:       "unique_fingerprint_pseudonym_scope",
+	},
 }
 
 type identityMappingErrors struct {
 	ErrUniqueIdentityMappingsPkey *UniqueConstraintError
+
+	ErrUniqueUniqueFingerprintPseudonymScope *UniqueConstraintError
 }
 
 // IdentityMappingSetter is used for insert/upsert/update operations
@@ -166,10 +181,11 @@ type IdentityMappingSetter struct {
 	UpdatedAt                 *sql.Null[time.Time] `db:"updated_at" scan:"updated_at" json:"updated_at"`
 	IsActive                  *sql.Null[bool]      `db:"is_active" scan:"is_active" json:"is_active"`
 	UserID                    *int64               `db:"user_id" scan:"user_id" json:"user_id"`
+	KeyScope                  *string              `db:"key_scope" scan:"key_scope" json:"key_scope"`
 }
 
 func (s IdentityMappingSetter) SetColumns() []string {
-	vals := make([]string, 0, 10)
+	vals := make([]string, 0, 11)
 	if s.MappingID != nil {
 		vals = append(vals, "mapping_id")
 	}
@@ -210,6 +226,10 @@ func (s IdentityMappingSetter) SetColumns() []string {
 		vals = append(vals, "user_id")
 	}
 
+	if s.KeyScope != nil {
+		vals = append(vals, "key_scope")
+	}
+
 	return vals
 }
 
@@ -244,6 +264,9 @@ func (s IdentityMappingSetter) Overwrite(t *IdentityMapping) {
 	if s.UserID != nil {
 		t.UserID = *s.UserID
 	}
+	if s.KeyScope != nil {
+		t.KeyScope = *s.KeyScope
+	}
 }
 
 func (s *IdentityMappingSetter) Apply(q *dialect.InsertQuery) {
@@ -252,7 +275,7 @@ func (s *IdentityMappingSetter) Apply(q *dialect.InsertQuery) {
 	})
 
 	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
-		vals := make([]bob.Expression, 10)
+		vals := make([]bob.Expression, 11)
 		if s.MappingID != nil {
 			vals[0] = psql.Arg(*s.MappingID)
 		} else {
@@ -313,6 +336,12 @@ func (s *IdentityMappingSetter) Apply(q *dialect.InsertQuery) {
 			vals[9] = psql.Raw("DEFAULT")
 		}
 
+		if s.KeyScope != nil {
+			vals[10] = psql.Arg(*s.KeyScope)
+		} else {
+			vals[10] = psql.Raw("DEFAULT")
+		}
+
 		return bob.ExpressSlice(ctx, w, d, start, vals, "", ", ", "")
 	}))
 }
@@ -322,7 +351,7 @@ func (s IdentityMappingSetter) UpdateMod() bob.Mod[*dialect.UpdateQuery] {
 }
 
 func (s IdentityMappingSetter) Expressions(prefix ...string) []bob.Expression {
-	exprs := make([]bob.Expression, 0, 10)
+	exprs := make([]bob.Expression, 0, 11)
 
 	if s.MappingID != nil {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
@@ -391,6 +420,13 @@ func (s IdentityMappingSetter) Expressions(prefix ...string) []bob.Expression {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "user_id")...),
 			psql.Arg(s.UserID),
+		}})
+	}
+
+	if s.KeyScope != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "key_scope")...),
+			psql.Arg(s.KeyScope),
 		}})
 	}
 

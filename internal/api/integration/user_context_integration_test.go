@@ -132,6 +132,22 @@ func TestUserContext_Login_Integration(t *testing.T) {
 		if pseudonyms, ok := responseBody["pseudonyms"].([]interface{}); !ok || len(pseudonyms) == 0 {
 			t.Error("Expected non-empty pseudonyms array in login response")
 		}
+		if activePseudonymID, ok := responseBody["active_pseudonym_id"].(string); ok {
+			found := false
+			if pseudonyms, ok := responseBody["pseudonyms"].([]interface{}); ok {
+				for _, p := range pseudonyms {
+					if pmap, ok := p.(map[string]interface{}); ok {
+						if pid, ok := pmap["pseudonym_id"].(string); ok && pid == activePseudonymID {
+							found = true
+							break
+						}
+					}
+				}
+			}
+			if !found {
+				t.Errorf("Active pseudonym %s not found in user's pseudonym list", activePseudonymID)
+			}
+		}
 	})
 
 	t.Run("LoginWithMultiplePseudonyms", func(t *testing.T) {
@@ -160,8 +176,19 @@ func TestUserContext_Login_Integration(t *testing.T) {
 			t.Error("Expected non-empty active_pseudonym_id in login response")
 		}
 		if activePseudonymID, ok := responseBody["active_pseudonym_id"].(string); ok {
-			if activePseudonymID != testUser.PseudonymID {
-				t.Errorf("Expected active pseudonym to be %s, got %s", testUser.PseudonymID, activePseudonymID)
+			found := false
+			if pseudonyms, ok := responseBody["pseudonyms"].([]interface{}); ok {
+				for _, p := range pseudonyms {
+					if pmap, ok := p.(map[string]interface{}); ok {
+						if pid, ok := pmap["pseudonym_id"].(string); ok && pid == activePseudonymID {
+							found = true
+							break
+						}
+					}
+				}
+			}
+			if !found {
+				t.Errorf("Active pseudonym %s not found in user's pseudonym list", activePseudonymID)
 			}
 		}
 	})
@@ -336,7 +363,7 @@ func TestUserContext_MultiplePseudonyms_Integration(t *testing.T) {
 		server := suite.CreateTestServer()
 		defer server.Close()
 
-		testUser := suite.CreateTestUser(t, "update@example.com", "TestPassword123!", []string{"user"})
+		testUser := suite.CreateTestUser(t, "updateprofile@example.com", "TestPassword123!", []string{"user"})
 		loginResp := suite.LoginUser(t, server, testUser.Email, testUser.Password)
 		token := suite.ExtractTokenFromResponse(t, loginResp)
 

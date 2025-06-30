@@ -39,4 +39,9 @@ ehthumbs.db
 Thumbs.db
 
 # Log files
-*.log 
+*.log
+
+# IBE master keys (never commit these!)
+keys/
+*.key
+*.pem 

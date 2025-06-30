@@ -27,7 +27,7 @@ jobs:
       - name: Install dependencies
         run: go mod download
       - name: Run unit tests
-        run: make test
+        run: make test-unit
 
   build:
     runs-on: ubuntu-latest
@@ -106,7 +106,18 @@ jobs:
             pg_isready -h localhost -p 5433 -U hashpost && break
             sleep 2
           done
+      - name: Setup test database
+        env:
+          DATABASE_URL: postgres://hashpost:hashpost_test@localhost:5433/postgres?sslmode=disable
+        run: |
+          psql -c "DROP DATABASE IF EXISTS hashpost_test;" || true
+          psql -c "CREATE DATABASE hashpost_test;" || true
+      - name: Run database migrations
+        env:
+          DATABASE_URL: postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable
+        run: ./scripts/migrate.sh up
       - name: Run integration tests
         env:
           DATABASE_URL: postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable
-        run: make test-integration 
+          LOG_LEVEL: error
+        run: go test -v -tags=integration ./internal/api/integration/... ./internal/database/dao/integration/... 

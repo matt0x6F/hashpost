@@ -25,7 +25,6 @@ import (
 // Pseudonym is an object representing the database table.
 type Pseudonym struct {
 	PseudonymID         string              `db:"pseudonym_id,pk" scan:"pseudonym_id" json:"pseudonym_id"`
-	UserID              int64               `db:"user_id" scan:"user_id" json:"user_id"`
 	DisplayName         string              `db:"display_name" scan:"display_name" json:"display_name"`
 	KarmaScore          sql.Null[int32]     `db:"karma_score" scan:"karma_score" json:"karma_score"`
 	CreatedAt           sql.Null[time.Time] `db:"created_at" scan:"created_at" json:"created_at"`
@@ -36,6 +35,7 @@ type Pseudonym struct {
 	WebsiteURL          sql.Null[string]    `db:"website_url" scan:"website_url" json:"website_url"`
 	ShowKarma           sql.Null[bool]      `db:"show_karma" scan:"show_karma" json:"show_karma"`
 	AllowDirectMessages sql.Null[bool]      `db:"allow_direct_messages" scan:"allow_direct_messages" json:"allow_direct_messages"`
+	IsDefault           bool                `db:"is_default" scan:"is_default" json:"is_default"`
 
 	R pseudonymR `db:"-" scan:"rel" json:"rel"`
 }
@@ -62,7 +62,6 @@ type pseudonymR struct {
 	PollVotes                           PollVoteSlice             `scan:"PollVotes" json:"PollVotes"`                                                     // poll_votes.poll_votes_pseudonym_id_fkey
 	Posts                               PostSlice                 `scan:"Posts" json:"Posts"`                                                             // posts.posts_pseudonym_id_fkey
 	RemovedByPseudonymPosts             PostSlice                 `scan:"RemovedByPseudonymPosts" json:"RemovedByPseudonymPosts"`                         // posts.posts_removed_by_pseudonym_id_fkey
-	User                                *User                     `scan:"User" json:"User"`                                                               // pseudonyms.pseudonyms_user_id_fkey
 	ReportedPseudonymReports            ReportSlice               `scan:"ReportedPseudonymReports" json:"ReportedPseudonymReports"`                       // reports.reports_reported_pseudonym_id_fkey
 	ReporterPseudonymReports            ReportSlice               `scan:"ReporterPseudonymReports" json:"ReporterPseudonymReports"`                       // reports.reports_reporter_pseudonym_id_fkey
 	ResolvedByPseudonymReports          ReportSlice               `scan:"ResolvedByPseudonymReports" json:"ResolvedByPseudonymReports"`                   // reports.reports_resolved_by_pseudonym_id_fkey
@@ -76,7 +75,6 @@ type pseudonymR struct {
 
 type pseudonymColumnNames struct {
 	PseudonymID         string
-	UserID              string
 	DisplayName         string
 	KarmaScore          string
 	CreatedAt           string
@@ -87,6 +85,7 @@ type pseudonymColumnNames struct {
 	WebsiteURL          string
 	ShowKarma           string
 	AllowDirectMessages string
+	IsDefault           string
 }
 
 var PseudonymColumns = buildPseudonymColumns("pseudonyms")
@@ -94,7 +93,6 @@ var PseudonymColumns = buildPseudonymColumns("pseudonyms")
 type pseudonymColumns struct {
 	tableAlias          string
 	PseudonymID         psql.Expression
-	UserID              psql.Expression
 	DisplayName         psql.Expression
 	KarmaScore          psql.Expression
 	CreatedAt           psql.Expression
@@ -105,6 +103,7 @@ type pseudonymColumns struct {
 	WebsiteURL          psql.Expression
 	ShowKarma           psql.Expression
 	AllowDirectMessages psql.Expression
+	IsDefault           psql.Expression
 }
 
 func (c pseudonymColumns) Alias() string {
@@ -119,7 +118,6 @@ func buildPseudonymColumns(alias string) pseudonymColumns {
 	return pseudonymColumns{
 		tableAlias:          alias,
 		PseudonymID:         psql.Quote(alias, "pseudonym_id"),
-		UserID:              psql.Quote(alias, "user_id"),
 		DisplayName:         psql.Quote(alias, "display_name"),
 		KarmaScore:          psql.Quote(alias, "karma_score"),
 		CreatedAt:           psql.Quote(alias, "created_at"),
@@ -130,12 +128,12 @@ func buildPseudonymColumns(alias string) pseudonymColumns {
 		WebsiteURL:          psql.Quote(alias, "website_url"),
 		ShowKarma:           psql.Quote(alias, "show_karma"),
 		AllowDirectMessages: psql.Quote(alias, "allow_direct_messages"),
+		IsDefault:           psql.Quote(alias, "is_default"),
 	}
 }
 
 type pseudonymWhere[Q psql.Filterable] struct {
 	PseudonymID         psql.WhereMod[Q, string]
-	UserID              psql.WhereMod[Q, int64]
 	DisplayName         psql.WhereMod[Q, string]
 	KarmaScore          psql.WhereNullMod[Q, int32]
 	CreatedAt           psql.WhereNullMod[Q, time.Time]
@@ -146,6 +144,7 @@ type pseudonymWhere[Q psql.Filterable] struct {
 	WebsiteURL          psql.WhereNullMod[Q, string]
 	ShowKarma           psql.WhereNullMod[Q, bool]
 	AllowDirectMessages psql.WhereNullMod[Q, bool]
+	IsDefault           psql.WhereMod[Q, bool]
 }
 
 func (pseudonymWhere[Q]) AliasedAs(alias string) pseudonymWhere[Q] {
@@ -155,7 +154,6 @@ func (pseudonymWhere[Q]) AliasedAs(alias string) pseudonymWhere[Q] {
 func buildPseudonymWhere[Q psql.Filterable](cols pseudonymColumns) pseudonymWhere[Q] {
 	return pseudonymWhere[Q]{
 		PseudonymID:         psql.Where[Q, string](cols.PseudonymID),
-		UserID:              psql.Where[Q, int64](cols.UserID),
 		DisplayName:         psql.Where[Q, string](cols.DisplayName),
 		KarmaScore:          psql.WhereNull[Q, int32](cols.KarmaScore),
 		CreatedAt:           psql.WhereNull[Q, time.Time](cols.CreatedAt),
@@ -166,6 +164,7 @@ func buildPseudonymWhere[Q psql.Filterable](cols pseudonymColumns) pseudonymWher
 		WebsiteURL:          psql.WhereNull[Q, string](cols.WebsiteURL),
 		ShowKarma:           psql.WhereNull[Q, bool](cols.ShowKarma),
 		AllowDirectMessages: psql.WhereNull[Q, bool](cols.AllowDirectMessages),
+		IsDefault:           psql.Where[Q, bool](cols.IsDefault),
 	}
 }
 
@@ -187,7 +186,6 @@ type pseudonymErrors struct {
 // Generated columns are not included
 type PseudonymSetter struct {
 	PseudonymID         *string              `db:"pseudonym_id,pk" scan:"pseudonym_id" json:"pseudonym_id"`
-	UserID              *int64               `db:"user_id" scan:"user_id" json:"user_id"`
 	DisplayName         *string              `db:"display_name" scan:"display_name" json:"display_name"`
 	KarmaScore          *sql.Null[int32]     `db:"karma_score" scan:"karma_score" json:"karma_score"`
 	CreatedAt           *sql.Null[time.Time] `db:"created_at" scan:"created_at" json:"created_at"`
@@ -198,16 +196,13 @@ type PseudonymSetter struct {
 	WebsiteURL          *sql.Null[string]    `db:"website_url" scan:"website_url" json:"website_url"`
 	ShowKarma           *sql.Null[bool]      `db:"show_karma" scan:"show_karma" json:"show_karma"`
 	AllowDirectMessages *sql.Null[bool]      `db:"allow_direct_messages" scan:"allow_direct_messages" json:"allow_direct_messages"`
+	IsDefault           *bool                `db:"is_default" scan:"is_default" json:"is_default"`
 }
 
 func (s PseudonymSetter) SetColumns() []string {
 	vals := make([]string, 0, 12)
 	if s.PseudonymID != nil {
 		vals = append(vals, "pseudonym_id")
-	}
-
-	if s.UserID != nil {
-		vals = append(vals, "user_id")
 	}
 
 	if s.DisplayName != nil {
@@ -250,15 +245,16 @@ func (s PseudonymSetter) SetColumns() []string {
 		vals = append(vals, "allow_direct_messages")
 	}
 
+	if s.IsDefault != nil {
+		vals = append(vals, "is_default")
+	}
+
 	return vals
 }
 
 func (s PseudonymSetter) Overwrite(t *Pseudonym) {
 	if s.PseudonymID != nil {
 		t.PseudonymID = *s.PseudonymID
-	}
-	if s.UserID != nil {
-		t.UserID = *s.UserID
 	}
 	if s.DisplayName != nil {
 		t.DisplayName = *s.DisplayName
@@ -290,6 +286,9 @@ func (s PseudonymSetter) Overwrite(t *Pseudonym) {
 	if s.AllowDirectMessages != nil {
 		t.AllowDirectMessages = *s.AllowDirectMessages
 	}
+	if s.IsDefault != nil {
+		t.IsDefault = *s.IsDefault
+	}
 }
 
 func (s *PseudonymSetter) Apply(q *dialect.InsertQuery) {
@@ -305,68 +304,68 @@ func (s *PseudonymSetter) Apply(q *dialect.InsertQuery) {
 			vals[0] = psql.Raw("DEFAULT")
 		}
 
-		if s.UserID != nil {
-			vals[1] = psql.Arg(*s.UserID)
+		if s.DisplayName != nil {
+			vals[1] = psql.Arg(*s.DisplayName)
 		} else {
 			vals[1] = psql.Raw("DEFAULT")
 		}
 
-		if s.DisplayName != nil {
-			vals[2] = psql.Arg(*s.DisplayName)
+		if s.KarmaScore != nil {
+			vals[2] = psql.Arg(*s.KarmaScore)
 		} else {
 			vals[2] = psql.Raw("DEFAULT")
 		}
 
-		if s.KarmaScore != nil {
-			vals[3] = psql.Arg(*s.KarmaScore)
+		if s.CreatedAt != nil {
+			vals[3] = psql.Arg(*s.CreatedAt)
 		} else {
 			vals[3] = psql.Raw("DEFAULT")
 		}
 
-		if s.CreatedAt != nil {
-			vals[4] = psql.Arg(*s.CreatedAt)
+		if s.LastActiveAt != nil {
+			vals[4] = psql.Arg(*s.LastActiveAt)
 		} else {
 			vals[4] = psql.Raw("DEFAULT")
 		}
 
-		if s.LastActiveAt != nil {
-			vals[5] = psql.Arg(*s.LastActiveAt)
+		if s.IsActive != nil {
+			vals[5] = psql.Arg(*s.IsActive)
 		} else {
 			vals[5] = psql.Raw("DEFAULT")
 		}
 
-		if s.IsActive != nil {
-			vals[6] = psql.Arg(*s.IsActive)
+		if s.Bio != nil {
+			vals[6] = psql.Arg(*s.Bio)
 		} else {
 			vals[6] = psql.Raw("DEFAULT")
 		}
 
-		if s.Bio != nil {
-			vals[7] = psql.Arg(*s.Bio)
+		if s.AvatarURL != nil {
+			vals[7] = psql.Arg(*s.AvatarURL)
 		} else {
 			vals[7] = psql.Raw("DEFAULT")
 		}
 
-		if s.AvatarURL != nil {
-			vals[8] = psql.Arg(*s.AvatarURL)
+		if s.WebsiteURL != nil {
+			vals[8] = psql.Arg(*s.WebsiteURL)
 		} else {
 			vals[8] = psql.Raw("DEFAULT")
 		}
 
-		if s.WebsiteURL != nil {
-			vals[9] = psql.Arg(*s.WebsiteURL)
+		if s.ShowKarma != nil {
+			vals[9] = psql.Arg(*s.ShowKarma)
 		} else {
 			vals[9] = psql.Raw("DEFAULT")
 		}
 
-		if s.ShowKarma != nil {
-			vals[10] = psql.Arg(*s.ShowKarma)
+		if s.AllowDirectMessages != nil {
+			vals[10] = psql.Arg(*s.AllowDirectMessages)
 		} else {
 			vals[10] = psql.Raw("DEFAULT")
 		}
 
-		if s.AllowDirectMessages != nil {
-			vals[11] = psql.Arg(*s.AllowDirectMessages)
+		if s.IsDefault != nil {
+			vals[11] = psql.Arg(*s.IsDefault)
 		} else {
 			vals[11] = psql.Raw("DEFAULT")
 		}
@@ -386,13 +385,6 @@ func (s PseudonymSetter) Expressions(prefix ...string) []bob.Expression {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "pseudonym_id")...),
 			psql.Arg(s.PseudonymID),
-		}})
-	}
-
-	if s.UserID != nil {
-		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
-			psql.Quote(append(prefix, "user_id")...),
-			psql.Arg(s.UserID),
 		}})
 	}
 
@@ -463,6 +455,13 @@ func (s PseudonymSetter) Expressions(prefix ...string) []bob.Expression {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "allow_direct_messages")...),
 			psql.Arg(s.AllowDirectMessages),
+		}})
+	}
+
+	if s.IsDefault != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "is_default")...),
+			psql.Arg(s.IsDefault),
 		}})
 	}
 
@@ -704,7 +703,6 @@ type pseudonymJoins[Q dialect.Joinable] struct {
 	PollVotes                           modAs[Q, pollVoteColumns]
 	Posts                               modAs[Q, postColumns]
 	RemovedByPseudonymPosts             modAs[Q, postColumns]
-	User                                modAs[Q, userColumns]
 	ReportedPseudonymReports            modAs[Q, reportColumns]
 	ReporterPseudonymReports            modAs[Q, reportColumns]
 	ResolvedByPseudonymReports          modAs[Q, reportColumns]
@@ -857,20 +855,6 @@ func buildPseudonymJoins[Q dialect.Joinable](cols pseudonymColumns, typ string) 
 				{
 					mods = append(mods, dialect.Join[Q](typ, Posts.Name().As(to.Alias())).On(
 						to.RemovedByPseudonymID.EQ(cols.PseudonymID),
-					))
-				}
-
-				return mods
-			},
-		},
-		User: modAs[Q, userColumns]{
-			c: UserColumns,
-			f: func(to userColumns) bob.Mod[Q] {
-				mods := make(mods.QueryMods[Q], 0, 1)
-
-				{
-					mods = append(mods, dialect.Join[Q](typ, Users.Name().As(to.Alias())).On(
-						to.UserID.EQ(cols.UserID),
 					))
 				}
 
@@ -1216,27 +1200,6 @@ func (os PseudonymSlice) RemovedByPseudonymPosts(mods ...bob.Mod[*dialect.Select
 	)...)
 }
 
-// User starts a query for related objects on users
-func (o *Pseudonym) User(mods ...bob.Mod[*dialect.SelectQuery]) UsersQuery {
-	return Users.Query(append(mods,
-		sm.Where(UserColumns.UserID.EQ(psql.Arg(o.UserID))),
-	)...)
-}
-
-func (os PseudonymSlice) User(mods ...bob.Mod[*dialect.SelectQuery]) UsersQuery {
-	pkUserID := make(pgtypes.Array[int64], len(os))
-	for i, o := range os {
-		pkUserID[i] = o.UserID
-	}
-	PKArgExpr := psql.Select(sm.Columns(
-		psql.F("unnest", psql.Cast(psql.Arg(pkUserID), "bigint[]")),
-	))
-
-	return Users.Query(append(mods,
-		sm.Where(psql.Group(UserColumns.UserID).OP("IN", PKArgExpr)),
-	)...)
-}
-
 // ReportedPseudonymReports starts a query for related objects on reports
 func (o *Pseudonym) ReportedPseudonymReports(mods ...bob.Mod[*dialect.SelectQuery]) ReportsQuery {
 	return Reports.Query(append(mods,
@@ -1572,18 +1535,6 @@ func (o *Pseudonym) Preload(name string, retrieved any) error {
 			}
 		}
 		return nil
-	case "User":
-		rel, ok := retrieved.(*User)
-		if !ok {
-			return fmt.Errorf("pseudonym cannot load %T as %q", retrieved, name)
-		}
-
-		o.R.User = rel
-
-		if rel != nil {
-			rel.R.Pseudonyms = PseudonymSlice{o}
-		}
-		return nil
 	case "ReportedPseudonymReports":
 		rels, ok := retrieved.(ReportSlice)
 		if !ok {
@@ -1715,30 +1666,10 @@ func (o *Pseudonym) Preload(name string, retrieved any) error {
 	}
 }
 
-type pseudonymPreloader struct {
-	User func(...psql.PreloadOption) psql.Preloader
-}
+type pseudonymPreloader struct{}
 
 func buildPseudonymPreloader() pseudonymPreloader {
-	return pseudonymPreloader{
-		User: func(opts ...psql.PreloadOption) psql.Preloader {
-			return psql.Preload[*User, UserSlice](orm.Relationship{
-				Name: "User",
-				Sides: []orm.RelSide{
-					{
-						From: TableNames.Pseudonyms,
-						To:   TableNames.Users,
-						FromColumns: []string{
-							ColumnNames.Pseudonyms.UserID,
-						},
-						ToColumns: []string{
-							ColumnNames.Users.UserID,
-						},
-					},
-				},
-			}, Users.Columns().Names(), opts...)
-		},
-	}
+	return pseudonymPreloader{}
 }
 
 type pseudonymThenLoader[Q orm.Loadable] struct {
@@ -1752,7 +1683,6 @@ type pseudonymThenLoader[Q orm.Loadable] struct {
 	PollVotes                           func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	Posts                               func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	RemovedByPseudonymPosts             func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	User                                func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	ReportedPseudonymReports            func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	ReporterPseudonymReports            func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	ResolvedByPseudonymReports          func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
@@ -1794,9 +1724,6 @@ func buildPseudonymThenLoader[Q orm.Loadable]() pseudonymThenLoader[Q] {
 	}
 	type RemovedByPseudonymPostsLoadInterface interface {
 		LoadRemovedByPseudonymPosts(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
-	}
-	type UserLoadInterface interface {
-		LoadUser(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 	type ReportedPseudonymReportsLoadInterface interface {
 		LoadReportedPseudonymReports(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
@@ -1885,12 +1812,6 @@ func buildPseudonymThenLoader[Q orm.Loadable]() pseudonymThenLoader[Q] {
 			"RemovedByPseudonymPosts",
 			func(ctx context.Context, exec bob.Executor, retrieved RemovedByPseudonymPostsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
 				return retrieved.LoadRemovedByPseudonymPosts(ctx, exec, mods...)
-			},
-		),
-		User: thenLoadBuilder[Q](
-			"User",
-			func(ctx context.Context, exec bob.Executor, retrieved UserLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
-				return retrieved.LoadUser(ctx, exec, mods...)
 			},
 		),
 		ReportedPseudonymReports: thenLoadBuilder[Q](
@@ -2464,53 +2385,6 @@ func (os PseudonymSlice) LoadRemovedByPseudonymPosts(ctx context.Context, exec b
 			rel.R.RemovedByPseudonymPseudonym = o
 
 			o.R.RemovedByPseudonymPosts = append(o.R.RemovedByPseudonymPosts, rel)
-		}
-	}
-
-	return nil
-}
-
-// LoadUser loads the pseudonym's User into the .R struct
-func (o *Pseudonym) LoadUser(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
-	if o == nil {
-		return nil
-	}
-
-	// Reset the relationship
-	o.R.User = nil
-
-	related, err := o.User(mods...).One(ctx, exec)
-	if err != nil {
-		return err
-	}
-
-	related.R.Pseudonyms = PseudonymSlice{o}
-
-	o.R.User = related
-	return nil
-}
-
-// LoadUser loads the pseudonym's User into the .R struct
-func (os PseudonymSlice) LoadUser(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
-	if len(os) == 0 {
-		return nil
-	}
-
-	users, err := os.User(mods...).All(ctx, exec)
-	if err != nil {
-		return err
-	}
-
-	for _, o := range os {
-		for _, rel := range users {
-			if o.UserID != rel.UserID {
-				continue
-			}
-
-			rel.R.Pseudonyms = append(rel.R.Pseudonyms, o)
-
-			o.R.User = rel
-			break
 		}
 	}
 
@@ -3679,52 +3553,6 @@ func (pseudonym0 *Pseudonym) AttachRemovedByPseudonymPosts(ctx context.Context, 
 	for _, rel := range related {
 		rel.R.RemovedByPseudonymPseudonym = pseudonym0
 	}
-
-	return nil
-}
-
-func attachPseudonymUser0(ctx context.Context, exec bob.Executor, count int, pseudonym0 *Pseudonym, user1 *User) (*Pseudonym, error) {
-	setter := &PseudonymSetter{
-		UserID: &user1.UserID,
-	}
-
-	err := pseudonym0.Update(ctx, exec, setter)
-	if err != nil {
-		return nil, fmt.Errorf("attachPseudonymUser0: %w", err)
-	}
-
-	return pseudonym0, nil
-}
-
-func (pseudonym0 *Pseudonym) InsertUser(ctx context.Context, exec bob.Executor, related *UserSetter) error {
-	user1, err := Users.Insert(related).One(ctx, exec)
-	if err != nil {
-		return fmt.Errorf("inserting related objects: %w", err)
-	}
-
-	_, err = attachPseudonymUser0(ctx, exec, 1, pseudonym0, user1)
-	if err != nil {
-		return err
-	}
-
-	pseudonym0.R.User = user1
-
-	user1.R.Pseudonyms = append(user1.R.Pseudonyms, pseudonym0)
-
-	return nil
-}
-
-func (pseudonym0 *Pseudonym) AttachUser(ctx context.Context, exec bob.Executor, user1 *User) error {
-	var err error
-
-	_, err = attachPseudonymUser0(ctx, exec, 1, pseudonym0, user1)
-	if err != nil {
-		return err
-	}
-
-	pseudonym0.R.User = user1
-
-	user1.R.Pseudonyms = append(user1.R.Pseudonyms, pseudonym0)
 
 	return nil
 }

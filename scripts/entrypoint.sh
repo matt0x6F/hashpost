@@ -72,6 +72,23 @@ run_migrations() {
     fi
 }
 
+# Function to initialize IBE keys
+initialize_ibe_keys() {
+    print_status "Initializing IBE master keys..."
+    
+    # Check if init-ibe-keys script is available
+    if command -v init-ibe-keys.sh &> /dev/null; then
+        if init-ibe-keys.sh; then
+            print_success "IBE key initialization completed successfully!"
+        else
+            print_error "IBE key initialization failed!"
+            exit 1
+        fi
+    else
+        print_warning "init-ibe-keys.sh not found, skipping IBE key initialization"
+    fi
+}
+
 # Function to start the application
 start_application() {
     print_status "Starting HashPost application..."
@@ -102,6 +119,9 @@ main() {
     
     # Run database migrations
     run_migrations
+    
+    # Initialize IBE keys
+    initialize_ibe_keys
     
     # Start the application
     start_application

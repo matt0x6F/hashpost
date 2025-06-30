@@ -685,15 +685,12 @@ func TestAuthRegistration_Integration(t *testing.T) {
 		}
 
 		// Verify pseudonym exists in database
-		pseudonym, err := suite.PseudonymDAO.GetPseudonymByID(context.Background(), pseudonymID)
+		pseudonym, err := suite.SecurePseudonymDAO.GetPseudonymByID(context.Background(), pseudonymID)
 		if err != nil {
 			t.Fatalf("Failed to get pseudonym from database: %v", err)
 		}
 		if pseudonym == nil {
 			t.Fatal("Pseudonym not found in database")
-		}
-		if pseudonym.UserID != userID {
-			t.Errorf("Expected user_id %d, got %d", userID, pseudonym.UserID)
 		}
 		if pseudonym.DisplayName != "DBVerifyUser" {
 			t.Errorf("Expected display_name DBVerifyUser, got %s", pseudonym.DisplayName)

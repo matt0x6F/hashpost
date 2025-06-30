@@ -56,6 +56,8 @@ services:
       # Exclude node_modules and other unnecessary files
       - /app/tmp
       - /app/.git
+      # Mount IBE keys from host for persistence across builds
+      - ./keys:/app/keys:ro
     environment:
       # Database connection - individual variables for the application
       DB_HOST: postgres
@@ -73,7 +75,7 @@ services:
       # Migration configuration
       MIGRATIONS_DIR: /app/internal/database/migrations
       # CORS configuration
-      CORS_ALLOWED_ORIGINS: http://localhost:3000,http://ui:3000
+      CORS_ALLOWED_ORIGINS: http://localhost:3000
       CORS_ALLOWED_METHODS: GET,POST,PUT,DELETE,OPTIONS,PATCH
       CORS_ALLOWED_HEADERS: Content-Type,Authorization,X-Requested-With,Accept,Origin
       CORS_ALLOW_CREDENTIALS: true
@@ -81,6 +83,13 @@ services:
       # JWT configuration
       JWT_SECRET: your-super-secret-jwt-key-change-in-production
       JWT_DEVELOPMENT: true
+      # IBE system configuration
+      IBE_MASTER_KEY_PATH: /app/keys/master.key
+      IBE_KEY_VERSION: 1
+      IBE_SALT: hashpost_fingerprint_salt_v1
+      IBE_KEY_ROTATION_ENABLED: false
+      IBE_KEY_ROTATION_INTERVAL: 8760h
+      IBE_KEY_ROTATION_GRACE_PERIOD: 720h
     depends_on:
       postgres:
         condition: service_healthy
@@ -89,7 +98,7 @@ services:
     # The entrypoint script will handle migrations and starting the app
     restart: unless-stopped
 
-  # UI Development Server
+  # UI service with Next.js
   ui:
     build:
       context: ./ui
@@ -102,16 +111,17 @@ services:
       # Mount source code for hot reloading
       - ./ui:/app
       - /app/node_modules
+      - /app/.next
     environment:
-      - NODE_ENV=development
-      # API endpoint for the frontend to connect to - use Docker service name
-      - NEXT_PUBLIC_API_URL=http://localhost:8888
+      # API URL pointing to the backend service
+      NEXT_PUBLIC_API_URL: http://localhost:8888
+      # Next.js configuration
+      NODE_ENV: development
     depends_on:
       - app
     networks:
       - hashpost-network
-    profiles:
-      - dev
+    restart: unless-stopped
 
 volumes:
   postgres_data:
