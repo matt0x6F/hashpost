@@ -113,4 +113,4 @@ jobs:
       - name: Run integration tests
         env:
           DATABASE_URL: postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable
-        run: make test-integration 
+        run: go test -v -tags=integration ./internal/api/integration/... ./internal/database/dao/integration/... 
