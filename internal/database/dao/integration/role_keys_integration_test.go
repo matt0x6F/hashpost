@@ -60,11 +60,11 @@ func TestEnsureDefaultKeys_PlatformAdmin(t *testing.T) {
 	defer suite.Cleanup()
 
 	// Create test user with "platform_admin" role (EnsureDefaultKeys is called automatically)
-	suite.CreateTestUser(t, "admin@example.com", "password123", []string{"platform_admin"})
+	testUser := suite.CreateTestUser(t, "admin@example.com", "password123", []string{"platform_admin"})
 
-	// Verify global role keys exist for platform_admin
-	roleKeys := getGlobalRoleKeysForRoles(t, suite.DB, []string{"platform_admin"})
-	assert.Len(t, roleKeys, 3, "Should have 3 global role keys for platform admin")
+	// Verify per-user role keys exist for platform_admin
+	roleKeys := getPerUserRoleKeys(t, suite.DB, testUser.UserID)
+	assert.Len(t, roleKeys, 3, "Should have 3 per-user role keys for platform admin")
 
 	// Check authentication key
 	authKey := findRoleKey(roleKeys, "platform_admin", "authentication")

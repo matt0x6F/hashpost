@@ -4,9 +4,11 @@ package integration
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"encoding/base64"
 
@@ -307,8 +309,10 @@ func TestUserContext_MultiplePseudonyms_Integration(t *testing.T) {
 		loginResp := suite.LoginUser(t, server, testUser.Email, testUser.Password)
 		token := suite.ExtractTokenFromResponse(t, loginResp)
 
+		// Use a unique display name to avoid conflicts
+		uniqueDisplayName := fmt.Sprintf("AdditionalPseudonym_%d", time.Now().UnixNano())
 		pseudonymData := models.CreatePseudonymBody{
-			DisplayName:         "AdditionalPseudonym",
+			DisplayName:         uniqueDisplayName,
 			Bio:                 "Additional pseudonym bio",
 			WebsiteURL:          "https://additional.example.com",
 			ShowKarma:           &[]bool{true}[0],
@@ -334,8 +338,8 @@ func TestUserContext_MultiplePseudonyms_Integration(t *testing.T) {
 		if pseudonymID, ok := responseBody["pseudonym_id"].(string); !ok || pseudonymID == "" {
 			t.Errorf("Expected non-empty pseudonym_id in create response")
 		}
-		if displayName, ok := responseBody["display_name"].(string); !ok || displayName != "AdditionalPseudonym" {
-			t.Errorf("Expected display_name 'AdditionalPseudonym', got %s", displayName)
+		if displayName, ok := responseBody["display_name"].(string); !ok || displayName != uniqueDisplayName {
+			t.Errorf("Expected display_name '%s', got %s", uniqueDisplayName, displayName)
 		}
 
 		// Check that the new pseudonym appears in user profile
@@ -367,8 +371,10 @@ func TestUserContext_MultiplePseudonyms_Integration(t *testing.T) {
 		loginResp := suite.LoginUser(t, server, testUser.Email, testUser.Password)
 		token := suite.ExtractTokenFromResponse(t, loginResp)
 
+		// Use a unique display name to avoid conflicts
+		uniqueUpdateDisplayName := fmt.Sprintf("UpdatedDisplayName_%d", time.Now().UnixNano())
 		updateData := models.PseudonymProfileBody{
-			DisplayName:         "UpdatedDisplayName",
+			DisplayName:         uniqueUpdateDisplayName,
 			Bio:                 "Updated bio text",
 			WebsiteURL:          "https://updated.example.com",
 			ShowKarma:           &[]bool{false}[0],
@@ -391,8 +397,8 @@ func TestUserContext_MultiplePseudonyms_Integration(t *testing.T) {
 		}
 
 		// Now use the already-decoded response body for assertions
-		if displayName, ok := responseBody["display_name"].(string); !ok || displayName != "UpdatedDisplayName" {
-			t.Errorf("Expected display_name 'UpdatedDisplayName', got %s", displayName)
+		if displayName, ok := responseBody["display_name"].(string); !ok || displayName != uniqueUpdateDisplayName {
+			t.Errorf("Expected display_name '%s', got %s", uniqueUpdateDisplayName, displayName)
 		}
 		if bio, ok := responseBody["bio"].(string); !ok || bio != "Updated bio text" {
 			t.Errorf("Expected bio 'Updated bio text', got %s", bio)

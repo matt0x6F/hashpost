@@ -54,12 +54,13 @@ func NewServer() *Server {
 	userDAO := dao.NewUserDAO(db)
 	identityMappingDAO := dao.NewIdentityMappingDAO(db)
 	roleKeyDAO := dao.NewRoleKeyDAO(db)
-	securePseudonymDAO := dao.NewSecurePseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO)
+	userBlocksDAO := dao.NewUserBlocksDAO(db)
+	securePseudonymDAO := dao.NewSecurePseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
 	postDAO := dao.NewPostDAO(db)
 	commentDAO := dao.NewCommentDAO(db)
 	userPreferencesDAO := dao.NewUserPreferencesDAO(db)
-	userBlocksDAO := dao.NewUserBlocksDAO(db)
 	apiKeyDAO := dao.NewAPIKeyDAO(db)
+	subforumDAO := dao.NewSubforumDAO(db)
 
 	// Create auth middleware with configuration
 	authMiddleware := middleware.NewAuthMiddleware(cfg.JWT.Secret, apiKeyDAO, &cfg.JWT, &cfg.Security)
@@ -97,7 +98,7 @@ func NewServer() *Server {
 	routes.RegisterSearchRoutes(api)
 	routes.RegisterModerationRoutes(api)
 	routes.RegisterContentRoutes(api, db, rawDB, ibeSystem, identityMappingDAO, userDAO)
-	routes.RegisterCorrelationRoutes(api, db, ibeSystem, securePseudonymDAO, identityMappingDAO, postDAO, commentDAO)
+	routes.RegisterCorrelationRoutes(api, db, ibeSystem, securePseudonymDAO, identityMappingDAO, postDAO, commentDAO, subforumDAO)
 
 	return &Server{
 		API:       api,

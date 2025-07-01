@@ -339,7 +339,8 @@ func createAdminUser(opts *Options) {
 	}
 
 	// Create a pseudonym for the admin user with identity mapping
-	securePseudonymDAO := dao.NewSecurePseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO)
+	userBlocksDAO := dao.NewUserBlocksDAO(db)
+	securePseudonymDAO := dao.NewSecurePseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
 
 	// Use display name for pseudonym (it's required)
 	displayName := input.DisplayName

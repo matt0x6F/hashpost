@@ -28,10 +28,11 @@ type CorrelationHandler struct {
 	identityMappingDAO *dao.IdentityMappingDAO
 	postDAO            *dao.PostDAO
 	commentDAO         *dao.CommentDAO
+	subforumDAO        *dao.SubforumDAO
 }
 
 // NewCorrelationHandler creates a new correlation handler
-func NewCorrelationHandler(db bob.Executor, ibeSystem *ibe.IBESystem, securePseudonymDAO *dao.SecurePseudonymDAO, identityMappingDAO *dao.IdentityMappingDAO, postDAO *dao.PostDAO, commentDAO *dao.CommentDAO) *CorrelationHandler {
+func NewCorrelationHandler(db bob.Executor, ibeSystem *ibe.IBESystem, securePseudonymDAO *dao.SecurePseudonymDAO, identityMappingDAO *dao.IdentityMappingDAO, postDAO *dao.PostDAO, commentDAO *dao.CommentDAO, subforumDAO *dao.SubforumDAO) *CorrelationHandler {
 	return &CorrelationHandler{
 		db:                 db,
 		ibeSystem:          ibeSystem,
@@ -39,6 +40,7 @@ func NewCorrelationHandler(db bob.Executor, ibeSystem *ibe.IBESystem, securePseu
 		identityMappingDAO: identityMappingDAO,
 		postDAO:            postDAO,
 		commentDAO:         commentDAO,
+		subforumDAO:        subforumDAO,
 	}
 }
 
@@ -407,11 +409,29 @@ func (h *CorrelationHandler) RequestIdentityCorrelation(ctx context.Context, inp
 			subforumMap[sf] = true
 		}
 
-		// Convert to string slice (for now, just use IDs as strings)
-		// TODO: Get actual subforum names from the database
+		// Convert to string slice with actual subforum names from the database
 		subforumsActive := make([]string, 0, len(subforumMap))
 		for subforumID := range subforumMap {
-			subforumsActive = append(subforumsActive, fmt.Sprintf("subforum_%d", subforumID))
+			// Get subforum details from database
+			subforum, err := h.subforumDAO.GetSubforumByID(ctx, subforumID)
+			if err != nil {
+				log.Error().Err(err).
+					Int32("subforum_id", subforumID).
+					Msg("Failed to get subforum details")
+				// Fallback to ID if name lookup fails
+				subforumsActive = append(subforumsActive, fmt.Sprintf("subforum_%d", subforumID))
+				continue
+			}
+			if subforum == nil {
+				log.Warn().
+					Int32("subforum_id", subforumID).
+					Msg("Subforum not found")
+				// Fallback to ID if subforum doesn't exist
+				subforumsActive = append(subforumsActive, fmt.Sprintf("subforum_%d", subforumID))
+				continue
+			}
+			// Use the subforum name (not display name) for consistency
+			subforumsActive = append(subforumsActive, subforum.Name)
 		}
 
 		totalPostsInt := int(totalPosts)
