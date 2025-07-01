@@ -38,7 +38,8 @@ func NewAuthHandler(cfg *config.Config, db bob.Executor, rawDB *sql.DB) *AuthHan
 	ibeSystem := ibe.NewIBESystem()
 	identityMappingDAO := dao.NewIdentityMappingDAO(db)
 	roleKeyDAO := dao.NewRoleKeyDAO(db)
-	securePseudonymDAO := dao.NewSecurePseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO)
+	userBlocksDAO := dao.NewUserBlocksDAO(db)
+	securePseudonymDAO := dao.NewSecurePseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
 
 	return &AuthHandler{
 		config:             cfg,
@@ -55,7 +56,8 @@ func NewAuthHandlerWithIBE(cfg *config.Config, db bob.Executor, rawDB *sql.DB, i
 	userDAO := dao.NewUserDAO(db)
 	identityMappingDAO := dao.NewIdentityMappingDAO(db)
 	roleKeyDAO := dao.NewRoleKeyDAO(db)
-	securePseudonymDAO := dao.NewSecurePseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO)
+	userBlocksDAO := dao.NewUserBlocksDAO(db)
+	securePseudonymDAO := dao.NewSecurePseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
 
 	return &AuthHandler{
 		config:             cfg,

@@ -3,6 +3,7 @@ package testutil
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -40,37 +41,39 @@ import (
 type TestEntityTracker struct {
 	mu sync.Mutex
 	// Track entities by type and ID for proper cleanup order
-	users        map[int64]bool
-	pseudonyms   map[string]bool
-	subforums    map[int64]bool
-	posts        map[int64]bool
-	comments     map[int64]bool
-	votes        map[int64]bool
-	apiKeys      map[string]bool
-	userBlocks   map[int64]bool
-	userPrefs    map[int64]bool
-	reports      map[int64]bool
-	modActions   map[int64]bool
-	correlations map[int64]bool
-	roleKeys     map[string]bool // Track role keys by key ID
+	users            map[int64]bool
+	pseudonyms       map[string]bool
+	subforums        map[int64]bool
+	posts            map[int64]bool
+	comments         map[int64]bool
+	votes            map[int64]bool
+	apiKeys          map[string]bool
+	userBlocks       map[int64]bool
+	userPrefs        map[int64]bool
+	reports          map[int64]bool
+	modActions       map[int64]bool
+	correlations     map[int64]bool
+	roleKeys         map[string]bool // Track role keys by key ID
+	identityMappings map[int64]bool  // Track identity mappings by user ID
 }
 
 // NewTestEntityTracker creates a new entity tracker
 func NewTestEntityTracker() *TestEntityTracker {
 	return &TestEntityTracker{
-		users:        make(map[int64]bool),
-		pseudonyms:   make(map[string]bool),
-		subforums:    make(map[int64]bool),
-		posts:        make(map[int64]bool),
-		comments:     make(map[int64]bool),
-		votes:        make(map[int64]bool),
-		apiKeys:      make(map[string]bool),
-		userBlocks:   make(map[int64]bool),
-		userPrefs:    make(map[int64]bool),
-		reports:      make(map[int64]bool),
-		modActions:   make(map[int64]bool),
-		correlations: make(map[int64]bool),
-		roleKeys:     make(map[string]bool),
+		users:            make(map[int64]bool),
+		pseudonyms:       make(map[string]bool),
+		subforums:        make(map[int64]bool),
+		posts:            make(map[int64]bool),
+		comments:         make(map[int64]bool),
+		votes:            make(map[int64]bool),
+		apiKeys:          make(map[string]bool),
+		userBlocks:       make(map[int64]bool),
+		userPrefs:        make(map[int64]bool),
+		reports:          make(map[int64]bool),
+		modActions:       make(map[int64]bool),
+		correlations:     make(map[int64]bool),
+		roleKeys:         make(map[string]bool),
+		identityMappings: make(map[int64]bool),
 	}
 }
 
@@ -165,6 +168,13 @@ func (t *TestEntityTracker) TrackRoleKey(keyID string) {
 	t.roleKeys[keyID] = true
 }
 
+// TrackIdentityMapping marks identity mappings for a user as created for cleanup
+func (t *TestEntityTracker) TrackIdentityMapping(userID int64) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.identityMappings[userID] = true
+}
+
 // Cleanup removes all tracked entities in the correct order
 func (t *TestEntityTracker) Cleanup(ctx context.Context, db bob.DB) error {
 	t.mu.Lock()
@@ -245,11 +255,11 @@ func (t *TestEntityTracker) Cleanup(ctx context.Context, db bob.DB) error {
 		}
 	}
 
-	// 10. Role Keys (depend on users)
-	for keyID := range t.roleKeys {
-		log.Info().Str("key_id", keyID).Msg("[TestEntityTracker] Deleting role key")
-		if _, err := db.ExecContext(ctx, "DELETE FROM role_keys WHERE key_id = $1", keyID); err != nil {
-			return fmt.Errorf("failed to cleanup role key %s: %w", keyID, err)
+	// 10. Role Keys (depend on users) - clean up ALL role keys for tracked users
+	for userID := range t.users {
+		log.Info().Int64("user_id", userID).Msg("[TestEntityTracker] Deleting role keys for user")
+		if _, err := db.ExecContext(ctx, "DELETE FROM role_keys WHERE created_by = $1", userID); err != nil {
+			return fmt.Errorf("failed to cleanup role keys for user %d: %w", userID, err)
 		}
 	}
 
@@ -269,7 +279,15 @@ func (t *TestEntityTracker) Cleanup(ctx context.Context, db bob.DB) error {
 		}
 	}
 
-	// 13. Users (last, as everything depends on them)
+	// 13. Identity mappings
+	for userID := range t.identityMappings {
+		log.Info().Int64("user_id", userID).Msg("[TestEntityTracker] Deleting identity mappings for user")
+		if _, err := db.ExecContext(ctx, "DELETE FROM identity_mappings WHERE user_id = $1", userID); err != nil {
+			return fmt.Errorf("failed to cleanup identity mappings for user %d: %w", userID, err)
+		}
+	}
+
+	// 14. Users (last, as everything depends on them)
 	for userID := range t.users {
 		log.Info().Int64("user_id", userID).Msg("[TestEntityTracker] Deleting user")
 		if _, err := db.ExecContext(ctx, "DELETE FROM users WHERE user_id = $1", userID); err != nil {
@@ -585,11 +603,11 @@ func NewIntegrationTestSuite(t *testing.T) *IntegrationTestSuite {
 	userDAO := dao.NewUserDAO(db)
 	identityMappingDAO := dao.NewIdentityMappingDAO(db)
 	roleKeyDAO := dao.NewRoleKeyDAO(db)
-	securePseudonymDAO := dao.NewSecurePseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO)
+	userBlocksDAO := dao.NewUserBlocksDAO(db)
+	securePseudonymDAO := dao.NewSecurePseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
 	postDAO := dao.NewPostDAO(db)
 	commentDAO := dao.NewCommentDAO(db)
 	userPreferencesDAO := dao.NewUserPreferencesDAO(db)
-	userBlocksDAO := dao.NewUserBlocksDAO(db)
 	subforumDAO := dao.NewSubforumDAO(db)
 	voteDAO := dao.NewVoteDAO(db)
 	apiKeyDAO := dao.NewAPIKeyDAO(db)
@@ -627,7 +645,7 @@ func NewIntegrationTestSuite(t *testing.T) *IntegrationTestSuite {
 	routes.RegisterSearchRoutes(humaAPI)
 	routes.RegisterModerationRoutes(humaAPI)
 	routes.RegisterContentRoutes(humaAPI, db, rawDB, ibeSystem, identityMappingDAO, userDAO)
-	routes.RegisterCorrelationRoutes(humaAPI, db, ibeSystem, securePseudonymDAO, identityMappingDAO, postDAO, commentDAO)
+	routes.RegisterCorrelationRoutes(humaAPI, db, ibeSystem, securePseudonymDAO, identityMappingDAO, postDAO, commentDAO, subforumDAO)
 
 	server := &api.Server{
 		API:       humaAPI,
@@ -735,8 +753,11 @@ func (ts *IntegrationTestSuite) CreateTestUser(t *testing.T, email, password str
 		t.Fatalf("Failed to create test user pseudonym: %v", err)
 	}
 
-	// Track pseudonym for cleanup
+	// Track for cleanup
 	ts.Tracker.TrackPseudonym(pseudonym.PseudonymID)
+
+	// Track identity mappings for cleanup (created by CreatePseudonymWithIdentityMapping)
+	ts.Tracker.TrackIdentityMapping(user.UserID)
 
 	testUser := &TestUser{
 		UserID:       user.UserID,
@@ -925,6 +946,9 @@ func (ts *IntegrationTestSuite) CreateTestPseudonym(t *testing.T, userID int64, 
 	// Track for cleanup
 	ts.Tracker.TrackPseudonym(pseudonym.PseudonymID)
 
+	// Track identity mappings for cleanup (created by CreatePseudonymWithIdentityMapping)
+	ts.Tracker.TrackIdentityMapping(userID)
+
 	return pseudonym
 }
 
@@ -981,7 +1005,7 @@ func (ts *IntegrationTestSuite) createTestServer() *api.Server {
 	routes.RegisterSearchRoutes(humaAPI)
 	routes.RegisterModerationRoutes(humaAPI)
 	routes.RegisterContentRoutes(humaAPI, ts.DB, ts.DB.DB, ibeSystem, identityMappingDAO, userDAO)
-	routes.RegisterCorrelationRoutes(humaAPI, ts.DB, ibeSystem, pseudonymDAO, identityMappingDAO, postDAO, commentDAO)
+	routes.RegisterCorrelationRoutes(humaAPI, ts.DB, ibeSystem, pseudonymDAO, identityMappingDAO, postDAO, commentDAO, ts.SubforumDAO)
 
 	return &api.Server{
 		API:       humaAPI,
@@ -1080,6 +1104,53 @@ func (ts *IntegrationTestSuite) MakeAuthenticatedRequest(t *testing.T, server *h
 	return resp
 }
 
+// MakeRequest makes an unauthenticated HTTP request
+func (ts *IntegrationTestSuite) MakeRequest(t *testing.T, server *httptest.Server, method, path string, body interface{}) *http.Response {
+	var reqBody []byte
+	var err error
+
+	if body != nil {
+		reqBody, err = json.Marshal(body)
+		if err != nil {
+			t.Fatalf("Failed to marshal request body: %v", err)
+		}
+	}
+
+	req, err := http.NewRequest(method, server.URL+path, bytes.NewBuffer(reqBody))
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to make request: %v", err)
+	}
+
+	return resp
+}
+
+// ParseResponse parses a JSON response into the provided struct
+func (ts *IntegrationTestSuite) ParseResponse(t *testing.T, resp *http.Response, target interface{}) {
+	// Read the response body into a buffer so it can be read multiple times
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("Failed to read response body: %v", err)
+	}
+
+	// Create a new reader from the buffer for JSON decoding
+	bodyReader := bytes.NewReader(bodyBytes)
+
+	if err := json.NewDecoder(bodyReader).Decode(target); err != nil {
+		t.Fatalf("Failed to decode response body: %v", err)
+	}
+
+	// Restore the response body so it can be read again
+	resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+}
+
 // Helper functions
 
 func hashPassword(password string) string {
@@ -1124,7 +1195,15 @@ func bootstrapRoleKeys(ctx context.Context, db bob.DB, roleKeyDAO *dao.RoleKeyDA
 		bootstrapPasswordHash := hashPassword("bootstrap_password")
 		bootstrapUser, err = userDAO.CreateUser(ctx, bootstrapEmail, bootstrapPasswordHash)
 		if err != nil {
-			return fmt.Errorf("failed to create bootstrap user: %w", err)
+			// If user already exists (race condition), try to get it again
+			if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
+				bootstrapUser, err = userDAO.GetUserByEmail(ctx, bootstrapEmail)
+				if err != nil {
+					return fmt.Errorf("failed to get bootstrap user after creation conflict: %w", err)
+				}
+			} else {
+				return fmt.Errorf("failed to create bootstrap user: %w", err)
+			}
 		}
 	}
 
@@ -1207,4 +1286,17 @@ func bootstrapRoleKeys(ctx context.Context, db bob.DB, roleKeyDAO *dao.RoleKeyDA
 	}
 
 	return nil
+}
+
+// GenerateUniqueEmail generates a unique email address for testing
+func GenerateUniqueEmail(prefix string) string {
+	// Generate 8 random bytes for uniqueness
+	randomBytes := make([]byte, 8)
+	rand.Read(randomBytes)
+	randomHex := fmt.Sprintf("%x", randomBytes)
+
+	// Use timestamp for additional uniqueness
+	timestamp := time.Now().UnixNano()
+
+	return fmt.Sprintf("%s_%d_%s@example.com", prefix, timestamp, randomHex)
 }

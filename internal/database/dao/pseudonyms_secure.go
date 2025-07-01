@@ -23,16 +23,18 @@ type SecurePseudonymDAO struct {
 	identityMappingDAO *IdentityMappingDAO
 	userDAO            *UserDAO
 	roleKeyDAO         *RoleKeyDAO
+	userBlocksDAO      *UserBlocksDAO
 }
 
 // NewSecurePseudonymDAO creates a new SecurePseudonymDAO
-func NewSecurePseudonymDAO(db bob.Executor, ibeSystem *ibe.IBESystem, identityMappingDAO *IdentityMappingDAO, userDAO *UserDAO, roleKeyDAO *RoleKeyDAO) *SecurePseudonymDAO {
+func NewSecurePseudonymDAO(db bob.Executor, ibeSystem *ibe.IBESystem, identityMappingDAO *IdentityMappingDAO, userDAO *UserDAO, roleKeyDAO *RoleKeyDAO, userBlocksDAO *UserBlocksDAO) *SecurePseudonymDAO {
 	return &SecurePseudonymDAO{
 		db:                 db,
 		ibeSystem:          ibeSystem,
 		identityMappingDAO: identityMappingDAO,
 		userDAO:            userDAO,
 		roleKeyDAO:         roleKeyDAO,
+		userBlocksDAO:      userBlocksDAO,
 	}
 }
 
@@ -566,4 +568,25 @@ func generatePseudonymID() string {
 	bytes := make([]byte, 32)
 	rand.Read(bytes)
 	return hex.EncodeToString(bytes)
+}
+
+// GetUserIDByPseudonym gets the user ID for a pseudonym using IBE correlation
+func (dao *SecurePseudonymDAO) GetUserIDByPseudonym(ctx context.Context, pseudonymID, roleName, scope string) (int64, error) {
+	log.Debug().
+		Str("pseudonym_id", pseudonymID).
+		Str("role_name", roleName).
+		Str("scope", scope).
+		Msg("Getting user ID by pseudonym using IBE correlation")
+
+	// Get the identity mapping for this pseudonym
+	mapping, err := dao.identityMappingDAO.GetIdentityMappingByPseudonymID(ctx, pseudonymID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get identity mapping: %w", err)
+	}
+	if mapping == nil {
+		return 0, fmt.Errorf("identity mapping not found for pseudonym")
+	}
+
+	// Get the user ID from the mapping
+	return mapping.UserID, nil
 }

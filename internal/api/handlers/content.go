@@ -33,7 +33,8 @@ type ContentHandler struct {
 // NewContentHandler creates a new content handler
 func NewContentHandler(db bob.Executor, rawDB *sql.DB, ibeSystem *ibe.IBESystem, identityMappingDAO *dao.IdentityMappingDAO, userDAO *dao.UserDAO) *ContentHandler {
 	roleKeyDAO := dao.NewRoleKeyDAO(db)
-	securePseudonymDAO := dao.NewSecurePseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO)
+	userBlocksDAO := dao.NewUserBlocksDAO(db)
+	securePseudonymDAO := dao.NewSecurePseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
 
 	return &ContentHandler{
 		db:                 db,
@@ -180,7 +181,7 @@ func (h *ContentHandler) CreatePost(ctx context.Context, input *models.PostCreat
 	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
 	if err != nil {
 		log.Warn().Err(err).Msg("User context not available for post creation")
-		return nil, fmt.Errorf("authentication required")
+		return nil, huma.Error401Unauthorized("Authentication required")
 	}
 
 	pseudonymID := userCtx.ActivePseudonymID
@@ -334,7 +335,7 @@ func (h *ContentHandler) VoteOnPost(ctx context.Context, input *models.PostVoteI
 	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
 	if err != nil {
 		log.Warn().Err(err).Msg("User context not available for voting")
-		return nil, fmt.Errorf("authentication required")
+		return nil, huma.Error401Unauthorized("Authentication required")
 	}
 
 	pseudonymID := userCtx.ActivePseudonymID
@@ -432,7 +433,7 @@ func (h *ContentHandler) CreateComment(ctx context.Context, input *models.Commen
 	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
 	if err != nil {
 		log.Warn().Err(err).Msg("User context not available for comment creation")
-		return nil, fmt.Errorf("authentication required")
+		return nil, huma.Error401Unauthorized("Authentication required")
 	}
 
 	pseudonymID := userCtx.ActivePseudonymID
@@ -533,7 +534,7 @@ func (h *ContentHandler) VoteOnComment(ctx context.Context, input *models.Commen
 	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
 	if err != nil {
 		log.Warn().Err(err).Msg("User context not available for voting")
-		return nil, fmt.Errorf("authentication required")
+		return nil, huma.Error401Unauthorized("Authentication required")
 	}
 
 	pseudonymID := userCtx.ActivePseudonymID

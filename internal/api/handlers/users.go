@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	apimodels "github.com/matt0x6f/hashpost/internal/api/models"
 	"github.com/matt0x6f/hashpost/internal/database/dao"
@@ -113,7 +114,7 @@ func (h *UserHandler) UpdatePseudonymProfile(ctx context.Context, input *struct 
 	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
 	if err != nil {
 		log.Warn().Err(err).Str("endpoint", "pseudonyms/profile").Msg("Authentication required for profile update")
-		return nil, fmt.Errorf("authentication required")
+		return nil, huma.Error401Unauthorized("Authentication required")
 	}
 	userID := int(userCtx.UserID)
 	pseudonymID := input.PseudonymID
@@ -230,7 +231,7 @@ func (h *UserHandler) CreatePseudonym(ctx context.Context, input *struct {
 	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
 	if err != nil {
 		log.Warn().Err(err).Str("endpoint", "pseudonyms").Msg("Authentication required for pseudonym creation")
-		return nil, fmt.Errorf("authentication required")
+		return nil, huma.Error401Unauthorized("Authentication required")
 	}
 	userID := int(userCtx.UserID)
 	log.Info().Str("endpoint", "pseudonyms").Str("component", "handler").Int("user_id", userID).Str("token_type", userCtx.TokenType).Msg("Create pseudonym requested")
@@ -311,7 +312,7 @@ func (h *UserHandler) GetUserProfile(ctx context.Context, input *middleware.Auth
 	userCtx, err := middleware.ExtractUserFromHumaInput(input)
 	if err != nil {
 		log.Warn().Err(err).Str("endpoint", "users/profile").Msg("Authentication required for profile access")
-		return nil, fmt.Errorf("authentication required")
+		return nil, huma.Error401Unauthorized("Authentication required")
 	}
 	userID := int(userCtx.UserID)
 	log.Info().Str("endpoint", "users/profile").Str("component", "handler").Int("user_id", userID).Msg("Get user profile requested")
@@ -412,7 +413,7 @@ func (h *UserHandler) GetUserPreferences(ctx context.Context, input *struct {
 	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
 	if err != nil {
 		log.Warn().Err(err).Str("endpoint", "users/preferences").Msg("Authentication required for preferences access")
-		return nil, fmt.Errorf("authentication required")
+		return nil, huma.Error401Unauthorized("Authentication required")
 	}
 	userID := int64(userCtx.UserID)
 	log.Info().Str("endpoint", "users/preferences").Str("component", "handler").Int64("user_id", userID).Msg("Get user preferences requested")
@@ -467,7 +468,7 @@ func (h *UserHandler) UpdateUserPreferences(ctx context.Context, input *struct {
 	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
 	if err != nil {
 		log.Warn().Err(err).Str("endpoint", "users/preferences").Msg("Authentication required for preferences update")
-		return nil, fmt.Errorf("authentication required")
+		return nil, huma.Error401Unauthorized("Authentication required")
 	}
 	userID := int64(userCtx.UserID)
 	log.Info().Str("endpoint", "users/preferences").Str("component", "handler").Int64("user_id", userID).Msg("Update user preferences requested")
@@ -548,7 +549,7 @@ func (h *UserHandler) BlockUser(ctx context.Context, input *struct {
 	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
 	if err != nil {
 		log.Warn().Err(err).Str("endpoint", "users/block").Msg("Authentication required for blocking user")
-		return nil, fmt.Errorf("authentication required")
+		return nil, huma.Error401Unauthorized("Authentication required")
 	}
 	userID := int64(userCtx.UserID)
 	blockerPseudonymID := userCtx.ActivePseudonymID
@@ -564,7 +565,7 @@ func (h *UserHandler) BlockUser(ctx context.Context, input *struct {
 	}
 	if blockedPseudonym == nil {
 		log.Warn().Str("blocked_pseudonym_id", blockedPseudonymID).Msg("Blocked pseudonym not found")
-		return nil, fmt.Errorf("blocked pseudonym not found")
+		return nil, huma.Error404NotFound("Blocked pseudonym not found")
 	}
 
 	// Use role-based access control for ownership verification
@@ -575,23 +576,38 @@ func (h *UserHandler) BlockUser(ctx context.Context, input *struct {
 	}
 	if ownsPseudonym {
 		log.Warn().Int64("user_id", userID).Str("blocked_pseudonym_id", blockedPseudonymID).Msg("User cannot block themselves")
-		return nil, fmt.Errorf("cannot block yourself")
+		return nil, huma.Error400BadRequest("Cannot block yourself")
 	}
 
 	// Block all personas if requested
 	if input.Body.BlockAllPersonas != nil && *input.Body.BlockAllPersonas {
-		// ✅ Use IBE-based correlation to get all pseudonyms for the blocked user
-		// TODO: Implement proper IBE-based pseudonym correlation for blocking all personas
-		// For now, we'll block just the specific pseudonym
-		_, err = h.userBlocksDAO.CreateUserBlock(ctx, blockerPseudonymID, blockedPseudonymID, userID)
+		// ✅ Use IBE-based correlation to block all personas of the user
+		// Get the blocked user's ID (not the blocker's ID)
+		blockedUserID, err := h.securePseudonymDAO.GetUserIDByPseudonym(ctx, blockedPseudonymID, "user", "self_correlation")
 		if err != nil {
-			log.Error().Err(err).Str("blocker_pseudonym_id", blockerPseudonymID).Str("blocked_pseudonym_id", blockedPseudonymID).Int64("blocked_user_id", userID).Msg("Failed to create user block")
+			log.Error().Err(err).Str("blocked_pseudonym_id", blockedPseudonymID).Msg("Failed to get blocked user ID")
+			return nil, fmt.Errorf("failed to get blocked user ID: %w", err)
+		}
+
+		// Block at the user ID level to prevent any future pseudonyms from this user
+		// This ensures that even if the user creates new pseudonyms, they will be blocked
+		_, err = h.userBlocksDAO.CreateUserBlock(ctx, blockerPseudonymID, "", blockedUserID)
+		if err != nil {
+			log.Error().Err(err).Str("blocker_pseudonym_id", blockerPseudonymID).Int64("blocked_user_id", blockedUserID).Msg("Failed to create fingerprint-level user block")
 			return nil, fmt.Errorf("failed to create user block: %w", err)
 		}
+
+		log.Info().
+			Str("blocker_pseudonym_id", blockerPseudonymID).
+			Str("blocked_pseudonym_id", blockedPseudonymID).
+			Int64("blocked_user_id", blockedUserID).
+			Msg("Created fingerprint-level block for all personas")
 	} else {
-		_, err = h.userBlocksDAO.CreateUserBlock(ctx, blockerPseudonymID, blockedPseudonymID, userID)
+		// Block only the specific pseudonym
+		log.Debug().Str("blocker_pseudonym_id", blockerPseudonymID).Str("blocked_pseudonym_id", blockedPseudonymID).Msg("About to create pseudonym-level user block")
+		_, err = h.userBlocksDAO.CreateUserBlock(ctx, blockerPseudonymID, blockedPseudonymID, 0)
 		if err != nil {
-			log.Error().Err(err).Str("blocker_pseudonym_id", blockerPseudonymID).Str("blocked_pseudonym_id", blockedPseudonymID).Int64("blocked_user_id", userID).Msg("Failed to create user block")
+			log.Error().Err(err).Str("blocker_pseudonym_id", blockerPseudonymID).Str("blocked_pseudonym_id", blockedPseudonymID).Msg("Failed to create user block")
 			return nil, fmt.Errorf("failed to create user block: %w", err)
 		}
 	}
@@ -608,7 +624,7 @@ func (h *UserHandler) UnblockUser(ctx context.Context, input *struct {
 	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
 	if err != nil {
 		log.Warn().Err(err).Str("endpoint", "users/unblock").Msg("Authentication required for unblocking user")
-		return nil, fmt.Errorf("authentication required")
+		return nil, huma.Error401Unauthorized("Authentication required")
 	}
 	userID := int64(userCtx.UserID)
 	blockerPseudonymID := userCtx.ActivePseudonymID
@@ -617,16 +633,51 @@ func (h *UserHandler) UnblockUser(ctx context.Context, input *struct {
 	if blockedPseudonymID == "" {
 		return nil, fmt.Errorf("blocked pseudonym ID is required")
 	}
+	// First try to find a direct block
 	existingBlock, err := h.userBlocksDAO.GetUserBlock(ctx, blockerPseudonymID, blockedPseudonymID)
 	if err != nil {
-		log.Error().Err(err).Str("blocker_pseudonym_id", blockerPseudonymID).Str("blocked_pseudonym_id", blockedPseudonymID).Msg("Failed to check existing block")
+		log.Error().Err(err).Str("blocker_pseudonym_id", blockerPseudonymID).Str("blocked_pseudonym_id", blockedPseudonymID).Msg("Failed to check existing direct block")
 		return nil, fmt.Errorf("failed to check existing block: %w", err)
 	}
+
+	// If no direct block found, check for fingerprint-level block
+	if existingBlock == nil {
+		// Get the blocked user's ID to check for fingerprint-level blocks
+		blockedUserID, err := h.securePseudonymDAO.GetUserIDByPseudonym(ctx, blockedPseudonymID, "user", "self_correlation")
+		if err != nil {
+			log.Error().Err(err).Str("blocked_pseudonym_id", blockedPseudonymID).Msg("Failed to get blocked user ID for unblock")
+			return nil, fmt.Errorf("failed to get blocked user ID: %w", err)
+		}
+
+		// Check for fingerprint-level blocks
+		fingerprintBlocks, err := h.userBlocksDAO.GetFingerprintLevelBlocks(ctx, blockedUserID)
+		if err != nil {
+			log.Error().Err(err).Int64("blocked_user_id", blockedUserID).Msg("Failed to check fingerprint-level blocks")
+			return nil, fmt.Errorf("failed to check fingerprint-level blocks: %w", err)
+		}
+
+		// Find the block from this specific blocker
+		for _, block := range fingerprintBlocks {
+			if block.BlockerPseudonymID == blockerPseudonymID {
+				existingBlock = block
+				break
+			}
+		}
+	}
+
 	if existingBlock == nil {
 		log.Warn().Str("blocker_pseudonym_id", blockerPseudonymID).Str("blocked_pseudonym_id", blockedPseudonymID).Msg("Block not found")
-		return nil, fmt.Errorf("block not found")
+		return nil, huma.Error404NotFound("Block not found")
 	}
-	err = h.userBlocksDAO.DeleteUserBlock(ctx, blockerPseudonymID, blockedPseudonymID)
+
+	// Delete the block based on its type
+	if existingBlock.BlockedPseudonymID.Valid {
+		// Direct block
+		err = h.userBlocksDAO.DeleteUserBlock(ctx, blockerPseudonymID, blockedPseudonymID)
+	} else {
+		// Fingerprint-level block - delete by block ID
+		err = h.userBlocksDAO.DeleteUserBlockByID(ctx, existingBlock.BlockID)
+	}
 	if err != nil {
 		log.Error().Err(err).Str("blocker_pseudonym_id", blockerPseudonymID).Str("blocked_pseudonym_id", blockedPseudonymID).Msg("Failed to delete user block")
 		return nil, fmt.Errorf("failed to delete user block: %w", err)

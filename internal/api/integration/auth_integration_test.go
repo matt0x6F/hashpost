@@ -23,7 +23,7 @@ func TestAuthLogin_Integration(t *testing.T) {
 		defer suite.Cleanup()
 		server := suite.CreateTestServer()
 		defer server.Close()
-		testUser := suite.CreateTestUser(t, "test@example.com", "TestPassword123!", []string{"user"})
+		testUser := suite.CreateTestUser(t, testutil.GenerateUniqueEmail("login_valid"), "TestPassword123!", []string{"user"})
 		resp := suite.LoginUser(t, server, testUser.Email, testUser.Password)
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("Expected status 200, got %d", resp.StatusCode)
@@ -79,7 +79,7 @@ func TestAuthLogin_Integration(t *testing.T) {
 		defer suite.Cleanup()
 		server := suite.CreateTestServer()
 		defer server.Close()
-		testUser := suite.CreateTestUser(t, "test2@example.com", "CorrectPassword123!", []string{"user"})
+		testUser := suite.CreateTestUser(t, testutil.GenerateUniqueEmail("login_wrong_pass"), "CorrectPassword123!", []string{"user"})
 		resp := suite.LoginUser(t, server, testUser.Email, "WrongPassword")
 		if resp.StatusCode != http.StatusInternalServerError {
 			t.Errorf("Expected status 500 for wrong password, got %d", resp.StatusCode)
@@ -108,7 +108,7 @@ func TestAuthLogin_Integration(t *testing.T) {
 		defer suite.Cleanup()
 		server := suite.CreateTestServer()
 		defer server.Close()
-		testUser := suite.CreateTestUser(t, "test3@example.com", "CorrectPassword123!", []string{"user"})
+		testUser := suite.CreateTestUser(t, testutil.GenerateUniqueEmail("login_empty_pass"), "CorrectPassword123!", []string{"user"})
 		resp := suite.LoginUser(t, server, testUser.Email, "")
 		if resp.StatusCode != http.StatusUnprocessableEntity {
 			t.Errorf("Expected status 422 for empty password, got %d", resp.StatusCode)
