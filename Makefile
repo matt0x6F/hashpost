@@ -40,7 +40,7 @@ help:
 	@echo "  clean           Clean build artifacts"
 	@echo ""
 	@echo "Setup:"
-	@echo "  setup-ibe-keys  Setup IBE master keys"
+	@echo "  setup-ibe-keys  Setup enhanced IBE keys with domain separation"
 	@echo "  setup-roles     Setup role keys for all roles"
 
 # Database migration commands (run inside Docker Compose app container)
@@ -205,8 +205,13 @@ ui-build:
 
 # IBE Key Management
 setup-ibe-keys:
-	@echo "Setting up IBE master keys..."
-	./scripts/setup-ibe-keys.sh 
+	@echo "Setting up IBE keys..."
+	@echo "Generating enhanced IBE keys with domain separation..."
+	./bin/hashpost generate-ibe-keys --output-dir ./keys --generate-new --non-interactive
+	@echo "✅ IBE keys generated successfully!"
+	@echo "📁 Keys location: ./keys/"
+	@echo "🔐 Master key: ./keys/master.key"
+	@echo "📋 Configuration: ./keys/ibe_config.json" 
 
 setup-roles:
 	@echo "Setting up role keys for all roles..."

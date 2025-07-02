@@ -43,8 +43,7 @@ COPY .air.toml ./
 # Copy migration scripts and make them executable
 COPY scripts/migrate.sh /usr/local/bin/migrate.sh
 COPY scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
-COPY scripts/init-ibe-keys.sh /usr/local/bin/init-ibe-keys.sh
-RUN chmod +x /usr/local/bin/migrate.sh /usr/local/bin/entrypoint.sh /usr/local/bin/init-ibe-keys.sh
+RUN chmod +x /usr/local/bin/migrate.sh /usr/local/bin/entrypoint.sh
 
 # Expose port
 EXPOSE 8888
@@ -70,8 +69,7 @@ COPY --from=builder /app/main .
 COPY dbconfig.yml ./
 COPY scripts/migrate.sh /usr/local/bin/migrate.sh
 COPY scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
-COPY scripts/init-ibe-keys.sh /usr/local/bin/init-ibe-keys.sh
-RUN chmod +x /usr/local/bin/migrate.sh /usr/local/bin/entrypoint.sh /usr/local/bin/init-ibe-keys.sh
+RUN chmod +x /usr/local/bin/migrate.sh /usr/local/bin/entrypoint.sh
 
 # Copy migrations directory
 COPY internal/database/migrations ./internal/database/migrations

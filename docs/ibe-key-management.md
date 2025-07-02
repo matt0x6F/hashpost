@@ -111,80 +111,74 @@ output-dir/
     ├── pseudonym_1_v1.txt
     ├── pseudonym_2_v1.txt
     ├── test_user_authentication.key
-    ├── test_user_correlation.key
-    └── ...
+    └── test_user_correlation.key
 ```
 
-## Configuration File
+## Quick Start
 
-The `ibe_config.json` file contains metadata about the generated keys:
+### Development Setup
 
-```json
-{
-  "key_version": 1,
-  "salt": "fingerprint_salt_v1",
-  "domains": {
-    "user_pseudonyms": "user_pseudonyms_v1",
-    "user_correlation": "user_self_correlation_v1",
-    "mod_correlation": "moderator_correlation_v1",
-    "admin_correlation": "admin_correlation_v1",
-    "legal_correlation": "legal_correlation_v1"
-  },
-  "generated_at": "2025-07-02T03:10:54Z"
-}
+For development environments, use the Makefile target:
+
+```bash
+# Build the application first
+make build
+
+# Generate IBE keys
+make setup-ibe-keys
 ```
 
-## Security Considerations
+This will:
+1. Create the `./keys/` directory
+2. Generate a new master key
+3. Create all domain-specific keys
+4. Generate role-based keys with time windows
+5. Create test keys for development
+6. Save configuration metadata
 
-### Master Key Management
+### Manual Setup
 
-- **Generate securely**: Use cryptographically secure random number generation
-- **Store securely**: Keep master keys in secure storage (HashiCorp Vault, AWS KMS, etc.)
-- **Backup securely**: Encrypt backups of master keys
-- **Rotate regularly**: Generate new master keys periodically
+For more control, use the command directly:
 
-### Domain Separation Benefits
+```bash
+# Build the application
+go build -o bin/hashpost ./cmd/server
 
-- **Privilege isolation**: Compromise of one domain doesn't affect others
-- **Granular recovery**: Individual domain key rotation possible
-- **Audit separation**: Clear cryptographic boundaries for compliance
+# Generate keys with custom settings
+./bin/hashpost generate-ibe-keys \
+  --output-dir ./keys \
+  --key-version 1 \
+  --salt "dev_salt_v1" \
+  --generate-new \
+  --non-interactive
+```
 
-### Time-Bounded Keys
+### Container Setup
 
-- **Forward secrecy**: Historical compromise doesn't affect current operations
-- **Limited exposure**: Key compromise limited to time window
-- **Automatic rotation**: Keys automatically rotate based on time epochs
+The application automatically generates IBE keys on container startup if they don't exist. The entrypoint script will:
 
-## Consequences of Master Key Rotation
+1. Check if keys exist in `/app/keys/`
+2. If not, run `./main generate-ibe-keys --output-dir /app/keys --generate-new --non-interactive`
+3. Continue with application startup
 
-Rotating a domain master key for IBE has significant and irreversible consequences:
+## Environment Configuration
 
-- **Loss of Access to Old Data:** All data encrypted or pseudonymized with the old master key for that domain becomes permanently inaccessible. This includes all derived keys for all time windows, roles, and scopes under that domain.
-- **User Pseudonym Loss:** If you rotate the user pseudonyms domain master key, all existing user pseudonyms become invalid. Users would lose their pseudonyms and would need to generate new ones, breaking all existing content attribution and user identity continuity.
-- **Forward/Backward Secrecy:** Forward secrecy is provided by time-bounded key derivation, not by rotating the master key. Rotating the master key does not retroactively protect old data; it simply makes all old data unrecoverable unless you have a migration/unsealing process.
-- **Migration/Unsealing Required:** If you need to retain access to old data, you must decrypt it with the old master key and re-encrypt it with the new one before rotation. This process must be carefully planned and executed.
-- **High-Impact, Rare Operation:** Master key rotation is not part of normal operational hygiene. It should only be performed in response to a suspected compromise or as part of a rare, planned rekeying event.
-- **Operational Recommendations:**
-  - Only rotate master keys if absolutely necessary.
-  - Always back up current master keys securely before rotation.
-  - Plan for downtime or read-only mode during rotation if data migration is required.
-  - Document and test your migration/unsealing process in advance.
-  - Communicate the impact to all stakeholders, as data loss is irreversible without proper migration.
+Set these environment variables to configure IBE key usage:
 
-**Summary:**
-Master key rotation is a destructive operation for all data encrypted under the old key. For regular forward secrecy, rely on the system's time-bounded key derivation, not on master key rotation.
+```bash
+# Key file paths
+export IBE_MASTER_KEY_PATH="./keys/master.key"
+export IBE_DOMAIN_KEYS_DIR="./keys/domains"
 
-## Future Work: Online Migration Strategy
+# Configuration
+export IBE_KEY_VERSION="1"
+export IBE_SALT="fingerprint_salt_v1"
 
-In the event of a master key compromise, we need to develop a strategy for migrating keys while keeping services online. This would involve:
-
-- **Dual-key support**: Ability to use both old and new master keys simultaneously
-- **Gradual migration**: Migrate data in batches without service interruption
-- **Rollback capability**: Ability to revert to old keys if migration fails
-- **Zero-downtime deployment**: Service updates that don't require stopping the application
-- **Data consistency**: Ensuring all data is properly migrated before switching over
-
-This is a complex operational challenge that requires careful design and testing before implementation.
+# Optional: Enable key rotation
+export IBE_KEY_ROTATION_ENABLED="true"
+export IBE_KEY_ROTATION_INTERVAL="30d"
+export IBE_KEY_ROTATION_GRACE_PERIOD="7d"
+```
 
 ## Production Deployment
 
@@ -346,58 +340,135 @@ export IBE_KEY_VERSION="2"
 make test-integration-local
 
 # Verify key functionality
-./hashpost-server generate-ibe-keys --master-key-path /path/to/enhanced-keys/master.key
+./hashpost-server generate-ibe-keys --output-dir ./test-migration --generate-new
+```
+
+## Security Considerations
+
+### Key Storage
+
+- Store keys in secure, encrypted storage in production
+- Use proper file permissions (600) for key files
+- Implement key rotation policies
+- Monitor key usage and access
+
+### Domain Separation
+
+- Each cryptographic domain has its own master key
+- Keys from different domains cannot be used interchangeably
+- This prevents privilege escalation attacks
+
+### Time-Bounded Keys
+
+- Keys automatically expire based on time windows
+- Provides forward secrecy for correlation operations
+- Reduces impact of key compromise
+
+### Key Rotation
+
+- Implement regular key rotation schedules
+- Use grace periods to allow for migration
+- Maintain backward compatibility during transitions
+- Test rotation procedures in staging environments
+
+## Advanced Configuration
+
+### Custom Domains
+
+```bash
+./hashpost-server generate-ibe-keys \
+  --domains "custom_domain_v1,another_domain_v1" \
+  --generate-new
+```
+
+### Custom Time Windows
+
+```bash
+./hashpost-server generate-ibe-keys \
+  --time-windows "15m,1h,6h,1d,1w" \
+  --generate-new
+```
+
+### Custom Roles and Scopes
+
+```bash
+./hashpost-server generate-ibe-keys \
+  --roles "user,moderator,admin" \
+  --scopes "auth,correlation,audit" \
+  --generate-new
+```
+
+## Monitoring and Logging
+
+### Key Usage Monitoring
+
+Monitor key usage through application logs:
+
+```bash
+# Enable debug logging for IBE operations
+export LOG_LEVEL=debug
+
+# Monitor key generation and usage
+tail -f /var/log/hashpost/application.log | grep -i ibe
+```
+
+### Key Health Checks
+
+Implement health checks for key availability:
+
+```bash
+# Check if keys exist and are readable
+ls -la /opt/hashpost/keys/
+./hashpost-server generate-ibe-keys --output-dir ./health-check --generate-new
 ```
 
 ## Best Practices
 
-### Key Management
+1. **Key Generation**: Always use the `generate-ibe-keys` command for consistent key generation
+2. **Environment Separation**: Use different keys for development, staging, and production
+3. **Backup Strategy**: Implement regular backups of key files and configurations
+4. **Access Control**: Limit access to key files to only necessary personnel
+5. **Monitoring**: Monitor key usage and implement alerts for unusual patterns
+6. **Documentation**: Document key generation procedures and emergency procedures
+7. **Testing**: Regularly test key generation and rotation procedures
+8. **Compliance**: Ensure key management meets regulatory requirements
 
-1. **Use separate keys for different environments** (dev, staging, production)
-2. **Rotate keys regularly** (quarterly or annually)
-3. **Monitor key usage** for unusual patterns
-4. **Backup keys securely** with encryption
-5. **Document key versions** and migration procedures
+## Emergency Procedures
 
-### Security
+### Key Compromise
 
-1. **Never commit keys to version control**
-2. **Use secure random generation** for all keys
-3. **Implement proper access controls** for key files
-4. **Monitor for key compromise** indicators
-5. **Have incident response procedures** for key compromise
+If keys are compromised:
 
-### Operations
+1. **Immediate Response**:
+   - Generate new keys with incremented version
+   - Update environment configuration
+   - Restart affected services
 
-1. **Test key generation** in staging environments
-2. **Validate key functionality** before production deployment
-3. **Monitor application logs** for key-related errors
-4. **Have rollback procedures** for key changes
-5. **Document all key management procedures**
+2. **Investigation**:
+   - Audit key access logs
+   - Identify compromise vector
+   - Implement additional security measures
 
-## API Integration
+3. **Recovery**:
+   - Migrate existing data to new keys
+   - Update all dependent systems
+   - Verify system functionality
 
-The enhanced IBE system is automatically used by the application when the environment variables are set:
+### Key Loss
 
-```go
-// The application automatically uses enhanced IBE system
-ibeSystem := ibe.NewIBESystemFromEnv()
+If keys are lost:
 
-// Generate pseudonyms with domain separation
-pseudonym := ibeSystem.CreateEnhancedPseudonym(userID, context)
+1. **Assessment**:
+   - Determine scope of data affected
+   - Identify backup availability
+   - Assess recovery options
 
-// Generate time-bounded correlation keys
-correlationKey := ibeSystem.GenerateTimeBoundedKey(role, scope, timeWindow)
-```
+2. **Recovery**:
+   - Restore from secure backups
+   - Regenerate keys if necessary
+   - Verify data integrity
 
-## Conclusion
-
-The enhanced IBE key management system provides:
-
-- **Cryptographic domain separation** for privilege isolation
-- **Time-bounded key derivation** for forward secrecy
-- **Comprehensive key generation** for all system components
-- **Secure key management** procedures for production deployment
-- **Backward compatibility** with existing systems
-
-This architecture transforms HashPost into a platform with industry-leading privacy and security capabilities, suitable for security-conscious users and premium advertisers. 
+3. **Prevention**:
+   - Implement additional backup procedures
+   - Review key management processes
+   - Update disaster recovery plans 
