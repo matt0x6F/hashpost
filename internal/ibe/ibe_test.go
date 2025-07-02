@@ -234,9 +234,15 @@ func TestIBESystem_TestConfiguration(t *testing.T) {
 	// Create IBE system with test configuration (same as in integration tests)
 	testMasterSecret := []byte("test_master_secret_32_bytes_long_key")
 	ibeSystem := NewIBESystemWithOptions(IBEOptions{
-		MasterSecret: testMasterSecret,
-		KeyVersion:   1,
-		Salt:         "test_fingerprint_salt_v1",
+		DomainMasters: map[string][]byte{
+			DOMAIN_USER_PSEUDONYMS:   testMasterSecret,
+			DOMAIN_USER_CORRELATION:  testMasterSecret,
+			DOMAIN_MOD_CORRELATION:   testMasterSecret,
+			DOMAIN_ADMIN_CORRELATION: testMasterSecret,
+			DOMAIN_LEGAL_CORRELATION: testMasterSecret,
+		},
+		KeyVersion: 1,
+		Salt:       "test_fingerprint_salt_v1",
 	})
 
 	// Test that fingerprint generation is consistent
@@ -278,4 +284,255 @@ func TestIBESystem_TestConfiguration(t *testing.T) {
 	t.Logf("  Fingerprint: %s", fingerprint1)
 	t.Logf("  Role key length: %d", len(roleKey1))
 	t.Logf("  Decrypted mapping: %s", decrypted)
+}
+
+func TestIBESystem_DomainSeparation(t *testing.T) {
+	// Create IBE system with test configuration
+	ibeSystem := NewIBESystemWithOptions(IBEOptions{
+		DomainMasters: map[string][]byte{
+			DOMAIN_USER_PSEUDONYMS:   []byte("test_master_secret_32_bytes_long_key"),
+			DOMAIN_USER_CORRELATION:  []byte("test_master_secret_32_bytes_long_key"),
+			DOMAIN_MOD_CORRELATION:   []byte("test_master_secret_32_bytes_long_key"),
+			DOMAIN_ADMIN_CORRELATION: []byte("test_master_secret_32_bytes_long_key"),
+			DOMAIN_LEGAL_CORRELATION: []byte("test_master_secret_32_bytes_long_key"),
+		},
+		KeyVersion: 1,
+		Salt:       "test_fingerprint_salt_v1",
+	})
+
+	// Test that different roles get different domains
+	userKey := ibeSystem.GenerateTimeBoundedKey("user", "correlation", time.Hour)
+	modKey := ibeSystem.GenerateTimeBoundedKey("moderator", "correlation", time.Hour)
+	adminKey := ibeSystem.GenerateTimeBoundedKey("platform_admin", "correlation", time.Hour)
+	legalKey := ibeSystem.GenerateTimeBoundedKey("legal_team", "correlation", time.Hour)
+
+	// All keys should be different (different domains)
+	if bytes.Equal(userKey, modKey) {
+		t.Error("User and moderator keys should be different (different domains)")
+	}
+	if bytes.Equal(userKey, adminKey) {
+		t.Error("User and admin keys should be different (different domains)")
+	}
+	if bytes.Equal(userKey, legalKey) {
+		t.Error("User and legal keys should be different (different domains)")
+	}
+	if bytes.Equal(modKey, adminKey) {
+		t.Error("Moderator and admin keys should be different (different domains)")
+	}
+	if bytes.Equal(modKey, legalKey) {
+		t.Error("Moderator and legal keys should be different (different domains)")
+	}
+	if bytes.Equal(adminKey, legalKey) {
+		t.Error("Admin and legal keys should be different (different domains)")
+	}
+
+	// Test that same role gets same key within time window
+	userKey2 := ibeSystem.GenerateTimeBoundedKey("user", "correlation", time.Hour)
+	if !bytes.Equal(userKey, userKey2) {
+		t.Error("Same role and scope should get same key within time window")
+	}
+}
+
+func TestIBESystem_TimeBoundedKeys(t *testing.T) {
+	// Create IBE system with test configuration
+	ibeSystem := NewIBESystemWithOptions(IBEOptions{
+		DomainMasters: map[string][]byte{
+			DOMAIN_USER_PSEUDONYMS:   []byte("test_master_secret_32_bytes_long_key"),
+			DOMAIN_USER_CORRELATION:  []byte("test_master_secret_32_bytes_long_key"),
+			DOMAIN_MOD_CORRELATION:   []byte("test_master_secret_32_bytes_long_key"),
+			DOMAIN_ADMIN_CORRELATION: []byte("test_master_secret_32_bytes_long_key"),
+			DOMAIN_LEGAL_CORRELATION: []byte("test_master_secret_32_bytes_long_key"),
+		},
+		KeyVersion: 1,
+		Salt:       "test_fingerprint_salt_v1",
+	})
+
+	// Test that different time windows produce different keys
+	key1 := ibeSystem.GenerateTimeBoundedKey("user", "correlation", time.Hour)
+	key2 := ibeSystem.GenerateTimeBoundedKey("user", "correlation", time.Minute)
+
+	if bytes.Equal(key1, key2) {
+		t.Error("Different time windows should produce different keys")
+	}
+
+	// Test that same time window produces same key
+	key3 := ibeSystem.GenerateTimeBoundedKey("user", "correlation", time.Hour)
+	if !bytes.Equal(key1, key3) {
+		t.Error("Same time window should produce same key")
+	}
+}
+
+func TestIBESystem_EnhancedPseudonyms(t *testing.T) {
+	// Create IBE system with test configuration
+	ibeSystem := NewIBESystemWithOptions(IBEOptions{
+		DomainMasters: map[string][]byte{
+			DOMAIN_USER_PSEUDONYMS:   []byte("test_master_secret_32_bytes_long_key"),
+			DOMAIN_USER_CORRELATION:  []byte("test_master_secret_32_bytes_long_key"),
+			DOMAIN_MOD_CORRELATION:   []byte("test_master_secret_32_bytes_long_key"),
+			DOMAIN_ADMIN_CORRELATION: []byte("test_master_secret_32_bytes_long_key"),
+			DOMAIN_LEGAL_CORRELATION: []byte("test_master_secret_32_bytes_long_key"),
+		},
+		KeyVersion: 1,
+		Salt:       "test_fingerprint_salt_v1",
+	})
+
+	userID := int64(12345)
+
+	// Test legacy pseudonym generation (version 1)
+	legacyPseudonym := ibeSystem.separated.GeneratePseudonym(userID, "default", 1)
+
+	// Test enhanced pseudonym generation (version 2)
+	enhancedPseudonym := ibeSystem.CreateEnhancedPseudonym(userID, "tech_context")
+
+	// Test that different contexts produce different pseudonyms
+	enhancedPseudonym2 := ibeSystem.CreateEnhancedPseudonym(userID, "crypto_context")
+
+	if enhancedPseudonym == enhancedPseudonym2 {
+		t.Error("Different contexts should produce different pseudonyms")
+	}
+
+	// Test that same context produces same pseudonym
+	enhancedPseudonym3 := ibeSystem.CreateEnhancedPseudonym(userID, "tech_context")
+	if enhancedPseudonym != enhancedPseudonym3 {
+		t.Error("Same context should produce same pseudonym")
+	}
+
+	// Test that legacy and enhanced pseudonyms are different
+	if legacyPseudonym == enhancedPseudonym {
+		t.Error("Legacy and enhanced pseudonyms should be different")
+	}
+
+	t.Logf("Legacy pseudonym: %s", legacyPseudonym)
+	t.Logf("Enhanced pseudonym (tech): %s", enhancedPseudonym)
+	t.Logf("Enhanced pseudonym (crypto): %s", enhancedPseudonym2)
+}
+
+func TestIBESystem_DomainIsolation(t *testing.T) {
+	// Create IBE system with test configuration
+	ibeSystem := NewIBESystemWithOptions(IBEOptions{
+		DomainMasters: map[string][]byte{
+			DOMAIN_USER_PSEUDONYMS:   []byte("test_master_secret_32_bytes_long_key"),
+			DOMAIN_USER_CORRELATION:  []byte("test_master_secret_32_bytes_long_key"),
+			DOMAIN_MOD_CORRELATION:   []byte("test_master_secret_32_bytes_long_key"),
+			DOMAIN_ADMIN_CORRELATION: []byte("test_master_secret_32_bytes_long_key"),
+			DOMAIN_LEGAL_CORRELATION: []byte("test_master_secret_32_bytes_long_key"),
+		},
+		KeyVersion: 1,
+		Salt:       "test_fingerprint_salt_v1",
+	})
+
+	// Test that user pseudonym domain is isolated from correlation domains
+	userID := int64(12345)
+	pseudonym := ibeSystem.separated.GeneratePseudonym(userID, "default", 1)
+
+	// Generate correlation keys for different roles
+	userCorrKey := ibeSystem.separated.GenerateCorrelationKey("user", "correlation", time.Hour)
+	modCorrKey := ibeSystem.separated.GenerateCorrelationKey("moderator", "correlation", time.Hour)
+	adminCorrKey := ibeSystem.separated.GenerateCorrelationKey("platform_admin", "correlation", time.Hour)
+
+	// Test that pseudonym generation doesn't interfere with correlation keys
+	pseudonym2 := ibeSystem.separated.GeneratePseudonym(userID, "default", 1)
+	userCorrKey2 := ibeSystem.separated.GenerateCorrelationKey("user", "correlation", time.Hour)
+	modCorrKey2 := ibeSystem.separated.GenerateCorrelationKey("moderator", "correlation", time.Hour)
+	adminCorrKey2 := ibeSystem.separated.GenerateCorrelationKey("platform_admin", "correlation", time.Hour)
+
+	// Pseudonyms should be consistent
+	if pseudonym != pseudonym2 {
+		t.Error("Pseudonym generation should be deterministic")
+	}
+
+	// Correlation keys should be consistent within time window
+	if !bytes.Equal(userCorrKey, userCorrKey2) {
+		t.Error("User correlation keys should be consistent within time window")
+	}
+	if !bytes.Equal(modCorrKey, modCorrKey2) {
+		t.Error("Moderator correlation keys should be consistent within time window")
+	}
+	if !bytes.Equal(adminCorrKey, adminCorrKey2) {
+		t.Error("Admin correlation keys should be consistent within time window")
+	}
+}
+
+func TestIBESystem_BackwardCompatibility(t *testing.T) {
+	// Create IBE system with test configuration
+	ibeSystem := NewIBESystemWithOptions(IBEOptions{
+		DomainMasters: map[string][]byte{
+			DOMAIN_USER_PSEUDONYMS:   []byte("test_master_secret_32_bytes_long_key"),
+			DOMAIN_USER_CORRELATION:  []byte("test_master_secret_32_bytes_long_key"),
+			DOMAIN_MOD_CORRELATION:   []byte("test_master_secret_32_bytes_long_key"),
+			DOMAIN_ADMIN_CORRELATION: []byte("test_master_secret_32_bytes_long_key"),
+			DOMAIN_LEGAL_CORRELATION: []byte("test_master_secret_32_bytes_long_key"),
+		},
+		KeyVersion: 1,
+		Salt:       "test_fingerprint_salt_v1",
+	})
+
+	// Test that existing API methods work exactly as before
+	userSecret := []byte("test_user_secret")
+	pseudonym := ibeSystem.GeneratePseudonym(userSecret)
+
+	// Test that pseudonym is deterministic
+	pseudonym2 := ibeSystem.GeneratePseudonym(userSecret)
+	if pseudonym != pseudonym2 {
+		t.Error("Backward compatible pseudonym generation should be deterministic")
+	}
+
+	// Test that role key generation works
+	roleKey := ibeSystem.GenerateRoleKey("user", "correlation", time.Now().Add(time.Hour))
+	if len(roleKey) != 32 {
+		t.Error("Role key should be 32 bytes")
+	}
+
+	// Test that fingerprint generation works
+	fingerprint := ibeSystem.GenerateFingerprint("test@example.com")
+	fingerprint2 := ibeSystem.GenerateFingerprint("test@example.com")
+	if fingerprint != fingerprint2 {
+		t.Error("Fingerprint generation should be deterministic")
+	}
+
+	// Test that encryption/decryption works
+	encrypted, err := ibeSystem.EncryptIdentity("test@example.com", pseudonym, roleKey)
+	if err != nil {
+		t.Fatalf("Encryption failed: %v", err)
+	}
+
+	decrypted, _, err := ibeSystem.DecryptIdentity(encrypted, roleKey)
+	if err != nil {
+		t.Fatalf("Decryption failed: %v", err)
+	}
+
+	if !strings.Contains(decrypted, fingerprint) {
+		t.Error("Decrypted data should contain the fingerprint")
+	}
+}
+
+func TestIBESystem_ForwardSecrecy(t *testing.T) {
+	// Create IBE system with test configuration
+	ibeSystem := NewIBESystemWithOptions(IBEOptions{
+		DomainMasters: map[string][]byte{
+			DOMAIN_USER_PSEUDONYMS:   []byte("test_master_secret_32_bytes_long_key"),
+			DOMAIN_USER_CORRELATION:  []byte("test_master_secret_32_bytes_long_key"),
+			DOMAIN_MOD_CORRELATION:   []byte("test_master_secret_32_bytes_long_key"),
+			DOMAIN_ADMIN_CORRELATION: []byte("test_master_secret_32_bytes_long_key"),
+			DOMAIN_LEGAL_CORRELATION: []byte("test_master_secret_32_bytes_long_key"),
+		},
+		KeyVersion: 1,
+		Salt:       "test_fingerprint_salt_v1",
+	})
+
+	// Test that keys change over time (forward secrecy)
+	key1 := ibeSystem.GenerateTimeBoundedKey("user", "correlation", time.Hour)
+
+	// Simulate time passing by using a different time window
+	key2 := ibeSystem.GenerateTimeBoundedKey("user", "correlation", time.Hour*2)
+
+	if bytes.Equal(key1, key2) {
+		t.Error("Keys should change over time for forward secrecy")
+	}
+
+	// Test that same time window produces same key
+	key3 := ibeSystem.GenerateTimeBoundedKey("user", "correlation", time.Hour)
+	if !bytes.Equal(key1, key3) {
+		t.Error("Same time window should produce same key")
+	}
 }

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/danielgtaylor/huma/v2/humacli"
+	"github.com/matt0x6f/hashpost/cmd/server/commands"
 	"github.com/matt0x6f/hashpost/internal/api"
 	"github.com/matt0x6f/hashpost/internal/api/logger"
 	"github.com/matt0x6f/hashpost/internal/config"
@@ -131,6 +132,31 @@ func main() {
 	}
 
 	cli.Root().AddCommand(setupRolesCmd)
+
+	// Add generate-ibe-keys subcommand
+	generateIBEKeysCmd := &cobra.Command{
+		Use:   "generate-ibe-keys",
+		Short: "Generate IBE keys for enhanced architecture",
+		Long:  "Generate Identity-Based Encryption keys with domain separation and time-bounded access",
+		Run: humacli.WithOptions(func(cmd *cobra.Command, args []string, options *Options) {
+			generateIBEKeys(options)
+		}),
+	}
+
+	// Add flags for generate-ibe-keys command
+	generateIBEKeysCmd.Flags().String("output-dir", "./keys", "Output directory for generated keys")
+	generateIBEKeysCmd.Flags().Int("key-version", 1, "Key version to generate")
+	generateIBEKeysCmd.Flags().String("salt", "fingerprint_salt_v1", "Salt for fingerprint generation")
+	generateIBEKeysCmd.Flags().String("master-key-path", "", "Path to existing master key file (optional)")
+	generateIBEKeysCmd.Flags().Bool("generate-new", false, "Generate new master key")
+	generateIBEKeysCmd.Flags().String("domains", "", "Comma-separated list of domains to generate keys for")
+	generateIBEKeysCmd.Flags().String("time-windows", "", "Comma-separated list of time windows (e.g., 1h,24h,7d,30d)")
+	generateIBEKeysCmd.Flags().String("roles", "", "Comma-separated list of roles to generate keys for")
+	generateIBEKeysCmd.Flags().String("scopes", "", "Comma-separated list of scopes to generate keys for")
+	generateIBEKeysCmd.Flags().Bool("non-interactive", false, "Non-interactive mode")
+	generateIBEKeysCmd.Flags().Int("key-size", 32, "Key size in bytes (default 32, i.e., 256 bits)")
+
+	cli.Root().AddCommand(generateIBEKeysCmd)
 
 	// Add openapi subcommand
 	cli.Root().AddCommand(&cobra.Command{
@@ -751,5 +777,69 @@ func setupRoles(opts *Options) {
 		} else {
 			log.Info().Int64("system_user_id", systemUserID).Msg("Temporary system user cleaned up successfully")
 		}
+	}
+}
+
+// generateIBEKeys generates IBE keys for the enhanced architecture
+func generateIBEKeys(opts *Options) {
+	// Parse command line flags
+	cmd := cobra.Command{}
+	cmd.Flags().String("output-dir", "./keys", "")
+	cmd.Flags().Int("key-version", 1, "")
+	cmd.Flags().String("salt", "fingerprint_salt_v1", "")
+	cmd.Flags().String("domain-keys-dir", "", "")
+	cmd.Flags().Bool("generate-new", false, "")
+	cmd.Flags().String("domains", "", "")
+	cmd.Flags().String("time-windows", "", "")
+	cmd.Flags().String("roles", "", "")
+	cmd.Flags().String("scopes", "", "")
+	cmd.Flags().Bool("non-interactive", false, "")
+	cmd.Flags().Int("key-size", 32, "Key size in bytes (default 32, i.e., 256 bits)")
+
+	// Parse flags from os.Args
+	cmd.ParseFlags(os.Args[1:])
+
+	// Get flag values
+	outputDir, _ := cmd.Flags().GetString("output-dir")
+	keyVersion, _ := cmd.Flags().GetInt("key-version")
+	salt, _ := cmd.Flags().GetString("salt")
+	domainKeysDir, _ := cmd.Flags().GetString("domain-keys-dir")
+	generateNew, _ := cmd.Flags().GetBool("generate-new")
+	domains, _ := cmd.Flags().GetString("domains")
+	timeWindows, _ := cmd.Flags().GetString("time-windows")
+	roles, _ := cmd.Flags().GetString("roles")
+	scopes, _ := cmd.Flags().GetString("scopes")
+	nonInteractive, _ := cmd.Flags().GetBool("non-interactive")
+	keySize, _ := cmd.Flags().GetInt("key-size")
+
+	// Create IBE key options
+	ibeOptions := &commands.IBEKeyOptions{
+		OutputDir:      outputDir,
+		KeyVersion:     keyVersion,
+		Salt:           salt,
+		DomainKeysDir:  domainKeysDir,
+		GenerateNew:    generateNew,
+		Domains:        domains,
+		TimeWindows:    timeWindows,
+		Roles:          roles,
+		Scopes:         scopes,
+		NonInteractive: nonInteractive,
+		KeySize:        keySize,
+	}
+
+	// Generate IBE keys
+	if err := commands.GenerateIBEKeys(ibeOptions); err != nil {
+		log.Fatal().Err(err).Msg("Failed to generate IBE keys")
+	}
+
+	fmt.Println("✅ IBE keys generated successfully!")
+	fmt.Printf("   Output directory: %s\n", outputDir)
+	fmt.Printf("   Key version: %d\n", keyVersion)
+	fmt.Printf("   Salt: %s\n", salt)
+	if generateNew {
+		fmt.Println("   Generated new domain keys")
+	}
+	if domainKeysDir != "" {
+		fmt.Printf("   Used existing domain keys: %s\n", domainKeysDir)
 	}
 }

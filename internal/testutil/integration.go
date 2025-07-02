@@ -591,12 +591,18 @@ func NewIntegrationTestSuite(t *testing.T) *IntegrationTestSuite {
 	// Get the raw *sql.DB from bob.DB
 	rawDB := db.DB
 
-	// Create IBE system for correlation operations with deterministic test key
-	testMasterSecret := []byte("test_master_secret_32_bytes_long_key")
+	// Create enhanced IBE system for correlation operations with deterministic test key
+	testMasterSecret := []byte("0123456789abcdef0123456789abcdef")
 	ibeSystem := ibe.NewIBESystemWithOptions(ibe.IBEOptions{
-		MasterSecret: testMasterSecret,
-		KeyVersion:   1,
-		Salt:         "test_fingerprint_salt_v1",
+		DomainMasters: map[string][]byte{
+			ibe.DOMAIN_USER_PSEUDONYMS:   testMasterSecret,
+			ibe.DOMAIN_USER_CORRELATION:  testMasterSecret,
+			ibe.DOMAIN_MOD_CORRELATION:   testMasterSecret,
+			ibe.DOMAIN_ADMIN_CORRELATION: testMasterSecret,
+			ibe.DOMAIN_LEGAL_CORRELATION: testMasterSecret,
+		},
+		KeyVersion: 1,
+		Salt:       "test_fingerprint_salt_v1",
 	})
 
 	// Create DAOs

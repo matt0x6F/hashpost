@@ -58,6 +58,16 @@ This index provides a comprehensive overview of all HashPost documentation, orga
 - Security considerations
 - Mathematical foundations
 
+### [IBE Key Management](ibe-key-management.md)
+**Purpose**: Enhanced IBE key generation and management
+**Audience**: DevOps engineers, security engineers, system administrators
+**Content**:
+- Enhanced architecture with domain separation
+- Command-line key generation
+- Production deployment procedures
+- Security best practices
+- Migration from legacy systems
+
 ## 🛠️ **Development & Operations**
 
 ### [Development Setup](development.md)

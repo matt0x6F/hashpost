@@ -23,6 +23,8 @@ help:
 	@echo "Testing:"
 	@echo "  test            Run unit tests"
 	@echo "  test-integration Run integration tests (requires test database)"
+	@echo "  test-integration-local Run integration tests with clean DB (defaults to all tests)"
+	@echo "                         Usage: make test-integration-local TEST_PATH=./internal/api/integration/auth_integration_test.go"
 	@echo "  docker-test-up  Start test environment"
 	@echo "  docker-test-down Stop test environment"
 	@echo ""
@@ -128,7 +130,7 @@ test-integration-local:
 	@docker-compose --profile test exec -T postgres-test psql -U hashpost -d postgres -c "CREATE DATABASE hashpost_test;" || true
 	@DATABASE_URL='postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable' ./scripts/migrate.sh up
 	@echo "Running integration tests..."
-	@LOG_LEVEL=$${LOG_LEVEL:-error} DATABASE_URL='postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable' go test -v -tags=integration ./...
+	@LOG_LEVEL=$${LOG_LEVEL:-error} DATABASE_URL='postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable' go test -v -tags=integration $${TEST_PATH:-./...}
 
 # For VSCode test runner compatibility (runs integration tests if DATABASE_URL is set)
 test-integration-vscode:
