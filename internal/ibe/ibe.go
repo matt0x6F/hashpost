@@ -106,6 +106,8 @@ func (ibe *SeparatedIBESystem) GenerateCorrelationKey(role, scope string, timeWi
 	combined := append(domainMaster, []byte(role)...)
 	combined = append(combined, []byte(scope)...)
 	combined = append(combined, []byte(fmt.Sprintf("%d", epoch))...)
+	// Include time window in key derivation to ensure different windows produce different keys
+	combined = append(combined, []byte(fmt.Sprintf("%d", timeWindow.Nanoseconds()))...)
 
 	hash := sha256.Sum256(combined)
 	return hash[:]
