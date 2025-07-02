@@ -74,18 +74,25 @@ run_migrations() {
 
 # Function to initialize IBE keys
 initialize_ibe_keys() {
-    print_status "Initializing IBE master keys..."
+    print_status "Checking IBE keys..."
     
-    # Check if init-ibe-keys script is available
-    if command -v init-ibe-keys.sh &> /dev/null; then
-        if init-ibe-keys.sh; then
-            print_success "IBE key initialization completed successfully!"
+    # Check if keys directory exists and has content
+    if [ -d "/app/keys" ] && [ "$(ls -A /app/keys 2>/dev/null)" ]; then
+        print_success "IBE keys found in /app/keys, skipping generation"
+        return 0
+    fi
+    
+    print_status "No IBE keys found, generating new keys..."
+    
+    # Check if the application binary is available and can generate IBE keys
+    if command -v ./main &> /dev/null; then
+        if ./main generate-ibe-keys --output-dir /app/keys --generate-new --non-interactive; then
+            print_success "IBE key generation completed successfully!"
         else
-            print_error "IBE key initialization failed!"
-            exit 1
+            print_warning "IBE key generation failed, continuing without IBE keys"
         fi
     else
-        print_warning "init-ibe-keys.sh not found, skipping IBE key initialization"
+        print_warning "Application binary not found, skipping IBE key generation"
     fi
 }
 

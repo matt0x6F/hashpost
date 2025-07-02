@@ -23,6 +23,8 @@ help:
 	@echo "Testing:"
 	@echo "  test            Run unit tests"
 	@echo "  test-integration Run integration tests (requires test database)"
+	@echo "  test-integration-local Run integration tests with clean DB (defaults to all tests)"
+	@echo "                         Usage: make test-integration-local TEST_PATH=./internal/api/integration/auth_integration_test.go"
 	@echo "  docker-test-up  Start test environment"
 	@echo "  docker-test-down Stop test environment"
 	@echo ""
@@ -38,7 +40,7 @@ help:
 	@echo "  clean           Clean build artifacts"
 	@echo ""
 	@echo "Setup:"
-	@echo "  setup-ibe-keys  Setup IBE master keys"
+	@echo "  setup-ibe-keys  Setup enhanced IBE keys with domain separation"
 	@echo "  setup-roles     Setup role keys for all roles"
 
 # Database migration commands (run inside Docker Compose app container)
@@ -128,7 +130,7 @@ test-integration-local:
 	@docker-compose --profile test exec -T postgres-test psql -U hashpost -d postgres -c "CREATE DATABASE hashpost_test;" || true
 	@DATABASE_URL='postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable' ./scripts/migrate.sh up
 	@echo "Running integration tests..."
-	@LOG_LEVEL=$${LOG_LEVEL:-error} DATABASE_URL='postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable' go test -v -tags=integration ./...
+	@LOG_LEVEL=$${LOG_LEVEL:-error} DATABASE_URL='postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable' go test -v -tags=integration $${TEST_PATH:-./...}
 
 # For VSCode test runner compatibility (runs integration tests if DATABASE_URL is set)
 test-integration-vscode:
@@ -203,8 +205,13 @@ ui-build:
 
 # IBE Key Management
 setup-ibe-keys:
-	@echo "Setting up IBE master keys..."
-	./scripts/setup-ibe-keys.sh 
+	@echo "Setting up IBE keys..."
+	@echo "Generating enhanced IBE keys with domain separation..."
+	./bin/hashpost generate-ibe-keys --output-dir ./keys --generate-new --non-interactive
+	@echo "✅ IBE keys generated successfully!"
+	@echo "📁 Keys location: ./keys/"
+	@echo "🔐 Master key: ./keys/master.key"
+	@echo "📋 Configuration: ./keys/ibe_config.json" 
 
 setup-roles:
 	@echo "Setting up role keys for all roles..."

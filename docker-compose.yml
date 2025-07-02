@@ -84,7 +84,7 @@ services:
       JWT_SECRET: your-super-secret-jwt-key-change-in-production
       JWT_DEVELOPMENT: true
       # IBE system configuration
-      IBE_MASTER_KEY_PATH: /app/keys/master.key
+      IBE_MASTER_KEY_PATH: /app/keys/domains
       IBE_KEY_VERSION: 1
       IBE_SALT: hashpost_fingerprint_salt_v1
       IBE_KEY_ROTATION_ENABLED: false
