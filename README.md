@@ -1,169 +1,107 @@
-# HashPost - Identity-Based Encryption Proof of Concept
+# HashPost
 
-This repository contains a proof of concept implementation of Identity-Based Encryption (IBE) for a pseudonymous social media platform. The system demonstrates how to balance user privacy with administrative accountability through cryptographic controls.
+<div align="center">
+  <img src="ui/public/logo.svg" alt="HashPost Logo" width="120" height="120">
+</div>
 
-## Overview
+A social platform built for meaningful conversations with built-in privacy protections. 🛡️
 
-The proof of concept implements the IBE strategy outlined in `docs/identity-based-encryption.md`, showing how to:
+## Vision 🌟
 
-- Generate pseudonymous user profiles that cannot be correlated by regular users
-- Implement role-based administrative access for correlation
-- Maintain comprehensive audit trails for all correlation activities
-- Support different administrative roles with varying scopes and capabilities
+HashPost exists to create spaces where people can engage in genuine discussions without the pressure of permanent identity. We believe that thoughtful conversations happen when people feel safe to explore ideas, ask questions, and share perspectives without fear of judgment or harassment.
 
-## Architecture
+Our approach combines familiar social features with cryptographic privacy controls that protect user identities while maintaining the accountability needed for healthy communities.
 
-### Core Components
+## What Makes HashPost Different ✨
 
-- **IBE System** (`internal/ibe/`): Cryptographic foundation for pseudonym generation and identity mapping
-- **Data Models** (`internal/models/`): Structures for users, posts, administrative roles, and audit logs
-- **Storage Layer** (`internal/storage/`): In-memory database for demonstration purposes
-- **Demonstration** (`cmd/ibe-demo/`): Interactive proof of concept showing the system in action
+### Privacy Without Anonymity 🔐
 
-### Key Features
+Users interact through pseudonyms that can't be connected to their real identities by other users. This creates a middle ground between complete anonymity and permanent identity—people can build reputation and trust within communities while maintaining privacy across different spaces.
 
-1. **Pseudonym Generation**: Users register with real identities but receive pseudonymous profiles
-2. **Role-Based Access**: Different administrative roles have different correlation capabilities
-3. **Audit Trail**: All correlation activities are logged with timestamps and justifications
-4. **Scope Limitations**: Administrative access is limited by role, time, and community boundaries
+### Administrative Accountability 👥
 
-## Running the Proof of Concept
+While regular users can't correlate pseudonyms, the platform includes carefully controlled administrative tools for moderation and legal compliance. These tools use cryptographic domain separation to ensure that administrative access is limited, audited, and transparent.
 
-### Prerequisites
+### Community-Focused Design 🤝
 
-- Go 1.24.3 or later
-- Git
+HashPost is built around communities where people can discuss shared interests, ask questions, and build knowledge together. The platform emphasizes content quality and meaningful interactions over viral engagement.
 
-### Installation
+## Core Principles 💡
 
-1. Clone the repository:
+### Privacy by Design 🛡️
+
+Every feature is designed with privacy in mind. User identities are protected through cryptographic controls, and the platform minimizes data collection while maintaining functionality.
+
+### Transparency in Moderation 📋
+
+Administrative actions are logged and auditable. When moderation is necessary, it's done transparently with clear reasoning and appropriate oversight.
+
+### User Control 🎛️
+
+Users have control over their pseudonyms, content, and privacy settings. The platform provides tools for users to manage their experience without requiring technical expertise.
+
+### Sustainable Communities 🌱
+
+The platform is designed to support healthy, long-term communities rather than viral growth. Features prioritize quality discussions and meaningful connections.
+
+## Technology ⚙️
+
+HashPost uses Identity-Based Encryption (IBE) to provide cryptographic privacy guarantees. The system separates different types of operations into distinct cryptographic domains, ensuring that compromise of one area doesn't affect others.
+
+For detailed technical information, see the [documentation](docs/).
+
+## Getting Started 🚀
+
+### For Users 👤
+
+HashPost is currently in development. When available, users will be able to:
+- Create pseudonymous profiles
+- Join communities around shared interests
+- Participate in discussions with privacy protections
+- Build reputation within communities
+
+### For Developers 👨‍💻
+
+To contribute to HashPost:
+
 ```bash
 git clone https://github.com/matt0x6f/hashpost.git
 cd hashpost
+make dev
 ```
 
-2. Run the demonstration:
-```bash
-go run cmd/ibe-demo/main.go
-```
+This starts the development environment with the API server and web interface. See the [development documentation](docs/development.md) for detailed setup instructions.
 
-### What the Demo Shows
+### For Communities 🏘️
 
-The demonstration walks through:
+HashPost is designed to support diverse communities. The platform provides:
+- Community spaces for focused discussions
+- Moderation tools for maintaining healthy environments
+- Privacy controls that protect community members
+- Transparent processes for administrative actions
 
-1. **Administrative Role Setup**: Creating different admin roles with varying permissions
-2. **User Registration**: Users register with real identities but receive pseudonymous profiles
-3. **Content Creation**: Users create posts using their pseudonyms
-4. **Administrative Correlation**: Different admin roles demonstrate correlation capabilities
-5. **Audit Trail**: Complete logging of all correlation activities
+## Current Status 📊
 
-## Example Output
+HashPost is in active development. The core privacy architecture is implemented and tested, with ongoing work on the user interface and community features.
 
-```
-=== Identity-Based Encryption (IBE) Proof of Concept ===
-Demonstrating pseudonymous social platform with administrative correlation
+## Contributing 🤝
 
-🚀 Starting IBE Demonstration...
+We welcome contributions that align with our vision of privacy-focused, community-driven social spaces. Areas where we need help include:
 
-📋 Setting up Administrative Roles...
-  ✅ Created role: Site Administrator (full_correlation)
-  ✅ Created role: Trust & Safety (harassment_investigation)
-  ✅ Created role: Subforum Moderator (golang:local_correlation)
-  ✅ Created role: Anti-Spam Team (network_analysis)
-  ✅ Created admin: admin_sarah
-  ✅ Created admin: trust_alex
-  ✅ Created admin: mod_john
-  ✅ Created admin: spam_bot
+- User interface design and development 🎨
+- Community moderation tools 🛠️
+- Documentation and user guides 📚
+- Security audits and testing 🔒
+- Performance optimization ⚡
 
-👥 Registering Users with Pseudonyms...
-  ✅ User alice@example.com registered with pseudonym: a1b2c3d4...
-  ✅ User bob@example.com registered with pseudonym: e5f6g7h8...
-  ✅ User charlie@example.com registered with pseudonym: i9j0k1l2...
-  ✅ User diana@example.com registered with pseudonym: m3n4o5p6...
+Please read our [contributing guidelines](CONTRIBUTING.md) before submitting changes.
 
-🏛️  Creating Subforums...
-  ✅ Created subforum: r/golang
-  ✅ Created subforum: r/privacy
+## License 📄
 
-📝 Users Creating Posts...
-  ✅ Post 1: How to implement IBE in Go? (by user_1)
-  ✅ Post 2: Best practices for pseudonymous systems (by user_2)
-  ✅ Post 3: Privacy concerns with social media (by user_3)
-  ✅ Post 4: Go crypto libraries recommendation (by user_4)
-  ✅ Post 5: Identity-based encryption explained (by user_1)
+HashPost is proprietary software. We do not provide a license to use, modify, or distribute the code. However, we welcome contributions that align with our vision and values.
 
-🔍 Demonstrating Administrative Correlation...
+This project is provided as-is for educational and research purposes. Please review the security implications before using in any production environment.
 
-  🔍 Scenario 1: Site Administrator
-     Scope: full_correlation
-     Justification: Platform-wide investigation of coordinated activity
-     ✅ Correlated: user@example.com -> user_1_1
-     ✅ Correlated: user@example.com -> user_1_2
-     ✅ Correlated: user@example.com -> user_1_3
-     ✅ Correlated: user@example.com -> user_1_4
+## Contact 📞
 
-  🔍 Scenario 2: Trust & Safety
-     Scope: harassment_investigation
-     Justification: Investigation of reported harassment across subforums
-     ✅ Correlated: user@example.com -> user_2_1
-     ✅ Correlated: user@example.com -> user_2_2
-
-  🔍 Scenario 3: Subforum Moderator
-     Scope: golang:local_correlation
-     Justification: Local rule enforcement in r/golang
-     ✅ Correlated: user@example.com -> user_3_1
-
-  🔍 Scenario 4: Anti-Spam Team
-     Scope: network_analysis
-     Justification: Automated detection of spam ring activity
-     ✅ Correlated: user@example.com -> user_4_1
-     ✅ Correlated: user@example.com -> user_4_2
-
-📊 Correlation Audit Trail...
-  Total correlation requests: 9
-
-  Audit Entry 1:
-    Admin: admin_1 (Site Administrator)
-    Target: user_1_1
-    Justification: Platform-wide investigation of coordinated activity
-    Result: user@example.com -> user_1_1
-    Timestamp: 2024-01-15 10:30:00
-    Legal Basis: Platform Terms of Service
-
-✅ IBE Demonstration Complete!
-```
-
-## Security Features
-
-### Privacy Protections
-
-- **Pseudonym Generation**: Real identities are never stored in plain text
-- **Encrypted Mappings**: Identity correlations are encrypted with role-based keys
-- **Scope Limitations**: Administrative access is restricted by role and time windows
-- **Audit Requirements**: All correlation activities require justification and are logged
-
-### Administrative Controls
-
-- **Role Hierarchy**: Different admin roles have different capabilities
-- **Key Rotation**: Administrative keys expire and must be rotated
-- **Multi-Signature**: Critical operations require multiple approvals
-- **Legal Compliance**: All activities are documented for legal review
-
-## Implementation Notes
-
-This proof of concept uses simplified cryptographic operations for demonstration purposes. A production implementation would require:
-
-- **Hardware Security Modules (HSMs)** for key storage
-- **Production-grade IBE libraries** (e.g., Boneh-Franklin IBE)
-- **Database encryption at rest** for all sensitive data
-- **Network isolation** between administrative and public systems
-- **Multi-factor authentication** for administrative access
-- **Regular security audits** and penetration testing
-
-## Contributing
-
-This is a proof of concept for educational and demonstration purposes. For production use, please ensure proper security review and implementation of all recommended security measures.
-
-## License
-
-This project is provided as-is for educational purposes. Please review the security implications before using in any production environment. 
+For questions about HashPost, please open an issue on GitHub. For security concerns, please report them privately to security@hashpost.com. 
