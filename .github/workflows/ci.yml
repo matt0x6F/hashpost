@@ -80,8 +80,8 @@ jobs:
         env:
           DATABASE_URL: postgres://hashpost:hashpost_test@localhost:5433/postgres?sslmode=disable
         run: |
-          psql -c "DROP DATABASE IF EXISTS hashpost_test;" || true
-          psql -c "CREATE DATABASE hashpost_test;" || true
+          psql -h localhost -p 5433 -U hashpost -d postgres -c "DROP DATABASE IF EXISTS hashpost_test;" || true
+          psql -h localhost -p 5433 -U hashpost -d postgres -c "CREATE DATABASE hashpost_test;" || true
       - name: Run database migrations
         env:
           DATABASE_URL: postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable
