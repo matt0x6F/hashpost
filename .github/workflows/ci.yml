@@ -79,6 +79,7 @@ jobs:
       - name: Setup test database
         env:
           DATABASE_URL: postgres://hashpost:hashpost_test@localhost:5433/postgres?sslmode=disable
+          PGPASSWORD: hashpost_test
         run: |
           psql -h localhost -p 5433 -U hashpost -d postgres -c "DROP DATABASE IF EXISTS hashpost_test;" || true
           psql -h localhost -p 5433 -U hashpost -d postgres -c "CREATE DATABASE hashpost_test;" || true
