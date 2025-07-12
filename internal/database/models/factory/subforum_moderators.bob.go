@@ -37,37 +37,32 @@ func (mods SubforumModeratorModSlice) Apply(ctx context.Context, n *SubforumMode
 // SubforumModeratorTemplate is an object representing the database table.
 // all columns are optional and should be set by mods
 type SubforumModeratorTemplate struct {
-	ModeratorID   func() int64
-	SubforumID    func() int32
-	UserID        func() int64
-	PseudonymID   func() string
-	Role          func() string
-	AddedAt       func() sql.Null[time.Time]
-	AddedByUserID func() sql.Null[int64]
-	Permissions   func() sql.Null[types.JSON[json.RawMessage]]
+	ModeratorID        func() int64
+	SubforumID         func() int32
+	PseudonymID        func() string
+	Role               func() string
+	AddedAt            func() sql.Null[time.Time]
+	Permissions        func() sql.Null[types.JSON[json.RawMessage]]
+	AddedByPseudonymID func() sql.Null[string]
 
 	r subforumModeratorR
 	f *Factory
 }
 
 type subforumModeratorR struct {
-	AddedByUserUser *subforumModeratorRAddedByUserUserR
-	Pseudonym       *subforumModeratorRPseudonymR
-	Subforum        *subforumModeratorRSubforumR
-	User            *subforumModeratorRUserR
+	AddedByPseudonymPseudonym *subforumModeratorRAddedByPseudonymPseudonymR
+	Pseudonym                 *subforumModeratorRPseudonymR
+	Subforum                  *subforumModeratorRSubforumR
 }
 
-type subforumModeratorRAddedByUserUserR struct {
-	o *UserTemplate
+type subforumModeratorRAddedByPseudonymPseudonymR struct {
+	o *PseudonymTemplate
 }
 type subforumModeratorRPseudonymR struct {
 	o *PseudonymTemplate
 }
 type subforumModeratorRSubforumR struct {
 	o *SubforumTemplate
-}
-type subforumModeratorRUserR struct {
-	o *UserTemplate
 }
 
 // Apply mods to the SubforumModeratorTemplate
@@ -80,11 +75,11 @@ func (o *SubforumModeratorTemplate) Apply(ctx context.Context, mods ...SubforumM
 // setModelRels creates and sets the relationships on *models.SubforumModerator
 // according to the relationships in the template. Nothing is inserted into the db
 func (t SubforumModeratorTemplate) setModelRels(o *models.SubforumModerator) {
-	if t.r.AddedByUserUser != nil {
-		rel := t.r.AddedByUserUser.o.Build()
-		rel.R.AddedByUserSubforumModerators = append(rel.R.AddedByUserSubforumModerators, o)
-		o.AddedByUserID = sql.Null[int64]{V: rel.UserID, Valid: true} // h2
-		o.R.AddedByUserUser = rel
+	if t.r.AddedByPseudonymPseudonym != nil {
+		rel := t.r.AddedByPseudonymPseudonym.o.Build()
+		rel.R.AddedByPseudonymSubforumModerators = append(rel.R.AddedByPseudonymSubforumModerators, o)
+		o.AddedByPseudonymID = sql.Null[string]{V: rel.PseudonymID, Valid: true} // h2
+		o.R.AddedByPseudonymPseudonym = rel
 	}
 
 	if t.r.Pseudonym != nil {
@@ -99,13 +94,6 @@ func (t SubforumModeratorTemplate) setModelRels(o *models.SubforumModerator) {
 		rel.R.SubforumModerators = append(rel.R.SubforumModerators, o)
 		o.SubforumID = rel.SubforumID // h2
 		o.R.Subforum = rel
-	}
-
-	if t.r.User != nil {
-		rel := t.r.User.o.Build()
-		rel.R.SubforumModerators = append(rel.R.SubforumModerators, o)
-		o.UserID = rel.UserID // h2
-		o.R.User = rel
 	}
 }
 
@@ -122,10 +110,6 @@ func (o SubforumModeratorTemplate) BuildSetter() *models.SubforumModeratorSetter
 		val := o.SubforumID()
 		m.SubforumID = &val
 	}
-	if o.UserID != nil {
-		val := o.UserID()
-		m.UserID = &val
-	}
 	if o.PseudonymID != nil {
 		val := o.PseudonymID()
 		m.PseudonymID = &val
@@ -138,13 +122,13 @@ func (o SubforumModeratorTemplate) BuildSetter() *models.SubforumModeratorSetter
 		val := o.AddedAt()
 		m.AddedAt = &val
 	}
-	if o.AddedByUserID != nil {
-		val := o.AddedByUserID()
-		m.AddedByUserID = &val
-	}
 	if o.Permissions != nil {
 		val := o.Permissions()
 		m.Permissions = &val
+	}
+	if o.AddedByPseudonymID != nil {
+		val := o.AddedByPseudonymID()
+		m.AddedByPseudonymID = &val
 	}
 
 	return m
@@ -174,9 +158,6 @@ func (o SubforumModeratorTemplate) Build() *models.SubforumModerator {
 	if o.SubforumID != nil {
 		m.SubforumID = o.SubforumID()
 	}
-	if o.UserID != nil {
-		m.UserID = o.UserID()
-	}
 	if o.PseudonymID != nil {
 		m.PseudonymID = o.PseudonymID()
 	}
@@ -186,11 +167,11 @@ func (o SubforumModeratorTemplate) Build() *models.SubforumModerator {
 	if o.AddedAt != nil {
 		m.AddedAt = o.AddedAt()
 	}
-	if o.AddedByUserID != nil {
-		m.AddedByUserID = o.AddedByUserID()
-	}
 	if o.Permissions != nil {
 		m.Permissions = o.Permissions()
+	}
+	if o.AddedByPseudonymID != nil {
+		m.AddedByPseudonymID = o.AddedByPseudonymID()
 	}
 
 	o.setModelRels(m)
@@ -216,10 +197,6 @@ func ensureCreatableSubforumModerator(m *models.SubforumModeratorSetter) {
 		val := random_int32(nil)
 		m.SubforumID = &val
 	}
-	if m.UserID == nil {
-		val := random_int64(nil)
-		m.UserID = &val
-	}
 	if m.PseudonymID == nil {
 		val := random_string(nil, "64")
 		m.PseudonymID = &val
@@ -232,15 +209,15 @@ func ensureCreatableSubforumModerator(m *models.SubforumModeratorSetter) {
 func (o *SubforumModeratorTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *models.SubforumModerator) (context.Context, error) {
 	var err error
 
-	isAddedByUserUserDone, _ := subforumModeratorRelAddedByUserUserCtx.Value(ctx)
-	if !isAddedByUserUserDone && o.r.AddedByUserUser != nil {
-		ctx = subforumModeratorRelAddedByUserUserCtx.WithValue(ctx, true)
-		var rel0 *models.User
-		ctx, rel0, err = o.r.AddedByUserUser.o.create(ctx, exec)
+	isAddedByPseudonymPseudonymDone, _ := subforumModeratorRelAddedByPseudonymPseudonymCtx.Value(ctx)
+	if !isAddedByPseudonymPseudonymDone && o.r.AddedByPseudonymPseudonym != nil {
+		ctx = subforumModeratorRelAddedByPseudonymPseudonymCtx.WithValue(ctx, true)
+		var rel0 *models.Pseudonym
+		ctx, rel0, err = o.r.AddedByPseudonymPseudonym.o.create(ctx, exec)
 		if err != nil {
 			return ctx, err
 		}
-		err = m.AttachAddedByUserUser(ctx, exec, rel0)
+		err = m.AttachAddedByPseudonymPseudonym(ctx, exec, rel0)
 		if err != nil {
 			return ctx, err
 		}
@@ -317,20 +294,6 @@ func (o *SubforumModeratorTemplate) create(ctx context.Context, exec bob.Executo
 
 	opt.SubforumID = &rel2.SubforumID
 
-	if o.r.User == nil {
-		SubforumModeratorMods.WithNewUser().Apply(ctx, o)
-	}
-
-	rel3, ok := userCtx.Value(ctx)
-	if !ok {
-		ctx, rel3, err = o.r.User.o.create(ctx, exec)
-		if err != nil {
-			return ctx, nil, err
-		}
-	}
-
-	opt.UserID = &rel3.UserID
-
 	m, err := models.SubforumModerators.Insert(opt).One(ctx, exec)
 	if err != nil {
 		return ctx, nil, err
@@ -339,7 +302,6 @@ func (o *SubforumModeratorTemplate) create(ctx context.Context, exec bob.Executo
 
 	m.R.Pseudonym = rel1
 	m.R.Subforum = rel2
-	m.R.User = rel3
 
 	ctx, err = o.insertOptRels(ctx, exec, m)
 	return ctx, m, err
@@ -402,12 +364,11 @@ func (m subforumModeratorMods) RandomizeAllColumns(f *faker.Faker) SubforumModer
 	return SubforumModeratorModSlice{
 		SubforumModeratorMods.RandomModeratorID(f),
 		SubforumModeratorMods.RandomSubforumID(f),
-		SubforumModeratorMods.RandomUserID(f),
 		SubforumModeratorMods.RandomPseudonymID(f),
 		SubforumModeratorMods.RandomRole(f),
 		SubforumModeratorMods.RandomAddedAt(f),
-		SubforumModeratorMods.RandomAddedByUserID(f),
 		SubforumModeratorMods.RandomPermissions(f),
+		SubforumModeratorMods.RandomAddedByPseudonymID(f),
 	}
 }
 
@@ -469,37 +430,6 @@ func (m subforumModeratorMods) RandomSubforumID(f *faker.Faker) SubforumModerato
 	return SubforumModeratorModFunc(func(_ context.Context, o *SubforumModeratorTemplate) {
 		o.SubforumID = func() int32 {
 			return random_int32(f)
-		}
-	})
-}
-
-// Set the model columns to this value
-func (m subforumModeratorMods) UserID(val int64) SubforumModeratorMod {
-	return SubforumModeratorModFunc(func(_ context.Context, o *SubforumModeratorTemplate) {
-		o.UserID = func() int64 { return val }
-	})
-}
-
-// Set the Column from the function
-func (m subforumModeratorMods) UserIDFunc(f func() int64) SubforumModeratorMod {
-	return SubforumModeratorModFunc(func(_ context.Context, o *SubforumModeratorTemplate) {
-		o.UserID = f
-	})
-}
-
-// Clear any values for the column
-func (m subforumModeratorMods) UnsetUserID() SubforumModeratorMod {
-	return SubforumModeratorModFunc(func(_ context.Context, o *SubforumModeratorTemplate) {
-		o.UserID = nil
-	})
-}
-
-// Generates a random value for the column using the given faker
-// if faker is nil, a default faker is used
-func (m subforumModeratorMods) RandomUserID(f *faker.Faker) SubforumModeratorMod {
-	return SubforumModeratorModFunc(func(_ context.Context, o *SubforumModeratorTemplate) {
-		o.UserID = func() int64 {
-			return random_int64(f)
 		}
 	})
 }
@@ -620,59 +550,6 @@ func (m subforumModeratorMods) RandomAddedAtNotNull(f *faker.Faker) SubforumMode
 }
 
 // Set the model columns to this value
-func (m subforumModeratorMods) AddedByUserID(val sql.Null[int64]) SubforumModeratorMod {
-	return SubforumModeratorModFunc(func(_ context.Context, o *SubforumModeratorTemplate) {
-		o.AddedByUserID = func() sql.Null[int64] { return val }
-	})
-}
-
-// Set the Column from the function
-func (m subforumModeratorMods) AddedByUserIDFunc(f func() sql.Null[int64]) SubforumModeratorMod {
-	return SubforumModeratorModFunc(func(_ context.Context, o *SubforumModeratorTemplate) {
-		o.AddedByUserID = f
-	})
-}
-
-// Clear any values for the column
-func (m subforumModeratorMods) UnsetAddedByUserID() SubforumModeratorMod {
-	return SubforumModeratorModFunc(func(_ context.Context, o *SubforumModeratorTemplate) {
-		o.AddedByUserID = nil
-	})
-}
-
-// Generates a random value for the column using the given faker
-// if faker is nil, a default faker is used
-// The generated value is sometimes null
-func (m subforumModeratorMods) RandomAddedByUserID(f *faker.Faker) SubforumModeratorMod {
-	return SubforumModeratorModFunc(func(_ context.Context, o *SubforumModeratorTemplate) {
-		o.AddedByUserID = func() sql.Null[int64] {
-			if f == nil {
-				f = &defaultFaker
-			}
-
-			val := random_int64(f)
-			return sql.Null[int64]{V: val, Valid: f.Bool()}
-		}
-	})
-}
-
-// Generates a random value for the column using the given faker
-// if faker is nil, a default faker is used
-// The generated value is never null
-func (m subforumModeratorMods) RandomAddedByUserIDNotNull(f *faker.Faker) SubforumModeratorMod {
-	return SubforumModeratorModFunc(func(_ context.Context, o *SubforumModeratorTemplate) {
-		o.AddedByUserID = func() sql.Null[int64] {
-			if f == nil {
-				f = &defaultFaker
-			}
-
-			val := random_int64(f)
-			return sql.Null[int64]{V: val, Valid: true}
-		}
-	})
-}
-
-// Set the model columns to this value
 func (m subforumModeratorMods) Permissions(val sql.Null[types.JSON[json.RawMessage]]) SubforumModeratorMod {
 	return SubforumModeratorModFunc(func(_ context.Context, o *SubforumModeratorTemplate) {
 		o.Permissions = func() sql.Null[types.JSON[json.RawMessage]] { return val }
@@ -725,6 +602,59 @@ func (m subforumModeratorMods) RandomPermissionsNotNull(f *faker.Faker) Subforum
 	})
 }
 
+// Set the model columns to this value
+func (m subforumModeratorMods) AddedByPseudonymID(val sql.Null[string]) SubforumModeratorMod {
+	return SubforumModeratorModFunc(func(_ context.Context, o *SubforumModeratorTemplate) {
+		o.AddedByPseudonymID = func() sql.Null[string] { return val }
+	})
+}
+
+// Set the Column from the function
+func (m subforumModeratorMods) AddedByPseudonymIDFunc(f func() sql.Null[string]) SubforumModeratorMod {
+	return SubforumModeratorModFunc(func(_ context.Context, o *SubforumModeratorTemplate) {
+		o.AddedByPseudonymID = f
+	})
+}
+
+// Clear any values for the column
+func (m subforumModeratorMods) UnsetAddedByPseudonymID() SubforumModeratorMod {
+	return SubforumModeratorModFunc(func(_ context.Context, o *SubforumModeratorTemplate) {
+		o.AddedByPseudonymID = nil
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+// The generated value is sometimes null
+func (m subforumModeratorMods) RandomAddedByPseudonymID(f *faker.Faker) SubforumModeratorMod {
+	return SubforumModeratorModFunc(func(_ context.Context, o *SubforumModeratorTemplate) {
+		o.AddedByPseudonymID = func() sql.Null[string] {
+			if f == nil {
+				f = &defaultFaker
+			}
+
+			val := random_string(f, "64")
+			return sql.Null[string]{V: val, Valid: f.Bool()}
+		}
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+// The generated value is never null
+func (m subforumModeratorMods) RandomAddedByPseudonymIDNotNull(f *faker.Faker) SubforumModeratorMod {
+	return SubforumModeratorModFunc(func(_ context.Context, o *SubforumModeratorTemplate) {
+		o.AddedByPseudonymID = func() sql.Null[string] {
+			if f == nil {
+				f = &defaultFaker
+			}
+
+			val := random_string(f, "64")
+			return sql.Null[string]{V: val, Valid: true}
+		}
+	})
+}
+
 func (m subforumModeratorMods) WithParentsCascading() SubforumModeratorMod {
 	return SubforumModeratorModFunc(func(ctx context.Context, o *SubforumModeratorTemplate) {
 		if isDone, _ := subforumModeratorWithParentsCascadingCtx.Value(ctx); isDone {
@@ -733,8 +663,8 @@ func (m subforumModeratorMods) WithParentsCascading() SubforumModeratorMod {
 		ctx = subforumModeratorWithParentsCascadingCtx.WithValue(ctx, true)
 		{
 
-			related := o.f.NewUser(ctx, UserMods.WithParentsCascading())
-			m.WithAddedByUserUser(related).Apply(ctx, o)
+			related := o.f.NewPseudonym(ctx, PseudonymMods.WithParentsCascading())
+			m.WithAddedByPseudonymPseudonym(related).Apply(ctx, o)
 		}
 		{
 
@@ -746,33 +676,28 @@ func (m subforumModeratorMods) WithParentsCascading() SubforumModeratorMod {
 			related := o.f.NewSubforum(ctx, SubforumMods.WithParentsCascading())
 			m.WithSubforum(related).Apply(ctx, o)
 		}
-		{
-
-			related := o.f.NewUser(ctx, UserMods.WithParentsCascading())
-			m.WithUser(related).Apply(ctx, o)
-		}
 	})
 }
 
-func (m subforumModeratorMods) WithAddedByUserUser(rel *UserTemplate) SubforumModeratorMod {
+func (m subforumModeratorMods) WithAddedByPseudonymPseudonym(rel *PseudonymTemplate) SubforumModeratorMod {
 	return SubforumModeratorModFunc(func(ctx context.Context, o *SubforumModeratorTemplate) {
-		o.r.AddedByUserUser = &subforumModeratorRAddedByUserUserR{
+		o.r.AddedByPseudonymPseudonym = &subforumModeratorRAddedByPseudonymPseudonymR{
 			o: rel,
 		}
 	})
 }
 
-func (m subforumModeratorMods) WithNewAddedByUserUser(mods ...UserMod) SubforumModeratorMod {
+func (m subforumModeratorMods) WithNewAddedByPseudonymPseudonym(mods ...PseudonymMod) SubforumModeratorMod {
 	return SubforumModeratorModFunc(func(ctx context.Context, o *SubforumModeratorTemplate) {
-		related := o.f.NewUser(ctx, mods...)
+		related := o.f.NewPseudonym(ctx, mods...)
 
-		m.WithAddedByUserUser(related).Apply(ctx, o)
+		m.WithAddedByPseudonymPseudonym(related).Apply(ctx, o)
 	})
 }
 
-func (m subforumModeratorMods) WithoutAddedByUserUser() SubforumModeratorMod {
+func (m subforumModeratorMods) WithoutAddedByPseudonymPseudonym() SubforumModeratorMod {
 	return SubforumModeratorModFunc(func(ctx context.Context, o *SubforumModeratorTemplate) {
-		o.r.AddedByUserUser = nil
+		o.r.AddedByPseudonymPseudonym = nil
 	})
 }
 
@@ -817,27 +742,5 @@ func (m subforumModeratorMods) WithNewSubforum(mods ...SubforumMod) SubforumMode
 func (m subforumModeratorMods) WithoutSubforum() SubforumModeratorMod {
 	return SubforumModeratorModFunc(func(ctx context.Context, o *SubforumModeratorTemplate) {
 		o.r.Subforum = nil
-	})
-}
-
-func (m subforumModeratorMods) WithUser(rel *UserTemplate) SubforumModeratorMod {
-	return SubforumModeratorModFunc(func(ctx context.Context, o *SubforumModeratorTemplate) {
-		o.r.User = &subforumModeratorRUserR{
-			o: rel,
-		}
-	})
-}
-
-func (m subforumModeratorMods) WithNewUser(mods ...UserMod) SubforumModeratorMod {
-	return SubforumModeratorModFunc(func(ctx context.Context, o *SubforumModeratorTemplate) {
-		related := o.f.NewUser(ctx, mods...)
-
-		m.WithUser(related).Apply(ctx, o)
-	})
-}
-
-func (m subforumModeratorMods) WithoutUser() SubforumModeratorMod {
-	return SubforumModeratorModFunc(func(ctx context.Context, o *SubforumModeratorTemplate) {
-		o.r.User = nil
 	})
 }

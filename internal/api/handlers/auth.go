@@ -502,14 +502,23 @@ func (h *AuthHandler) validateJWT(tokenString string) (*middleware.JWTClaims, er
 }
 
 // RefreshToken handles token refresh
-func (h *AuthHandler) RefreshToken(ctx context.Context, input *models.RefreshTokenInput) (*models.TokenRefreshResponse, error) {
+func (h *AuthHandler) RefreshToken(ctx context.Context, input *struct {
+	RefreshToken string `cookie:"refresh_token"`
+	Body         models.RefreshTokenBody
+}) (*models.TokenRefreshResponse, error) {
 	log.Info().
 		Str("endpoint", "auth/refresh").
 		Str("component", "auth_handler").
 		Msg("Processing token refresh request")
 
+	// Prefer the cookie, fall back to body for non-browser clients
+	refreshToken := input.RefreshToken
+	if refreshToken == "" {
+		refreshToken = input.Body.RefreshToken
+	}
+
 	// Validate the refresh token
-	claims, err := h.validateJWT(input.Body.RefreshToken)
+	claims, err := h.validateJWT(refreshToken)
 	if err != nil {
 		log.Warn().
 			Err(err).

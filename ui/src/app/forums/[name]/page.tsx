@@ -1,0 +1,175 @@
+'use client';
+
+import { useParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { Button } from '@/components/shadcn/button';
+import { ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
+import { getApi } from '@/lib/api-client';
+import { SubforumsApi } from '@/generated/api/src/apis/SubforumsApi';
+import type { SubforumDetailsResponseBody } from '@/generated/api/src/models/SubforumDetailsResponseBody';
+import type { SubforumModerator } from '@/generated/api/src/models/SubforumModerator';
+import { toast } from 'sonner';
+
+export default function ForumPage() {
+  const params = useParams();
+  const forumName = params.name as string;
+  const [forum, setForum] = useState<SubforumDetailsResponseBody | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (forumName) {
+      loadForum();
+    }
+  }, [forumName]);
+
+  const loadForum = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const subforumsApi = getApi(SubforumsApi);
+      const response = await subforumsApi.getSubforumDetails(forumName);
+      setForum(response);
+    } catch (err: unknown) {
+      console.error('Error loading forum:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load forum';
+      setError(errorMessage);
+      
+      toast.error('Failed to load forum', {
+        description: errorMessage,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="max-w-6xl mx-auto p-6">
+        <div className="flex items-center gap-4 mb-8">
+          <div className="h-8 w-8 bg-muted animate-pulse rounded" />
+          <div className="h-8 w-32 bg-muted animate-pulse rounded" />
+        </div>
+        <div className="space-y-4">
+          <div className="h-20 bg-muted animate-pulse rounded" />
+          <div className="h-20 bg-muted animate-pulse rounded" />
+          <div className="h-20 bg-muted animate-pulse rounded" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !forum) {
+    return (
+      <div className="max-w-6xl mx-auto p-6">
+        <div className="flex items-center gap-4 mb-8">
+          <Link href="/forums">
+            <Button variant="outline" size="sm">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Forums
+            </Button>
+          </Link>
+        </div>
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">
+            {error || 'Forum not found'}
+          </p>
+          <Button 
+            variant="outline" 
+            onClick={loadForum}
+            className="mt-4"
+          >
+            Try Again
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative max-w-7xl mx-auto p-6">
+      <div className="flex items-center gap-4 mb-8">
+        <Link href="/forums">
+          <Button variant="outline" size="sm">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Forums
+          </Button>
+        </Link>
+      </div>
+
+      {/* Main content and sidebar layout */}
+      <div className="flex flex-col lg:flex-row">
+        {/* Main content */}
+        <div className="flex-1 lg:pr-80">
+          <div className="mb-8">
+            <div className="flex items-center gap-2 mb-2">
+              <h1 className="text-3xl font-bold">h/{forum.name}</h1>
+              {forum.isPrivate && (
+                <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
+                  Private
+                </span>
+              )}
+              {forum.isNsfw && (
+                <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">
+                  NSFW
+                </span>
+              )}
+            </div>
+            <p className="text-muted-foreground mb-4">
+              {forum.description}
+            </p>
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <span>{forum.subscriberCount?.toLocaleString() || 0} members</span>
+              <span>{forum.postCount?.toLocaleString() || 0} posts</span>
+              <span>Created {new Date(forum.createdAt).toLocaleDateString()}</span>
+            </div>
+          </div>
+
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">
+              Posts and content will be displayed here.
+            </p>
+          </div>
+        </div>
+
+        {/* Sidebar - fixed on large screens, hugs right edge, dark background */}
+        <aside
+          className="hidden lg:block fixed top-16 right-0 h-[calc(100vh-4rem)] w-80 z-30 bg-background border-l border-border px-6 py-8"
+        >
+          <div className="sticky top-8">
+            <h2 className="text-lg font-semibold mb-4 text-foreground">h/{forum.name}</h2>
+            <div className="space-y-3 text-sm mb-8">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Subscribers</span>
+                <span className="font-medium text-foreground">{forum.subscriberCount?.toLocaleString() || 0}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Posts</span>
+                <span className="font-medium text-foreground">{forum.postCount?.toLocaleString() || 0}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Created</span>
+                <span className="font-medium text-foreground">{new Date(forum.createdAt).toLocaleDateString()}</span>
+              </div>
+            </div>
+            {/* Moderators List */}
+            {forum.moderators && forum.moderators.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-md font-semibold mb-2 text-foreground">Moderators</h3>
+                <ul className="space-y-1">
+                  {forum.moderators.map((mod: SubforumModerator) => (
+                    <li key={mod.pseudonymId} className="text-sm text-foreground">
+                      {mod.displayName || mod.pseudonymId}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+} 

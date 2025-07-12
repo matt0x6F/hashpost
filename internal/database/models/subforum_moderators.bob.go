@@ -26,14 +26,13 @@ import (
 
 // SubforumModerator is an object representing the database table.
 type SubforumModerator struct {
-	ModeratorID   int64                                 `db:"moderator_id,pk" scan:"moderator_id" json:"moderator_id"`
-	SubforumID    int32                                 `db:"subforum_id" scan:"subforum_id" json:"subforum_id"`
-	UserID        int64                                 `db:"user_id" scan:"user_id" json:"user_id"`
-	PseudonymID   string                                `db:"pseudonym_id" scan:"pseudonym_id" json:"pseudonym_id"`
-	Role          string                                `db:"role" scan:"role" json:"role"`
-	AddedAt       sql.Null[time.Time]                   `db:"added_at" scan:"added_at" json:"added_at"`
-	AddedByUserID sql.Null[int64]                       `db:"added_by_user_id" scan:"added_by_user_id" json:"added_by_user_id"`
-	Permissions   sql.Null[types.JSON[json.RawMessage]] `db:"permissions" scan:"permissions" json:"permissions"`
+	ModeratorID        int64                                 `db:"moderator_id,pk" scan:"moderator_id" json:"moderator_id"`
+	SubforumID         int32                                 `db:"subforum_id" scan:"subforum_id" json:"subforum_id"`
+	PseudonymID        string                                `db:"pseudonym_id" scan:"pseudonym_id" json:"pseudonym_id"`
+	Role               string                                `db:"role" scan:"role" json:"role"`
+	AddedAt            sql.Null[time.Time]                   `db:"added_at" scan:"added_at" json:"added_at"`
+	Permissions        sql.Null[types.JSON[json.RawMessage]] `db:"permissions" scan:"permissions" json:"permissions"`
+	AddedByPseudonymID sql.Null[string]                      `db:"added_by_pseudonym_id" scan:"added_by_pseudonym_id" json:"added_by_pseudonym_id"`
 
 	R subforumModeratorR `db:"-" scan:"rel" json:"rel"`
 }
@@ -50,35 +49,32 @@ type SubforumModeratorsQuery = *psql.ViewQuery[*SubforumModerator, SubforumModer
 
 // subforumModeratorR is where relationships are stored.
 type subforumModeratorR struct {
-	AddedByUserUser *User      `scan:"AddedByUserUser" json:"AddedByUserUser"` // subforum_moderators.subforum_moderators_added_by_user_id_fkey
-	Pseudonym       *Pseudonym `scan:"Pseudonym" json:"Pseudonym"`             // subforum_moderators.subforum_moderators_pseudonym_id_fkey
-	Subforum        *Subforum  `scan:"Subforum" json:"Subforum"`               // subforum_moderators.subforum_moderators_subforum_id_fkey
-	User            *User      `scan:"User" json:"User"`                       // subforum_moderators.subforum_moderators_user_id_fkey
+	AddedByPseudonymPseudonym *Pseudonym `scan:"AddedByPseudonymPseudonym" json:"AddedByPseudonymPseudonym"` // subforum_moderators.fk_added_by_pseudonym
+	Pseudonym                 *Pseudonym `scan:"Pseudonym" json:"Pseudonym"`                                 // subforum_moderators.subforum_moderators_pseudonym_id_fkey
+	Subforum                  *Subforum  `scan:"Subforum" json:"Subforum"`                                   // subforum_moderators.subforum_moderators_subforum_id_fkey
 }
 
 type subforumModeratorColumnNames struct {
-	ModeratorID   string
-	SubforumID    string
-	UserID        string
-	PseudonymID   string
-	Role          string
-	AddedAt       string
-	AddedByUserID string
-	Permissions   string
+	ModeratorID        string
+	SubforumID         string
+	PseudonymID        string
+	Role               string
+	AddedAt            string
+	Permissions        string
+	AddedByPseudonymID string
 }
 
 var SubforumModeratorColumns = buildSubforumModeratorColumns("subforum_moderators")
 
 type subforumModeratorColumns struct {
-	tableAlias    string
-	ModeratorID   psql.Expression
-	SubforumID    psql.Expression
-	UserID        psql.Expression
-	PseudonymID   psql.Expression
-	Role          psql.Expression
-	AddedAt       psql.Expression
-	AddedByUserID psql.Expression
-	Permissions   psql.Expression
+	tableAlias         string
+	ModeratorID        psql.Expression
+	SubforumID         psql.Expression
+	PseudonymID        psql.Expression
+	Role               psql.Expression
+	AddedAt            psql.Expression
+	Permissions        psql.Expression
+	AddedByPseudonymID psql.Expression
 }
 
 func (c subforumModeratorColumns) Alias() string {
@@ -91,27 +87,25 @@ func (subforumModeratorColumns) AliasedAs(alias string) subforumModeratorColumns
 
 func buildSubforumModeratorColumns(alias string) subforumModeratorColumns {
 	return subforumModeratorColumns{
-		tableAlias:    alias,
-		ModeratorID:   psql.Quote(alias, "moderator_id"),
-		SubforumID:    psql.Quote(alias, "subforum_id"),
-		UserID:        psql.Quote(alias, "user_id"),
-		PseudonymID:   psql.Quote(alias, "pseudonym_id"),
-		Role:          psql.Quote(alias, "role"),
-		AddedAt:       psql.Quote(alias, "added_at"),
-		AddedByUserID: psql.Quote(alias, "added_by_user_id"),
-		Permissions:   psql.Quote(alias, "permissions"),
+		tableAlias:         alias,
+		ModeratorID:        psql.Quote(alias, "moderator_id"),
+		SubforumID:         psql.Quote(alias, "subforum_id"),
+		PseudonymID:        psql.Quote(alias, "pseudonym_id"),
+		Role:               psql.Quote(alias, "role"),
+		AddedAt:            psql.Quote(alias, "added_at"),
+		Permissions:        psql.Quote(alias, "permissions"),
+		AddedByPseudonymID: psql.Quote(alias, "added_by_pseudonym_id"),
 	}
 }
 
 type subforumModeratorWhere[Q psql.Filterable] struct {
-	ModeratorID   psql.WhereMod[Q, int64]
-	SubforumID    psql.WhereMod[Q, int32]
-	UserID        psql.WhereMod[Q, int64]
-	PseudonymID   psql.WhereMod[Q, string]
-	Role          psql.WhereMod[Q, string]
-	AddedAt       psql.WhereNullMod[Q, time.Time]
-	AddedByUserID psql.WhereNullMod[Q, int64]
-	Permissions   psql.WhereNullMod[Q, types.JSON[json.RawMessage]]
+	ModeratorID        psql.WhereMod[Q, int64]
+	SubforumID         psql.WhereMod[Q, int32]
+	PseudonymID        psql.WhereMod[Q, string]
+	Role               psql.WhereMod[Q, string]
+	AddedAt            psql.WhereNullMod[Q, time.Time]
+	Permissions        psql.WhereNullMod[Q, types.JSON[json.RawMessage]]
+	AddedByPseudonymID psql.WhereNullMod[Q, string]
 }
 
 func (subforumModeratorWhere[Q]) AliasedAs(alias string) subforumModeratorWhere[Q] {
@@ -120,14 +114,13 @@ func (subforumModeratorWhere[Q]) AliasedAs(alias string) subforumModeratorWhere[
 
 func buildSubforumModeratorWhere[Q psql.Filterable](cols subforumModeratorColumns) subforumModeratorWhere[Q] {
 	return subforumModeratorWhere[Q]{
-		ModeratorID:   psql.Where[Q, int64](cols.ModeratorID),
-		SubforumID:    psql.Where[Q, int32](cols.SubforumID),
-		UserID:        psql.Where[Q, int64](cols.UserID),
-		PseudonymID:   psql.Where[Q, string](cols.PseudonymID),
-		Role:          psql.Where[Q, string](cols.Role),
-		AddedAt:       psql.WhereNull[Q, time.Time](cols.AddedAt),
-		AddedByUserID: psql.WhereNull[Q, int64](cols.AddedByUserID),
-		Permissions:   psql.WhereNull[Q, types.JSON[json.RawMessage]](cols.Permissions),
+		ModeratorID:        psql.Where[Q, int64](cols.ModeratorID),
+		SubforumID:         psql.Where[Q, int32](cols.SubforumID),
+		PseudonymID:        psql.Where[Q, string](cols.PseudonymID),
+		Role:               psql.Where[Q, string](cols.Role),
+		AddedAt:            psql.WhereNull[Q, time.Time](cols.AddedAt),
+		Permissions:        psql.WhereNull[Q, types.JSON[json.RawMessage]](cols.Permissions),
+		AddedByPseudonymID: psql.WhereNull[Q, string](cols.AddedByPseudonymID),
 	}
 }
 
@@ -146,11 +139,11 @@ var SubforumModeratorErrors = &subforumModeratorErrors{
 		s:       "subforum_moderators_subforum_id_pseudonym_id_key",
 	},
 
-	ErrUniqueSubforumModeratorsSubforumIdUserIdKey: &UniqueConstraintError{
+	ErrUniqueUniqueSubforumPseudonym: &UniqueConstraintError{
 		schema:  "",
 		table:   "subforum_moderators",
-		columns: []string{"subforum_id", "user_id"},
-		s:       "subforum_moderators_subforum_id_user_id_key",
+		columns: []string{"subforum_id", "pseudonym_id"},
+		s:       "unique_subforum_pseudonym",
 	},
 }
 
@@ -159,35 +152,30 @@ type subforumModeratorErrors struct {
 
 	ErrUniqueSubforumModeratorsSubforumIdPseudonymIdKey *UniqueConstraintError
 
-	ErrUniqueSubforumModeratorsSubforumIdUserIdKey *UniqueConstraintError
+	ErrUniqueUniqueSubforumPseudonym *UniqueConstraintError
 }
 
 // SubforumModeratorSetter is used for insert/upsert/update operations
 // All values are optional, and do not have to be set
 // Generated columns are not included
 type SubforumModeratorSetter struct {
-	ModeratorID   *int64                                 `db:"moderator_id,pk" scan:"moderator_id" json:"moderator_id"`
-	SubforumID    *int32                                 `db:"subforum_id" scan:"subforum_id" json:"subforum_id"`
-	UserID        *int64                                 `db:"user_id" scan:"user_id" json:"user_id"`
-	PseudonymID   *string                                `db:"pseudonym_id" scan:"pseudonym_id" json:"pseudonym_id"`
-	Role          *string                                `db:"role" scan:"role" json:"role"`
-	AddedAt       *sql.Null[time.Time]                   `db:"added_at" scan:"added_at" json:"added_at"`
-	AddedByUserID *sql.Null[int64]                       `db:"added_by_user_id" scan:"added_by_user_id" json:"added_by_user_id"`
-	Permissions   *sql.Null[types.JSON[json.RawMessage]] `db:"permissions" scan:"permissions" json:"permissions"`
+	ModeratorID        *int64                                 `db:"moderator_id,pk" scan:"moderator_id" json:"moderator_id"`
+	SubforumID         *int32                                 `db:"subforum_id" scan:"subforum_id" json:"subforum_id"`
+	PseudonymID        *string                                `db:"pseudonym_id" scan:"pseudonym_id" json:"pseudonym_id"`
+	Role               *string                                `db:"role" scan:"role" json:"role"`
+	AddedAt            *sql.Null[time.Time]                   `db:"added_at" scan:"added_at" json:"added_at"`
+	Permissions        *sql.Null[types.JSON[json.RawMessage]] `db:"permissions" scan:"permissions" json:"permissions"`
+	AddedByPseudonymID *sql.Null[string]                      `db:"added_by_pseudonym_id" scan:"added_by_pseudonym_id" json:"added_by_pseudonym_id"`
 }
 
 func (s SubforumModeratorSetter) SetColumns() []string {
-	vals := make([]string, 0, 8)
+	vals := make([]string, 0, 7)
 	if s.ModeratorID != nil {
 		vals = append(vals, "moderator_id")
 	}
 
 	if s.SubforumID != nil {
 		vals = append(vals, "subforum_id")
-	}
-
-	if s.UserID != nil {
-		vals = append(vals, "user_id")
 	}
 
 	if s.PseudonymID != nil {
@@ -202,12 +190,12 @@ func (s SubforumModeratorSetter) SetColumns() []string {
 		vals = append(vals, "added_at")
 	}
 
-	if s.AddedByUserID != nil {
-		vals = append(vals, "added_by_user_id")
-	}
-
 	if s.Permissions != nil {
 		vals = append(vals, "permissions")
+	}
+
+	if s.AddedByPseudonymID != nil {
+		vals = append(vals, "added_by_pseudonym_id")
 	}
 
 	return vals
@@ -220,9 +208,6 @@ func (s SubforumModeratorSetter) Overwrite(t *SubforumModerator) {
 	if s.SubforumID != nil {
 		t.SubforumID = *s.SubforumID
 	}
-	if s.UserID != nil {
-		t.UserID = *s.UserID
-	}
 	if s.PseudonymID != nil {
 		t.PseudonymID = *s.PseudonymID
 	}
@@ -232,11 +217,11 @@ func (s SubforumModeratorSetter) Overwrite(t *SubforumModerator) {
 	if s.AddedAt != nil {
 		t.AddedAt = *s.AddedAt
 	}
-	if s.AddedByUserID != nil {
-		t.AddedByUserID = *s.AddedByUserID
-	}
 	if s.Permissions != nil {
 		t.Permissions = *s.Permissions
+	}
+	if s.AddedByPseudonymID != nil {
+		t.AddedByPseudonymID = *s.AddedByPseudonymID
 	}
 }
 
@@ -246,7 +231,7 @@ func (s *SubforumModeratorSetter) Apply(q *dialect.InsertQuery) {
 	})
 
 	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
-		vals := make([]bob.Expression, 8)
+		vals := make([]bob.Expression, 7)
 		if s.ModeratorID != nil {
 			vals[0] = psql.Arg(*s.ModeratorID)
 		} else {
@@ -259,40 +244,34 @@ func (s *SubforumModeratorSetter) Apply(q *dialect.InsertQuery) {
 			vals[1] = psql.Raw("DEFAULT")
 		}
 
-		if s.UserID != nil {
-			vals[2] = psql.Arg(*s.UserID)
+		if s.PseudonymID != nil {
+			vals[2] = psql.Arg(*s.PseudonymID)
 		} else {
 			vals[2] = psql.Raw("DEFAULT")
 		}
 
-		if s.PseudonymID != nil {
-			vals[3] = psql.Arg(*s.PseudonymID)
+		if s.Role != nil {
+			vals[3] = psql.Arg(*s.Role)
 		} else {
 			vals[3] = psql.Raw("DEFAULT")
 		}
 
-		if s.Role != nil {
-			vals[4] = psql.Arg(*s.Role)
+		if s.AddedAt != nil {
+			vals[4] = psql.Arg(*s.AddedAt)
 		} else {
 			vals[4] = psql.Raw("DEFAULT")
 		}
 
-		if s.AddedAt != nil {
-			vals[5] = psql.Arg(*s.AddedAt)
+		if s.Permissions != nil {
+			vals[5] = psql.Arg(*s.Permissions)
 		} else {
 			vals[5] = psql.Raw("DEFAULT")
 		}
 
-		if s.AddedByUserID != nil {
-			vals[6] = psql.Arg(*s.AddedByUserID)
+		if s.AddedByPseudonymID != nil {
+			vals[6] = psql.Arg(*s.AddedByPseudonymID)
 		} else {
 			vals[6] = psql.Raw("DEFAULT")
-		}
-
-		if s.Permissions != nil {
-			vals[7] = psql.Arg(*s.Permissions)
-		} else {
-			vals[7] = psql.Raw("DEFAULT")
 		}
 
 		return bob.ExpressSlice(ctx, w, d, start, vals, "", ", ", "")
@@ -304,7 +283,7 @@ func (s SubforumModeratorSetter) UpdateMod() bob.Mod[*dialect.UpdateQuery] {
 }
 
 func (s SubforumModeratorSetter) Expressions(prefix ...string) []bob.Expression {
-	exprs := make([]bob.Expression, 0, 8)
+	exprs := make([]bob.Expression, 0, 7)
 
 	if s.ModeratorID != nil {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
@@ -317,13 +296,6 @@ func (s SubforumModeratorSetter) Expressions(prefix ...string) []bob.Expression 
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "subforum_id")...),
 			psql.Arg(s.SubforumID),
-		}})
-	}
-
-	if s.UserID != nil {
-		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
-			psql.Quote(append(prefix, "user_id")...),
-			psql.Arg(s.UserID),
 		}})
 	}
 
@@ -348,17 +320,17 @@ func (s SubforumModeratorSetter) Expressions(prefix ...string) []bob.Expression 
 		}})
 	}
 
-	if s.AddedByUserID != nil {
-		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
-			psql.Quote(append(prefix, "added_by_user_id")...),
-			psql.Arg(s.AddedByUserID),
-		}})
-	}
-
 	if s.Permissions != nil {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "permissions")...),
 			psql.Arg(s.Permissions),
+		}})
+	}
+
+	if s.AddedByPseudonymID != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "added_by_pseudonym_id")...),
+			psql.Arg(s.AddedByPseudonymID),
 		}})
 	}
 
@@ -589,11 +561,10 @@ func (o SubforumModeratorSlice) ReloadAll(ctx context.Context, exec bob.Executor
 }
 
 type subforumModeratorJoins[Q dialect.Joinable] struct {
-	typ             string
-	AddedByUserUser modAs[Q, userColumns]
-	Pseudonym       modAs[Q, pseudonymColumns]
-	Subforum        modAs[Q, subforumColumns]
-	User            modAs[Q, userColumns]
+	typ                       string
+	AddedByPseudonymPseudonym modAs[Q, pseudonymColumns]
+	Pseudonym                 modAs[Q, pseudonymColumns]
+	Subforum                  modAs[Q, subforumColumns]
 }
 
 func (j subforumModeratorJoins[Q]) aliasedAs(alias string) subforumModeratorJoins[Q] {
@@ -603,14 +574,14 @@ func (j subforumModeratorJoins[Q]) aliasedAs(alias string) subforumModeratorJoin
 func buildSubforumModeratorJoins[Q dialect.Joinable](cols subforumModeratorColumns, typ string) subforumModeratorJoins[Q] {
 	return subforumModeratorJoins[Q]{
 		typ: typ,
-		AddedByUserUser: modAs[Q, userColumns]{
-			c: UserColumns,
-			f: func(to userColumns) bob.Mod[Q] {
+		AddedByPseudonymPseudonym: modAs[Q, pseudonymColumns]{
+			c: PseudonymColumns,
+			f: func(to pseudonymColumns) bob.Mod[Q] {
 				mods := make(mods.QueryMods[Q], 0, 1)
 
 				{
-					mods = append(mods, dialect.Join[Q](typ, Users.Name().As(to.Alias())).On(
-						to.UserID.EQ(cols.AddedByUserID),
+					mods = append(mods, dialect.Join[Q](typ, Pseudonyms.Name().As(to.Alias())).On(
+						to.PseudonymID.EQ(cols.AddedByPseudonymID),
 					))
 				}
 
@@ -645,41 +616,27 @@ func buildSubforumModeratorJoins[Q dialect.Joinable](cols subforumModeratorColum
 				return mods
 			},
 		},
-		User: modAs[Q, userColumns]{
-			c: UserColumns,
-			f: func(to userColumns) bob.Mod[Q] {
-				mods := make(mods.QueryMods[Q], 0, 1)
-
-				{
-					mods = append(mods, dialect.Join[Q](typ, Users.Name().As(to.Alias())).On(
-						to.UserID.EQ(cols.UserID),
-					))
-				}
-
-				return mods
-			},
-		},
 	}
 }
 
-// AddedByUserUser starts a query for related objects on users
-func (o *SubforumModerator) AddedByUserUser(mods ...bob.Mod[*dialect.SelectQuery]) UsersQuery {
-	return Users.Query(append(mods,
-		sm.Where(UserColumns.UserID.EQ(psql.Arg(o.AddedByUserID))),
+// AddedByPseudonymPseudonym starts a query for related objects on pseudonyms
+func (o *SubforumModerator) AddedByPseudonymPseudonym(mods ...bob.Mod[*dialect.SelectQuery]) PseudonymsQuery {
+	return Pseudonyms.Query(append(mods,
+		sm.Where(PseudonymColumns.PseudonymID.EQ(psql.Arg(o.AddedByPseudonymID))),
 	)...)
 }
 
-func (os SubforumModeratorSlice) AddedByUserUser(mods ...bob.Mod[*dialect.SelectQuery]) UsersQuery {
-	pkAddedByUserID := make(pgtypes.Array[sql.Null[int64]], len(os))
+func (os SubforumModeratorSlice) AddedByPseudonymPseudonym(mods ...bob.Mod[*dialect.SelectQuery]) PseudonymsQuery {
+	pkAddedByPseudonymID := make(pgtypes.Array[sql.Null[string]], len(os))
 	for i, o := range os {
-		pkAddedByUserID[i] = o.AddedByUserID
+		pkAddedByPseudonymID[i] = o.AddedByPseudonymID
 	}
 	PKArgExpr := psql.Select(sm.Columns(
-		psql.F("unnest", psql.Cast(psql.Arg(pkAddedByUserID), "bigint[]")),
+		psql.F("unnest", psql.Cast(psql.Arg(pkAddedByPseudonymID), "character varying[]")),
 	))
 
-	return Users.Query(append(mods,
-		sm.Where(psql.Group(UserColumns.UserID).OP("IN", PKArgExpr)),
+	return Pseudonyms.Query(append(mods,
+		sm.Where(psql.Group(PseudonymColumns.PseudonymID).OP("IN", PKArgExpr)),
 	)...)
 }
 
@@ -725,43 +682,22 @@ func (os SubforumModeratorSlice) Subforum(mods ...bob.Mod[*dialect.SelectQuery])
 	)...)
 }
 
-// User starts a query for related objects on users
-func (o *SubforumModerator) User(mods ...bob.Mod[*dialect.SelectQuery]) UsersQuery {
-	return Users.Query(append(mods,
-		sm.Where(UserColumns.UserID.EQ(psql.Arg(o.UserID))),
-	)...)
-}
-
-func (os SubforumModeratorSlice) User(mods ...bob.Mod[*dialect.SelectQuery]) UsersQuery {
-	pkUserID := make(pgtypes.Array[int64], len(os))
-	for i, o := range os {
-		pkUserID[i] = o.UserID
-	}
-	PKArgExpr := psql.Select(sm.Columns(
-		psql.F("unnest", psql.Cast(psql.Arg(pkUserID), "bigint[]")),
-	))
-
-	return Users.Query(append(mods,
-		sm.Where(psql.Group(UserColumns.UserID).OP("IN", PKArgExpr)),
-	)...)
-}
-
 func (o *SubforumModerator) Preload(name string, retrieved any) error {
 	if o == nil {
 		return nil
 	}
 
 	switch name {
-	case "AddedByUserUser":
-		rel, ok := retrieved.(*User)
+	case "AddedByPseudonymPseudonym":
+		rel, ok := retrieved.(*Pseudonym)
 		if !ok {
 			return fmt.Errorf("subforumModerator cannot load %T as %q", retrieved, name)
 		}
 
-		o.R.AddedByUserUser = rel
+		o.R.AddedByPseudonymPseudonym = rel
 
 		if rel != nil {
-			rel.R.AddedByUserSubforumModerators = SubforumModeratorSlice{o}
+			rel.R.AddedByPseudonymSubforumModerators = SubforumModeratorSlice{o}
 		}
 		return nil
 	case "Pseudonym":
@@ -788,48 +724,35 @@ func (o *SubforumModerator) Preload(name string, retrieved any) error {
 			rel.R.SubforumModerators = SubforumModeratorSlice{o}
 		}
 		return nil
-	case "User":
-		rel, ok := retrieved.(*User)
-		if !ok {
-			return fmt.Errorf("subforumModerator cannot load %T as %q", retrieved, name)
-		}
-
-		o.R.User = rel
-
-		if rel != nil {
-			rel.R.SubforumModerators = SubforumModeratorSlice{o}
-		}
-		return nil
 	default:
 		return fmt.Errorf("subforumModerator has no relationship %q", name)
 	}
 }
 
 type subforumModeratorPreloader struct {
-	AddedByUserUser func(...psql.PreloadOption) psql.Preloader
-	Pseudonym       func(...psql.PreloadOption) psql.Preloader
-	Subforum        func(...psql.PreloadOption) psql.Preloader
-	User            func(...psql.PreloadOption) psql.Preloader
+	AddedByPseudonymPseudonym func(...psql.PreloadOption) psql.Preloader
+	Pseudonym                 func(...psql.PreloadOption) psql.Preloader
+	Subforum                  func(...psql.PreloadOption) psql.Preloader
 }
 
 func buildSubforumModeratorPreloader() subforumModeratorPreloader {
 	return subforumModeratorPreloader{
-		AddedByUserUser: func(opts ...psql.PreloadOption) psql.Preloader {
-			return psql.Preload[*User, UserSlice](orm.Relationship{
-				Name: "AddedByUserUser",
+		AddedByPseudonymPseudonym: func(opts ...psql.PreloadOption) psql.Preloader {
+			return psql.Preload[*Pseudonym, PseudonymSlice](orm.Relationship{
+				Name: "AddedByPseudonymPseudonym",
 				Sides: []orm.RelSide{
 					{
 						From: TableNames.SubforumModerators,
-						To:   TableNames.Users,
+						To:   TableNames.Pseudonyms,
 						FromColumns: []string{
-							ColumnNames.SubforumModerators.AddedByUserID,
+							ColumnNames.SubforumModerators.AddedByPseudonymID,
 						},
 						ToColumns: []string{
-							ColumnNames.Users.UserID,
+							ColumnNames.Pseudonyms.PseudonymID,
 						},
 					},
 				},
-			}, Users.Columns().Names(), opts...)
+			}, Pseudonyms.Columns().Names(), opts...)
 		},
 		Pseudonym: func(opts ...psql.PreloadOption) psql.Preloader {
 			return psql.Preload[*Pseudonym, PseudonymSlice](orm.Relationship{
@@ -865,36 +788,18 @@ func buildSubforumModeratorPreloader() subforumModeratorPreloader {
 				},
 			}, Subforums.Columns().Names(), opts...)
 		},
-		User: func(opts ...psql.PreloadOption) psql.Preloader {
-			return psql.Preload[*User, UserSlice](orm.Relationship{
-				Name: "User",
-				Sides: []orm.RelSide{
-					{
-						From: TableNames.SubforumModerators,
-						To:   TableNames.Users,
-						FromColumns: []string{
-							ColumnNames.SubforumModerators.UserID,
-						},
-						ToColumns: []string{
-							ColumnNames.Users.UserID,
-						},
-					},
-				},
-			}, Users.Columns().Names(), opts...)
-		},
 	}
 }
 
 type subforumModeratorThenLoader[Q orm.Loadable] struct {
-	AddedByUserUser func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	Pseudonym       func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	Subforum        func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	User            func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	AddedByPseudonymPseudonym func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	Pseudonym                 func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	Subforum                  func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 }
 
 func buildSubforumModeratorThenLoader[Q orm.Loadable]() subforumModeratorThenLoader[Q] {
-	type AddedByUserUserLoadInterface interface {
-		LoadAddedByUserUser(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	type AddedByPseudonymPseudonymLoadInterface interface {
+		LoadAddedByPseudonymPseudonym(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 	type PseudonymLoadInterface interface {
 		LoadPseudonym(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
@@ -902,15 +807,12 @@ func buildSubforumModeratorThenLoader[Q orm.Loadable]() subforumModeratorThenLoa
 	type SubforumLoadInterface interface {
 		LoadSubforum(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
-	type UserLoadInterface interface {
-		LoadUser(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
-	}
 
 	return subforumModeratorThenLoader[Q]{
-		AddedByUserUser: thenLoadBuilder[Q](
-			"AddedByUserUser",
-			func(ctx context.Context, exec bob.Executor, retrieved AddedByUserUserLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
-				return retrieved.LoadAddedByUserUser(ctx, exec, mods...)
+		AddedByPseudonymPseudonym: thenLoadBuilder[Q](
+			"AddedByPseudonymPseudonym",
+			func(ctx context.Context, exec bob.Executor, retrieved AddedByPseudonymPseudonymLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadAddedByPseudonymPseudonym(ctx, exec, mods...)
 			},
 		),
 		Pseudonym: thenLoadBuilder[Q](
@@ -925,55 +827,49 @@ func buildSubforumModeratorThenLoader[Q orm.Loadable]() subforumModeratorThenLoa
 				return retrieved.LoadSubforum(ctx, exec, mods...)
 			},
 		),
-		User: thenLoadBuilder[Q](
-			"User",
-			func(ctx context.Context, exec bob.Executor, retrieved UserLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
-				return retrieved.LoadUser(ctx, exec, mods...)
-			},
-		),
 	}
 }
 
-// LoadAddedByUserUser loads the subforumModerator's AddedByUserUser into the .R struct
-func (o *SubforumModerator) LoadAddedByUserUser(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+// LoadAddedByPseudonymPseudonym loads the subforumModerator's AddedByPseudonymPseudonym into the .R struct
+func (o *SubforumModerator) LoadAddedByPseudonymPseudonym(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
 	if o == nil {
 		return nil
 	}
 
 	// Reset the relationship
-	o.R.AddedByUserUser = nil
+	o.R.AddedByPseudonymPseudonym = nil
 
-	related, err := o.AddedByUserUser(mods...).One(ctx, exec)
+	related, err := o.AddedByPseudonymPseudonym(mods...).One(ctx, exec)
 	if err != nil {
 		return err
 	}
 
-	related.R.AddedByUserSubforumModerators = SubforumModeratorSlice{o}
+	related.R.AddedByPseudonymSubforumModerators = SubforumModeratorSlice{o}
 
-	o.R.AddedByUserUser = related
+	o.R.AddedByPseudonymPseudonym = related
 	return nil
 }
 
-// LoadAddedByUserUser loads the subforumModerator's AddedByUserUser into the .R struct
-func (os SubforumModeratorSlice) LoadAddedByUserUser(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+// LoadAddedByPseudonymPseudonym loads the subforumModerator's AddedByPseudonymPseudonym into the .R struct
+func (os SubforumModeratorSlice) LoadAddedByPseudonymPseudonym(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
 	if len(os) == 0 {
 		return nil
 	}
 
-	users, err := os.AddedByUserUser(mods...).All(ctx, exec)
+	pseudonyms, err := os.AddedByPseudonymPseudonym(mods...).All(ctx, exec)
 	if err != nil {
 		return err
 	}
 
 	for _, o := range os {
-		for _, rel := range users {
-			if o.AddedByUserID.V != rel.UserID {
+		for _, rel := range pseudonyms {
+			if o.AddedByPseudonymID.V != rel.PseudonymID {
 				continue
 			}
 
-			rel.R.AddedByUserSubforumModerators = append(rel.R.AddedByUserSubforumModerators, o)
+			rel.R.AddedByPseudonymSubforumModerators = append(rel.R.AddedByPseudonymSubforumModerators, o)
 
-			o.R.AddedByUserUser = rel
+			o.R.AddedByPseudonymPseudonym = rel
 			break
 		}
 	}
@@ -1075,98 +971,51 @@ func (os SubforumModeratorSlice) LoadSubforum(ctx context.Context, exec bob.Exec
 	return nil
 }
 
-// LoadUser loads the subforumModerator's User into the .R struct
-func (o *SubforumModerator) LoadUser(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
-	if o == nil {
-		return nil
-	}
-
-	// Reset the relationship
-	o.R.User = nil
-
-	related, err := o.User(mods...).One(ctx, exec)
-	if err != nil {
-		return err
-	}
-
-	related.R.SubforumModerators = SubforumModeratorSlice{o}
-
-	o.R.User = related
-	return nil
-}
-
-// LoadUser loads the subforumModerator's User into the .R struct
-func (os SubforumModeratorSlice) LoadUser(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
-	if len(os) == 0 {
-		return nil
-	}
-
-	users, err := os.User(mods...).All(ctx, exec)
-	if err != nil {
-		return err
-	}
-
-	for _, o := range os {
-		for _, rel := range users {
-			if o.UserID != rel.UserID {
-				continue
-			}
-
-			rel.R.SubforumModerators = append(rel.R.SubforumModerators, o)
-
-			o.R.User = rel
-			break
-		}
-	}
-
-	return nil
-}
-
-func attachSubforumModeratorAddedByUserUser0(ctx context.Context, exec bob.Executor, count int, subforumModerator0 *SubforumModerator, user1 *User) (*SubforumModerator, error) {
+func attachSubforumModeratorAddedByPseudonymPseudonym0(ctx context.Context, exec bob.Executor, count int, subforumModerator0 *SubforumModerator, pseudonym1 *Pseudonym) (*SubforumModerator, error) {
 	setter := &SubforumModeratorSetter{
-		AddedByUserID: func() *sql.Null[int64] {
-			v := sql.Null[int64]{V: user1.UserID, Valid: true}
+		AddedByPseudonymID: func() *sql.Null[string] {
+			v := sql.Null[string]{V: pseudonym1.PseudonymID, Valid: true}
 			return &v
 		}(),
 	}
 
 	err := subforumModerator0.Update(ctx, exec, setter)
 	if err != nil {
-		return nil, fmt.Errorf("attachSubforumModeratorAddedByUserUser0: %w", err)
+		return nil, fmt.Errorf("attachSubforumModeratorAddedByPseudonymPseudonym0: %w", err)
 	}
 
 	return subforumModerator0, nil
 }
 
-func (subforumModerator0 *SubforumModerator) InsertAddedByUserUser(ctx context.Context, exec bob.Executor, related *UserSetter) error {
-	user1, err := Users.Insert(related).One(ctx, exec)
+func (subforumModerator0 *SubforumModerator) InsertAddedByPseudonymPseudonym(ctx context.Context, exec bob.Executor, related *PseudonymSetter) error {
+	pseudonym1, err := Pseudonyms.Insert(related).One(ctx, exec)
 	if err != nil {
 		return fmt.Errorf("inserting related objects: %w", err)
 	}
 
-	_, err = attachSubforumModeratorAddedByUserUser0(ctx, exec, 1, subforumModerator0, user1)
+	_, err = attachSubforumModeratorAddedByPseudonymPseudonym0(ctx, exec, 1, subforumModerator0, pseudonym1)
 	if err != nil {
 		return err
 	}
 
-	subforumModerator0.R.AddedByUserUser = user1
+	subforumModerator0.R.AddedByPseudonymPseudonym = pseudonym1
 
-	user1.R.AddedByUserSubforumModerators = append(user1.R.AddedByUserSubforumModerators, subforumModerator0)
+	pseudonym1.R.AddedByPseudonymSubforumModerators = append(pseudonym1.R.AddedByPseudonymSubforumModerators, subforumModerator0)
 
 	return nil
 }
 
-func (subforumModerator0 *SubforumModerator) AttachAddedByUserUser(ctx context.Context, exec bob.Executor, user1 *User) error {
+func (subforumModerator0 *SubforumModerator) AttachAddedByPseudonymPseudonym(ctx context.Context, exec bob.Executor, pseudonym1 *Pseudonym) error {
 	var err error
 
-	_, err = attachSubforumModeratorAddedByUserUser0(ctx, exec, 1, subforumModerator0, user1)
+	_, err = attachSubforumModeratorAddedByPseudonymPseudonym0(ctx, exec, 1, subforumModerator0, pseudonym1)
 	if err != nil {
 		return err
 	}
 
-	subforumModerator0.R.AddedByUserUser = user1
+	subforumModerator0.R.AddedByPseudonymPseudonym = pseudonym1
 
-	user1.R.AddedByUserSubforumModerators = append(user1.R.AddedByUserSubforumModerators, subforumModerator0)
+	pseudonym1.R.AddedByPseudonymSubforumModerators = append(pseudonym1.R.AddedByPseudonymSubforumModerators, subforumModerator0)
 
 	return nil
 }
@@ -1259,52 +1108,6 @@ func (subforumModerator0 *SubforumModerator) AttachSubforum(ctx context.Context,
 	subforumModerator0.R.Subforum = subforum1
 
 	subforum1.R.SubforumModerators = append(subforum1.R.SubforumModerators, subforumModerator0)
-
-	return nil
-}
-
-func attachSubforumModeratorUser0(ctx context.Context, exec bob.Executor, count int, subforumModerator0 *SubforumModerator, user1 *User) (*SubforumModerator, error) {
-	setter := &SubforumModeratorSetter{
-		UserID: &user1.UserID,
-	}
-
-	err := subforumModerator0.Update(ctx, exec, setter)
-	if err != nil {
-		return nil, fmt.Errorf("attachSubforumModeratorUser0: %w", err)
-	}
-
-	return subforumModerator0, nil
-}
-
-func (subforumModerator0 *SubforumModerator) InsertUser(ctx context.Context, exec bob.Executor, related *UserSetter) error {
-	user1, err := Users.Insert(related).One(ctx, exec)
-	if err != nil {
-		return fmt.Errorf("inserting related objects: %w", err)
-	}
-
-	_, err = attachSubforumModeratorUser0(ctx, exec, 1, subforumModerator0, user1)
-	if err != nil {
-		return err
-	}
-
-	subforumModerator0.R.User = user1
-
-	user1.R.SubforumModerators = append(user1.R.SubforumModerators, subforumModerator0)
-
-	return nil
-}
-
-func (subforumModerator0 *SubforumModerator) AttachUser(ctx context.Context, exec bob.Executor, user1 *User) error {
-	var err error
-
-	_, err = attachSubforumModeratorUser0(ctx, exec, 1, subforumModerator0, user1)
-	if err != nil {
-		return err
-	}
-
-	subforumModerator0.R.User = user1
-
-	user1.R.SubforumModerators = append(user1.R.SubforumModerators, subforumModerator0)
 
 	return nil
 }

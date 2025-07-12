@@ -60,24 +60,22 @@ type UsersQuery = *psql.ViewQuery[*User, UserSlice]
 
 // userR is where relationships are stored.
 type userR struct {
-	RemovedByUserComments          CommentSlice           `scan:"RemovedByUserComments" json:"RemovedByUserComments"`                   // comments.comments_removed_by_user_id_fkey
-	AssignedUserComplianceReports  ComplianceReportSlice  `scan:"AssignedUserComplianceReports" json:"AssignedUserComplianceReports"`   // compliance_reports.compliance_reports_assigned_user_id_fkey
-	CorrelationAudits              CorrelationAuditSlice  `scan:"CorrelationAudits" json:"CorrelationAudits"`                           // correlation_audit.correlation_audit_user_id_fkey
-	IdentityMappings               IdentityMappingSlice   `scan:"IdentityMappings" json:"IdentityMappings"`                             // identity_mappings.identity_mappings_user_id_fkey
-	KeyUsageAudits                 KeyUsageAuditSlice     `scan:"KeyUsageAudits" json:"KeyUsageAudits"`                                 // key_usage_audit.key_usage_audit_user_id_fkey
-	ModeratorUserModerationActions ModerationActionSlice  `scan:"ModeratorUserModerationActions" json:"ModeratorUserModerationActions"` // moderation_actions.moderation_actions_moderator_user_id_fkey
-	TargetUserModerationActions    ModerationActionSlice  `scan:"TargetUserModerationActions" json:"TargetUserModerationActions"`       // moderation_actions.moderation_actions_target_user_id_fkey
-	RemovedByUserPosts             PostSlice              `scan:"RemovedByUserPosts" json:"RemovedByUserPosts"`                         // posts.posts_removed_by_user_id_fkey
-	ResolvedByUserReports          ReportSlice            `scan:"ResolvedByUserReports" json:"ResolvedByUserReports"`                   // reports.reports_resolved_by_user_id_fkey
-	CreatedByRoleKeys              RoleKeySlice           `scan:"CreatedByRoleKeys" json:"CreatedByRoleKeys"`                           // role_keys.role_keys_created_by_fkey
-	AddedByUserSubforumModerators  SubforumModeratorSlice `scan:"AddedByUserSubforumModerators" json:"AddedByUserSubforumModerators"`   // subforum_moderators.subforum_moderators_added_by_user_id_fkey
-	SubforumModerators             SubforumModeratorSlice `scan:"SubforumModerators" json:"SubforumModerators"`                         // subforum_moderators.subforum_moderators_user_id_fkey
-	CreatedByUserSubforums         SubforumSlice          `scan:"CreatedByUserSubforums" json:"CreatedByUserSubforums"`                 // subforums.subforums_created_by_user_id_fkey
-	UpdatedBySystemSettings        SystemSettingSlice     `scan:"UpdatedBySystemSettings" json:"UpdatedBySystemSettings"`               // system_settings.system_settings_updated_by_fkey
-	BannedByUserUserBans           UserBanSlice           `scan:"BannedByUserUserBans" json:"BannedByUserUserBans"`                     // user_bans.user_bans_banned_by_user_id_fkey
-	BannedUserUserBans             UserBanSlice           `scan:"BannedUserUserBans" json:"BannedUserUserBans"`                         // user_bans.user_bans_banned_user_id_fkey
-	BlockedUserUserBlocks          UserBlockSlice         `scan:"BlockedUserUserBlocks" json:"BlockedUserUserBlocks"`                   // user_blocks.user_blocks_blocked_user_id_fkey
-	UserPreference                 *UserPreference        `scan:"UserPreference" json:"UserPreference"`                                 // user_preferences.user_preferences_user_id_fkey
+	RemovedByUserComments          CommentSlice          `scan:"RemovedByUserComments" json:"RemovedByUserComments"`                   // comments.comments_removed_by_user_id_fkey
+	AssignedUserComplianceReports  ComplianceReportSlice `scan:"AssignedUserComplianceReports" json:"AssignedUserComplianceReports"`   // compliance_reports.compliance_reports_assigned_user_id_fkey
+	CorrelationAudits              CorrelationAuditSlice `scan:"CorrelationAudits" json:"CorrelationAudits"`                           // correlation_audit.correlation_audit_user_id_fkey
+	IdentityMappings               IdentityMappingSlice  `scan:"IdentityMappings" json:"IdentityMappings"`                             // identity_mappings.identity_mappings_user_id_fkey
+	KeyUsageAudits                 KeyUsageAuditSlice    `scan:"KeyUsageAudits" json:"KeyUsageAudits"`                                 // key_usage_audit.key_usage_audit_user_id_fkey
+	ModeratorUserModerationActions ModerationActionSlice `scan:"ModeratorUserModerationActions" json:"ModeratorUserModerationActions"` // moderation_actions.moderation_actions_moderator_user_id_fkey
+	TargetUserModerationActions    ModerationActionSlice `scan:"TargetUserModerationActions" json:"TargetUserModerationActions"`       // moderation_actions.moderation_actions_target_user_id_fkey
+	RemovedByUserPosts             PostSlice             `scan:"RemovedByUserPosts" json:"RemovedByUserPosts"`                         // posts.posts_removed_by_user_id_fkey
+	ResolvedByUserReports          ReportSlice           `scan:"ResolvedByUserReports" json:"ResolvedByUserReports"`                   // reports.reports_resolved_by_user_id_fkey
+	CreatedByRoleKeys              RoleKeySlice          `scan:"CreatedByRoleKeys" json:"CreatedByRoleKeys"`                           // role_keys.role_keys_created_by_fkey
+	CreatedByUserSubforums         SubforumSlice         `scan:"CreatedByUserSubforums" json:"CreatedByUserSubforums"`                 // subforums.subforums_created_by_user_id_fkey
+	UpdatedBySystemSettings        SystemSettingSlice    `scan:"UpdatedBySystemSettings" json:"UpdatedBySystemSettings"`               // system_settings.system_settings_updated_by_fkey
+	BannedByUserUserBans           UserBanSlice          `scan:"BannedByUserUserBans" json:"BannedByUserUserBans"`                     // user_bans.user_bans_banned_by_user_id_fkey
+	BannedUserUserBans             UserBanSlice          `scan:"BannedUserUserBans" json:"BannedUserUserBans"`                         // user_bans.user_bans_banned_user_id_fkey
+	BlockedUserUserBlocks          UserBlockSlice        `scan:"BlockedUserUserBlocks" json:"BlockedUserUserBlocks"`                   // user_blocks.user_blocks_blocked_user_id_fkey
+	UserPreference                 *UserPreference       `scan:"UserPreference" json:"UserPreference"`                                 // user_preferences.user_preferences_user_id_fkey
 }
 
 type userColumnNames struct {
@@ -884,8 +882,6 @@ type userJoins[Q dialect.Joinable] struct {
 	RemovedByUserPosts             modAs[Q, postColumns]
 	ResolvedByUserReports          modAs[Q, reportColumns]
 	CreatedByRoleKeys              modAs[Q, roleKeyColumns]
-	AddedByUserSubforumModerators  modAs[Q, subforumModeratorColumns]
-	SubforumModerators             modAs[Q, subforumModeratorColumns]
 	CreatedByUserSubforums         modAs[Q, subforumColumns]
 	UpdatedBySystemSettings        modAs[Q, systemSettingColumns]
 	BannedByUserUserBans           modAs[Q, userBanColumns]
@@ -1035,34 +1031,6 @@ func buildUserJoins[Q dialect.Joinable](cols userColumns, typ string) userJoins[
 				{
 					mods = append(mods, dialect.Join[Q](typ, RoleKeys.Name().As(to.Alias())).On(
 						to.CreatedBy.EQ(cols.UserID),
-					))
-				}
-
-				return mods
-			},
-		},
-		AddedByUserSubforumModerators: modAs[Q, subforumModeratorColumns]{
-			c: SubforumModeratorColumns,
-			f: func(to subforumModeratorColumns) bob.Mod[Q] {
-				mods := make(mods.QueryMods[Q], 0, 1)
-
-				{
-					mods = append(mods, dialect.Join[Q](typ, SubforumModerators.Name().As(to.Alias())).On(
-						to.AddedByUserID.EQ(cols.UserID),
-					))
-				}
-
-				return mods
-			},
-		},
-		SubforumModerators: modAs[Q, subforumModeratorColumns]{
-			c: SubforumModeratorColumns,
-			f: func(to subforumModeratorColumns) bob.Mod[Q] {
-				mods := make(mods.QueryMods[Q], 0, 1)
-
-				{
-					mods = append(mods, dialect.Join[Q](typ, SubforumModerators.Name().As(to.Alias())).On(
-						to.UserID.EQ(cols.UserID),
 					))
 				}
 
@@ -1366,48 +1334,6 @@ func (os UserSlice) CreatedByRoleKeys(mods ...bob.Mod[*dialect.SelectQuery]) Rol
 	)...)
 }
 
-// AddedByUserSubforumModerators starts a query for related objects on subforum_moderators
-func (o *User) AddedByUserSubforumModerators(mods ...bob.Mod[*dialect.SelectQuery]) SubforumModeratorsQuery {
-	return SubforumModerators.Query(append(mods,
-		sm.Where(SubforumModeratorColumns.AddedByUserID.EQ(psql.Arg(o.UserID))),
-	)...)
-}
-
-func (os UserSlice) AddedByUserSubforumModerators(mods ...bob.Mod[*dialect.SelectQuery]) SubforumModeratorsQuery {
-	pkUserID := make(pgtypes.Array[int64], len(os))
-	for i, o := range os {
-		pkUserID[i] = o.UserID
-	}
-	PKArgExpr := psql.Select(sm.Columns(
-		psql.F("unnest", psql.Cast(psql.Arg(pkUserID), "bigint[]")),
-	))
-
-	return SubforumModerators.Query(append(mods,
-		sm.Where(psql.Group(SubforumModeratorColumns.AddedByUserID).OP("IN", PKArgExpr)),
-	)...)
-}
-
-// SubforumModerators starts a query for related objects on subforum_moderators
-func (o *User) SubforumModerators(mods ...bob.Mod[*dialect.SelectQuery]) SubforumModeratorsQuery {
-	return SubforumModerators.Query(append(mods,
-		sm.Where(SubforumModeratorColumns.UserID.EQ(psql.Arg(o.UserID))),
-	)...)
-}
-
-func (os UserSlice) SubforumModerators(mods ...bob.Mod[*dialect.SelectQuery]) SubforumModeratorsQuery {
-	pkUserID := make(pgtypes.Array[int64], len(os))
-	for i, o := range os {
-		pkUserID[i] = o.UserID
-	}
-	PKArgExpr := psql.Select(sm.Columns(
-		psql.F("unnest", psql.Cast(psql.Arg(pkUserID), "bigint[]")),
-	))
-
-	return SubforumModerators.Query(append(mods,
-		sm.Where(psql.Group(SubforumModeratorColumns.UserID).OP("IN", PKArgExpr)),
-	)...)
-}
-
 // CreatedByUserSubforums starts a query for related objects on subforums
 func (o *User) CreatedByUserSubforums(mods ...bob.Mod[*dialect.SelectQuery]) SubforumsQuery {
 	return Subforums.Query(append(mods,
@@ -1680,34 +1606,6 @@ func (o *User) Preload(name string, retrieved any) error {
 			}
 		}
 		return nil
-	case "AddedByUserSubforumModerators":
-		rels, ok := retrieved.(SubforumModeratorSlice)
-		if !ok {
-			return fmt.Errorf("user cannot load %T as %q", retrieved, name)
-		}
-
-		o.R.AddedByUserSubforumModerators = rels
-
-		for _, rel := range rels {
-			if rel != nil {
-				rel.R.AddedByUserUser = o
-			}
-		}
-		return nil
-	case "SubforumModerators":
-		rels, ok := retrieved.(SubforumModeratorSlice)
-		if !ok {
-			return fmt.Errorf("user cannot load %T as %q", retrieved, name)
-		}
-
-		o.R.SubforumModerators = rels
-
-		for _, rel := range rels {
-			if rel != nil {
-				rel.R.User = o
-			}
-		}
-		return nil
 	case "CreatedByUserSubforums":
 		rels, ok := retrieved.(SubforumSlice)
 		if !ok {
@@ -1832,8 +1730,6 @@ type userThenLoader[Q orm.Loadable] struct {
 	RemovedByUserPosts             func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	ResolvedByUserReports          func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	CreatedByRoleKeys              func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	AddedByUserSubforumModerators  func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	SubforumModerators             func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	CreatedByUserSubforums         func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	UpdatedBySystemSettings        func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	BannedByUserUserBans           func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
@@ -1872,12 +1768,6 @@ func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
 	}
 	type CreatedByRoleKeysLoadInterface interface {
 		LoadCreatedByRoleKeys(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
-	}
-	type AddedByUserSubforumModeratorsLoadInterface interface {
-		LoadAddedByUserSubforumModerators(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
-	}
-	type SubforumModeratorsLoadInterface interface {
-		LoadSubforumModerators(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 	type CreatedByUserSubforumsLoadInterface interface {
 		LoadCreatedByUserSubforums(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
@@ -1957,18 +1847,6 @@ func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
 			"CreatedByRoleKeys",
 			func(ctx context.Context, exec bob.Executor, retrieved CreatedByRoleKeysLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
 				return retrieved.LoadCreatedByRoleKeys(ctx, exec, mods...)
-			},
-		),
-		AddedByUserSubforumModerators: thenLoadBuilder[Q](
-			"AddedByUserSubforumModerators",
-			func(ctx context.Context, exec bob.Executor, retrieved AddedByUserSubforumModeratorsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
-				return retrieved.LoadAddedByUserSubforumModerators(ctx, exec, mods...)
-			},
-		),
-		SubforumModerators: thenLoadBuilder[Q](
-			"SubforumModerators",
-			func(ctx context.Context, exec bob.Executor, retrieved SubforumModeratorsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
-				return retrieved.LoadSubforumModerators(ctx, exec, mods...)
 			},
 		),
 		CreatedByUserSubforums: thenLoadBuilder[Q](
@@ -2524,110 +2402,6 @@ func (os UserSlice) LoadCreatedByRoleKeys(ctx context.Context, exec bob.Executor
 			rel.R.CreatedByUser = o
 
 			o.R.CreatedByRoleKeys = append(o.R.CreatedByRoleKeys, rel)
-		}
-	}
-
-	return nil
-}
-
-// LoadAddedByUserSubforumModerators loads the user's AddedByUserSubforumModerators into the .R struct
-func (o *User) LoadAddedByUserSubforumModerators(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
-	if o == nil {
-		return nil
-	}
-
-	// Reset the relationship
-	o.R.AddedByUserSubforumModerators = nil
-
-	related, err := o.AddedByUserSubforumModerators(mods...).All(ctx, exec)
-	if err != nil {
-		return err
-	}
-
-	for _, rel := range related {
-		rel.R.AddedByUserUser = o
-	}
-
-	o.R.AddedByUserSubforumModerators = related
-	return nil
-}
-
-// LoadAddedByUserSubforumModerators loads the user's AddedByUserSubforumModerators into the .R struct
-func (os UserSlice) LoadAddedByUserSubforumModerators(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
-	if len(os) == 0 {
-		return nil
-	}
-
-	subforumModerators, err := os.AddedByUserSubforumModerators(mods...).All(ctx, exec)
-	if err != nil {
-		return err
-	}
-
-	for _, o := range os {
-		o.R.AddedByUserSubforumModerators = nil
-	}
-
-	for _, o := range os {
-		for _, rel := range subforumModerators {
-			if o.UserID != rel.AddedByUserID.V {
-				continue
-			}
-
-			rel.R.AddedByUserUser = o
-
-			o.R.AddedByUserSubforumModerators = append(o.R.AddedByUserSubforumModerators, rel)
-		}
-	}
-
-	return nil
-}
-
-// LoadSubforumModerators loads the user's SubforumModerators into the .R struct
-func (o *User) LoadSubforumModerators(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
-	if o == nil {
-		return nil
-	}
-
-	// Reset the relationship
-	o.R.SubforumModerators = nil
-
-	related, err := o.SubforumModerators(mods...).All(ctx, exec)
-	if err != nil {
-		return err
-	}
-
-	for _, rel := range related {
-		rel.R.User = o
-	}
-
-	o.R.SubforumModerators = related
-	return nil
-}
-
-// LoadSubforumModerators loads the user's SubforumModerators into the .R struct
-func (os UserSlice) LoadSubforumModerators(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
-	if len(os) == 0 {
-		return nil
-	}
-
-	subforumModerators, err := os.SubforumModerators(mods...).All(ctx, exec)
-	if err != nil {
-		return err
-	}
-
-	for _, o := range os {
-		o.R.SubforumModerators = nil
-	}
-
-	for _, o := range os {
-		for _, rel := range subforumModerators {
-			if o.UserID != rel.UserID {
-				continue
-			}
-
-			rel.R.User = o
-
-			o.R.SubforumModerators = append(o.R.SubforumModerators, rel)
 		}
 	}
 
@@ -3646,148 +3420,6 @@ func (user0 *User) AttachCreatedByRoleKeys(ctx context.Context, exec bob.Executo
 
 	for _, rel := range related {
 		rel.R.CreatedByUser = user0
-	}
-
-	return nil
-}
-
-func insertUserAddedByUserSubforumModerators0(ctx context.Context, exec bob.Executor, subforumModerators1 []*SubforumModeratorSetter, user0 *User) (SubforumModeratorSlice, error) {
-	for i := range subforumModerators1 {
-		subforumModerators1[i].AddedByUserID = func() *sql.Null[int64] {
-			v := sql.Null[int64]{V: user0.UserID, Valid: true}
-			return &v
-		}()
-	}
-
-	ret, err := SubforumModerators.Insert(bob.ToMods(subforumModerators1...)).All(ctx, exec)
-	if err != nil {
-		return ret, fmt.Errorf("insertUserAddedByUserSubforumModerators0: %w", err)
-	}
-
-	return ret, nil
-}
-
-func attachUserAddedByUserSubforumModerators0(ctx context.Context, exec bob.Executor, count int, subforumModerators1 SubforumModeratorSlice, user0 *User) (SubforumModeratorSlice, error) {
-	setter := &SubforumModeratorSetter{
-		AddedByUserID: func() *sql.Null[int64] {
-			v := sql.Null[int64]{V: user0.UserID, Valid: true}
-			return &v
-		}(),
-	}
-
-	err := subforumModerators1.UpdateAll(ctx, exec, *setter)
-	if err != nil {
-		return nil, fmt.Errorf("attachUserAddedByUserSubforumModerators0: %w", err)
-	}
-
-	return subforumModerators1, nil
-}
-
-func (user0 *User) InsertAddedByUserSubforumModerators(ctx context.Context, exec bob.Executor, related ...*SubforumModeratorSetter) error {
-	if len(related) == 0 {
-		return nil
-	}
-
-	var err error
-
-	subforumModerators1, err := insertUserAddedByUserSubforumModerators0(ctx, exec, related, user0)
-	if err != nil {
-		return err
-	}
-
-	user0.R.AddedByUserSubforumModerators = append(user0.R.AddedByUserSubforumModerators, subforumModerators1...)
-
-	for _, rel := range subforumModerators1 {
-		rel.R.AddedByUserUser = user0
-	}
-	return nil
-}
-
-func (user0 *User) AttachAddedByUserSubforumModerators(ctx context.Context, exec bob.Executor, related ...*SubforumModerator) error {
-	if len(related) == 0 {
-		return nil
-	}
-
-	var err error
-	subforumModerators1 := SubforumModeratorSlice(related)
-
-	_, err = attachUserAddedByUserSubforumModerators0(ctx, exec, len(related), subforumModerators1, user0)
-	if err != nil {
-		return err
-	}
-
-	user0.R.AddedByUserSubforumModerators = append(user0.R.AddedByUserSubforumModerators, subforumModerators1...)
-
-	for _, rel := range related {
-		rel.R.AddedByUserUser = user0
-	}
-
-	return nil
-}
-
-func insertUserSubforumModerators0(ctx context.Context, exec bob.Executor, subforumModerators1 []*SubforumModeratorSetter, user0 *User) (SubforumModeratorSlice, error) {
-	for i := range subforumModerators1 {
-		subforumModerators1[i].UserID = &user0.UserID
-	}
-
-	ret, err := SubforumModerators.Insert(bob.ToMods(subforumModerators1...)).All(ctx, exec)
-	if err != nil {
-		return ret, fmt.Errorf("insertUserSubforumModerators0: %w", err)
-	}
-
-	return ret, nil
-}
-
-func attachUserSubforumModerators0(ctx context.Context, exec bob.Executor, count int, subforumModerators1 SubforumModeratorSlice, user0 *User) (SubforumModeratorSlice, error) {
-	setter := &SubforumModeratorSetter{
-		UserID: &user0.UserID,
-	}
-
-	err := subforumModerators1.UpdateAll(ctx, exec, *setter)
-	if err != nil {
-		return nil, fmt.Errorf("attachUserSubforumModerators0: %w", err)
-	}
-
-	return subforumModerators1, nil
-}
-
-func (user0 *User) InsertSubforumModerators(ctx context.Context, exec bob.Executor, related ...*SubforumModeratorSetter) error {
-	if len(related) == 0 {
-		return nil
-	}
-
-	var err error
-
-	subforumModerators1, err := insertUserSubforumModerators0(ctx, exec, related, user0)
-	if err != nil {
-		return err
-	}
-
-	user0.R.SubforumModerators = append(user0.R.SubforumModerators, subforumModerators1...)
-
-	for _, rel := range subforumModerators1 {
-		rel.R.User = user0
-	}
-	return nil
-}
-
-func (user0 *User) AttachSubforumModerators(ctx context.Context, exec bob.Executor, related ...*SubforumModerator) error {
-	if len(related) == 0 {
-		return nil
-	}
-
-	var err error
-	subforumModerators1 := SubforumModeratorSlice(related)
-
-	_, err = attachUserSubforumModerators0(ctx, exec, len(related), subforumModerators1, user0)
-	if err != nil {
-		return err
-	}
-
-	user0.R.SubforumModerators = append(user0.R.SubforumModerators, subforumModerators1...)
-
-	for _, rel := range related {
-		rel.R.User = user0
 	}
 
 	return nil

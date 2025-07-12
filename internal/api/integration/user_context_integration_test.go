@@ -3,6 +3,7 @@
 package integration
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -440,6 +441,83 @@ func TestUserContext_Moderation_Integration(t *testing.T) {
 		}
 		if pseudonyms, ok := profileBody["pseudonyms"].([]interface{}); !ok || len(pseudonyms) == 0 {
 			t.Error("Expected non-empty pseudonyms array for moderator")
+		}
+	})
+}
+
+func TestGetPseudonymSubscriptions_Integration(t *testing.T) {
+	t.Run("GetPseudonymSubscriptions", func(t *testing.T) {
+		suite := testutil.NewIntegrationTestSuite(t)
+		if suite == nil {
+			return // Test was skipped
+		}
+		defer suite.Cleanup()
+		server := suite.CreateTestServer()
+		defer server.Close()
+
+		// Create test user and pseudonym
+		testUser := suite.CreateTestUser(t, "test@example.com", "password123", []string{"user"})
+		testPseudonym := suite.CreateTestPseudonym(t, testUser.UserID, "TestPseudonym")
+
+		// Create test subforum
+		testSubforum := suite.CreateTestSubforum(t, "test-sub", "Test subforum", testUser.UserID, false)
+
+		// Subscribe the pseudonym to the subforum by creating a subscription record
+		ctx := context.Background()
+		_, err := suite.DB.ExecContext(ctx,
+			"INSERT INTO subforum_subscriptions (subforum_id, pseudonym_id, subscribed_at) VALUES ($1, $2, NOW())",
+			testSubforum.SubforumID, testPseudonym.PseudonymID)
+		if err != nil {
+			t.Fatalf("Failed to create subforum subscription: %v", err)
+		}
+
+		// Login and get token
+		loginResp := suite.LoginUser(t, server, testUser.Email, testUser.Password)
+		token := suite.ExtractTokenFromResponse(t, loginResp)
+
+		// Test getting subscriptions for the user's own pseudonym
+		resp := suite.MakeAuthenticatedRequest(t, server, "GET", fmt.Sprintf("/pseudonyms/%s/subscriptions", testPseudonym.PseudonymID), token, nil)
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("Expected status 200, got %d", resp.StatusCode)
+		}
+
+		var responseBody map[string]interface{}
+		if err := json.NewDecoder(resp.Body).Decode(&responseBody); err != nil {
+			t.Fatalf("Failed to decode response: %v", err)
+		}
+
+		// Verify response structure
+		if subforums, ok := responseBody["subforums"].([]interface{}); !ok || len(subforums) != 1 {
+			t.Errorf("Expected 1 subforum in response, got %d", len(subforums))
+		} else {
+			subforum := subforums[0].(map[string]interface{})
+			if name, ok := subforum["name"].(string); !ok || name != testSubforum.Name {
+				t.Errorf("Expected subforum name %s, got %s", testSubforum.Name, name)
+			}
+			if description, ok := subforum["description"].(string); !ok || description != testSubforum.Description {
+				t.Errorf("Expected subforum description %s, got %s", testSubforum.Description, description)
+			}
+		}
+
+		// Test getting subscriptions for a pseudonym the user doesn't own (should fail)
+		otherUser := suite.CreateTestUser(t, "other@example.com", "password123", []string{"user"})
+		otherPseudonym := suite.CreateTestPseudonym(t, otherUser.UserID, "OtherPseudonym")
+
+		resp = suite.MakeAuthenticatedRequest(t, server, "GET", fmt.Sprintf("/pseudonyms/%s/subscriptions", otherPseudonym.PseudonymID), token, nil)
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusForbidden {
+			t.Errorf("Expected status 403, got %d", resp.StatusCode)
+		}
+
+		// Test getting subscriptions without authentication (should fail)
+		resp = suite.MakeRequest(t, server, "GET", fmt.Sprintf("/pseudonyms/%s/subscriptions", testPseudonym.PseudonymID), nil)
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("Expected status 401, got %d", resp.StatusCode)
 		}
 	})
 }

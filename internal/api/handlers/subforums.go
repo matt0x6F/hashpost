@@ -11,6 +11,7 @@ import (
 	"github.com/matt0x6f/hashpost/internal/api/models"
 	"github.com/matt0x6f/hashpost/internal/database/dao"
 	dbmodels "github.com/matt0x6f/hashpost/internal/database/models"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/stephenafamo/bob"
 )
@@ -585,4 +586,143 @@ func (h *SubforumHandler) CreateSubforum(ctx context.Context, input *models.Subf
 
 	// For now, moderators, isSubscribed, isFavorite are empty/default
 	return models.NewSubforumDetailsResponse(apiSubforum, nil, false, false), nil
+}
+
+// GetPseudonymSubscriptions handles GET /pseudonyms/{pseudonym_id}/subscriptions
+func (h *SubforumHandler) GetPseudonymSubscriptions(ctx context.Context, input *struct {
+	middleware.AuthInput
+	models.PseudonymSubscriptionsInput
+}) (*models.SubforumSubscriptionsResponse, error) {
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+	if err != nil || userCtx == nil {
+		log := zerolog.Ctx(ctx)
+		log.Error().Err(err).Msg("Failed to extract user from context in GetPseudonymSubscriptions")
+		return nil, huma.Error401Unauthorized("Authentication required")
+	}
+
+	log := zerolog.Ctx(ctx)
+	log.Info().Int64("user_id", userCtx.UserID).Str("pseudonym_id", input.PseudonymSubscriptionsInput.PseudonymID).Msg("Checking pseudonym ownership for subscriptions")
+
+	// Only allow if the pseudonym belongs to the user
+	identityMappings, err := dbmodels.IdentityMappings.Query(
+		dbmodels.SelectWhere.IdentityMappings.UserID.EQ(userCtx.UserID),
+		dbmodels.SelectWhere.IdentityMappings.IsActive.EQ(true),
+	).All(ctx, h.db)
+	if err != nil {
+		log.Error().Err(err).Int64("user_id", userCtx.UserID).Msg("Failed to fetch user identity mappings")
+		return nil, huma.Error500InternalServerError("Failed to fetch user pseudonyms")
+	}
+
+	// Check if the requested pseudonym_id is owned by this user
+	userOwnsPseudonym := false
+	for _, mapping := range identityMappings {
+		if mapping.PseudonymID == input.PseudonymSubscriptionsInput.PseudonymID {
+			userOwnsPseudonym = true
+			break
+		}
+	}
+
+	if !userOwnsPseudonym {
+		log.Warn().Int64("user_id", userCtx.UserID).Str("pseudonym_id", input.PseudonymSubscriptionsInput.PseudonymID).Msg("User does not own the requested pseudonym")
+		return nil, huma.Error403Forbidden("Access denied: pseudonym not owned by user")
+	}
+
+	// Get subscriptions for the pseudonym
+	subscriptions, err := h.subforumSubscriptionDAO.GetSubscriptionsByPseudonym(ctx, input.PseudonymSubscriptionsInput.PseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", input.PseudonymSubscriptionsInput.PseudonymID).Msg("Failed to fetch pseudonym subscriptions")
+		return nil, huma.Error500InternalServerError("Failed to fetch subscriptions")
+	}
+
+	// Convert to API models
+	apiSubforums := make([]models.Subforum, 0, len(subscriptions))
+	for _, subscription := range subscriptions {
+		// Get the full subforum details
+		subforum, err := h.subforumDAO.GetSubforumByID(ctx, subscription.SubforumID)
+		if err != nil {
+			log.Error().Err(err).Int32("subforum_id", subscription.SubforumID).Msg("Failed to fetch subforum details")
+			continue
+		}
+
+		// Handle nullable fields
+		description := ""
+		if subforum.Description.Valid {
+			description = subforum.Description.V
+		}
+
+		sidebarText := ""
+		if subforum.SidebarText.Valid {
+			sidebarText = subforum.SidebarText.V
+		}
+
+		rulesText := ""
+		if subforum.RulesText.Valid {
+			rulesText = subforum.RulesText.V
+		}
+
+		isNSFW := false
+		if subforum.IsNSFW.Valid {
+			isNSFW = subforum.IsNSFW.V
+		}
+
+		isPrivate := false
+		if subforum.IsPrivate.Valid {
+			isPrivate = subforum.IsPrivate.V
+		}
+
+		isRestricted := false
+		if subforum.IsRestricted.Valid {
+			isRestricted = subforum.IsRestricted.V
+		}
+
+		subscriberCount := 0
+		if subforum.SubscriberCount.Valid {
+			subscriberCount = int(subforum.SubscriberCount.V)
+		}
+
+		postCount := 0
+		if subforum.PostCount.Valid {
+			postCount = int(subforum.PostCount.V)
+		}
+
+		createdAt := time.Now()
+		if subforum.CreatedAt.Valid {
+			createdAt = subforum.CreatedAt.V
+		}
+
+		updatedAt := time.Now()
+		if subforum.UpdatedAt.Valid {
+			updatedAt = subforum.UpdatedAt.V
+		}
+
+		apiSubforums = append(apiSubforums, models.Subforum{
+			Name:            subforum.Name,
+			DisplayName:     subforum.DisplayName,
+			Description:     description,
+			SidebarText:     sidebarText,
+			RulesText:       rulesText,
+			IsNSFW:          isNSFW,
+			IsPrivate:       isPrivate,
+			IsRestricted:    isRestricted,
+			SubscriberCount: subscriberCount,
+			PostCount:       postCount,
+			CreatedAt:       createdAt,
+			UpdatedAt:       updatedAt,
+		})
+	}
+
+	log.Info().
+		Str("endpoint", "pseudonyms/subscriptions").
+		Str("component", "handler").
+		Int64("user_id", userCtx.UserID).
+		Str("pseudonym_id", input.PseudonymSubscriptionsInput.PseudonymID).
+		Int("subscription_count", len(apiSubforums)).
+		Msg("Successfully retrieved pseudonym subscriptions")
+
+	return &models.SubforumSubscriptionsResponse{
+		Status: 200,
+		Body: models.SubforumSubscriptionsResponseBody{
+			Subforums: apiSubforums,
+		},
+	}, nil
 }

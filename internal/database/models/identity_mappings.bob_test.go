@@ -43,6 +43,26 @@ func TestIdentityMappingUniqueConstraintErrors(t *testing.T) {
 			},
 		},
 		{
+			name:        "ErrUniqueUniqueFingerprintPseudonymKeyScope",
+			expectedErr: models.IdentityMappingErrors.ErrUniqueUniqueFingerprintPseudonymKeyScope,
+			conflictMods: func(ctx context.Context, exec bob.Executor, obj *models.IdentityMapping) factory.IdentityMappingModSlice {
+				shouldUpdate := false
+				updateMods := make(factory.IdentityMappingModSlice, 0, 3)
+
+				if shouldUpdate {
+					if err := obj.Update(ctx, exec, f.NewIdentityMapping(ctx, updateMods...).BuildSetter()); err != nil {
+						t.Fatalf("Error updating object: %v", err)
+					}
+				}
+
+				return factory.IdentityMappingModSlice{
+					factory.IdentityMappingMods.Fingerprint(obj.Fingerprint),
+					factory.IdentityMappingMods.PseudonymID(obj.PseudonymID),
+					factory.IdentityMappingMods.KeyScope(obj.KeyScope),
+				}
+			},
+		},
+		{
 			name:        "ErrUniqueUniqueFingerprintPseudonymScope",
 			expectedErr: models.IdentityMappingErrors.ErrUniqueUniqueFingerprintPseudonymScope,
 			conflictMods: func(ctx context.Context, exec bob.Executor, obj *models.IdentityMapping) factory.IdentityMappingModSlice {

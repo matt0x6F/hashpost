@@ -61,4 +61,14 @@ func RegisterSubforumRoutes(api huma.API, db bob.Executor) {
 		Description: "Creates a new subforum. Requires authentication and the create_subforum capability.",
 		Tags:        []string{"Subforums"},
 	}, subforumHandler.CreateSubforum)
+
+	// Get pseudonym subscriptions
+	huma.Register(api, huma.Operation{
+		OperationID: "get-pseudonym-subscriptions",
+		Method:      http.MethodGet,
+		Path:        "/pseudonyms/{pseudonym_id}/subscriptions",
+		Summary:     "Get pseudonym subscriptions",
+		Description: "Retrieves all subforums that a pseudonym is subscribed to. Only the pseudonym owner can access this endpoint.",
+		Tags:        []string{"Subforums"},
+	}, subforumHandler.GetPseudonymSubscriptions)
 }
