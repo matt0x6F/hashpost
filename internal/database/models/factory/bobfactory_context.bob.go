@@ -136,6 +136,7 @@ var (
 	pseudonymRelReportedPseudonymReportsCtx            = newContextual[bool]("pseudonyms.reports.reports.reports_reported_pseudonym_id_fkey")
 	pseudonymRelReporterPseudonymReportsCtx            = newContextual[bool]("pseudonyms.reports.reports.reports_reporter_pseudonym_id_fkey")
 	pseudonymRelResolvedByPseudonymReportsCtx          = newContextual[bool]("pseudonyms.reports.reports.reports_resolved_by_pseudonym_id_fkey")
+	pseudonymRelAddedByPseudonymSubforumModeratorsCtx  = newContextual[bool]("pseudonyms.subforum_moderators.subforum_moderators.fk_added_by_pseudonym")
 	pseudonymRelSubforumModeratorsCtx                  = newContextual[bool]("pseudonyms.subforum_moderators.subforum_moderators.subforum_moderators_pseudonym_id_fkey")
 	pseudonymRelSubforumSubscriptionsCtx               = newContextual[bool]("pseudonyms.subforum_subscriptions.subforum_subscriptions.subforum_subscriptions_pseudonym_id_fkey")
 	pseudonymRelBannedByPseudonymUserBansCtx           = newContextual[bool]("pseudonyms.user_bans.user_bans.user_bans_banned_by_pseudonym_id_fkey")
@@ -162,11 +163,10 @@ var (
 	schemaMigrationWithParentsCascadingCtx = newContextual[bool]("schemaMigrationWithParentsCascading")
 
 	// Relationship Contexts for subforum_moderators
-	subforumModeratorWithParentsCascadingCtx = newContextual[bool]("subforumModeratorWithParentsCascading")
-	subforumModeratorRelAddedByUserUserCtx   = newContextual[bool]("subforum_moderators.users.subforum_moderators.subforum_moderators_added_by_user_id_fkey")
-	subforumModeratorRelPseudonymCtx         = newContextual[bool]("pseudonyms.subforum_moderators.subforum_moderators.subforum_moderators_pseudonym_id_fkey")
-	subforumModeratorRelSubforumCtx          = newContextual[bool]("subforum_moderators.subforums.subforum_moderators.subforum_moderators_subforum_id_fkey")
-	subforumModeratorRelUserCtx              = newContextual[bool]("subforum_moderators.users.subforum_moderators.subforum_moderators_user_id_fkey")
+	subforumModeratorWithParentsCascadingCtx         = newContextual[bool]("subforumModeratorWithParentsCascading")
+	subforumModeratorRelAddedByPseudonymPseudonymCtx = newContextual[bool]("pseudonyms.subforum_moderators.subforum_moderators.fk_added_by_pseudonym")
+	subforumModeratorRelPseudonymCtx                 = newContextual[bool]("pseudonyms.subforum_moderators.subforum_moderators.subforum_moderators_pseudonym_id_fkey")
+	subforumModeratorRelSubforumCtx                  = newContextual[bool]("subforum_moderators.subforums.subforum_moderators.subforum_moderators_subforum_id_fkey")
 
 	// Relationship Contexts for subforum_subscriptions
 	subforumSubscriptionWithParentsCascadingCtx = newContextual[bool]("subforumSubscriptionWithParentsCascading")
@@ -218,8 +218,6 @@ var (
 	userRelRemovedByUserPostsCtx             = newContextual[bool]("posts.users.posts.posts_removed_by_user_id_fkey")
 	userRelResolvedByUserReportsCtx          = newContextual[bool]("reports.users.reports.reports_resolved_by_user_id_fkey")
 	userRelCreatedByRoleKeysCtx              = newContextual[bool]("role_keys.users.role_keys.role_keys_created_by_fkey")
-	userRelAddedByUserSubforumModeratorsCtx  = newContextual[bool]("subforum_moderators.users.subforum_moderators.subforum_moderators_added_by_user_id_fkey")
-	userRelSubforumModeratorsCtx             = newContextual[bool]("subforum_moderators.users.subforum_moderators.subforum_moderators_user_id_fkey")
 	userRelCreatedByUserSubforumsCtx         = newContextual[bool]("subforums.users.subforums.subforums_created_by_user_id_fkey")
 	userRelUpdatedBySystemSettingsCtx        = newContextual[bool]("system_settings.users.system_settings.system_settings_updated_by_fkey")
 	userRelBannedByUserUserBansCtx           = newContextual[bool]("user_bans.users.user_bans.user_bans_banned_by_user_id_fkey")

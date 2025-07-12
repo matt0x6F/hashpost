@@ -25,21 +25,7 @@ func NewPermissionDAO(db bob.Executor) *PermissionDAO {
 // CanAccessPrivateSubforum checks if a user can access a private subforum
 func (dao *PermissionDAO) CanAccessPrivateSubforum(ctx context.Context, userID int64, subforumID int32) (bool, error) {
 	// First, check if user is a moderator of this subforum
-	moderator, err := models.SubforumModerators.Query(
-		models.SelectWhere.SubforumModerators.SubforumID.EQ(subforumID),
-		models.SelectWhere.SubforumModerators.UserID.EQ(userID),
-	).One(ctx, dao.db)
-
-	if err == nil && moderator != nil {
-		log.Debug().
-			Int64("user_id", userID).
-			Int32("subforum_id", subforumID).
-			Str("role", moderator.Role).
-			Msg("User is moderator of private subforum")
-		return true, nil
-	}
-
-	// Check if user has platform-wide roles that grant access
+	// We need to get the user's pseudonyms and check if any are moderators
 	user, err := models.FindUser(ctx, dao.db, userID)
 	if err != nil {
 		return false, fmt.Errorf("failed to get user: %w", err)
@@ -48,7 +34,34 @@ func (dao *PermissionDAO) CanAccessPrivateSubforum(ctx context.Context, userID i
 		return false, fmt.Errorf("user not found")
 	}
 
-	// Check for platform-wide roles that grant access to private subforums
+	// Get all pseudonyms for this user via identity mappings
+	mappings, err := models.IdentityMappings.Query(
+		models.SelectWhere.IdentityMappings.UserID.EQ(userID),
+		models.SelectWhere.IdentityMappings.IsActive.EQ(true),
+	).All(ctx, dao.db)
+	if err != nil {
+		return false, fmt.Errorf("failed to get user pseudonyms: %w", err)
+	}
+
+	// Check if any of the user's pseudonyms are moderators of this subforum
+	for _, mapping := range mappings {
+		moderator, err := models.SubforumModerators.Query(
+			models.SelectWhere.SubforumModerators.SubforumID.EQ(subforumID),
+			models.SelectWhere.SubforumModerators.PseudonymID.EQ(mapping.PseudonymID),
+		).One(ctx, dao.db)
+
+		if err == nil && moderator != nil {
+			log.Debug().
+				Int64("user_id", userID).
+				Int32("subforum_id", subforumID).
+				Str("pseudonym_id", mapping.PseudonymID).
+				Str("role", moderator.Role).
+				Msg("User is moderator of private subforum")
+			return true, nil
+		}
+	}
+
+	// Check if user has platform-wide roles that grant access
 	platformWideRoles := []string{"platform_admin", "trust_safety", "legal_team"}
 	if user.Roles.Valid {
 		rawValue, err := user.Roles.V.Value()
@@ -105,51 +118,7 @@ func (dao *PermissionDAO) CanAccessPrivateSubforum(ctx context.Context, userID i
 
 // HasSubforumCapability checks if a user has a specific capability for a subforum
 func (dao *PermissionDAO) HasSubforumCapability(ctx context.Context, userID int64, subforumID int32, capability string) (bool, error) {
-	// First, check subforum-specific moderator permissions
-	moderator, err := models.SubforumModerators.Query(
-		models.SelectWhere.SubforumModerators.SubforumID.EQ(subforumID),
-		models.SelectWhere.SubforumModerators.UserID.EQ(userID),
-	).One(ctx, dao.db)
-
-	if err == nil && moderator != nil {
-		// Check if moderator has the specific capability in their permissions
-		if moderator.Permissions.Valid {
-			rawValue, err := moderator.Permissions.V.Value()
-			if err != nil {
-				return false, fmt.Errorf("failed to get moderator permissions value: %w", err)
-			}
-			var permissions []string
-			if err := json.Unmarshal(rawValue.([]byte), &permissions); err == nil {
-				for _, perm := range permissions {
-					if perm == capability {
-						log.Debug().
-							Int64("user_id", userID).
-							Int32("subforum_id", subforumID).
-							Str("capability", capability).
-							Str("role", moderator.Role).
-							Msg("User has subforum-specific capability")
-						return true, nil
-					}
-				}
-			}
-		}
-
-		// Check role-based capabilities
-		roleCapabilities := dao.getRoleCapabilities(moderator.Role)
-		for _, cap := range roleCapabilities {
-			if cap == capability {
-				log.Debug().
-					Int64("user_id", userID).
-					Int32("subforum_id", subforumID).
-					Str("capability", capability).
-					Str("role", moderator.Role).
-					Msg("User has role-based capability")
-				return true, nil
-			}
-		}
-	}
-
-	// Check platform-wide user capabilities
+	// Get user's pseudonyms and check if any have moderator permissions
 	user, err := models.FindUser(ctx, dao.db, userID)
 	if err != nil {
 		return false, fmt.Errorf("failed to get user: %w", err)
@@ -158,6 +127,64 @@ func (dao *PermissionDAO) HasSubforumCapability(ctx context.Context, userID int6
 		return false, fmt.Errorf("user not found")
 	}
 
+	// Get all pseudonyms for this user via identity mappings
+	mappings, err := models.IdentityMappings.Query(
+		models.SelectWhere.IdentityMappings.UserID.EQ(userID),
+		models.SelectWhere.IdentityMappings.IsActive.EQ(true),
+	).All(ctx, dao.db)
+	if err != nil {
+		return false, fmt.Errorf("failed to get user pseudonyms: %w", err)
+	}
+
+	// Check if any of the user's pseudonyms are moderators with the required capability
+	for _, mapping := range mappings {
+		moderator, err := models.SubforumModerators.Query(
+			models.SelectWhere.SubforumModerators.SubforumID.EQ(subforumID),
+			models.SelectWhere.SubforumModerators.PseudonymID.EQ(mapping.PseudonymID),
+		).One(ctx, dao.db)
+
+		if err == nil && moderator != nil {
+			// Check if moderator has the specific capability in their permissions
+			if moderator.Permissions.Valid {
+				rawValue, err := moderator.Permissions.V.Value()
+				if err != nil {
+					return false, fmt.Errorf("failed to get moderator permissions value: %w", err)
+				}
+				var permissions []string
+				if err := json.Unmarshal(rawValue.([]byte), &permissions); err == nil {
+					for _, perm := range permissions {
+						if perm == capability {
+							log.Debug().
+								Int64("user_id", userID).
+								Int32("subforum_id", subforumID).
+								Str("capability", capability).
+								Str("role", moderator.Role).
+								Str("pseudonym_id", mapping.PseudonymID).
+								Msg("User has subforum-specific capability")
+							return true, nil
+						}
+					}
+				}
+			}
+
+			// Check role-based capabilities
+			roleCapabilities := dao.getRoleCapabilities(moderator.Role)
+			for _, cap := range roleCapabilities {
+				if cap == capability {
+					log.Debug().
+						Int64("user_id", userID).
+						Int32("subforum_id", subforumID).
+						Str("capability", capability).
+						Str("role", moderator.Role).
+						Str("pseudonym_id", mapping.PseudonymID).
+						Msg("User has role-based capability")
+					return true, nil
+				}
+			}
+		}
+	}
+
+	// Check platform-wide user capabilities
 	if user.Capabilities.Valid {
 		rawValue, err := user.Capabilities.V.Value()
 		if err != nil {
@@ -190,22 +217,38 @@ func (dao *PermissionDAO) HasSubforumCapability(ctx context.Context, userID int6
 func (dao *PermissionDAO) GetUserSubforumRoles(ctx context.Context, userID int64, subforumID int32) ([]string, error) {
 	var roles []string
 
-	// Get subforum moderator role
-	moderator, err := models.SubforumModerators.Query(
-		models.SelectWhere.SubforumModerators.SubforumID.EQ(subforumID),
-		models.SelectWhere.SubforumModerators.UserID.EQ(userID),
-	).One(ctx, dao.db)
-
-	if err == nil && moderator != nil {
-		roles = append(roles, moderator.Role)
-	}
-
-	// Get platform-wide roles
+	// Get user's pseudonyms and check their moderator roles
 	user, err := models.FindUser(ctx, dao.db, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
-	if user != nil && user.Roles.Valid {
+	if user == nil {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	// Get all pseudonyms for this user via identity mappings
+	mappings, err := models.IdentityMappings.Query(
+		models.SelectWhere.IdentityMappings.UserID.EQ(userID),
+		models.SelectWhere.IdentityMappings.IsActive.EQ(true),
+	).All(ctx, dao.db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user pseudonyms: %w", err)
+	}
+
+	// Get subforum moderator roles for each pseudonym
+	for _, mapping := range mappings {
+		moderator, err := models.SubforumModerators.Query(
+			models.SelectWhere.SubforumModerators.SubforumID.EQ(subforumID),
+			models.SelectWhere.SubforumModerators.PseudonymID.EQ(mapping.PseudonymID),
+		).One(ctx, dao.db)
+
+		if err == nil && moderator != nil {
+			roles = append(roles, moderator.Role)
+		}
+	}
+
+	// Get platform-wide roles
+	if user.Roles.Valid {
 		rawValue, err := user.Roles.V.Value()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get user roles value: %w", err)
@@ -223,36 +266,52 @@ func (dao *PermissionDAO) GetUserSubforumRoles(ctx context.Context, userID int64
 func (dao *PermissionDAO) GetUserSubforumCapabilities(ctx context.Context, userID int64, subforumID int32) ([]string, error) {
 	var capabilities []string
 
-	// Get subforum moderator capabilities
-	moderator, err := models.SubforumModerators.Query(
-		models.SelectWhere.SubforumModerators.SubforumID.EQ(subforumID),
-		models.SelectWhere.SubforumModerators.UserID.EQ(userID),
-	).One(ctx, dao.db)
+	// Get user's pseudonyms and check their moderator capabilities
+	user, err := models.FindUser(ctx, dao.db, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+	if user == nil {
+		return nil, fmt.Errorf("user not found")
+	}
 
-	if err == nil && moderator != nil {
-		// Add role-based capabilities
-		roleCaps := dao.getRoleCapabilities(moderator.Role)
-		capabilities = append(capabilities, roleCaps...)
+	// Get all pseudonyms for this user via identity mappings
+	mappings, err := models.IdentityMappings.Query(
+		models.SelectWhere.IdentityMappings.UserID.EQ(userID),
+		models.SelectWhere.IdentityMappings.IsActive.EQ(true),
+	).All(ctx, dao.db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user pseudonyms: %w", err)
+	}
 
-		// Add specific permissions from JSON
-		if moderator.Permissions.Valid {
-			rawValue, err := moderator.Permissions.V.Value()
-			if err != nil {
-				return nil, fmt.Errorf("failed to get moderator permissions value: %w", err)
-			}
-			var permissions []string
-			if err := json.Unmarshal(rawValue.([]byte), &permissions); err == nil {
-				capabilities = append(capabilities, permissions...)
+	// Get subforum moderator capabilities for each pseudonym
+	for _, mapping := range mappings {
+		moderator, err := models.SubforumModerators.Query(
+			models.SelectWhere.SubforumModerators.SubforumID.EQ(subforumID),
+			models.SelectWhere.SubforumModerators.PseudonymID.EQ(mapping.PseudonymID),
+		).One(ctx, dao.db)
+
+		if err == nil && moderator != nil {
+			// Add role-based capabilities
+			roleCaps := dao.getRoleCapabilities(moderator.Role)
+			capabilities = append(capabilities, roleCaps...)
+
+			// Add specific permissions from JSON
+			if moderator.Permissions.Valid {
+				rawValue, err := moderator.Permissions.V.Value()
+				if err != nil {
+					return nil, fmt.Errorf("failed to get moderator permissions value: %w", err)
+				}
+				var permissions []string
+				if err := json.Unmarshal(rawValue.([]byte), &permissions); err == nil {
+					capabilities = append(capabilities, permissions...)
+				}
 			}
 		}
 	}
 
 	// Get platform-wide capabilities
-	user, err := models.FindUser(ctx, dao.db, userID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user: %w", err)
-	}
-	if user != nil && user.Capabilities.Valid {
+	if user.Capabilities.Valid {
 		rawValue, err := user.Capabilities.V.Value()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get user capabilities value: %w", err)

@@ -153,6 +153,13 @@ var IdentityMappingErrors = &identityMappingErrors{
 		s:       "identity_mappings_pkey",
 	},
 
+	ErrUniqueUniqueFingerprintPseudonymKeyScope: &UniqueConstraintError{
+		schema:  "",
+		table:   "identity_mappings",
+		columns: []string{"fingerprint", "pseudonym_id", "key_scope"},
+		s:       "unique_fingerprint_pseudonym_key_scope",
+	},
+
 	ErrUniqueUniqueFingerprintPseudonymScope: &UniqueConstraintError{
 		schema:  "",
 		table:   "identity_mappings",
@@ -163,6 +170,8 @@ var IdentityMappingErrors = &identityMappingErrors{
 
 type identityMappingErrors struct {
 	ErrUniqueIdentityMappingsPkey *UniqueConstraintError
+
+	ErrUniqueUniqueFingerprintPseudonymKeyScope *UniqueConstraintError
 
 	ErrUniqueUniqueFingerprintPseudonymScope *UniqueConstraintError
 }

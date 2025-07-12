@@ -279,15 +279,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *models.UserLoginInpu
 		// Don't fail the login for this error
 	}
 
-	// Ensure default role keys exist for the user
-	roleKeyDAO := dao.NewRoleKeyDAO(h.db)
-	if err := roleKeyDAO.EnsureDefaultKeys(ctx, h.ibeSystem, user.UserID); err != nil {
-		log.Error().
-			Err(err).
-			Int64("user_id", user.UserID).
-			Msg("Failed to ensure default role keys")
-		return nil, fmt.Errorf("failed to ensure default role keys: %w", err)
-	}
+	// Note: Role keys are created during user registration, not during login
 
 	// Get user roles and capabilities from database
 	roles := []string{"user"}                                                                  // Default role
@@ -502,14 +494,23 @@ func (h *AuthHandler) validateJWT(tokenString string) (*middleware.JWTClaims, er
 }
 
 // RefreshToken handles token refresh
-func (h *AuthHandler) RefreshToken(ctx context.Context, input *models.RefreshTokenInput) (*models.TokenRefreshResponse, error) {
+func (h *AuthHandler) RefreshToken(ctx context.Context, input *struct {
+	RefreshToken string `cookie:"refresh_token"`
+	Body         models.RefreshTokenBody
+}) (*models.TokenRefreshResponse, error) {
 	log.Info().
 		Str("endpoint", "auth/refresh").
 		Str("component", "auth_handler").
 		Msg("Processing token refresh request")
 
+	// Prefer the cookie, fall back to body for non-browser clients
+	refreshToken := input.RefreshToken
+	if refreshToken == "" {
+		refreshToken = input.Body.RefreshToken
+	}
+
 	// Validate the refresh token
-	claims, err := h.validateJWT(input.Body.RefreshToken)
+	claims, err := h.validateJWT(refreshToken)
 	if err != nil {
 		log.Warn().
 			Err(err).

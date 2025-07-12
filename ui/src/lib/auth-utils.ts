@@ -15,8 +15,8 @@ function isRegistrationResponse(response: unknown): response is UserRegistration
 // Authenticate user by calling /auth/me and letting the browser send cookies
 export async function authenticateUser(): Promise<UserLoginResponseBody | null> {
   console.log('[auth-utils] authenticateUser called');
+  const authApi = getApi(AuthenticationApi);
   try {
-    const authApi = getApi(AuthenticationApi);
     const response = await authApi.getCurrentUserSession();
     console.log('[auth-utils] /auth/me response:', response);
     // Convert response to UserLoginResponseBody shape (tokens not available in JS)
@@ -36,8 +36,32 @@ export async function authenticateUser(): Promise<UserLoginResponseBody | null> 
       refreshToken: ''
     };
   } catch (error) {
-    console.log('[auth-utils] /auth/me failed or not authenticated:', error);
-    return null;
+    console.log('[auth-utils] /auth/me failed, attempting refresh:', error);
+    // Try to refresh the token using the httpOnly cookie
+    try {
+      await authApi.refreshToken({ refreshToken: '' });
+      // If refresh succeeds, try /auth/me again
+      const refreshedResponse = await authApi.getCurrentUserSession();
+      console.log('[auth-utils] /auth/me after refresh:', refreshedResponse);
+      return {
+        userId: refreshedResponse.userId,
+        email: refreshedResponse.email,
+        createdAt: refreshedResponse.createdAt,
+        lastActiveAt: refreshedResponse.lastActiveAt,
+        isActive: refreshedResponse.isActive,
+        isSuspended: refreshedResponse.isSuspended,
+        roles: refreshedResponse.roles || [],
+        capabilities: refreshedResponse.capabilities || [],
+        activePseudonymId: refreshedResponse.activePseudonymId,
+        displayName: refreshedResponse.displayName,
+        pseudonyms: refreshedResponse.pseudonyms || [],
+        accessToken: '',
+        refreshToken: ''
+      };
+    } catch (refreshError) {
+      console.log('[auth-utils] Token refresh failed, user is unauthenticated:', refreshError);
+      return null;
+    }
   }
 }
 

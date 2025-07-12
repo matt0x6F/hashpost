@@ -1,10 +1,18 @@
 'use client';
 
+import { ForumList } from '@/components/ForumList';
+
 export default function Home() {
   return (
-    <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Welcome to HashPost</h1>
-      <p className="text-muted-foreground mb-2">This is the main content feed. Posts will appear here.</p>
+    <div className="max-w-4xl mx-auto p-6">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold mb-2">Welcome to HashPost</h1>
+        <p className="text-muted-foreground">
+          Discover and join communities, or create your own forum to start building something amazing.
+        </p>
+      </div>
+      
+      <ForumList />
     </div>
   );
 }

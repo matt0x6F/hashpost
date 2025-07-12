@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -499,6 +498,35 @@ func forceDropTestDatabase(t *testing.T, dbConfig *config.DatabaseConfig) {
 	t.Logf("Test database %s dropped and recreated", dbConfig.Database)
 }
 
+// Truncate all tables and reset sequences in the test database
+func truncateAllTables(t *testing.T, db *sql.DB) {
+	ctx := context.Background()
+	// List all tables to truncate (add/remove as your schema changes)
+	tables := []string{
+		"votes", "comments", "posts", "user_blocks", "user_preferences", "reports",
+		"moderation_actions", "compliance_correlations", "api_keys", "role_keys",
+		"pseudonyms", "subforums", "identity_mappings", "users",
+		// Add any other tables as needed
+	}
+
+	// Disable referential integrity checks temporarily
+	if _, err := db.ExecContext(ctx, "SET session_replication_role = 'replica';"); err != nil {
+		t.Fatalf("Failed to disable referential integrity: %v", err)
+	}
+
+	// Truncate all tables
+	for _, table := range tables {
+		if _, err := db.ExecContext(ctx, fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE;", table)); err != nil {
+			t.Fatalf("Failed to truncate table %s: %v", table, err)
+		}
+	}
+
+	// Re-enable referential integrity
+	if _, err := db.ExecContext(ctx, "SET session_replication_role = 'origin';"); err != nil {
+		t.Fatalf("Failed to re-enable referential integrity: %v", err)
+	}
+}
+
 // NewIntegrationTestSuite creates a new integration test suite
 func NewIntegrationTestSuite(t *testing.T) *IntegrationTestSuite {
 	// Check if we have a database URL for testing
@@ -588,6 +616,9 @@ func NewIntegrationTestSuite(t *testing.T) *IntegrationTestSuite {
 		t.Fatalf("Failed to connect to test database: %v", err)
 	}
 
+	// Truncate all tables before running tests
+	truncateAllTables(t, db.DB)
+
 	// Get the raw *sql.DB from bob.DB
 	rawDB := db.DB
 
@@ -662,12 +693,6 @@ func NewIntegrationTestSuite(t *testing.T) *IntegrationTestSuite {
 
 	// Create entity tracker
 	tracker := NewTestEntityTracker()
-
-	// Bootstrap role keys for all test scenarios
-	// This ensures role keys exist before any tests run, preventing race conditions
-	if err := bootstrapRoleKeys(context.Background(), db, roleKeyDAO, ibeSystem); err != nil {
-		t.Fatalf("Failed to bootstrap role keys: %v", err)
-	}
 
 	// Create test suite with consistent IBE system
 	suite := &IntegrationTestSuite{
@@ -752,9 +777,25 @@ func (ts *IntegrationTestSuite) CreateTestUser(t *testing.T, email, password str
 	}
 	fmt.Printf("[DEBUG] Role keys for user %d: %v\n", user.UserID, roleKeys)
 
-	// Create pseudonym for the user
-	displayName := fmt.Sprintf("test_user_%d", user.UserID)
-	pseudonym, err := ts.SecurePseudonymDAO.CreatePseudonymWithIdentityMapping(ctx, user.UserID, displayName)
+	// --- Robust transaction visibility: create temporary connection for pseudonym creation ---
+	cfg := ts.Config.Database
+	tempDB, err := database.NewConnection(&cfg)
+	if err != nil {
+		t.Fatalf("Failed to create temporary DB connection: %v", err)
+	}
+	defer tempDB.Close()
+
+	// Create temporary DAOs for pseudonym creation
+	tempUserDAO := dao.NewUserDAO(tempDB)
+	tempIdentityMappingDAO := dao.NewIdentityMappingDAO(tempDB)
+	tempRoleKeyDAO := dao.NewRoleKeyDAO(tempDB)
+	tempUserBlockDAO := dao.NewUserBlocksDAO(tempDB)
+	tempSecurePseudonymDAO := dao.NewSecurePseudonymDAO(tempDB, ts.IBESystem, tempIdentityMappingDAO, tempUserDAO, tempRoleKeyDAO, tempUserBlockDAO)
+
+	// Create pseudonym for the user with unique display name using temporary connection
+	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	displayName := fmt.Sprintf("test_user_%d_%s", user.UserID, uniqueSuffix)
+	pseudonym, err := tempSecurePseudonymDAO.CreatePseudonymWithIdentityMapping(ctx, user.UserID, displayName)
 	if err != nil {
 		t.Fatalf("Failed to create test user pseudonym: %v", err)
 	}
@@ -1181,117 +1222,6 @@ func getCapabilitiesForRoles(roles []string) []string {
 	}
 
 	return capabilities
-}
-
-// bootstrapRoleKeys creates all necessary role keys for testing scenarios
-// This ensures role keys exist before any tests run, preventing race conditions
-func bootstrapRoleKeys(ctx context.Context, db bob.DB, roleKeyDAO *dao.RoleKeyDAO, ibeSystem *ibe.IBESystem) error {
-	// Create a bootstrap user for creating role keys
-	userDAO := dao.NewUserDAO(db)
-	bootstrapEmail := "bootstrap@test.local"
-
-	// Check if bootstrap user already exists
-	bootstrapUser, err := userDAO.GetUserByEmail(ctx, bootstrapEmail)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("failed to check if bootstrap user exists: %w", err)
-	}
-
-	if bootstrapUser == nil {
-		// Create bootstrap user if it doesn't exist
-		bootstrapPasswordHash := hashPassword("bootstrap_password")
-		bootstrapUser, err = userDAO.CreateUser(ctx, bootstrapEmail, bootstrapPasswordHash)
-		if err != nil {
-			// If user already exists (race condition), try to get it again
-			if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
-				bootstrapUser, err = userDAO.GetUserByEmail(ctx, bootstrapEmail)
-				if err != nil {
-					return fmt.Errorf("failed to get bootstrap user after creation conflict: %w", err)
-				}
-			} else {
-				return fmt.Errorf("failed to create bootstrap user: %w", err)
-			}
-		}
-	}
-
-	// Define all roles that might be used in tests
-	allRoles := []string{"user", "platform_admin", "trust_safety", "legal_team", "moderator", "admin"}
-
-	// Define default keys for each role
-	defaultKeys := []struct {
-		roleName     string
-		scope        string
-		capabilities []string
-	}{}
-
-	// Add authentication and self_correlation keys for each role
-	for _, roleName := range allRoles {
-		defaultKeys = append(defaultKeys, struct {
-			roleName     string
-			scope        string
-			capabilities []string
-		}{
-			roleName: roleName,
-			scope:    "authentication",
-			capabilities: []string{
-				"access_own_pseudonyms",
-				"login",
-				"session_management",
-			},
-		})
-		defaultKeys = append(defaultKeys, struct {
-			roleName     string
-			scope        string
-			capabilities []string
-		}{
-			roleName: roleName,
-			scope:    "self_correlation",
-			capabilities: []string{
-				"verify_own_pseudonym_ownership",
-				"manage_own_profile",
-			},
-		})
-	}
-
-	// Add correlation keys for admin roles
-	adminRoles := []string{"platform_admin", "trust_safety", "legal_team", "moderator", "admin"}
-	for _, roleName := range adminRoles {
-		defaultKeys = append(defaultKeys, struct {
-			roleName     string
-			scope        string
-			capabilities []string
-		}{
-			roleName: roleName,
-			scope:    "correlation",
-			capabilities: []string{
-				"access_all_pseudonyms",
-				"cross_user_correlation",
-				"moderation",
-				"compliance",
-				"legal_requests",
-			},
-		})
-	}
-
-	// Create each role key if it doesn't exist
-	for _, keyDef := range defaultKeys {
-		existingKey, err := roleKeyDAO.GetRoleKey(ctx, keyDef.roleName, keyDef.scope)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("failed to check if role key exists for role=%s scope=%s: %w", keyDef.roleName, keyDef.scope, err)
-		}
-
-		if existingKey == nil {
-			// Key doesn't exist, create it
-			expiresAt := time.Now().AddDate(1, 0, 0) // Expire in 1 year
-			keyData := ibeSystem.GenerateTestRoleKey(keyDef.roleName, keyDef.scope)
-
-			_, err = roleKeyDAO.CreateRoleKey(ctx, keyDef.roleName, keyDef.scope, keyData, keyDef.capabilities, expiresAt, bootstrapUser.UserID)
-			if err != nil {
-				return fmt.Errorf("failed to create bootstrap role key for role=%s scope=%s: %w", keyDef.roleName, keyDef.scope, err)
-			}
-		}
-	}
-
-	return nil
 }
 
 // GenerateUniqueEmail generates a unique email address for testing

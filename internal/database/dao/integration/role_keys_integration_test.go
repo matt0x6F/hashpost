@@ -300,6 +300,8 @@ func getPerUserRoleKeys(t *testing.T, db bob.DB, userID int64) []*models.RoleKey
 	ctx := context.Background()
 	roleKeys, err := models.RoleKeys.Query(
 		models.SelectWhere.RoleKeys.CreatedBy.EQ(userID),
+		models.SelectWhere.RoleKeys.IsActive.EQ(true),
+		models.SelectWhere.RoleKeys.ExpiresAt.GT(time.Now()),
 	).All(ctx, db)
 	require.NoError(t, err, "Failed to get per-user role keys for user")
 	return roleKeys

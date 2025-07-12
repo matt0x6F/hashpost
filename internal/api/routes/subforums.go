@@ -40,6 +40,7 @@ func RegisterSubforumRoutes(api huma.API, db bob.Executor) {
 		Summary:     "Subscribe to a subforum",
 		Description: "Subscribes the authenticated user to a subforum. Requires authentication.",
 		Tags:        []string{"Subforums"},
+		Security:    []map[string][]string{{"jwt": {}}},
 	}, subforumHandler.SubscribeToSubforum)
 
 	// Unsubscribe from subforum
@@ -50,6 +51,7 @@ func RegisterSubforumRoutes(api huma.API, db bob.Executor) {
 		Summary:     "Unsubscribe from a subforum",
 		Description: "Unsubscribes the authenticated user from a subforum. Requires authentication.",
 		Tags:        []string{"Subforums"},
+		Security:    []map[string][]string{{"jwt": {}}},
 	}, subforumHandler.UnsubscribeFromSubforum)
 
 	// Create subforum
@@ -60,5 +62,17 @@ func RegisterSubforumRoutes(api huma.API, db bob.Executor) {
 		Summary:     "Create a new subforum",
 		Description: "Creates a new subforum. Requires authentication and the create_subforum capability.",
 		Tags:        []string{"Subforums"},
+		Security:    []map[string][]string{{"jwt": {}}},
 	}, subforumHandler.CreateSubforum)
+
+	// Get pseudonym subscriptions
+	huma.Register(api, huma.Operation{
+		OperationID: "get-pseudonym-subscriptions",
+		Method:      http.MethodGet,
+		Path:        "/pseudonyms/{pseudonym_id}/subscriptions",
+		Summary:     "Get pseudonym subscriptions",
+		Description: "Retrieves all subforums that a pseudonym is subscribed to. Only the pseudonym owner can access this endpoint.",
+		Tags:        []string{"Subforums"},
+		Security:    []map[string][]string{{"jwt": {}}},
+	}, subforumHandler.GetPseudonymSubscriptions)
 }

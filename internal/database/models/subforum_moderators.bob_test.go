@@ -62,8 +62,8 @@ func TestSubforumModeratorUniqueConstraintErrors(t *testing.T) {
 			},
 		},
 		{
-			name:        "ErrUniqueSubforumModeratorsSubforumIdUserIdKey",
-			expectedErr: models.SubforumModeratorErrors.ErrUniqueSubforumModeratorsSubforumIdUserIdKey,
+			name:        "ErrUniqueUniqueSubforumPseudonym",
+			expectedErr: models.SubforumModeratorErrors.ErrUniqueUniqueSubforumPseudonym,
 			conflictMods: func(ctx context.Context, exec bob.Executor, obj *models.SubforumModerator) factory.SubforumModeratorModSlice {
 				shouldUpdate := false
 				updateMods := make(factory.SubforumModeratorModSlice, 0, 2)
@@ -76,7 +76,7 @@ func TestSubforumModeratorUniqueConstraintErrors(t *testing.T) {
 
 				return factory.SubforumModeratorModSlice{
 					factory.SubforumModeratorMods.SubforumID(obj.SubforumID),
-					factory.SubforumModeratorMods.UserID(obj.UserID),
+					factory.SubforumModeratorMods.PseudonymID(obj.PseudonymID),
 				}
 			},
 		},

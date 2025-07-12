@@ -154,3 +154,20 @@ func NewSubforumSubscriptionResponse(subforumID int, name string, subscribed boo
 		},
 	}
 }
+
+// SubforumSubscriptionsResponseBody represents the body for pseudonym subforum subscriptions
+// Returns a list of subforums the pseudonym is subscribed to
+type SubforumSubscriptionsResponseBody struct {
+	Subforums []Subforum `json:"subforums"`
+}
+
+// SubforumSubscriptionsResponse represents the response for pseudonym subforum subscriptions
+type SubforumSubscriptionsResponse struct {
+	Status int                               `json:"-" example:"200"`
+	Body   SubforumSubscriptionsResponseBody `json:"body"`
+}
+
+// PseudonymSubscriptionsInput represents the input for pseudonym subscriptions endpoint
+type PseudonymSubscriptionsInput struct {
+	PseudonymID string `path:"pseudonym_id" example:"abc123"`
+}

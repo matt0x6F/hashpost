@@ -504,9 +504,9 @@ func (ibe *IBESystem) SaveDomainMastersToDir(dir string) error {
 
 // NewIBESystemFromEnv creates a new IBE system from environment variables
 func NewIBESystemFromEnv() *IBESystem {
-	masterKeyPath := os.Getenv("IBE_MASTER_KEY_PATH")
-	if masterKeyPath == "" {
-		masterKeyPath = "./keys/master.key"
+	domainKeysDir := os.Getenv("IBE_DOMAIN_KEYS_DIR")
+	if domainKeysDir == "" {
+		domainKeysDir = "./keys/domains"
 	}
 	keyVersion := 1
 	if v := os.Getenv("IBE_KEY_VERSION"); v != "" {
@@ -518,7 +518,7 @@ func NewIBESystemFromEnv() *IBESystem {
 	if salt == "" {
 		salt = "fingerprint_salt_v1"
 	}
-	ibeSystem, err := NewIBESystemFromConfig(masterKeyPath, keyVersion, salt)
+	ibeSystem, err := NewIBESystemFromConfig(domainKeysDir, keyVersion, salt)
 	if err != nil {
 		panic("Failed to create IBE system from environment: " + err.Error())
 	}

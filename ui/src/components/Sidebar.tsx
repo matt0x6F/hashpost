@@ -5,12 +5,14 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
 } from "./shadcn/sidebar";
-import { Home, Radar, ChartNoAxesCombined } from "lucide-react";
+import { Home, Radar, ChartNoAxesCombined, Users, Plus } from "lucide-react";
+import { CreateForumDialog } from "./CreateForumDialog";
 
 const items = [
-  { title: "Home", url: "#", icon: Home },
-  { title: "Popular", url: "#", icon: ChartNoAxesCombined },
-  { title: "All", url: "#", icon: Radar },
+  { title: "Home", url: "/", icon: Home },
+  { title: "Forums", url: "/forums", icon: Users },
+  { title: "Popular", url: "/popular", icon: ChartNoAxesCombined },
+  { title: "All", url: "/all", icon: Radar },
 ];
 
 export function AppSidebar() {
@@ -36,6 +38,15 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        
+        <div className="mt-6 pt-6 border-t border-[var(--graphite-gray)]">
+          <CreateForumDialog>
+            <button className="w-full flex items-center gap-3 px-3 py-2 rounded transition-colors text-[var(--chalk-white)] font-medium font-sans hover:bg-[var(--mint-hover)] hover:text-[var(--slate-night)]">
+              <Plus className="w-5 h-5" />
+              <span>Create Forum</span>
+            </button>
+          </CreateForumDialog>
+        </div>
       </div>
     </aside>
   );

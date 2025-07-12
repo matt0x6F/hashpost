@@ -4,6 +4,7 @@ import { AppSidebar } from "../components/Sidebar";
 import TopBar from "../components/TopBar";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "../lib/auth-context";
+import { Toaster } from "../components/shadcn/sonner";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </SidebarProvider>
         </AuthProvider>
+        <Toaster />
       </body>
     </html>
   );
