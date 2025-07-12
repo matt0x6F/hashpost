@@ -777,10 +777,25 @@ func (ts *IntegrationTestSuite) CreateTestUser(t *testing.T, email, password str
 	}
 	fmt.Printf("[DEBUG] Role keys for user %d: %v\n", user.UserID, roleKeys)
 
-	// Create pseudonym for the user with unique display name
+	// --- Robust transaction visibility: create temporary connection for pseudonym creation ---
+	cfg := ts.Config.Database
+	tempDB, err := database.NewConnection(&cfg)
+	if err != nil {
+		t.Fatalf("Failed to create temporary DB connection: %v", err)
+	}
+	defer tempDB.Close()
+
+	// Create temporary DAOs for pseudonym creation
+	tempUserDAO := dao.NewUserDAO(tempDB)
+	tempIdentityMappingDAO := dao.NewIdentityMappingDAO(tempDB)
+	tempRoleKeyDAO := dao.NewRoleKeyDAO(tempDB)
+	tempUserBlockDAO := dao.NewUserBlocksDAO(tempDB)
+	tempSecurePseudonymDAO := dao.NewSecurePseudonymDAO(tempDB, ts.IBESystem, tempIdentityMappingDAO, tempUserDAO, tempRoleKeyDAO, tempUserBlockDAO)
+
+	// Create pseudonym for the user with unique display name using temporary connection
 	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
 	displayName := fmt.Sprintf("test_user_%d_%s", user.UserID, uniqueSuffix)
-	pseudonym, err := ts.SecurePseudonymDAO.CreatePseudonymWithIdentityMapping(ctx, user.UserID, displayName)
+	pseudonym, err := tempSecurePseudonymDAO.CreatePseudonymWithIdentityMapping(ctx, user.UserID, displayName)
 	if err != nil {
 		t.Fatalf("Failed to create test user pseudonym: %v", err)
 	}
