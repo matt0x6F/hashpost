@@ -449,7 +449,7 @@ func (dao *SecurePseudonymDAO) CreatePseudonymWithIdentityMapping(ctx context.Co
 	userRole := userRoles[0] // Use the first role for consistency
 
 	// Get authentication role key from the database
-	authenticationKeyData, err := dao.roleKeyDAO.GetKeyData(ctx, userRole, "authentication")
+	authenticationKeyData, err := dao.roleKeyDAO.GetPerUserKeyData(ctx, userRole, "authentication", userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get authentication role key: %w", err)
 	}
@@ -477,7 +477,7 @@ func (dao *SecurePseudonymDAO) CreatePseudonymWithIdentityMapping(ctx context.Co
 	}
 
 	// Get self-correlation role key from the database
-	selfCorrelationKeyData, err := dao.roleKeyDAO.GetKeyData(ctx, userRole, "self_correlation")
+	selfCorrelationKeyData, err := dao.roleKeyDAO.GetPerUserKeyData(ctx, userRole, "self_correlation", userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get self-correlation role key: %w", err)
 	}
@@ -516,7 +516,7 @@ func (dao *SecurePseudonymDAO) CreatePseudonymWithIdentityMapping(ctx context.Co
 
 	if isAdminRole {
 		// Get correlation key for admin role
-		correlationKeyData, err := dao.roleKeyDAO.GetKeyData(ctx, userRole, "correlation")
+		correlationKeyData, err := dao.roleKeyDAO.GetPerUserKeyData(ctx, userRole, "correlation", userID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get correlation role key: %w", err)
 		}

@@ -279,15 +279,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *models.UserLoginInpu
 		// Don't fail the login for this error
 	}
 
-	// Ensure default role keys exist for the user
-	roleKeyDAO := dao.NewRoleKeyDAO(h.db)
-	if err := roleKeyDAO.EnsureDefaultKeys(ctx, h.ibeSystem, user.UserID); err != nil {
-		log.Error().
-			Err(err).
-			Int64("user_id", user.UserID).
-			Msg("Failed to ensure default role keys")
-		return nil, fmt.Errorf("failed to ensure default role keys: %w", err)
-	}
+	// Note: Role keys are created during user registration, not during login
 
 	// Get user roles and capabilities from database
 	roles := []string{"user"}                                                                  // Default role

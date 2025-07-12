@@ -213,6 +213,16 @@ func (dao *RoleKeyDAO) GetKeyData(ctx context.Context, roleName, scope string) (
 	return roleKey.KeyData, nil
 }
 
+// GetPerUserKeyData retrieves the key data for a per-user role key
+func (dao *RoleKeyDAO) GetPerUserKeyData(ctx context.Context, roleName, scope string, createdBy int64) ([]byte, error) {
+	roleKey, err := dao.GetPerUserRoleKey(ctx, roleName, scope, createdBy)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get per-user role key: %w", err)
+	}
+
+	return roleKey.KeyData, nil
+}
+
 // EnsureDefaultKeys creates default role keys if they don't exist
 func (dao *RoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interface{}, userID int64) error {
 	// Type assert to get the IBE system
