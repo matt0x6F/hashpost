@@ -777,8 +777,9 @@ func (ts *IntegrationTestSuite) CreateTestUser(t *testing.T, email, password str
 	}
 	fmt.Printf("[DEBUG] Role keys for user %d: %v\n", user.UserID, roleKeys)
 
-	// Create pseudonym for the user
-	displayName := fmt.Sprintf("test_user_%d", user.UserID)
+	// Create pseudonym for the user with unique display name
+	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	displayName := fmt.Sprintf("test_user_%d_%s", user.UserID, uniqueSuffix)
 	pseudonym, err := ts.SecurePseudonymDAO.CreatePseudonymWithIdentityMapping(ctx, user.UserID, displayName)
 	if err != nil {
 		t.Fatalf("Failed to create test user pseudonym: %v", err)

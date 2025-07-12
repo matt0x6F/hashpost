@@ -445,10 +445,38 @@ func (dao *SecurePseudonymDAO) CreatePseudonymWithIdentityMapping(ctx context.Co
 		Msg("Generated fingerprint during pseudonym creation")
 
 	// 5. Create identity mappings using IBE
-	// Create two identity mappings: one for self-correlation and one for admin correlation
+	// Create identity mappings for both authentication and self-correlation scopes
 	userRole := userRoles[0] // Use the first role for consistency
 
-	// Get actual role keys from the database
+	// Get authentication role key from the database
+	authenticationKeyData, err := dao.roleKeyDAO.GetKeyData(ctx, userRole, "authentication")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get authentication role key: %w", err)
+	}
+
+	// Create authentication mapping (for login and session management)
+	authenticationFingerprint, err := dao.ibeSystem.EncryptIdentity(user.Email, pseudonym.PseudonymID, authenticationKeyData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encrypt authentication identity mapping: %w", err)
+	}
+
+	// Create authentication identity mapping using Bob ORM
+	authenticationMapping := &models.IdentityMappingSetter{
+		Fingerprint:               &fingerprint,
+		PseudonymID:               &pseudonym.PseudonymID,
+		EncryptedRealIdentity:     &authenticationFingerprint,
+		EncryptedPseudonymMapping: &authenticationFingerprint,
+		KeyVersion:                &[]int32{int32(dao.ibeSystem.GetKeyVersion())}[0],
+		UserID:                    &userID,
+		KeyScope:                  &[]string{"authentication"}[0],
+	}
+
+	_, err = models.IdentityMappings.Insert(authenticationMapping).One(ctx, dao.db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create authentication identity mapping: %w", err)
+	}
+
+	// Get self-correlation role key from the database
 	selfCorrelationKeyData, err := dao.roleKeyDAO.GetKeyData(ctx, userRole, "self_correlation")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get self-correlation role key: %w", err)
