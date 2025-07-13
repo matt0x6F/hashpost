@@ -12,6 +12,14 @@ function isRegistrationResponse(response: unknown): response is UserRegistration
   return Boolean(response && typeof response === 'object' && 'userId' in response && 'email' in response);
 }
 
+// Add at the top:
+export class AuthRefreshFailedError extends Error {
+  constructor(message = 'Authentication refresh failed') {
+    super(message);
+    this.name = 'AuthRefreshFailedError';
+  }
+}
+
 // Authenticate user by calling /auth/me and letting the browser send cookies
 export async function authenticateUser(): Promise<UserLoginResponseBody | null> {
   console.log('[auth-utils] authenticateUser called');
@@ -36,32 +44,37 @@ export async function authenticateUser(): Promise<UserLoginResponseBody | null> 
       refreshToken: ''
     };
   } catch (error) {
-    console.log('[auth-utils] /auth/me failed, attempting refresh:', error);
-    // Try to refresh the token using the httpOnly cookie
-    try {
-      await authApi.refreshToken({ refreshToken: '' });
-      // If refresh succeeds, try /auth/me again
-      const refreshedResponse = await authApi.getCurrentUserSession();
-      console.log('[auth-utils] /auth/me after refresh:', refreshedResponse);
-      return {
-        userId: refreshedResponse.userId,
-        email: refreshedResponse.email,
-        createdAt: refreshedResponse.createdAt,
-        lastActiveAt: refreshedResponse.lastActiveAt,
-        isActive: refreshedResponse.isActive,
-        isSuspended: refreshedResponse.isSuspended,
-        roles: refreshedResponse.roles || [],
-        capabilities: refreshedResponse.capabilities || [],
-        activePseudonymId: refreshedResponse.activePseudonymId,
-        displayName: refreshedResponse.displayName,
-        pseudonyms: refreshedResponse.pseudonyms || [],
-        accessToken: '',
-        refreshToken: ''
-      };
-    } catch (refreshError) {
-      console.log('[auth-utils] Token refresh failed, user is unauthenticated:', refreshError);
-      return null;
-    }
+    console.log('[auth-utils] /auth/me failed:', error);
+    return null;
+  }
+}
+
+// Authenticate user with subforum-specific capabilities
+export async function authenticateUserForSubforum(subforumName: string): Promise<UserLoginResponseBody | null> {
+  console.log('[auth-utils] authenticateUserForSubforum called for subforum:', subforumName);
+  const authApi = getApi(AuthenticationApi);
+  try {
+    const response = await authApi.getCurrentUserSessionForSubforum(subforumName);
+    console.log('[auth-utils] /auth/me/subforum response:', response);
+    // Convert response to UserLoginResponseBody shape (tokens not available in JS)
+    return {
+      userId: response.userId,
+      email: response.email,
+      createdAt: response.createdAt,
+      lastActiveAt: response.lastActiveAt,
+      isActive: response.isActive,
+      isSuspended: response.isSuspended,
+      roles: response.roles || [],
+      capabilities: response.capabilities || [], // This now includes subforum-specific capabilities
+      activePseudonymId: response.activePseudonymId,
+      displayName: response.displayName,
+      pseudonyms: response.pseudonyms || [],
+      accessToken: '',
+      refreshToken: ''
+    };
+  } catch (error) {
+    console.log('[auth-utils] /auth/me/subforum failed:', error);
+    return null;
   }
 }
 

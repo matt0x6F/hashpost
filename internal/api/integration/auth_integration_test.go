@@ -343,9 +343,11 @@ func TestPostWorkflow_Integration(t *testing.T) {
 			Title:     "Test Post",
 			Content:   "This is a test post content.",
 			PostType:  "text",
-			URL:       "",
+			URL:       nil,
 			IsNSFW:    false,
 			IsSpoiler: false,
+			IsSticky:  false,
+			IsLocked:  false,
 		}
 		resp := suite.MakeAuthenticatedRequest(t, server, "POST", "/subforums/"+testSubforum.Name+"/posts", token, postData)
 		if resp.StatusCode != 200 {

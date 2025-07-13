@@ -5,6 +5,7 @@ import TopBar from "../components/TopBar";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "../lib/auth-context";
 import { Toaster } from "../components/shadcn/sonner";
+import { ThemeProvider } from "next-themes";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -19,23 +20,30 @@ const geistMono = Geist_Mono({
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}>
-        <AuthProvider>
-          <SidebarProvider>
-            <div className="flex flex-col h-screen">
-              <TopBar />
-              <div className="flex flex-1 overflow-hidden">
-                <AppSidebar />
-                <main className="flex-1 p-6 md:p-10 bg-background overflow-y-auto">
-                  <SidebarTrigger />
-                  {children}
-                </main>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <AuthProvider>
+            <SidebarProvider>
+              <div className="flex flex-col h-screen">
+                <TopBar />
+                <div className="flex flex-1 overflow-hidden">
+                  <AppSidebar />
+                  <main className="flex-1 p-6 md:p-10 bg-background overflow-y-auto">
+                    <SidebarTrigger />
+                    {children}
+                  </main>
+                </div>
               </div>
-            </div>
-          </SidebarProvider>
-        </AuthProvider>
-        <Toaster />
+            </SidebarProvider>
+          </AuthProvider>
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -3,6 +3,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import type { UserLoginResponseBody, UserRegistrationResponseBody } from '@/generated/api/src/models';
 import { authenticateUser, logoutUser } from './auth-utils';
+import { useRouter } from 'next/navigation';
+import { AuthRefreshFailedError } from './auth-utils';
 
 // User interface based on the login response structure
 export interface User {
@@ -43,6 +45,10 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
+
+  // Utility to determine nearest unprotected page (expand as needed)
+  const getNearestUnprotectedPage = () => '/forums';
 
   // Check for existing authentication on mount
   useEffect(() => {
@@ -74,6 +80,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
       } catch (error) {
+        if (error instanceof AuthRefreshFailedError) {
+          // Refresh failed: log out and redirect
+          await logout(getNearestUnprotectedPage());
+          return;
+        }
         console.error('Error checking authentication:', error);
         // Clear invalid data
         localStorage.removeItem('hashpost_user');
@@ -124,7 +135,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('hashpost_user', JSON.stringify(userDataToStore));
   };
 
-  const logout = async () => {
+  // Enhance logout to accept optional redirect
+  const logout = async (redirectPath?: string) => {
     try {
       await logoutUser();
     } catch (error) {
@@ -132,6 +144,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setUser(null);
       localStorage.removeItem('hashpost_user');
+      if (redirectPath) {
+        router.replace(redirectPath);
+      }
     }
   };
 

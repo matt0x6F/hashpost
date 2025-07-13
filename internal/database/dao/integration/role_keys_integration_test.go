@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -298,12 +299,26 @@ func getCapabilities(t *testing.T, roleKey *models.RoleKey) []string {
 
 func getPerUserRoleKeys(t *testing.T, db bob.DB, userID int64) []*models.RoleKey {
 	ctx := context.Background()
+
+	// Add debug logging to see what we're querying
+	fmt.Printf("[DEBUG] getPerUserRoleKeys: querying for userID=%d\n", userID)
+
 	roleKeys, err := models.RoleKeys.Query(
 		models.SelectWhere.RoleKeys.CreatedBy.EQ(userID),
 		models.SelectWhere.RoleKeys.IsActive.EQ(true),
 		models.SelectWhere.RoleKeys.ExpiresAt.GT(time.Now()),
 	).All(ctx, db)
-	require.NoError(t, err, "Failed to get per-user role keys for user")
+
+	if err != nil {
+		fmt.Printf("[DEBUG] getPerUserRoleKeys: error querying role keys: %v\n", err)
+		require.NoError(t, err, "Failed to get per-user role keys for user")
+	}
+
+	fmt.Printf("[DEBUG] getPerUserRoleKeys: found %d role keys for userID=%d\n", len(roleKeys), userID)
+	for i, key := range roleKeys {
+		fmt.Printf("[DEBUG] getPerUserRoleKeys: key[%d] = {RoleName: %s, Scope: %s, KeyID: %s}\n", i, key.RoleName, key.Scope, key.KeyID.String())
+	}
+
 	return roleKeys
 }
 

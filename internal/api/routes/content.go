@@ -45,6 +45,16 @@ func RegisterContentRoutes(api huma.API, db bob.Executor, rawDB *sql.DB, ibeSyst
 		Tags:        []string{"Content"},
 	}, contentHandler.GetPostDetails)
 
+	// Get post details by slug
+	huma.Register(api, huma.Operation{
+		OperationID: "get-post-by-slug",
+		Method:      http.MethodGet,
+		Path:        "/subforums/{subforum}/posts/{slug}",
+		Summary:     "Get detailed information about a specific post by slug",
+		Description: "Retrieves detailed information about a post including comments using subforum name and post slug",
+		Tags:        []string{"Content"},
+	}, contentHandler.GetPostBySlug)
+
 	// Vote on post
 	huma.Register(api, huma.Operation{
 		OperationID: "vote-on-post",
@@ -74,4 +84,64 @@ func RegisterContentRoutes(api huma.API, db bob.Executor, rawDB *sql.DB, ibeSyst
 		Description: "Votes on a comment (upvote, downvote, or remove vote)",
 		Tags:        []string{"Content"},
 	}, contentHandler.VoteOnComment)
+
+	// Lock/Unlock post
+	huma.Register(api, huma.Operation{
+		OperationID: "lock-post",
+		Method:      http.MethodPatch,
+		Path:        "/posts/{post_id}/lock",
+		Summary:     "Lock or unlock a post (moderators only)",
+		Description: "Locks or unlocks a post. Requires moderator permission.",
+		Tags:        []string{"Content", "Moderation"},
+	}, contentHandler.LockPost)
+
+	// Sticky/Unsticky post
+	huma.Register(api, huma.Operation{
+		OperationID: "sticky-post",
+		Method:      http.MethodPatch,
+		Path:        "/posts/{post_id}/sticky",
+		Summary:     "Sticky or unsticky a post (moderators only)",
+		Description: "Stickies or unstickies a post. Requires moderator permission.",
+		Tags:        []string{"Content", "Moderation"},
+	}, contentHandler.StickyPost)
+
+	// Remove/Restore post
+	huma.Register(api, huma.Operation{
+		OperationID: "remove-post",
+		Method:      http.MethodPatch,
+		Path:        "/posts/{post_id}/remove",
+		Summary:     "Remove or restore a post (moderators only)",
+		Description: "Removes or restores a post. Requires moderator permission.",
+		Tags:        []string{"Content", "Moderation"},
+	}, contentHandler.RemovePost)
+
+	// Edit comment
+	huma.Register(api, huma.Operation{
+		OperationID: "edit-comment",
+		Method:      http.MethodPatch,
+		Path:        "/comments/{comment_id}",
+		Summary:     "Edit a comment",
+		Description: "Edits a comment. Users can only edit their own comments.",
+		Tags:        []string{"Content"},
+	}, contentHandler.EditComment)
+
+	// Remove/Restore comment
+	huma.Register(api, huma.Operation{
+		OperationID: "remove-comment",
+		Method:      http.MethodPatch,
+		Path:        "/comments/{comment_id}/remove",
+		Summary:     "Remove or restore a comment",
+		Description: "Removes or restores a comment. Users can remove their own comments, moderators can remove any comment.",
+		Tags:        []string{"Content", "Moderation"},
+	}, contentHandler.RemoveComment)
+
+	// Report comment
+	huma.Register(api, huma.Operation{
+		OperationID: "report-comment",
+		Method:      http.MethodPost,
+		Path:        "/comments/{comment_id}/report",
+		Summary:     "Report a comment",
+		Description: "Reports a comment for moderation review. Users cannot report their own comments.",
+		Tags:        []string{"Content", "Moderation"},
+	}, contentHandler.ReportComment)
 }

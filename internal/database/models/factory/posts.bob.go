@@ -60,6 +60,7 @@ type PostTemplate struct {
 	RemovalReason        func() sql.Null[string]
 	RemovedAt            func() sql.Null[time.Time]
 	PseudonymID          func() string
+	Slug                 func() sql.Null[string]
 
 	r postR
 	f *Factory
@@ -276,6 +277,10 @@ func (o PostTemplate) BuildSetter() *models.PostSetter {
 		val := o.PseudonymID()
 		m.PseudonymID = &val
 	}
+	if o.Slug != nil {
+		val := o.Slug()
+		m.Slug = &val
+	}
 
 	return m
 }
@@ -372,6 +377,9 @@ func (o PostTemplate) Build() *models.Post {
 	}
 	if o.PseudonymID != nil {
 		m.PseudonymID = o.PseudonymID()
+	}
+	if o.Slug != nil {
+		m.Slug = o.Slug()
 	}
 
 	o.setModelRels(m)
@@ -655,6 +663,7 @@ func (m postMods) RandomizeAllColumns(f *faker.Faker) PostMod {
 		PostMods.RandomRemovalReason(f),
 		PostMods.RandomRemovedAt(f),
 		PostMods.RandomPseudonymID(f),
+		PostMods.RandomSlug(f),
 	}
 }
 
@@ -1869,6 +1878,59 @@ func (m postMods) RandomPseudonymID(f *faker.Faker) PostMod {
 	return PostModFunc(func(_ context.Context, o *PostTemplate) {
 		o.PseudonymID = func() string {
 			return random_string(f, "64")
+		}
+	})
+}
+
+// Set the model columns to this value
+func (m postMods) Slug(val sql.Null[string]) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.Slug = func() sql.Null[string] { return val }
+	})
+}
+
+// Set the Column from the function
+func (m postMods) SlugFunc(f func() sql.Null[string]) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.Slug = f
+	})
+}
+
+// Clear any values for the column
+func (m postMods) UnsetSlug() PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.Slug = nil
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+// The generated value is sometimes null
+func (m postMods) RandomSlug(f *faker.Faker) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.Slug = func() sql.Null[string] {
+			if f == nil {
+				f = &defaultFaker
+			}
+
+			val := random_string(f, "255")
+			return sql.Null[string]{V: val, Valid: f.Bool()}
+		}
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+// The generated value is never null
+func (m postMods) RandomSlugNotNull(f *faker.Faker) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.Slug = func() sql.Null[string] {
+			if f == nil {
+				f = &defaultFaker
+			}
+
+			val := random_string(f, "255")
+			return sql.Null[string]{V: val, Valid: true}
 		}
 	})
 }

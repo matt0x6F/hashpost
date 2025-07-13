@@ -69,4 +69,15 @@ func RegisterAuthRoutes(api huma.API, cfg *config.Config, db bob.Executor, rawDB
 		Tags:        []string{"Authentication"},
 		Security:    []map[string][]string{{"jwt": {}}},
 	}, authHandler.GetCurrentUserSession)
+
+	// Get current user session with subforum-specific capabilities
+	huma.Register(api, huma.Operation{
+		OperationID: "get-current-user-session-for-subforum",
+		Method:      http.MethodGet,
+		Path:        "/auth/me/subforum/{subforum_name}",
+		Summary:     "Get current user session data with subforum-specific capabilities",
+		Description: "Retrieves the current user's session data including subforum-specific moderator capabilities and permissions.",
+		Tags:        []string{"Authentication"},
+		Security:    []map[string][]string{{"jwt": {}}},
+	}, authHandler.GetCurrentUserSessionForSubforum)
 }

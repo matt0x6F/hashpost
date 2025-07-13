@@ -13,6 +13,7 @@ import (
 
 	"encoding/base64"
 
+	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	"github.com/matt0x6f/hashpost/internal/api/models"
 	"github.com/matt0x6f/hashpost/internal/testutil"
 )
@@ -463,7 +464,16 @@ func TestGetPseudonymSubscriptions_Integration(t *testing.T) {
 		testSubforum := suite.CreateTestSubforum(t, "test-sub", "Test subforum", testUser.UserID, false)
 
 		// Subscribe the pseudonym to the subforum by creating a subscription record
-		ctx := context.Background()
+		// Create context with user information
+		userCtx := &middleware.UserContext{
+			UserID:            testUser.UserID,
+			Email:             testUser.Email,
+			ActivePseudonymID: testUser.PseudonymID,
+			DisplayName:       testUser.DisplayName,
+			Roles:             testUser.Roles,
+			Capabilities:      testUser.Capabilities,
+		}
+		ctx := middleware.SetUserContext(context.Background(), userCtx)
 		_, err := suite.DB.ExecContext(ctx,
 			"INSERT INTO subforum_subscriptions (subforum_id, pseudonym_id, subscribed_at) VALUES ($1, $2, NOW())",
 			testSubforum.SubforumID, testPseudonym.PseudonymID)

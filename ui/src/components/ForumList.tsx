@@ -183,7 +183,7 @@ export function ForumList({ className }: ForumListProps) {
                             <Shield className="w-4 h-4 text-muted-foreground" />
                           )}
                           {forum.isNsfw && (
-                            <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">
+                            <span className="text-xs bg-destructive/10 text-destructive px-2 py-1 rounded">
                               NSFW
                             </span>
                           )}

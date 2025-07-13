@@ -176,10 +176,19 @@ var PseudonymErrors = &pseudonymErrors{
 		columns: []string{"pseudonym_id"},
 		s:       "pseudonyms_pkey",
 	},
+
+	ErrUniqueUniquePseudonymDisplayName: &UniqueConstraintError{
+		schema:  "",
+		table:   "pseudonyms",
+		columns: []string{"display_name"},
+		s:       "unique_pseudonym_display_name",
+	},
 }
 
 type pseudonymErrors struct {
 	ErrUniquePseudonymsPkey *UniqueConstraintError
+
+	ErrUniqueUniquePseudonymDisplayName *UniqueConstraintError
 }
 
 // PseudonymSetter is used for insert/upsert/update operations
