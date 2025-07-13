@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/matt0x6f/hashpost/internal/database/models"
@@ -12,6 +14,21 @@ import (
 	"github.com/stephenafamo/bob/dialect/psql"
 	"github.com/stephenafamo/bob/dialect/psql/sm"
 )
+
+// generateSlug creates a URL-friendly slug from a title and post ID
+func generateSlug(title string, postID int64) string {
+	re := regexp.MustCompile(`[^a-zA-Z0-9\s]`)
+	slug := re.ReplaceAllString(strings.ToLower(title), "")
+	slug = regexp.MustCompile(`\s+`).ReplaceAllString(slug, "-")
+	slug = strings.Trim(slug, "-")
+	if len(slug) > 50 {
+		slug = slug[:50]
+	}
+	if slug == "" {
+		slug = "post"
+	}
+	return fmt.Sprintf("%s-%d", slug, postID)
+}
 
 // PostDAO provides data access operations for posts
 type PostDAO struct {
@@ -74,6 +91,23 @@ func (dao *PostDAO) CreatePost(ctx context.Context, subforumID int32, pseudonymI
 	post, err := models.Posts.Insert(postSetter).One(ctx, dao.db)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create post: %w", err)
+	}
+
+	// Generate slug after post is created (we need the post ID)
+	slug := generateSlug(title, post.PostID)
+
+	// Update the post with the slug
+	slugNull := sql.Null[string]{}
+	slugNull.Scan(slug)
+
+	updateSetter := &models.PostSetter{
+		Slug: &slugNull,
+	}
+
+	err = post.Update(ctx, dao.db, updateSetter)
+	if err != nil {
+		log.Warn().Err(err).Int64("post_id", post.PostID).Msg("Failed to update post with slug")
+		// Don't fail the request, just log the warning
 	}
 
 	return post, nil
@@ -302,4 +336,68 @@ func (dao *PostDAO) GetSubforumsByPseudonym(ctx context.Context, pseudonymID str
 	}
 
 	return subforums, nil
+}
+
+// SetLocked sets the is_locked field for a post
+func (dao *PostDAO) SetLocked(ctx context.Context, postID int64, locked bool) error {
+	post, err := models.FindPost(ctx, dao.db, postID)
+	if err != nil {
+		return fmt.Errorf("failed to find post for lock update: %w", err)
+	}
+	updates := &models.PostSetter{
+		IsLocked:  &sql.Null[bool]{Valid: true, V: locked},
+		UpdatedAt: &sql.Null[time.Time]{Valid: true, V: time.Now()},
+	}
+	return post.Update(ctx, dao.db, updates)
+}
+
+// SetSticky sets the is_stickied field for a post
+func (dao *PostDAO) SetSticky(ctx context.Context, postID int64, sticky bool) error {
+	post, err := models.FindPost(ctx, dao.db, postID)
+	if err != nil {
+		return fmt.Errorf("failed to find post for sticky update: %w", err)
+	}
+	updates := &models.PostSetter{
+		IsStickied: &sql.Null[bool]{Valid: true, V: sticky},
+		UpdatedAt:  &sql.Null[time.Time]{Valid: true, V: time.Now()},
+	}
+	return post.Update(ctx, dao.db, updates)
+}
+
+// SetRemoved sets the is_removed field for a post
+func (dao *PostDAO) SetRemoved(ctx context.Context, postID int64, removed bool) error {
+	post, err := models.FindPost(ctx, dao.db, postID)
+	if err != nil {
+		return fmt.Errorf("failed to find post for remove update: %w", err)
+	}
+	updates := &models.PostSetter{
+		IsRemoved: &sql.Null[bool]{Valid: true, V: removed},
+		UpdatedAt: &sql.Null[time.Time]{Valid: true, V: time.Now()},
+	}
+	return post.Update(ctx, dao.db, updates)
+}
+
+// GetPostBySubforumAndSlug retrieves a post by subforum ID and slug with related data
+func (dao *PostDAO) GetPostBySubforumAndSlug(ctx context.Context, subforumID int32, slug string) (*models.Post, error) {
+	post, err := models.Posts.Query(
+		models.SelectWhere.Posts.SubforumID.EQ(subforumID),
+		models.SelectWhere.Posts.Slug.EQ(slug),
+	).One(ctx, dao.db)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get post by subforum and slug: %w", err)
+	}
+
+	// Load related data
+	if err := post.LoadPseudonym(ctx, dao.db); err != nil {
+		log.Warn().Err(err).Int64("post_id", post.PostID).Msg("Failed to load post pseudonym")
+	}
+
+	if err := post.LoadSubforum(ctx, dao.db); err != nil {
+		log.Warn().Err(err).Int64("post_id", post.PostID).Msg("Failed to load post subforum")
+	}
+
+	return post, nil
 }

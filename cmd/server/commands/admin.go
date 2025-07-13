@@ -99,7 +99,7 @@ func CreateAdminUser() error {
 		adminPasswordHash := hashPassword(input.Password)
 
 		// Prepare roles and capabilities
-		roles := []string{input.AdminRole}
+		roles := []string{"user", input.AdminRole} // Include both user and admin roles
 		capabilities := getCapabilitiesForRole(input.AdminRole)
 
 		// Convert to JSON
@@ -164,7 +164,7 @@ func CreateAdminUser() error {
 		adminPasswordHash := hashPassword(input.Password)
 
 		// Prepare roles and capabilities
-		roles := []string{input.AdminRole}
+		roles := []string{"user", input.AdminRole} // Include both user and admin roles
 		capabilities := getCapabilitiesForRole(input.AdminRole)
 
 		// Convert to JSON
@@ -598,6 +598,15 @@ func hashPassword(password string) string {
 
 // getCapabilitiesForRole returns the capabilities for a given admin role
 func getCapabilitiesForRole(role string) []string {
+	// Basic user capabilities that all users should have
+	basicUserCapabilities := []string{
+		"create_content",
+		"vote",
+		"message",
+		"report",
+		"create_subforum",
+	}
+
 	roleCapabilities := map[string][]string{
 		"platform_admin": {
 			"system_admin",
@@ -606,7 +615,6 @@ func getCapabilitiesForRole(role string) []string {
 			"access_private_subforums",
 			"cross_platform_access",
 			"system_moderation",
-			"create_subforum",
 		},
 		"trust_safety": {
 			"correlate_identities",
@@ -622,8 +630,13 @@ func getCapabilitiesForRole(role string) []string {
 		},
 	}
 
-	if caps, exists := roleCapabilities[role]; exists {
-		return caps
+	// Start with basic user capabilities
+	capabilities := append([]string{}, basicUserCapabilities...)
+
+	// Add role-specific capabilities
+	if roleCaps, exists := roleCapabilities[role]; exists {
+		capabilities = append(capabilities, roleCaps...)
 	}
-	return []string{}
+
+	return capabilities
 }

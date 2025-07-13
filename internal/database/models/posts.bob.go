@@ -49,6 +49,7 @@ type Post struct {
 	RemovalReason        sql.Null[string]    `db:"removal_reason" scan:"removal_reason" json:"removal_reason"`
 	RemovedAt            sql.Null[time.Time] `db:"removed_at" scan:"removed_at" json:"removed_at"`
 	PseudonymID          string              `db:"pseudonym_id" scan:"pseudonym_id" json:"pseudonym_id"`
+	Slug                 sql.Null[string]    `db:"slug" scan:"slug" json:"slug"`
 
 	R postR `db:"-" scan:"rel" json:"rel"`
 }
@@ -100,6 +101,7 @@ type postColumnNames struct {
 	RemovalReason        string
 	RemovedAt            string
 	PseudonymID          string
+	Slug                 string
 }
 
 var PostColumns = buildPostColumns("posts")
@@ -131,6 +133,7 @@ type postColumns struct {
 	RemovalReason        psql.Expression
 	RemovedAt            psql.Expression
 	PseudonymID          psql.Expression
+	Slug                 psql.Expression
 }
 
 func (c postColumns) Alias() string {
@@ -169,6 +172,7 @@ func buildPostColumns(alias string) postColumns {
 		RemovalReason:        psql.Quote(alias, "removal_reason"),
 		RemovedAt:            psql.Quote(alias, "removed_at"),
 		PseudonymID:          psql.Quote(alias, "pseudonym_id"),
+		Slug:                 psql.Quote(alias, "slug"),
 	}
 }
 
@@ -198,6 +202,7 @@ type postWhere[Q psql.Filterable] struct {
 	RemovalReason        psql.WhereNullMod[Q, string]
 	RemovedAt            psql.WhereNullMod[Q, time.Time]
 	PseudonymID          psql.WhereMod[Q, string]
+	Slug                 psql.WhereNullMod[Q, string]
 }
 
 func (postWhere[Q]) AliasedAs(alias string) postWhere[Q] {
@@ -231,6 +236,7 @@ func buildPostWhere[Q psql.Filterable](cols postColumns) postWhere[Q] {
 		RemovalReason:        psql.WhereNull[Q, string](cols.RemovalReason),
 		RemovedAt:            psql.WhereNull[Q, time.Time](cols.RemovedAt),
 		PseudonymID:          psql.Where[Q, string](cols.PseudonymID),
+		Slug:                 psql.WhereNull[Q, string](cols.Slug),
 	}
 }
 
@@ -276,10 +282,11 @@ type PostSetter struct {
 	RemovalReason        *sql.Null[string]    `db:"removal_reason" scan:"removal_reason" json:"removal_reason"`
 	RemovedAt            *sql.Null[time.Time] `db:"removed_at" scan:"removed_at" json:"removed_at"`
 	PseudonymID          *string              `db:"pseudonym_id" scan:"pseudonym_id" json:"pseudonym_id"`
+	Slug                 *sql.Null[string]    `db:"slug" scan:"slug" json:"slug"`
 }
 
 func (s PostSetter) SetColumns() []string {
-	vals := make([]string, 0, 25)
+	vals := make([]string, 0, 26)
 	if s.PostID != nil {
 		vals = append(vals, "post_id")
 	}
@@ -380,6 +387,10 @@ func (s PostSetter) SetColumns() []string {
 		vals = append(vals, "pseudonym_id")
 	}
 
+	if s.Slug != nil {
+		vals = append(vals, "slug")
+	}
+
 	return vals
 }
 
@@ -459,6 +470,9 @@ func (s PostSetter) Overwrite(t *Post) {
 	if s.PseudonymID != nil {
 		t.PseudonymID = *s.PseudonymID
 	}
+	if s.Slug != nil {
+		t.Slug = *s.Slug
+	}
 }
 
 func (s *PostSetter) Apply(q *dialect.InsertQuery) {
@@ -467,7 +481,7 @@ func (s *PostSetter) Apply(q *dialect.InsertQuery) {
 	})
 
 	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
-		vals := make([]bob.Expression, 25)
+		vals := make([]bob.Expression, 26)
 		if s.PostID != nil {
 			vals[0] = psql.Arg(*s.PostID)
 		} else {
@@ -618,6 +632,12 @@ func (s *PostSetter) Apply(q *dialect.InsertQuery) {
 			vals[24] = psql.Raw("DEFAULT")
 		}
 
+		if s.Slug != nil {
+			vals[25] = psql.Arg(*s.Slug)
+		} else {
+			vals[25] = psql.Raw("DEFAULT")
+		}
+
 		return bob.ExpressSlice(ctx, w, d, start, vals, "", ", ", "")
 	}))
 }
@@ -627,7 +647,7 @@ func (s PostSetter) UpdateMod() bob.Mod[*dialect.UpdateQuery] {
 }
 
 func (s PostSetter) Expressions(prefix ...string) []bob.Expression {
-	exprs := make([]bob.Expression, 0, 25)
+	exprs := make([]bob.Expression, 0, 26)
 
 	if s.PostID != nil {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
@@ -801,6 +821,13 @@ func (s PostSetter) Expressions(prefix ...string) []bob.Expression {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "pseudonym_id")...),
 			psql.Arg(s.PseudonymID),
+		}})
+	}
+
+	if s.Slug != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "slug")...),
+			psql.Arg(s.Slug),
 		}})
 	}
 

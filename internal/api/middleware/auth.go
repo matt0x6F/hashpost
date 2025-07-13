@@ -362,16 +362,13 @@ func (m *AuthMiddleware) AuthenticateUser(next http.Handler) http.Handler {
 // AuthenticateUserHuma is a Huma-compatible authentication middleware
 func AuthenticateUserHuma(ctx huma.Context, next func(huma.Context)) {
 	// For Huma, we need to handle authentication differently
-	// Extract token from headers or cookies using the input struct
+	// Extract token from headers only (cookies are handled in handlers via input structs)
 	var input AuthInput
 
 	// Try to extract authorization header
 	if authHeader := ctx.Header("Authorization"); authHeader != "" {
-		log.Debug().Str("auth_header", authHeader).Msg("Received Authorization header")
 		input.Authorization = authHeader
 	}
-
-	log.Debug().Str("input.Authorization", input.Authorization).Msg("AuthInput before extraction")
 
 	var userCtx *UserContext
 
@@ -383,17 +380,17 @@ func AuthenticateUserHuma(ctx huma.Context, next func(huma.Context)) {
 		return
 	}
 
-	// Extract user context from input (header only for middleware)
+	// Extract user context from input (header only)
 	userCtx, _ = authMiddleware.extractTokenFromHumaInput(&input)
 
 	if userCtx == nil {
-		log.Debug().Msg("No valid authentication token provided or token parsing failed")
 		next(ctx)
 		return
 	}
 
-	// Add user context to request context
-	SetUserContext(ctx.Context(), userCtx)
+	// Attach user context to the context for downstream handlers
+	newCtx := context.WithValue(ctx.Context(), UserContextKeyValue, userCtx)
+	ctx = huma.WithContext(ctx, newCtx)
 
 	log.Debug().
 		Int64("user_id", userCtx.UserID).

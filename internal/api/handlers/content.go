@@ -4,6 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"regexp"
+	"strings"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
@@ -14,6 +17,32 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/stephenafamo/bob"
 )
+
+// generateSlug creates a URL-friendly slug from a title and post ID
+func generateSlug(title string, postID int64) string {
+	// Convert to lowercase and remove special characters
+	re := regexp.MustCompile(`[^a-zA-Z0-9\s]`)
+	slug := re.ReplaceAllString(strings.ToLower(title), "")
+
+	// Replace spaces with hyphens
+	slug = regexp.MustCompile(`\s+`).ReplaceAllString(slug, "-")
+
+	// Trim hyphens from start and end
+	slug = strings.Trim(slug, "-")
+
+	// Limit to 50 characters
+	if len(slug) > 50 {
+		slug = slug[:50]
+	}
+
+	// If slug is empty, use a default
+	if slug == "" {
+		slug = "post"
+	}
+
+	// Add deterministic suffix based on post ID
+	return fmt.Sprintf("%s-%d", slug, postID)
+}
 
 // ContentHandler handles content-related requests
 type ContentHandler struct {
@@ -65,6 +94,21 @@ func (h *ContentHandler) GetPosts(ctx context.Context, input *models.PostListInp
 		Str("time", input.Time).
 		Msg("Get posts requested")
 
+	// Handle authentication - try to get user context from middleware
+	var userCtx *middleware.UserContext
+	var err error
+
+	// First, try to get user context from middleware (header-based auth)
+	userCtx, err = middleware.ExtractUserFromContext(ctx)
+	if err != nil {
+		// If no user context from middleware, try cookie-based auth from input
+		userCtx, err = middleware.ExtractUserFromHumaInput(&input.AuthInput)
+		if err != nil {
+			// No authentication - proceed as anonymous user
+			log.Debug().Msg("No user context found, proceeding as anonymous user")
+		}
+	}
+
 	// Check if subforum exists
 	subforum, err := h.subforumDAO.GetSubforumByName(ctx, subforumName)
 	if err != nil {
@@ -79,10 +123,8 @@ func (h *ContentHandler) GetPosts(ctx context.Context, input *models.PostListInp
 	// Check user permissions for private subforums
 	// Allow access if IsPrivate is null or false, deny only if explicitly true
 	if subforum.IsPrivate.Valid && subforum.IsPrivate.V {
-		// Extract user context from request context
-		userCtx, err := middleware.ExtractUserFromContext(ctx)
-		if err != nil {
-			log.Warn().Err(err).Str("subforum_name", subforumName).Msg("User context not available for private subforum access")
+		if userCtx == nil {
+			log.Warn().Str("subforum_name", subforumName).Msg("User context not available for private subforum access")
 			return nil, huma.Error401Unauthorized("authentication required for private subforum")
 		}
 
@@ -148,10 +190,15 @@ func (h *ContentHandler) GetPosts(ctx context.Context, input *models.PostListInp
 		return nil, err
 	}
 
+	// If we have user context, set it in the context for conversion functions
+	if userCtx != nil {
+		ctx = middleware.SetUserContext(ctx, userCtx)
+	}
+
 	// Convert database posts to API models
 	apiPosts := make([]models.Post, len(posts))
 	for i, post := range posts {
-		apiPosts[i] = h.convertDBPostToAPIPost(post)
+		apiPosts[i] = h.convertDBPostToAPIPost(ctx, post)
 	}
 
 	response := models.NewPostListResponse(apiPosts, input.Page, input.Limit, int(total))
@@ -176,6 +223,8 @@ func (h *ContentHandler) CreatePost(ctx context.Context, input *models.PostCreat
 	url := input.Body.URL
 	isNSFW := input.Body.IsNSFW
 	isSpoiler := input.Body.IsSpoiler
+	isSticky := input.Body.IsSticky
+	isLocked := input.Body.IsLocked
 
 	// Extract user from AuthInput
 	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
@@ -194,6 +243,8 @@ func (h *ContentHandler) CreatePost(ctx context.Context, input *models.PostCreat
 		Str("subforum_name", subforumName).
 		Str("title", title).
 		Str("post_type", postType).
+		Bool("is_sticky", isSticky).
+		Bool("is_locked", isLocked).
 		Msg("Create post requested")
 
 	// Validate input
@@ -203,7 +254,7 @@ func (h *ContentHandler) CreatePost(ctx context.Context, input *models.PostCreat
 	if content == "" && postType == "text" {
 		return nil, huma.Error400BadRequest("content is required for text posts")
 	}
-	if url == "" && postType == "link" {
+	if url == nil && postType == "link" {
 		return nil, huma.Error400BadRequest("URL is required for link posts")
 	}
 
@@ -216,6 +267,36 @@ func (h *ContentHandler) CreatePost(ctx context.Context, input *models.PostCreat
 	if subforum == nil {
 		log.Warn().Str("subforum_name", subforumName).Msg("Subforum not found")
 		return nil, huma.Error404NotFound("subforum not found")
+	}
+
+	// Check moderator permissions for sticky/locked options
+	if isSticky || isLocked {
+		canModerate, err := h.permissionChecker.CheckSubforumCapability(ctx, userCtx.UserID, subforum.SubforumID, "moderate_content")
+		if err != nil {
+			log.Error().Err(err).
+				Int64("user_id", userCtx.UserID).
+				Int32("subforum_id", subforum.SubforumID).
+				Msg("Failed to check moderator permissions")
+			return nil, fmt.Errorf("failed to verify moderator permissions")
+		}
+		if !canModerate {
+			log.Info().
+				Int64("user_id", userCtx.UserID).
+				Int32("subforum_id", subforum.SubforumID).
+				Bool("is_sticky", isSticky).
+				Bool("is_locked", isLocked).
+				Msg("User attempted to create sticky/locked post without moderator permissions - dropping moderator options")
+			// Silently drop moderator-only options
+			isSticky = false
+			isLocked = false
+		} else {
+			log.Info().
+				Int64("user_id", userCtx.UserID).
+				Int32("subforum_id", subforum.SubforumID).
+				Bool("is_sticky", isSticky).
+				Bool("is_locked", isLocked).
+				Msg("Moderator creating post with special properties")
+		}
 	}
 
 	// Check user permissions for private/restricted subforums
@@ -249,14 +330,31 @@ func (h *ContentHandler) CreatePost(ctx context.Context, input *models.PostCreat
 
 	// Create post in database
 	var urlPtr *string
-	if url != "" {
-		urlPtr = &url
+	if url != nil {
+		urlPtr = url
 	}
 
 	post, err := h.postDAO.CreatePost(ctx, subforum.SubforumID, pseudonymID, title, content, postType, urlPtr, isNSFW, isSpoiler)
 	if err != nil {
 		log.Error().Err(err).Int32("subforum_id", subforum.SubforumID).Msg("Failed to create post")
 		return nil, err
+	}
+
+	// Set sticky/locked status if requested
+	if isSticky {
+		err = h.postDAO.SetSticky(ctx, post.PostID, true)
+		if err != nil {
+			log.Error().Err(err).Int64("post_id", post.PostID).Msg("Failed to set post as sticky")
+			// Don't fail the request, just log the error
+		}
+	}
+
+	if isLocked {
+		err = h.postDAO.SetLocked(ctx, post.PostID, true)
+		if err != nil {
+			log.Error().Err(err).Int64("post_id", post.PostID).Msg("Failed to set post as locked")
+			// Don't fail the request, just log the error
+		}
 	}
 
 	response := models.NewPostResponse(int(post.PostID), title, content, postType, pseudonymID, displayName)
@@ -266,6 +364,8 @@ func (h *ContentHandler) CreatePost(ctx context.Context, input *models.PostCreat
 		Str("component", "handler").
 		Int64("user_id", userCtx.UserID).
 		Int64("post_id", post.PostID).
+		Bool("is_sticky", isSticky).
+		Bool("is_locked", isLocked).
 		Msg("Create post completed")
 
 	return response, nil
@@ -308,10 +408,10 @@ func (h *ContentHandler) GetPostDetails(ctx context.Context, input *models.PostD
 	}
 
 	// Convert database post and comments to API models
-	apiPost := h.convertDBPostToAPIPost(post)
+	apiPost := h.convertDBPostToAPIPost(ctx, post)
 	apiComments := make([]models.Comment, len(comments))
 	for i, comment := range comments {
-		apiComments[i] = h.convertDBCommentToAPICommentWithReplies(comment)
+		apiComments[i] = h.convertDBCommentToAPICommentWithReplies(ctx, comment)
 	}
 
 	response := models.NewPostDetailsResponse(apiPost, apiComments)
@@ -322,6 +422,95 @@ func (h *ContentHandler) GetPostDetails(ctx context.Context, input *models.PostD
 		Int64("post_id", postID).
 		Int("comment_count", len(apiComments)).
 		Msg("Get post details completed")
+
+	return response, nil
+}
+
+// GetPostBySlug handles getting detailed information about a specific post by slug
+func (h *ContentHandler) GetPostBySlug(ctx context.Context, input *models.PostBySlugInput) (*models.PostDetailsResponse, error) {
+	subforumName := input.SubforumName
+	slug := input.Slug
+	sort := input.Sort
+
+	log.Info().
+		Str("endpoint", "subforums/posts/slug").
+		Str("component", "handler").
+		Str("subforum_name", subforumName).
+		Str("slug", slug).
+		Str("sort", sort).
+		Msg("Get post by slug requested")
+
+	// Handle authentication - try middleware context first, then input struct
+	var userCtx *middleware.UserContext
+	var err error
+
+	// First, try to get user context from middleware (header-based auth)
+	userCtx, err = middleware.ExtractUserFromContext(ctx)
+	if err != nil {
+		// If no user context from middleware, try cookie-based auth from input
+		userCtx, err = middleware.ExtractUserFromHumaInput(&input.AuthInput)
+		if err != nil {
+			// No authentication - proceed as anonymous user
+			log.Debug().Msg("No user context found, proceeding as anonymous user")
+		}
+	}
+
+	// Check if subforum exists
+	subforum, err := h.subforumDAO.GetSubforumByName(ctx, subforumName)
+	if err != nil {
+		log.Error().Err(err).Str("subforum_name", subforumName).Msg("Failed to get subforum")
+		return nil, err
+	}
+	if subforum == nil {
+		log.Warn().Str("subforum_name", subforumName).Msg("Subforum not found")
+		return nil, huma.Error404NotFound("subforum not found")
+	}
+
+	// Get post by subforum and slug
+	post, err := h.postDAO.GetPostBySubforumAndSlug(ctx, subforum.SubforumID, slug)
+	if err != nil {
+		log.Error().Err(err).Str("slug", slug).Int32("subforum_id", subforum.SubforumID).Msg("Failed to get post")
+		return nil, err
+	}
+	if post == nil {
+		log.Warn().Str("slug", slug).Str("subforum_name", subforumName).Msg("Post not found")
+		return nil, huma.Error404NotFound("post not found")
+	}
+
+	// Check if post is removed
+	if post.IsRemoved.Valid && post.IsRemoved.V {
+		log.Warn().Int64("post_id", post.PostID).Msg("Post is removed")
+		return nil, huma.Error404NotFound("post is removed")
+	}
+
+	// Get comments for the post
+	comments, err := h.commentDAO.GetCommentsByPostWithNestedReplies(ctx, post.PostID)
+	if err != nil {
+		log.Error().Err(err).Int64("post_id", post.PostID).Msg("Failed to get comments")
+		return nil, err
+	}
+
+	// If we have user context, set it in the context for conversion functions
+	if userCtx != nil {
+		ctx = middleware.SetUserContext(ctx, userCtx)
+	}
+
+	// Convert database post and comments to API models
+	apiPost := h.convertDBPostToAPIPost(ctx, post)
+	apiComments := make([]models.Comment, len(comments))
+	for i, comment := range comments {
+		apiComments[i] = h.convertDBCommentToAPICommentWithReplies(ctx, comment)
+	}
+
+	response := models.NewPostDetailsResponse(apiPost, apiComments)
+
+	log.Info().
+		Str("endpoint", "subforums/posts/slug").
+		Str("component", "handler").
+		Str("subforum_name", subforumName).
+		Str("slug", slug).
+		Int("comment_count", len(apiComments)).
+		Msg("Get post by slug completed")
 
 	return response, nil
 }
@@ -622,8 +811,343 @@ func (h *ContentHandler) VoteOnComment(ctx context.Context, input *models.Commen
 	return response, nil
 }
 
+// Lock/Unlock Post
+func (h *ContentHandler) LockPost(ctx context.Context, input *models.PostLockInput) (*models.PostResponse, error) {
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+	if err != nil {
+		return nil, huma.Error401Unauthorized("Authentication required")
+	}
+	post, err := h.postDAO.GetPostByID(ctx, input.PostID)
+	if err != nil || post == nil {
+		return nil, fmt.Errorf("failed to fetch post: %w", err)
+	}
+	canModerate, err := h.permissionChecker.CheckSubforumCapability(ctx, userCtx.UserID, post.SubforumID, "moderate_content")
+	if err != nil || !canModerate {
+		return nil, huma.Error403Forbidden("Moderator permission required")
+	}
+	if err := h.postDAO.SetLocked(ctx, input.PostID, input.Body.Locked); err != nil {
+		return nil, fmt.Errorf("failed to update lock state: %w", err)
+	}
+	post, err = h.postDAO.GetPostByID(ctx, input.PostID)
+	if err != nil || post == nil {
+		return nil, fmt.Errorf("failed to fetch post: %w", err)
+	}
+	apiPost := h.convertDBPostToAPIPost(ctx, post)
+	return models.NewPostResponse(apiPost.PostID, apiPost.Title, apiPost.Content, apiPost.PostType, apiPost.Author.PseudonymID, apiPost.Author.DisplayName), nil
+}
+
+// Sticky/Unsticky Post
+func (h *ContentHandler) StickyPost(ctx context.Context, input *models.PostStickyInput) (*models.PostResponse, error) {
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+	if err != nil {
+		return nil, huma.Error401Unauthorized("Authentication required")
+	}
+	post, err := h.postDAO.GetPostByID(ctx, input.PostID)
+	if err != nil || post == nil {
+		return nil, fmt.Errorf("failed to fetch post: %w", err)
+	}
+	canModerate, err := h.permissionChecker.CheckSubforumCapability(ctx, userCtx.UserID, post.SubforumID, "moderate_content")
+	if err != nil || !canModerate {
+		return nil, huma.Error403Forbidden("Moderator permission required")
+	}
+	if err := h.postDAO.SetSticky(ctx, input.PostID, input.Body.Sticky); err != nil {
+		return nil, fmt.Errorf("failed to update sticky state: %w", err)
+	}
+	post, err = h.postDAO.GetPostByID(ctx, input.PostID)
+	if err != nil || post == nil {
+		return nil, fmt.Errorf("failed to fetch post: %w", err)
+	}
+	apiPost := h.convertDBPostToAPIPost(ctx, post)
+	return models.NewPostResponse(apiPost.PostID, apiPost.Title, apiPost.Content, apiPost.PostType, apiPost.Author.PseudonymID, apiPost.Author.DisplayName), nil
+}
+
+// Remove/Restore Post
+func (h *ContentHandler) RemovePost(ctx context.Context, input *models.PostRemoveInput) (*models.PostResponse, error) {
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+	if err != nil {
+		return nil, huma.Error401Unauthorized("Authentication required")
+	}
+	post, err := h.postDAO.GetPostByID(ctx, input.PostID)
+	if err != nil || post == nil {
+		return nil, fmt.Errorf("failed to fetch post: %w", err)
+	}
+	canModerate, err := h.permissionChecker.CheckSubforumCapability(ctx, userCtx.UserID, post.SubforumID, "moderate_content")
+	if err != nil || !canModerate {
+		return nil, huma.Error403Forbidden("Moderator permission required")
+	}
+	if err := h.postDAO.SetRemoved(ctx, input.PostID, input.Body.Removed); err != nil {
+		return nil, fmt.Errorf("failed to update removed state: %w", err)
+	}
+	post, err = h.postDAO.GetPostByID(ctx, input.PostID)
+	if err != nil || post == nil {
+		return nil, fmt.Errorf("failed to fetch post: %w", err)
+	}
+	apiPost := h.convertDBPostToAPIPost(ctx, post)
+	return models.NewPostResponse(apiPost.PostID, apiPost.Title, apiPost.Content, apiPost.PostType, apiPost.Author.PseudonymID, apiPost.Author.DisplayName), nil
+}
+
+// EditComment handles editing a comment
+func (h *ContentHandler) EditComment(ctx context.Context, input *models.CommentEditInput) (*models.CommentEditResponse, error) {
+	commentID := input.CommentID
+	content := input.Body.Content
+	editReason := input.Body.EditReason
+
+	// Extract user from AuthInput
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+	if err != nil {
+		log.Warn().Err(err).Msg("User context not available for comment editing")
+		return nil, huma.Error401Unauthorized("Authentication required")
+	}
+
+	pseudonymID := userCtx.ActivePseudonymID
+	displayName := userCtx.DisplayName
+
+	log.Info().
+		Str("endpoint", "comments/edit").
+		Str("component", "handler").
+		Int64("comment_id", commentID).
+		Int64("user_id", userCtx.UserID).
+		Str("pseudonym_id", pseudonymID).
+		Msg("Edit comment requested")
+
+	// Validate input
+	if content == "" {
+		return nil, huma.Error400BadRequest("content is required")
+	}
+
+	// Check if comment exists
+	comment, err := h.commentDAO.GetCommentByID(ctx, commentID)
+	if err != nil {
+		log.Error().Err(err).Int64("comment_id", commentID).Msg("Failed to get comment")
+		return nil, err
+	}
+	if comment == nil {
+		log.Warn().Int64("comment_id", commentID).Msg("Comment not found")
+		return nil, huma.Error404NotFound("comment not found")
+	}
+
+	// Check if comment is removed
+	if comment.IsRemoved.Valid && comment.IsRemoved.V {
+		log.Warn().Int64("comment_id", commentID).Msg("Cannot edit removed comment")
+		return nil, huma.Error400BadRequest("cannot edit removed comment")
+	}
+
+	// Check if user owns the comment
+	if comment.PseudonymID != pseudonymID {
+		log.Warn().Int64("comment_id", commentID).Str("pseudonym_id", pseudonymID).Msg("User does not own comment")
+		return nil, huma.Error403Forbidden("you can only edit your own comments")
+	}
+
+	// Update comment in database
+	now := sql.Null[time.Time]{}
+	now.Scan(time.Now())
+
+	editReasonNull := sql.Null[string]{Valid: false}
+	if editReason != "" {
+		editReasonNull.Scan(editReason)
+	}
+
+	updates := &dbmodels.CommentSetter{
+		Content:    &content,
+		IsEdited:   &sql.Null[bool]{Valid: true, V: true},
+		EditedAt:   &now,
+		EditReason: &editReasonNull,
+		UpdatedAt:  &now,
+	}
+
+	err = comment.Update(ctx, h.db, updates)
+	if err != nil {
+		log.Error().Err(err).Int64("comment_id", commentID).Msg("Failed to update comment")
+		return nil, err
+	}
+
+	// Convert parent comment ID for response
+	var parentCommentID *int
+	if comment.ParentCommentID.Valid {
+		parentID := int(comment.ParentCommentID.V)
+		parentCommentID = &parentID
+	}
+
+	response := models.NewCommentEditResponse(int(commentID), content, parentCommentID, pseudonymID, displayName, editReason, true)
+
+	log.Info().
+		Str("endpoint", "comments/edit").
+		Str("component", "handler").
+		Int64("comment_id", commentID).
+		Msg("Edit comment completed")
+
+	return response, nil
+}
+
+// RemoveComment handles removing/restoring a comment (moderators only)
+func (h *ContentHandler) RemoveComment(ctx context.Context, input *models.CommentRemoveInput) (*models.CommentRemoveResponse, error) {
+	commentID := input.CommentID
+	removed := input.Body.Removed
+	reason := input.Body.Reason
+
+	// Extract user from AuthInput
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+	if err != nil {
+		log.Warn().Err(err).Msg("User context not available for comment removal")
+		return nil, huma.Error401Unauthorized("Authentication required")
+	}
+
+	pseudonymID := userCtx.ActivePseudonymID
+	displayName := userCtx.DisplayName
+
+	log.Info().
+		Str("endpoint", "comments/remove").
+		Str("component", "handler").
+		Int64("comment_id", commentID).
+		Int64("user_id", userCtx.UserID).
+		Str("pseudonym_id", pseudonymID).
+		Bool("removed", removed).
+		Msg("Remove comment requested")
+
+	// Check if comment exists
+	comment, err := h.commentDAO.GetCommentByID(ctx, commentID)
+	if err != nil {
+		log.Error().Err(err).Int64("comment_id", commentID).Msg("Failed to get comment")
+		return nil, err
+	}
+	if comment == nil {
+		log.Warn().Int64("comment_id", commentID).Msg("Comment not found")
+		return nil, huma.Error404NotFound("comment not found")
+	}
+
+	// Check if user owns the comment or has moderation permissions
+	canModerate := false
+	if comment.PseudonymID == pseudonymID {
+		// User owns the comment
+		canModerate = true
+	} else {
+		// Check if user has moderation permissions for the post's subforum
+		post, err := h.postDAO.GetPostByID(ctx, comment.PostID)
+		if err != nil {
+			log.Error().Err(err).Int64("post_id", comment.PostID).Msg("Failed to get post for permission check")
+			return nil, err
+		}
+		if post != nil {
+			canModerate, err = h.permissionChecker.CheckSubforumCapability(ctx, userCtx.UserID, post.SubforumID, "moderate_content")
+			if err != nil {
+				log.Error().Err(err).Int64("user_id", userCtx.UserID).Int32("subforum_id", post.SubforumID).Msg("Failed to check moderation permission")
+				return nil, err
+			}
+		}
+	}
+
+	if !canModerate {
+		log.Warn().Int64("comment_id", commentID).Str("pseudonym_id", pseudonymID).Msg("User lacks permission to remove comment")
+		return nil, huma.Error403Forbidden("insufficient permissions to remove comment")
+	}
+
+	// Update comment removal status
+	now := sql.Null[time.Time]{}
+	now.Scan(time.Now())
+
+	reasonNull := sql.Null[string]{Valid: false}
+	if reason != "" {
+		reasonNull.Scan(reason)
+	}
+
+	updates := &dbmodels.CommentSetter{
+		IsRemoved:            &sql.Null[bool]{Valid: true, V: removed},
+		RemovalReason:        &reasonNull,
+		RemovedAt:            &now,
+		RemovedByUserID:      &sql.Null[int64]{Valid: true, V: userCtx.UserID},
+		RemovedByPseudonymID: &sql.Null[string]{Valid: true, V: pseudonymID},
+		UpdatedAt:            &now,
+	}
+
+	err = comment.Update(ctx, h.db, updates)
+	if err != nil {
+		log.Error().Err(err).Int64("comment_id", commentID).Msg("Failed to update comment removal status")
+		return nil, err
+	}
+
+	response := models.NewCommentRemoveResponse(int(commentID), removed, reason, pseudonymID, displayName)
+
+	log.Info().
+		Str("endpoint", "comments/remove").
+		Str("component", "handler").
+		Int64("comment_id", commentID).
+		Bool("removed", removed).
+		Msg("Remove comment completed")
+
+	return response, nil
+}
+
+// ReportComment handles reporting a comment
+func (h *ContentHandler) ReportComment(ctx context.Context, input *models.CommentReportInput) (*models.CommentReportResponse, error) {
+	commentID := input.CommentID
+	reportReason := input.Body.ReportReason
+	reportDetails := input.Body.ReportDetails
+
+	// Extract user from AuthInput
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+	if err != nil {
+		log.Warn().Err(err).Msg("User context not available for comment reporting")
+		return nil, huma.Error401Unauthorized("Authentication required")
+	}
+
+	pseudonymID := userCtx.ActivePseudonymID
+	displayName := userCtx.DisplayName
+
+	log.Info().
+		Str("endpoint", "comments/report").
+		Str("component", "handler").
+		Int64("comment_id", commentID).
+		Int64("user_id", userCtx.UserID).
+		Str("pseudonym_id", pseudonymID).
+		Str("report_reason", reportReason).
+		Msg("Report comment requested")
+
+	// Validate input
+	if reportReason == "" {
+		return nil, huma.Error400BadRequest("report_reason is required")
+	}
+
+	// Check if comment exists
+	comment, err := h.commentDAO.GetCommentByID(ctx, commentID)
+	if err != nil {
+		log.Error().Err(err).Int64("comment_id", commentID).Msg("Failed to get comment")
+		return nil, err
+	}
+	if comment == nil {
+		log.Warn().Int64("comment_id", commentID).Msg("Comment not found")
+		return nil, huma.Error404NotFound("comment not found")
+	}
+
+	// Check if comment is already removed
+	if comment.IsRemoved.Valid && comment.IsRemoved.V {
+		log.Warn().Int64("comment_id", commentID).Msg("Cannot report removed comment")
+		return nil, huma.Error400BadRequest("cannot report removed comment")
+	}
+
+	// Check if user is reporting their own comment
+	if comment.PseudonymID == pseudonymID {
+		log.Warn().Int64("comment_id", commentID).Str("pseudonym_id", pseudonymID).Msg("User cannot report their own comment")
+		return nil, huma.Error400BadRequest("you cannot report your own comment")
+	}
+
+	// TODO: Create report in database
+	// For now, we'll return a mock response
+	reportID := 789 // TODO: Get from database
+
+	response := models.NewCommentReportResponse(reportID, int(commentID), reportReason, reportDetails, pseudonymID, displayName)
+
+	log.Info().
+		Str("endpoint", "comments/report").
+		Str("component", "handler").
+		Int64("comment_id", commentID).
+		Int("report_id", reportID).
+		Msg("Report comment completed")
+
+	return response, nil
+}
+
 // convertDBPostToAPIPost converts a database post to an API post model
-func (h *ContentHandler) convertDBPostToAPIPost(dbPost *dbmodels.Post) models.Post {
+func (h *ContentHandler) convertDBPostToAPIPost(ctx context.Context, dbPost *dbmodels.Post) models.Post {
 	// Get pseudonym display name
 	displayName := "Unknown"
 	if dbPost.R.Pseudonym != nil {
@@ -640,9 +1164,11 @@ func (h *ContentHandler) convertDBPostToAPIPost(dbPost *dbmodels.Post) models.Po
 
 	// Get user vote if authenticated
 	userVote := 0
-	// Try to extract user context from the current context
-	if userCtx, err := middleware.ExtractUserFromContext(context.Background()); err == nil && userCtx != nil {
-		vote, err := h.voteDAO.GetVoteByPseudonymAndContent(context.Background(), userCtx.ActivePseudonymID, "post", dbPost.PostID)
+	userCtx, err := middleware.ExtractUserFromContext(ctx)
+	if err != nil || userCtx == nil {
+		log.Warn().Msg("User context missing in convertDBPostToAPIPost")
+	} else {
+		vote, err := h.voteDAO.GetVoteByPseudonymAndContent(ctx, userCtx.ActivePseudonymID, "post", dbPost.PostID)
 		if err == nil && vote != nil {
 			userVote = int(vote.VoteValue)
 		}
@@ -650,6 +1176,7 @@ func (h *ContentHandler) convertDBPostToAPIPost(dbPost *dbmodels.Post) models.Po
 
 	apiPost := models.Post{
 		PostID:       int(dbPost.PostID),
+		Slug:         dbPost.Slug.V,
 		Title:        dbPost.Title,
 		Content:      dbPost.Content.V,
 		PostType:     dbPost.PostType,
@@ -680,24 +1207,24 @@ func (h *ContentHandler) convertDBPostToAPIPost(dbPost *dbmodels.Post) models.Po
 }
 
 // convertDBCommentToAPIComment converts a database comment to an API comment model
-func (h *ContentHandler) convertDBCommentToAPIComment(dbComment *dbmodels.Comment) models.Comment {
-	// Get pseudonym display name
+func (h *ContentHandler) convertDBCommentToAPIComment(ctx context.Context, dbComment *dbmodels.Comment) models.Comment {
 	displayName := "Unknown"
 	if dbComment.R.Pseudonym != nil {
 		displayName = dbComment.R.Pseudonym.DisplayName
 	}
 
-	// Get user vote if authenticated
 	userVote := 0
-	// Try to extract user context from the current context
-	if userCtx, err := middleware.ExtractUserFromContext(context.Background()); err == nil && userCtx != nil {
-		vote, err := h.voteDAO.GetVoteByPseudonymAndContent(context.Background(), userCtx.ActivePseudonymID, "comment", dbComment.CommentID)
+	userCtx, err := middleware.ExtractUserFromContext(ctx)
+	if err != nil || userCtx == nil {
+		log.Warn().Msg("User context missing in convertDBCommentToAPIComment")
+	} else {
+		log.Info().Str("pseudonym_id", userCtx.ActivePseudonymID).Msg("User context found in convertDBCommentToAPIComment")
+		vote, err := h.voteDAO.GetVoteByPseudonymAndContent(ctx, userCtx.ActivePseudonymID, "comment", dbComment.CommentID)
 		if err == nil && vote != nil {
 			userVote = int(vote.VoteValue)
 		}
 	}
 
-	// Convert parent comment ID
 	var parentCommentID *int
 	if dbComment.ParentCommentID.Valid {
 		parentID := int(dbComment.ParentCommentID.V)
@@ -711,10 +1238,9 @@ func (h *ContentHandler) convertDBCommentToAPIComment(dbComment *dbmodels.Commen
 		Score:           int(dbComment.Score.V),
 		CreatedAt:       dbComment.CreatedAt.V.Format("2006-01-02T15:04:05Z"),
 		UserVote:        userVote,
-		Replies:         []models.Comment{}, // Empty for non-nested conversion
+		Replies:         []models.Comment{},
 	}
 
-	// Set author info
 	apiComment.Author.PseudonymID = dbComment.PseudonymID
 	apiComment.Author.DisplayName = displayName
 
@@ -722,34 +1248,33 @@ func (h *ContentHandler) convertDBCommentToAPIComment(dbComment *dbmodels.Commen
 }
 
 // convertDBCommentToAPICommentWithReplies converts a database comment to an API comment model with nested replies
-func (h *ContentHandler) convertDBCommentToAPICommentWithReplies(dbComment *dbmodels.Comment) models.Comment {
-	// Get pseudonym display name
+func (h *ContentHandler) convertDBCommentToAPICommentWithReplies(ctx context.Context, dbComment *dbmodels.Comment) models.Comment {
 	displayName := "Unknown"
 	if dbComment.R.Pseudonym != nil {
 		displayName = dbComment.R.Pseudonym.DisplayName
 	}
 
-	// Get user vote if authenticated
 	userVote := 0
-	// Try to extract user context from the current context
-	if userCtx, err := middleware.ExtractUserFromContext(context.Background()); err == nil && userCtx != nil {
-		vote, err := h.voteDAO.GetVoteByPseudonymAndContent(context.Background(), userCtx.ActivePseudonymID, "comment", dbComment.CommentID)
+	userCtx, err := middleware.ExtractUserFromContext(ctx)
+	if err != nil || userCtx == nil {
+		log.Warn().Msg("User context missing in convertDBCommentToAPICommentWithReplies")
+	} else {
+		log.Info().Str("pseudonym_id", userCtx.ActivePseudonymID).Msg("User context found in convertDBCommentToAPICommentWithReplies")
+		vote, err := h.voteDAO.GetVoteByPseudonymAndContent(ctx, userCtx.ActivePseudonymID, "comment", dbComment.CommentID)
 		if err == nil && vote != nil {
 			userVote = int(vote.VoteValue)
 		}
 	}
 
-	// Convert parent comment ID
 	var parentCommentID *int
 	if dbComment.ParentCommentID.Valid {
 		parentID := int(dbComment.ParentCommentID.V)
 		parentCommentID = &parentID
 	}
 
-	// Convert nested replies recursively
 	replies := make([]models.Comment, len(dbComment.R.ReverseComments))
 	for i, reply := range dbComment.R.ReverseComments {
-		replies[i] = h.convertDBCommentToAPICommentWithReplies(reply)
+		replies[i] = h.convertDBCommentToAPICommentWithReplies(ctx, reply)
 	}
 
 	apiComment := models.Comment{
@@ -762,7 +1287,6 @@ func (h *ContentHandler) convertDBCommentToAPICommentWithReplies(dbComment *dbmo
 		Replies:         replies,
 	}
 
-	// Set author info
 	apiComment.Author.PseudonymID = dbComment.PseudonymID
 	apiComment.Author.DisplayName = displayName
 

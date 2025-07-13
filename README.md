@@ -1,4 +1,5 @@
 # HashPost
+[![CI](https://github.com/matt0x6F/hashpost/actions/workflows/ci.yml/badge.svg)](https://github.com/matt0x6F/hashpost/actions/workflows/ci.yml)
 
 <div align="center">
   <img src="ui/public/logo.svg" alt="HashPost Logo" width="120" height="120">

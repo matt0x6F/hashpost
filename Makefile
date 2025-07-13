@@ -130,7 +130,7 @@ test-integration-local:
 	@docker-compose --profile test exec -T postgres-test psql -U hashpost -d postgres -c "CREATE DATABASE hashpost_test;" || true
 	@DATABASE_URL='postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable' ./scripts/migrate.sh up
 	@echo "Running integration tests..."
-	@LOG_LEVEL=$${LOG_LEVEL:-error} DATABASE_URL='postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable' go test -v -tags=integration $${TEST_PATH:-./...}
+	@LOG_LEVEL=$${LOG_LEVEL:-error} DATABASE_URL='postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable' go test -v -tags=integration $${TEST_PATH:-./...} 2>&1 | tee test_output.log; exit $${PIPESTATUS[0]}
 
 # For VSCode test runner compatibility (runs integration tests if DATABASE_URL is set)
 test-integration-vscode:

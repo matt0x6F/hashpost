@@ -9,6 +9,7 @@ import (
 // Post represents a post
 type Post struct {
 	PostID       int    `json:"post_id" example:"123"`
+	Slug         string `json:"slug" example:"my-post-title-123"`
 	Title        string `json:"title" example:"Post Title"`
 	Content      string `json:"content" example:"Post content..."`
 	PostType     string `json:"post_type" example:"text"`
@@ -110,6 +111,7 @@ const (
 // Sort can be one of: "new", "top", "old", "comments", "views"
 // Time can be one of: "hour", "day", "week", "month", "year", "all"
 type PostListInput struct {
+	middleware.AuthInput
 	SubforumName string `path:"name" example:"golang" doc:"Subforum name"`
 	Page         int    `query:"page" example:"1"`
 	Limit        int    `query:"limit" example:"25"`
@@ -121,6 +123,14 @@ type PostListInput struct {
 type PostDetailsInput struct {
 	PostID int64  `path:"post_id" example:"123" doc:"Post ID"`
 	Sort   string `query:"sort" example:"best"` // "best", "top", "new", "controversial", "old", "qa"
+}
+
+// PostBySlugInput represents post details request parameters by slug
+type PostBySlugInput struct {
+	middleware.AuthInput
+	SubforumName string `path:"subforum" example:"golang" doc:"Subforum name"`
+	Slug         string `path:"slug" example:"my-first-post-123" doc:"Post slug"`
+	Sort         string `query:"sort" example:"best"` // "best", "top", "new", "controversial", "old", "qa"
 }
 
 // PostListResponseBody represents the body of post list response
@@ -138,6 +148,7 @@ type PostDetailsResponseBody struct {
 // PostResponseBody represents the body of post creation response
 type PostResponseBody struct {
 	PostID       int    `json:"post_id" example:"124"`
+	Slug         string `json:"slug" example:"my-post-title-124"`
 	Title        string `json:"title" example:"Post Title"`
 	Content      string `json:"content" example:"Post content text..."`
 	PostType     string `json:"post_type" example:"text"`
@@ -263,6 +274,7 @@ func NewPostResponse(postID int, title, content, postType, pseudonymID, displayN
 		Status: 200,
 		Body: PostResponseBody{
 			PostID:       postID,
+			Slug:         "", // Slug will be generated on creation
 			Title:        title,
 			Content:      content,
 			PostType:     postType,
@@ -336,12 +348,210 @@ type PostCreateInput struct {
 	Body         PostCreateBody
 }
 
-// PostCreateBody is for Huma schema definition only. Actual requests should send flat JSON, not nested under 'body'.
+// PostCreateBody represents the body of a post creation request
 type PostCreateBody struct {
-	Title     string `json:"title" example:"Post Title" required:"true"`
-	Content   string `json:"content" example:"Post content text..." required:"true"`
-	PostType  string `json:"post_type" example:"text" required:"true"`
-	URL       string `json:"url,omitempty" example:"https://example.com"`
-	IsNSFW    bool   `json:"is_nsfw,omitempty" example:"false"`
-	IsSpoiler bool   `json:"is_spoiler,omitempty" example:"false"`
+	Title     string  `json:"title" doc:"Post title"`
+	Content   string  `json:"content" doc:"Post content"`
+	PostType  string  `json:"post_type" doc:"Type of post (text, link, image, etc.)"`
+	URL       *string `json:"url,omitempty" doc:"URL for link posts"`
+	IsNSFW    bool    `json:"is_nsfw" doc:"Whether the post is NSFW"`
+	IsSpoiler bool    `json:"is_spoiler" doc:"Whether the post contains spoilers"`
+	IsSticky  bool    `json:"is_sticky" doc:"Whether the post should be sticky (moderator only)"`
+	IsLocked  bool    `json:"is_locked" doc:"Whether the post should be locked (moderator only)"`
+}
+
+// Lock/Unlock Post
+// Input for locking/unlocking a post
+// PATCH /posts/{post_id}/lock
+// Body: { locked: true|false }
+type PostLockInput struct {
+	middleware.AuthInput
+	PostID int64 `path:"post_id" example:"123" doc:"Post ID"`
+	Body   struct {
+		Locked bool `json:"locked" example:"true" required:"true"`
+	}
+}
+
+// Sticky/Unsticky Post
+// PATCH /posts/{post_id}/sticky
+// Body: { sticky: true|false }
+type PostStickyInput struct {
+	middleware.AuthInput
+	PostID int64 `path:"post_id" example:"123" doc:"Post ID"`
+	Body   struct {
+		Sticky bool `json:"sticky" example:"true" required:"true"`
+	}
+}
+
+// Remove/Restore Post
+// PATCH /posts/{post_id}/remove
+// Body: { removed: true|false }
+type PostRemoveInput struct {
+	middleware.AuthInput
+	PostID int64 `path:"post_id" example:"123" doc:"Post ID"`
+	Body   struct {
+		Removed bool `json:"removed" example:"true" required:"true"`
+	}
+}
+
+// CommentEditInputBody is for Huma schema definition only. Actual requests should send flat JSON, not nested under 'body'.
+type CommentEditInputBody struct {
+	Content    string `json:"content" example:"Updated comment text..." required:"true"`
+	EditReason string `json:"edit_reason,omitempty" example:"Fixed typo"`
+}
+
+// CommentEditInput represents comment editing request (for OpenAPI schema only)
+type CommentEditInput struct {
+	middleware.AuthInput
+	CommentID int64 `path:"comment_id" example:"456" doc:"Comment ID"`
+	Body      CommentEditInputBody
+}
+
+// CommentRemoveInput represents comment removal request (for OpenAPI schema only)
+type CommentRemoveInput struct {
+	middleware.AuthInput
+	CommentID int64 `path:"comment_id" example:"456" doc:"Comment ID"`
+	Body      struct {
+		Removed bool   `json:"removed" example:"true" required:"true"`
+		Reason  string `json:"reason,omitempty" example:"Violates community guidelines"`
+	}
+}
+
+// CommentReportInputBody is for Huma schema definition only. Actual requests should send flat JSON, not nested under 'body'.
+type CommentReportInputBody struct {
+	ReportReason  string `json:"report_reason" example:"spam" required:"true"`
+	ReportDetails string `json:"report_details,omitempty" example:"This comment violates community guidelines"`
+}
+
+// CommentReportInput represents comment reporting request (for OpenAPI schema only)
+type CommentReportInput struct {
+	middleware.AuthInput
+	CommentID int64 `path:"comment_id" example:"456" doc:"Comment ID"`
+	Body      CommentReportInputBody
+}
+
+// CommentEditResponseBody represents the body of comment editing response
+type CommentEditResponseBody struct {
+	CommentID       int    `json:"comment_id" example:"456"`
+	Content         string `json:"content" example:"Updated comment text..."`
+	ParentCommentID *int   `json:"parent_comment_id" example:"123"`
+	Score           int    `json:"score" example:"5"`
+	CreatedAt       string `json:"created_at" example:"2024-01-01T15:00:00Z"`
+	EditedAt        string `json:"edited_at" example:"2024-01-01T16:00:00Z"`
+	EditReason      string `json:"edit_reason" example:"Fixed typo"`
+	IsEdited        bool   `json:"is_edited" example:"true"`
+	Author          struct {
+		PseudonymID string `json:"pseudonym_id" example:"abc123def456..."`
+		DisplayName string `json:"display_name" example:"user_display_name"`
+	} `json:"author"`
+}
+
+// CommentEditResponse represents comment editing response
+type CommentEditResponse struct {
+	Status int `json:"-" example:"200"`
+	Body   CommentEditResponseBody
+}
+
+// NewCommentEditResponse creates a new comment edit response
+func NewCommentEditResponse(commentID int, content string, parentCommentID *int, pseudonymID, displayName, editReason string, isEdited bool) *CommentEditResponse {
+	now := time.Now()
+
+	response := &CommentEditResponse{
+		Status: 200,
+		Body: CommentEditResponseBody{
+			CommentID:       commentID,
+			Content:         content,
+			ParentCommentID: parentCommentID,
+			Score:           0,                                                  // Will be updated by vote system
+			CreatedAt:       now.Add(-time.Hour).Format("2006-01-02T15:04:05Z"), // Mock creation time
+			EditedAt:        now.Format("2006-01-02T15:04:05Z"),
+			EditReason:      editReason,
+			IsEdited:        isEdited,
+		},
+	}
+
+	response.Body.Author.PseudonymID = pseudonymID
+	response.Body.Author.DisplayName = displayName
+
+	return response
+}
+
+// NewCommentRemoveResponse creates a new comment removal response
+func NewCommentRemoveResponse(commentID int, removed bool, removalReason, removedByPseudonymID, removedByDisplayName string) *CommentRemoveResponse {
+	now := time.Now()
+
+	response := &CommentRemoveResponse{
+		Status: 200,
+		Body: CommentRemoveResponseBody{
+			CommentID:     commentID,
+			Removed:       removed,
+			RemovalReason: removalReason,
+			RemovedAt:     now.Format("2006-01-02T15:04:05Z"),
+		},
+	}
+
+	response.Body.RemovedBy.PseudonymID = removedByPseudonymID
+	response.Body.RemovedBy.DisplayName = removedByDisplayName
+
+	return response
+}
+
+// NewCommentReportResponse creates a new comment report response
+func NewCommentReportResponse(reportID, commentID int, reportReason, reportDetails, reporterPseudonymID, reporterDisplayName string) *CommentReportResponse {
+	now := time.Now()
+
+	response := &CommentReportResponse{
+		Status: 200,
+		Body: CommentReportResponseBody{
+			ReportID:      reportID,
+			CommentID:     commentID,
+			ReportReason:  reportReason,
+			ReportDetails: reportDetails,
+			Status:        "pending",
+			CreatedAt:     now.Format("2006-01-02T15:04:05Z"),
+		},
+	}
+
+	response.Body.Reporter.PseudonymID = reporterPseudonymID
+	response.Body.Reporter.DisplayName = reporterDisplayName
+
+	return response
+}
+
+// CommentRemoveResponseBody represents the body of comment removal response
+type CommentRemoveResponseBody struct {
+	CommentID     int    `json:"comment_id" example:"456"`
+	Removed       bool   `json:"removed" example:"true"`
+	RemovalReason string `json:"removal_reason" example:"Violates community guidelines"`
+	RemovedAt     string `json:"removed_at" example:"2024-01-01T17:00:00Z"`
+	RemovedBy     struct {
+		PseudonymID string `json:"pseudonym_id" example:"mod_pseudonym_id"`
+		DisplayName string `json:"display_name" example:"moderator_name"`
+	} `json:"removed_by"`
+}
+
+// CommentRemoveResponse represents comment removal response
+type CommentRemoveResponse struct {
+	Status int `json:"-" example:"200"`
+	Body   CommentRemoveResponseBody
+}
+
+// CommentReportResponseBody represents the body of comment reporting response
+type CommentReportResponseBody struct {
+	ReportID      int    `json:"report_id" example:"789"`
+	CommentID     int    `json:"comment_id" example:"456"`
+	ReportReason  string `json:"report_reason" example:"spam"`
+	ReportDetails string `json:"report_details" example:"This comment violates community guidelines"`
+	Status        string `json:"status" example:"pending"`
+	CreatedAt     string `json:"created_at" example:"2024-01-01T18:00:00Z"`
+	Reporter      struct {
+		PseudonymID string `json:"pseudonym_id" example:"reporter_pseudonym_id"`
+		DisplayName string `json:"display_name" example:"reporter_name"`
+	} `json:"reporter"`
+}
+
+// CommentReportResponse represents comment reporting response
+type CommentReportResponse struct {
+	Status int `json:"-" example:"200"`
+	Body   CommentReportResponseBody
 }

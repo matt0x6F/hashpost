@@ -42,7 +42,17 @@ func TestCommentWorkflow(t *testing.T) {
 		handler := handlers.NewContentHandler(suite.DB, suite.DB.DB, suite.IBESystem, suite.IdentityMappingDAO, suite.UserDAO)
 
 		// Test: Get post details and verify comment appears
-		ctx := context.Background()
+		// Create context with user information
+		userCtx := &middleware.UserContext{
+			UserID:            testUser.UserID,
+			Email:             testUser.Email,
+			ActivePseudonymID: testUser.PseudonymID,
+			DisplayName:       testUser.DisplayName,
+			Roles:             testUser.Roles,
+			Capabilities:      testUser.Capabilities,
+		}
+		ctx := middleware.SetUserContext(context.Background(), userCtx)
+
 		input := &models.PostDetailsInput{
 			PostID: testPost.PostID,
 			Sort:   "best",
@@ -92,7 +102,17 @@ func TestCommentWorkflow(t *testing.T) {
 		handler := handlers.NewContentHandler(suite.DB, suite.DB.DB, suite.IBESystem, suite.IdentityMappingDAO, suite.UserDAO)
 
 		// Get post details
-		ctx := context.Background()
+		// Create context with user information
+		userCtx := &middleware.UserContext{
+			UserID:            testUser.UserID,
+			Email:             testUser.Email,
+			ActivePseudonymID: testUser.PseudonymID,
+			DisplayName:       testUser.DisplayName,
+			Roles:             testUser.Roles,
+			Capabilities:      testUser.Capabilities,
+		}
+		ctx := middleware.SetUserContext(context.Background(), userCtx)
+
 		input := &models.PostDetailsInput{
 			PostID: testPost.PostID,
 			Sort:   "best",
@@ -139,7 +159,17 @@ func TestCommentWorkflow(t *testing.T) {
 		handler := handlers.NewContentHandler(suite.DB, suite.DB.DB, suite.IBESystem, suite.IdentityMappingDAO, suite.UserDAO)
 
 		// Test comment creation via handler
-		ctx := context.Background()
+		// Create context with user information
+		userCtx := &middleware.UserContext{
+			UserID:            testUser.UserID,
+			Email:             testUser.Email,
+			ActivePseudonymID: testUser.PseudonymID,
+			DisplayName:       testUser.DisplayName,
+			Roles:             testUser.Roles,
+			Capabilities:      testUser.Capabilities,
+		}
+		ctx := middleware.SetUserContext(context.Background(), userCtx)
+
 		commentInput := &models.CommentInput{
 			PostID: testPost.PostID,
 			Body: models.CommentInputBody{
@@ -149,14 +179,6 @@ func TestCommentWorkflow(t *testing.T) {
 		}
 
 		// Add user context to AuthInput field by generating a JWT
-		userCtx := &middleware.UserContext{
-			UserID:            testUser.UserID,
-			Email:             testUser.Email,
-			ActivePseudonymID: testUser.PseudonymID,
-			DisplayName:       testUser.DisplayName,
-			Roles:             testUser.Roles,
-			Capabilities:      testUser.Capabilities,
-		}
 		jwt, err := middleware.GenerateJWT(userCtx, suite.Config.JWT.Secret, 24*time.Hour)
 		require.NoError(t, err)
 		commentInput.AuthInput.AccessToken = jwt

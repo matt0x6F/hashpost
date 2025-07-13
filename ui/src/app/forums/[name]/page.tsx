@@ -9,7 +9,10 @@ import { getApi } from '@/lib/api-client';
 import { SubforumsApi } from '@/generated/api/src/apis/SubforumsApi';
 import type { SubforumDetailsResponseBody } from '@/generated/api/src/models/SubforumDetailsResponseBody';
 import type { SubforumModerator } from '@/generated/api/src/models/SubforumModerator';
+import { PostList } from '@/components/PostList';
 import { toast } from 'sonner';
+import { useAuth } from '@/lib/auth-context';
+import { authenticateUserForSubforum } from '@/lib/auth-utils';
 
 export default function ForumPage() {
   const params = useParams();
@@ -17,12 +20,29 @@ export default function ForumPage() {
   const [forum, setForum] = useState<SubforumDetailsResponseBody | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { login } = useAuth();
 
   useEffect(() => {
     if (forumName) {
       loadForum();
+      // Load subforum-specific user context
+      loadSubforumUserContext();
     }
   }, [forumName]);
+
+  const loadSubforumUserContext = async () => {
+    try {
+      const userData = await authenticateUserForSubforum(forumName);
+      console.log('[ForumPage] Subforum user data:', userData);
+      if (userData) {
+        login(userData);
+        console.log('[ForumPage] User context updated with subforum capabilities');
+      }
+    } catch (error) {
+      console.error('Error loading subforum user context:', error);
+      // Don't show error toast for this - it's not critical
+    }
+  };
 
   const loadForum = async () => {
     setIsLoading(true);
@@ -43,6 +63,11 @@ export default function ForumPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handlePostUpdated = (postId: number) => {
+    // Optionally refresh forum data when a post is updated
+    console.log('Post updated:', postId);
   };
 
   if (isLoading) {
@@ -107,12 +132,12 @@ export default function ForumPage() {
             <div className="flex items-center gap-2 mb-2">
               <h1 className="text-3xl font-bold">h/{forum.name}</h1>
               {forum.isPrivate && (
-                <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
+                <span className="text-xs bg-secondary text-secondary-foreground px-2 py-1 rounded">
                   Private
                 </span>
               )}
               {forum.isNsfw && (
-                <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">
+                <span className="text-xs bg-destructive/10 text-destructive px-2 py-1 rounded">
                   NSFW
                 </span>
               )}
@@ -127,11 +152,11 @@ export default function ForumPage() {
             </div>
           </div>
 
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">
-              Posts and content will be displayed here.
-            </p>
-          </div>
+          {/* Posts List */}
+          <PostList 
+            subforumName={forum.name} 
+            onPostUpdated={handlePostUpdated}
+          />
         </div>
 
         {/* Sidebar - fixed on large screens, hugs right edge, dark background */}

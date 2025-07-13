@@ -290,6 +290,7 @@ var ColumnNames = struct {
 		RemovalReason:        "removal_reason",
 		RemovedAt:            "removed_at",
 		PseudonymID:          "pseudonym_id",
+		Slug:                 "slug",
 	},
 	Pseudonyms: pseudonymColumnNames{
 		PseudonymID:         "pseudonym_id",

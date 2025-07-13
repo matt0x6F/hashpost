@@ -30,6 +30,7 @@ type AuthHandler struct {
 	securePseudonymDAO *dao.SecurePseudonymDAO
 	identityMappingDAO *dao.IdentityMappingDAO
 	ibeSystem          *ibe.IBESystem
+	subforumDAO        *dao.SubforumDAO
 }
 
 // NewAuthHandler creates a new authentication handler
@@ -40,6 +41,7 @@ func NewAuthHandler(cfg *config.Config, db bob.Executor, rawDB *sql.DB) *AuthHan
 	roleKeyDAO := dao.NewRoleKeyDAO(db)
 	userBlocksDAO := dao.NewUserBlocksDAO(db)
 	securePseudonymDAO := dao.NewSecurePseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
+	subforumDAO := dao.NewSubforumDAO(db)
 
 	return &AuthHandler{
 		config:             cfg,
@@ -48,6 +50,7 @@ func NewAuthHandler(cfg *config.Config, db bob.Executor, rawDB *sql.DB) *AuthHan
 		securePseudonymDAO: securePseudonymDAO,
 		identityMappingDAO: identityMappingDAO,
 		ibeSystem:          ibeSystem,
+		subforumDAO:        subforumDAO,
 	}
 }
 
@@ -58,6 +61,7 @@ func NewAuthHandlerWithIBE(cfg *config.Config, db bob.Executor, rawDB *sql.DB, i
 	roleKeyDAO := dao.NewRoleKeyDAO(db)
 	userBlocksDAO := dao.NewUserBlocksDAO(db)
 	securePseudonymDAO := dao.NewSecurePseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
+	subforumDAO := dao.NewSubforumDAO(db)
 
 	return &AuthHandler{
 		config:             cfg,
@@ -66,6 +70,7 @@ func NewAuthHandlerWithIBE(cfg *config.Config, db bob.Executor, rawDB *sql.DB, i
 		securePseudonymDAO: securePseudonymDAO,
 		identityMappingDAO: identityMappingDAO,
 		ibeSystem:          ibeSystem,
+		subforumDAO:        subforumDAO,
 	}
 }
 
@@ -711,6 +716,178 @@ func (h *AuthHandler) GetCurrentUserSession(ctx context.Context, input *middlewa
 		userCtx.Email,
 		userCtx.Roles,
 		userCtx.Capabilities,
+		activePseudonymID,
+		displayName,
+		pseudonymInfos,
+	), nil
+}
+
+// GetCurrentUserSessionForSubforum handles getting the current user's session data with subforum-specific capabilities
+func (h *AuthHandler) GetCurrentUserSessionForSubforum(ctx context.Context, input *struct {
+	middleware.AuthInput
+	SubforumName string `path:"subforum_name"`
+}) (*models.CurrentUserSessionResponse, error) {
+	log.Info().
+		Str("endpoint", "auth/me/subforum").
+		Str("component", "auth_handler").
+		Str("subforum_name", input.SubforumName).
+		Msg("Processing get current user session for subforum request")
+
+	// Extract user context from the authenticated request
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+	if err != nil {
+		log.Warn().Err(err).Str("endpoint", "auth/me/subforum").Msg("Authentication required for session access")
+		return nil, huma.Error401Unauthorized("Authentication required")
+	}
+
+	userID := int(userCtx.UserID)
+	log.Info().
+		Int("user_id", userID).
+		Str("email", userCtx.Email).
+		Str("subforum_name", input.SubforumName).
+		Msg("Getting current user session data for subforum")
+
+	// Get user from database to ensure they still exist and are active
+	user, err := h.userDAO.GetUserByID(ctx, int64(userID))
+	if err != nil {
+		log.Error().Err(err).Int64("user_id", int64(userID)).Msg("Failed to get user from database")
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	if user == nil {
+		log.Warn().Int64("user_id", int64(userID)).Msg("User not found")
+		return nil, huma.Error404NotFound("User not found")
+	}
+
+	// Check if user is active
+	if !user.IsActive.Valid || !user.IsActive.V {
+		log.Warn().Int64("user_id", int64(userID)).Msg("User account is inactive")
+		return nil, huma.Error403Forbidden("Account inactive")
+	}
+
+	// Check if user is suspended
+	if user.IsSuspended.Valid && user.IsSuspended.V {
+		log.Warn().Int64("user_id", int64(userID)).Msg("User account is suspended")
+		return nil, huma.Error403Forbidden("Account suspended")
+	}
+
+	// Get user roles and capabilities from database
+	roles := []string{"user"} // Default role
+
+	// If user has roles stored in database, use those
+	if user.Roles.Valid {
+		rawValue, err := user.Roles.V.Value()
+		if err == nil {
+			var userRoles []string
+			if err := json.Unmarshal(rawValue.([]byte), &userRoles); err == nil && len(userRoles) > 0 {
+				roles = userRoles
+			}
+		}
+	}
+
+	// Get subforum-specific capabilities
+	subforumCapabilities := []string{}
+
+	// Get subforum by name
+	subforum, err := h.subforumDAO.GetSubforumByName(ctx, input.SubforumName)
+	if err == nil && subforum != nil {
+		// Check if user has moderator capabilities for this subforum
+		permissionDAO := dao.NewPermissionDAO(h.db)
+		subforumCaps, err := permissionDAO.GetUserSubforumCapabilities(ctx, int64(userID), subforum.SubforumID)
+		if err == nil {
+			subforumCapabilities = subforumCaps
+		}
+	}
+
+	// Combine platform-wide capabilities with subforum-specific capabilities
+	allCapabilities := append(userCtx.Capabilities, subforumCapabilities...)
+
+	// Get user's pseudonyms for the response
+	// Use IBE-based correlation to get user's pseudonyms
+	// Use the user's actual roles, not hardcoded "user"
+	primaryRole := roles[0] // Use the first role for authentication
+	pseudonyms, err := h.securePseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, primaryRole, "authentication")
+	if err != nil {
+		log.Error().
+			Err(err).
+			Int("user_id", userID).
+			Msg("Failed to get user pseudonyms")
+		return nil, fmt.Errorf("failed to get user pseudonyms: %w", err)
+	}
+
+	// Convert to API models
+	pseudonymInfos := make([]models.PseudonymInfo, len(pseudonyms))
+	for i, p := range pseudonyms {
+		karmaScore := 0
+		if p.KarmaScore.Valid {
+			karmaScore = int(p.KarmaScore.V)
+		}
+
+		createdAt := time.Now().Format(time.RFC3339)
+		if p.CreatedAt.Valid {
+			createdAt = p.CreatedAt.V.Format(time.RFC3339)
+		}
+
+		lastActiveAt := time.Now().Format(time.RFC3339)
+		if p.LastActiveAt.Valid {
+			lastActiveAt = p.LastActiveAt.V.Format(time.RFC3339)
+		}
+
+		isActive := true
+		if p.IsActive.Valid {
+			isActive = p.IsActive.V
+		}
+
+		pseudonymInfos[i] = models.PseudonymInfo{
+			PseudonymID:  p.PseudonymID,
+			DisplayName:  p.DisplayName,
+			KarmaScore:   karmaScore,
+			CreatedAt:    createdAt,
+			LastActiveAt: lastActiveAt,
+			IsActive:     isActive,
+		}
+	}
+
+	// Get active pseudonym (use the first one for now, or the one from JWT if available)
+	var activePseudonymID string
+	var displayName string
+
+	if userCtx.ActivePseudonymID != "" {
+		// Use the pseudonym ID from the JWT token
+		activePseudonymID = userCtx.ActivePseudonymID
+		// Find the display name for this pseudonym
+		for _, p := range pseudonymInfos {
+			if p.PseudonymID == activePseudonymID {
+				displayName = p.DisplayName
+				break
+			}
+		}
+	} else if len(pseudonyms) > 0 {
+		// Fallback to the first pseudonym
+		activePseudonymID = pseudonyms[0].PseudonymID
+		displayName = pseudonyms[0].DisplayName
+	}
+
+	// Update last active timestamp
+	err = h.userDAO.UpdateLastActive(ctx, int64(userID))
+	if err != nil {
+		log.Error().Err(err).Int64("user_id", int64(userID)).Msg("Failed to update last active timestamp")
+		// Don't fail the request for this error
+	}
+
+	log.Info().
+		Int("user_id", userID).
+		Str("email", userCtx.Email).
+		Str("active_pseudonym_id", activePseudonymID).
+		Str("subforum_name", input.SubforumName).
+		Int("subforum_capabilities", len(subforumCapabilities)).
+		Msg("Current user session data for subforum retrieved successfully")
+
+	return models.NewCurrentUserSessionResponse(
+		userID,
+		userCtx.Email,
+		userCtx.Roles,
+		allCapabilities, // Include subforum-specific capabilities
 		activePseudonymID,
 		displayName,
 		pseudonymInfos,
