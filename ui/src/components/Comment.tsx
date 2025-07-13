@@ -2,36 +2,42 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/shadcn/button';
+import { Textarea } from '@/components/shadcn/textarea';
+import { 
+  MessageSquare, 
+  Calendar, 
+  User, 
+  MoreHorizontal,
+  Edit,
+  Trash2,
+  RotateCcw,
+  Flag,
+  Reply
+} from 'lucide-react';
+import VoteButtons from '@/components/VoteButtons';
+import { Comment as CommentType } from '@/generated/api/src/models';
 import { useAuth } from '@/lib/auth-context';
+import { toast } from 'sonner';
 import { getApi } from '@/lib/api-client';
 import { ContentApi } from '@/generated/api/src/apis/ContentApi';
-import { toast } from 'sonner';
-import { 
-  Reply,
-  MoreHorizontal
-} from 'lucide-react';
+import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 import CommentForm from './CommentForm';
-import type { Comment } from '@/generated/api/src/models';
-import VoteButtons from './VoteButtons';
 
 interface CommentProps {
-  comment: Comment;
+  comment: CommentType;
   postId: number;
   onCommentUpdated: () => void;
-  onCommentVoted?: (commentId: number, voteValue: number) => void;
-  depth?: number;
+  onCommentVoted: (commentId: number, voteValue: number) => void;
 }
 
-export default function Comment({ 
-  comment, 
-  postId, 
-  onCommentUpdated, 
-  onCommentVoted,
-  depth = 0 
-}: CommentProps) {
+export default function Comment({ comment, postId, onCommentUpdated, onCommentVoted }: CommentProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(comment.content);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [showReplyForm, setShowReplyForm] = useState(false);
-  const [isVoting, setIsVoting] = useState(false);
-  const { user, isAuthenticated } = useAuth();
+  const { user } = useAuth();
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -43,104 +49,321 @@ export default function Comment({
     });
   };
 
-  const handleVote = async (voteValue: number) => {
-    if (!isAuthenticated) {
-      toast.error('Please log in to vote');
+  // Check if current user is the comment author
+  const isCommentAuthor = user?.activePseudonymId && comment.author?.pseudonymId && 
+                         (user.activePseudonymId === comment.author.pseudonymId);
+  
+  // Check if user is a moderator
+  const isModerator = user?.roles?.includes('moderator') || 
+                     user?.roles?.includes('subforum_owner') || 
+                     user?.roles?.includes('platform_admin') || 
+                     user?.roles?.includes('trust_safety') || 
+                     user?.roles?.includes('legal_team') ||
+                     user?.capabilities?.includes('moderate_content');
+
+  // Check if comment is deleted by user
+  const isDeletedByUser = comment.isDeleted;
+
+  // Disable actions for deleted comments
+  const isActionDisabled = isSubmitting || isDeleting || isDeletedByUser;
+
+  const handleEdit = async () => {
+    if (!editContent.trim()) {
+      toast.error('Comment cannot be empty');
       return;
     }
 
-    setIsVoting(true);
-    
+    setIsSubmitting(true);
     try {
       const contentApi = getApi(ContentApi);
-      await contentApi.voteOnComment(comment.commentId, { voteValue });
-      
-      // Use the new onCommentVoted handler if available, otherwise fall back to onCommentUpdated
-      if (onCommentVoted) {
-        onCommentVoted(comment.commentId, voteValue);
-      } else {
-        onCommentUpdated();
-      }
+      await contentApi.editComment(comment.commentId, { content: editContent });
+      setIsEditing(false);
+      onCommentUpdated();
+      toast.success('Comment updated');
     } catch (error: unknown) {
-      console.error('Error voting on comment:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to vote';
-      toast.error('Failed to vote', {
-        description: errorMessage,
-      });
+      console.error('Error editing comment:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to edit comment';
+      toast.error('Failed to edit comment', { description: errorMessage });
     } finally {
-      setIsVoting(false);
+      setIsSubmitting(false);
     }
   };
 
-  const handleReplySubmitted = () => {
-    setShowReplyForm(false);
-    onCommentUpdated();
+  const handleDelete = async () => {
+    if (!confirm('Are you sure you want to delete this comment? This action cannot be undone.')) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const contentApi = getApi(ContentApi);
+      await contentApi.deleteComment(comment.commentId, { reason: 'User requested deletion' });
+      onCommentUpdated();
+      toast.success('Comment deleted');
+    } catch (error: unknown) {
+      console.error('Error deleting comment:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete comment';
+      toast.error('Failed to delete comment', { description: errorMessage });
+    } finally {
+      setIsDeleting(false);
+      setShowDropdown(false);
+    }
   };
 
-  const isOwnComment = user?.activePseudonymId === comment.author.pseudonymId;
-  const canEdit = isOwnComment;
-  const canRemove = isOwnComment || user?.roles?.includes('moderator');
+  const handleModeratorAction = async (action: string, value: boolean) => {
+    if (!isModerator) {
+      toast.error('You do not have permission to perform this action');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const contentApi = getApi(ContentApi);
+      switch (action) {
+        case 'remove':
+          await contentApi.removeComment(comment.commentId, { removed: value });
+          break;
+      }
+      onCommentUpdated();
+      toast.success(`Comment ${action === 'remove' ? (value ? 'removed' : 'restored') : 'updated'}`);
+    } catch (error: unknown) {
+      console.error('Error performing moderator action:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to perform action';
+      toast.error('Failed to perform action', { description: errorMessage });
+    } finally {
+      setIsSubmitting(false);
+      setShowDropdown(false);
+    }
+  };
+
+  const handleReport = async () => {
+    if (isCommentAuthor) {
+      toast.error('You cannot report your own comment');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const contentApi = getApi(ContentApi);
+      await contentApi.reportComment(comment.commentId, { 
+        reportReason: 'User reported comment',
+        reportDetails: 'User requested moderation review'
+      });
+      toast.success('Comment reported');
+    } catch (error: unknown) {
+      console.error('Error reporting comment:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to report comment';
+      toast.error('Failed to report comment', { description: errorMessage });
+    } finally {
+      setIsSubmitting(false);
+      setShowDropdown(false);
+    }
+  };
+
+  // If comment is deleted by user, show minimal information
+  if (isDeletedByUser) {
+    return (
+      <div className="bg-muted/50 border border-border rounded-lg p-4 mb-4">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+          <User className="w-4 h-4" />
+          <span>Deleted by user</span>
+          {comment.deletedAt && (
+            <>
+              <span>•</span>
+              <Calendar className="w-4 h-4" />
+              <span>{formatDate(comment.deletedAt)}</span>
+            </>
+          )}
+        </div>
+        <div className="text-sm text-muted-foreground italic">
+          This comment has been deleted by the user.
+        </div>
+        
+        {/* Show replies even for deleted comments */}
+        {comment.replies && comment.replies.length > 0 && (
+          <div className="mt-4 space-y-4">
+            {comment.replies.map((reply) => (
+              <Comment
+                key={reply.commentId}
+                comment={reply}
+                postId={postId}
+                onCommentUpdated={onCommentUpdated}
+                onCommentVoted={onCommentVoted}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
-    <div className={`${depth > 0 ? 'ml-6 border-l-2 border-border pl-4' : ''}`}>
-      <div className="bg-card border border-border rounded-lg p-4 mb-4">
-        <div className="flex items-start gap-3">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-sm font-medium">{comment.author.displayName}</span>
-              <span className="text-xs text-muted-foreground">
-                {formatDate(comment.createdAt)}
-              </span>
-            </div>
-            
-            <p className="text-sm text-foreground whitespace-pre-wrap mb-3">
-              {comment.content}
-            </p>
-            
-            <div className="flex items-center gap-4">
-              <VoteButtons
-                score={comment.score}
-                userVote={comment.userVote}
-                onVote={handleVote}
-                disabled={isVoting}
-                size="sm"
-              />
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="h-6 px-2"
-                onClick={() => setShowReplyForm(!showReplyForm)}
-              >
-                <Reply className="w-3 h-3 mr-1" />
-                Reply
-              </Button>
-              
-              {(canEdit || canRemove) && (
-                <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="sm" className="h-6 px-2">
-                    <MoreHorizontal className="w-3 h-3" />
-                  </Button>
+    <div className="bg-card border border-border rounded-lg p-4 mb-4">
+      <div className="flex items-start justify-between mb-2">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <User className="w-4 h-4" />
+          <span>{comment.author?.displayName || 'Unknown'}</span>
+          <span>•</span>
+          <Calendar className="w-4 h-4" />
+          <span>{formatDate(comment.createdAt)}</span>
+        </div>
+        
+        {(isCommentAuthor || isModerator) && !isDeletedByUser && (
+          <div className="relative">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowDropdown(!showDropdown)}
+              disabled={isActionDisabled}
+            >
+              <MoreHorizontal className="w-4 h-4" />
+            </Button>
+            {showDropdown && (
+              <div className="absolute right-0 top-full mt-1 bg-popover border border-border rounded-md shadow-lg z-10 min-w-48">
+                <div className="p-2 space-y-1">
+                  {isCommentAuthor && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start"
+                        onClick={() => {
+                          setIsEditing(true);
+                          setShowDropdown(false);
+                        }}
+                        disabled={isSubmitting}
+                      >
+                        <Edit className="w-4 h-4 mr-2" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start text-destructive hover:text-destructive"
+                        onClick={handleDelete}
+                        disabled={isDeleting}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete
+                      </Button>
+                    </>
+                  )}
+                  {isCommentAuthor && isModerator && <hr className="my-2 border-border" />}
+                  {isModerator && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start text-destructive hover:text-destructive"
+                      onClick={() => handleModeratorAction('remove', true)}
+                      disabled={isSubmitting}
+                    >
+                      <RotateCcw className="w-4 h-4 mr-2" />
+                      Remove Comment
+                    </Button>
+                  )}
+                  {!isCommentAuthor && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start"
+                      onClick={handleReport}
+                      disabled={isSubmitting}
+                    >
+                      <Flag className="w-4 h-4 mr-2" />
+                      Report
+                    </Button>
+                  )}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {isEditing ? (
+        <div className="space-y-2">
+          <Textarea
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            placeholder="Edit your comment..."
+            className="min-h-[100px]"
+          />
+          <div className="flex gap-2">
+            <Button
+              onClick={handleEdit}
+              disabled={isSubmitting || !editContent.trim()}
+              size="sm"
+            >
+              Save
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsEditing(false);
+                setEditContent(comment.content);
+              }}
+              disabled={isSubmitting}
+              size="sm"
+            >
+              Cancel
+            </Button>
           </div>
         </div>
-      </div>
-      
-      {showReplyForm && (
-        <CommentForm
-          postId={postId}
-          parentCommentId={comment.commentId}
-          onCommentSubmitted={handleReplySubmitted}
-          onCancel={() => setShowReplyForm(false)}
-          placeholder={`Replying to ${comment.author.displayName}...`}
-          isReply={true}
-        />
+      ) : (
+        <div className="prose prose-sm max-w-none mb-4">
+          <MarkdownRenderer content={comment.content} />
+        </div>
       )}
-      
-      {/* Render replies */}
+
+      <div className="flex items-center justify-between">
+        <VoteButtons
+          score={comment.score}
+          userVote={comment.userVote}
+          onVote={(voteValue) => onCommentVoted(comment.commentId, voteValue)}
+          disabled={isActionDisabled}
+          size="sm"
+        />
+        
+        {!isDeletedByUser && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowReplyForm(!showReplyForm)}
+              disabled={isActionDisabled}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <Reply className="w-4 h-4 mr-1" />
+              Reply
+            </Button>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <MessageSquare className="w-4 h-4" />
+              <span>{comment.replies?.length || 0} replies</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Reply form */}
+      {showReplyForm && (
+        <div className="mt-4">
+          <CommentForm
+            postId={postId}
+            parentCommentId={comment.commentId}
+            onCommentSubmitted={() => {
+              onCommentUpdated();
+              setShowReplyForm(false);
+            }}
+            onCancel={() => setShowReplyForm(false)}
+            placeholder="Write a reply..."
+            isReply={true}
+          />
+        </div>
+      )}
+
+      {/* Nested replies */}
       {comment.replies && comment.replies.length > 0 && (
-        <div className="space-y-2">
+        <div className="mt-4 space-y-4">
           {comment.replies.map((reply) => (
             <Comment
               key={reply.commentId}
@@ -148,7 +371,6 @@ export default function Comment({
               postId={postId}
               onCommentUpdated={onCommentUpdated}
               onCommentVoted={onCommentVoted}
-              depth={depth + 1}
             />
           ))}
         </div>

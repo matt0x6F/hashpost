@@ -24,32 +24,35 @@ import (
 
 // Post is an object representing the database table.
 type Post struct {
-	PostID               int64               `db:"post_id,pk" scan:"post_id" json:"post_id"`
-	SubforumID           int32               `db:"subforum_id" scan:"subforum_id" json:"subforum_id"`
-	Title                string              `db:"title" scan:"title" json:"title"`
-	Content              sql.Null[string]    `db:"content" scan:"content" json:"content"`
-	PostType             string              `db:"post_type" scan:"post_type" json:"post_type"`
-	URL                  sql.Null[string]    `db:"url" scan:"url" json:"url"`
-	IsSelfPost           sql.Null[bool]      `db:"is_self_post" scan:"is_self_post" json:"is_self_post"`
-	IsNSFW               sql.Null[bool]      `db:"is_nsfw" scan:"is_nsfw" json:"is_nsfw"`
-	IsSpoiler            sql.Null[bool]      `db:"is_spoiler" scan:"is_spoiler" json:"is_spoiler"`
-	IsLocked             sql.Null[bool]      `db:"is_locked" scan:"is_locked" json:"is_locked"`
-	IsStickied           sql.Null[bool]      `db:"is_stickied" scan:"is_stickied" json:"is_stickied"`
-	IsArchived           sql.Null[bool]      `db:"is_archived" scan:"is_archived" json:"is_archived"`
-	CreatedAt            sql.Null[time.Time] `db:"created_at" scan:"created_at" json:"created_at"`
-	UpdatedAt            sql.Null[time.Time] `db:"updated_at" scan:"updated_at" json:"updated_at"`
-	Score                sql.Null[int32]     `db:"score" scan:"score" json:"score"`
-	Upvotes              sql.Null[int32]     `db:"upvotes" scan:"upvotes" json:"upvotes"`
-	Downvotes            sql.Null[int32]     `db:"downvotes" scan:"downvotes" json:"downvotes"`
-	CommentCount         sql.Null[int32]     `db:"comment_count" scan:"comment_count" json:"comment_count"`
-	ViewCount            sql.Null[int32]     `db:"view_count" scan:"view_count" json:"view_count"`
-	IsRemoved            sql.Null[bool]      `db:"is_removed" scan:"is_removed" json:"is_removed"`
-	RemovedByUserID      sql.Null[int64]     `db:"removed_by_user_id" scan:"removed_by_user_id" json:"removed_by_user_id"`
-	RemovedByPseudonymID sql.Null[string]    `db:"removed_by_pseudonym_id" scan:"removed_by_pseudonym_id" json:"removed_by_pseudonym_id"`
-	RemovalReason        sql.Null[string]    `db:"removal_reason" scan:"removal_reason" json:"removal_reason"`
-	RemovedAt            sql.Null[time.Time] `db:"removed_at" scan:"removed_at" json:"removed_at"`
-	PseudonymID          string              `db:"pseudonym_id" scan:"pseudonym_id" json:"pseudonym_id"`
-	Slug                 sql.Null[string]    `db:"slug" scan:"slug" json:"slug"`
+	PostID                   int64               `db:"post_id,pk" scan:"post_id" json:"post_id"`
+	SubforumID               int32               `db:"subforum_id" scan:"subforum_id" json:"subforum_id"`
+	Title                    string              `db:"title" scan:"title" json:"title"`
+	Content                  sql.Null[string]    `db:"content" scan:"content" json:"content"`
+	PostType                 string              `db:"post_type" scan:"post_type" json:"post_type"`
+	URL                      sql.Null[string]    `db:"url" scan:"url" json:"url"`
+	IsSelfPost               sql.Null[bool]      `db:"is_self_post" scan:"is_self_post" json:"is_self_post"`
+	IsNSFW                   sql.Null[bool]      `db:"is_nsfw" scan:"is_nsfw" json:"is_nsfw"`
+	IsSpoiler                sql.Null[bool]      `db:"is_spoiler" scan:"is_spoiler" json:"is_spoiler"`
+	IsLocked                 sql.Null[bool]      `db:"is_locked" scan:"is_locked" json:"is_locked"`
+	IsStickied               sql.Null[bool]      `db:"is_stickied" scan:"is_stickied" json:"is_stickied"`
+	IsArchived               sql.Null[bool]      `db:"is_archived" scan:"is_archived" json:"is_archived"`
+	CreatedAt                sql.Null[time.Time] `db:"created_at" scan:"created_at" json:"created_at"`
+	UpdatedAt                sql.Null[time.Time] `db:"updated_at" scan:"updated_at" json:"updated_at"`
+	Score                    sql.Null[int32]     `db:"score" scan:"score" json:"score"`
+	Upvotes                  sql.Null[int32]     `db:"upvotes" scan:"upvotes" json:"upvotes"`
+	Downvotes                sql.Null[int32]     `db:"downvotes" scan:"downvotes" json:"downvotes"`
+	CommentCount             sql.Null[int32]     `db:"comment_count" scan:"comment_count" json:"comment_count"`
+	ViewCount                sql.Null[int32]     `db:"view_count" scan:"view_count" json:"view_count"`
+	IsRemoved                sql.Null[bool]      `db:"is_removed" scan:"is_removed" json:"is_removed"`
+	RemovedByPseudonymID     sql.Null[string]    `db:"removed_by_pseudonym_id" scan:"removed_by_pseudonym_id" json:"removed_by_pseudonym_id"`
+	RemovalReason            sql.Null[string]    `db:"removal_reason" scan:"removal_reason" json:"removal_reason"`
+	RemovedAt                sql.Null[time.Time] `db:"removed_at" scan:"removed_at" json:"removed_at"`
+	PseudonymID              string              `db:"pseudonym_id" scan:"pseudonym_id" json:"pseudonym_id"`
+	Slug                     sql.Null[string]    `db:"slug" scan:"slug" json:"slug"`
+	IsDeleted                sql.Null[bool]      `db:"is_deleted" scan:"is_deleted" json:"is_deleted"`
+	DeletedByPseudonymID     sql.Null[string]    `db:"deleted_by_pseudonym_id" scan:"deleted_by_pseudonym_id" json:"deleted_by_pseudonym_id"`
+	DeletedByPseudonymAt     sql.Null[time.Time] `db:"deleted_by_pseudonym_at" scan:"deleted_by_pseudonym_at" json:"deleted_by_pseudonym_at"`
+	DeletedByPseudonymReason sql.Null[string]    `db:"deleted_by_pseudonym_reason" scan:"deleted_by_pseudonym_reason" json:"deleted_by_pseudonym_reason"`
 
 	R postR `db:"-" scan:"rel" json:"rel"`
 }
@@ -69,71 +72,77 @@ type postR struct {
 	Comments                    CommentSlice         `scan:"Comments" json:"Comments"`                                       // comments.comments_post_id_fkey
 	MediaAttachments            MediaAttachmentSlice `scan:"MediaAttachments" json:"MediaAttachments"`                       // media_attachments.media_attachments_post_id_fkey
 	Poll                        *Poll                `scan:"Poll" json:"Poll"`                                               // polls.polls_post_id_fkey
+	DeletedByPseudonymPseudonym *Pseudonym           `scan:"DeletedByPseudonymPseudonym" json:"DeletedByPseudonymPseudonym"` // posts.fk_posts_deleted_by_pseudonym
 	Pseudonym                   *Pseudonym           `scan:"Pseudonym" json:"Pseudonym"`                                     // posts.posts_pseudonym_id_fkey
 	RemovedByPseudonymPseudonym *Pseudonym           `scan:"RemovedByPseudonymPseudonym" json:"RemovedByPseudonymPseudonym"` // posts.posts_removed_by_pseudonym_id_fkey
-	RemovedByUserUser           *User                `scan:"RemovedByUserUser" json:"RemovedByUserUser"`                     // posts.posts_removed_by_user_id_fkey
 	Subforum                    *Subforum            `scan:"Subforum" json:"Subforum"`                                       // posts.posts_subforum_id_fkey
 }
 
 type postColumnNames struct {
-	PostID               string
-	SubforumID           string
-	Title                string
-	Content              string
-	PostType             string
-	URL                  string
-	IsSelfPost           string
-	IsNSFW               string
-	IsSpoiler            string
-	IsLocked             string
-	IsStickied           string
-	IsArchived           string
-	CreatedAt            string
-	UpdatedAt            string
-	Score                string
-	Upvotes              string
-	Downvotes            string
-	CommentCount         string
-	ViewCount            string
-	IsRemoved            string
-	RemovedByUserID      string
-	RemovedByPseudonymID string
-	RemovalReason        string
-	RemovedAt            string
-	PseudonymID          string
-	Slug                 string
+	PostID                   string
+	SubforumID               string
+	Title                    string
+	Content                  string
+	PostType                 string
+	URL                      string
+	IsSelfPost               string
+	IsNSFW                   string
+	IsSpoiler                string
+	IsLocked                 string
+	IsStickied               string
+	IsArchived               string
+	CreatedAt                string
+	UpdatedAt                string
+	Score                    string
+	Upvotes                  string
+	Downvotes                string
+	CommentCount             string
+	ViewCount                string
+	IsRemoved                string
+	RemovedByPseudonymID     string
+	RemovalReason            string
+	RemovedAt                string
+	PseudonymID              string
+	Slug                     string
+	IsDeleted                string
+	DeletedByPseudonymID     string
+	DeletedByPseudonymAt     string
+	DeletedByPseudonymReason string
 }
 
 var PostColumns = buildPostColumns("posts")
 
 type postColumns struct {
-	tableAlias           string
-	PostID               psql.Expression
-	SubforumID           psql.Expression
-	Title                psql.Expression
-	Content              psql.Expression
-	PostType             psql.Expression
-	URL                  psql.Expression
-	IsSelfPost           psql.Expression
-	IsNSFW               psql.Expression
-	IsSpoiler            psql.Expression
-	IsLocked             psql.Expression
-	IsStickied           psql.Expression
-	IsArchived           psql.Expression
-	CreatedAt            psql.Expression
-	UpdatedAt            psql.Expression
-	Score                psql.Expression
-	Upvotes              psql.Expression
-	Downvotes            psql.Expression
-	CommentCount         psql.Expression
-	ViewCount            psql.Expression
-	IsRemoved            psql.Expression
-	RemovedByUserID      psql.Expression
-	RemovedByPseudonymID psql.Expression
-	RemovalReason        psql.Expression
-	RemovedAt            psql.Expression
-	PseudonymID          psql.Expression
-	Slug                 psql.Expression
+	tableAlias               string
+	PostID                   psql.Expression
+	SubforumID               psql.Expression
+	Title                    psql.Expression
+	Content                  psql.Expression
+	PostType                 psql.Expression
+	URL                      psql.Expression
+	IsSelfPost               psql.Expression
+	IsNSFW                   psql.Expression
+	IsSpoiler                psql.Expression
+	IsLocked                 psql.Expression
+	IsStickied               psql.Expression
+	IsArchived               psql.Expression
+	CreatedAt                psql.Expression
+	UpdatedAt                psql.Expression
+	Score                    psql.Expression
+	Upvotes                  psql.Expression
+	Downvotes                psql.Expression
+	CommentCount             psql.Expression
+	ViewCount                psql.Expression
+	IsRemoved                psql.Expression
+	RemovedByPseudonymID     psql.Expression
+	RemovalReason            psql.Expression
+	RemovedAt                psql.Expression
+	PseudonymID              psql.Expression
+	Slug                     psql.Expression
+	IsDeleted                psql.Expression
+	DeletedByPseudonymID     psql.Expression
+	DeletedByPseudonymAt     psql.Expression
+	DeletedByPseudonymReason psql.Expression
 }
 
 func (c postColumns) Alias() string {
@@ -146,63 +155,69 @@ func (postColumns) AliasedAs(alias string) postColumns {
 
 func buildPostColumns(alias string) postColumns {
 	return postColumns{
-		tableAlias:           alias,
-		PostID:               psql.Quote(alias, "post_id"),
-		SubforumID:           psql.Quote(alias, "subforum_id"),
-		Title:                psql.Quote(alias, "title"),
-		Content:              psql.Quote(alias, "content"),
-		PostType:             psql.Quote(alias, "post_type"),
-		URL:                  psql.Quote(alias, "url"),
-		IsSelfPost:           psql.Quote(alias, "is_self_post"),
-		IsNSFW:               psql.Quote(alias, "is_nsfw"),
-		IsSpoiler:            psql.Quote(alias, "is_spoiler"),
-		IsLocked:             psql.Quote(alias, "is_locked"),
-		IsStickied:           psql.Quote(alias, "is_stickied"),
-		IsArchived:           psql.Quote(alias, "is_archived"),
-		CreatedAt:            psql.Quote(alias, "created_at"),
-		UpdatedAt:            psql.Quote(alias, "updated_at"),
-		Score:                psql.Quote(alias, "score"),
-		Upvotes:              psql.Quote(alias, "upvotes"),
-		Downvotes:            psql.Quote(alias, "downvotes"),
-		CommentCount:         psql.Quote(alias, "comment_count"),
-		ViewCount:            psql.Quote(alias, "view_count"),
-		IsRemoved:            psql.Quote(alias, "is_removed"),
-		RemovedByUserID:      psql.Quote(alias, "removed_by_user_id"),
-		RemovedByPseudonymID: psql.Quote(alias, "removed_by_pseudonym_id"),
-		RemovalReason:        psql.Quote(alias, "removal_reason"),
-		RemovedAt:            psql.Quote(alias, "removed_at"),
-		PseudonymID:          psql.Quote(alias, "pseudonym_id"),
-		Slug:                 psql.Quote(alias, "slug"),
+		tableAlias:               alias,
+		PostID:                   psql.Quote(alias, "post_id"),
+		SubforumID:               psql.Quote(alias, "subforum_id"),
+		Title:                    psql.Quote(alias, "title"),
+		Content:                  psql.Quote(alias, "content"),
+		PostType:                 psql.Quote(alias, "post_type"),
+		URL:                      psql.Quote(alias, "url"),
+		IsSelfPost:               psql.Quote(alias, "is_self_post"),
+		IsNSFW:                   psql.Quote(alias, "is_nsfw"),
+		IsSpoiler:                psql.Quote(alias, "is_spoiler"),
+		IsLocked:                 psql.Quote(alias, "is_locked"),
+		IsStickied:               psql.Quote(alias, "is_stickied"),
+		IsArchived:               psql.Quote(alias, "is_archived"),
+		CreatedAt:                psql.Quote(alias, "created_at"),
+		UpdatedAt:                psql.Quote(alias, "updated_at"),
+		Score:                    psql.Quote(alias, "score"),
+		Upvotes:                  psql.Quote(alias, "upvotes"),
+		Downvotes:                psql.Quote(alias, "downvotes"),
+		CommentCount:             psql.Quote(alias, "comment_count"),
+		ViewCount:                psql.Quote(alias, "view_count"),
+		IsRemoved:                psql.Quote(alias, "is_removed"),
+		RemovedByPseudonymID:     psql.Quote(alias, "removed_by_pseudonym_id"),
+		RemovalReason:            psql.Quote(alias, "removal_reason"),
+		RemovedAt:                psql.Quote(alias, "removed_at"),
+		PseudonymID:              psql.Quote(alias, "pseudonym_id"),
+		Slug:                     psql.Quote(alias, "slug"),
+		IsDeleted:                psql.Quote(alias, "is_deleted"),
+		DeletedByPseudonymID:     psql.Quote(alias, "deleted_by_pseudonym_id"),
+		DeletedByPseudonymAt:     psql.Quote(alias, "deleted_by_pseudonym_at"),
+		DeletedByPseudonymReason: psql.Quote(alias, "deleted_by_pseudonym_reason"),
 	}
 }
 
 type postWhere[Q psql.Filterable] struct {
-	PostID               psql.WhereMod[Q, int64]
-	SubforumID           psql.WhereMod[Q, int32]
-	Title                psql.WhereMod[Q, string]
-	Content              psql.WhereNullMod[Q, string]
-	PostType             psql.WhereMod[Q, string]
-	URL                  psql.WhereNullMod[Q, string]
-	IsSelfPost           psql.WhereNullMod[Q, bool]
-	IsNSFW               psql.WhereNullMod[Q, bool]
-	IsSpoiler            psql.WhereNullMod[Q, bool]
-	IsLocked             psql.WhereNullMod[Q, bool]
-	IsStickied           psql.WhereNullMod[Q, bool]
-	IsArchived           psql.WhereNullMod[Q, bool]
-	CreatedAt            psql.WhereNullMod[Q, time.Time]
-	UpdatedAt            psql.WhereNullMod[Q, time.Time]
-	Score                psql.WhereNullMod[Q, int32]
-	Upvotes              psql.WhereNullMod[Q, int32]
-	Downvotes            psql.WhereNullMod[Q, int32]
-	CommentCount         psql.WhereNullMod[Q, int32]
-	ViewCount            psql.WhereNullMod[Q, int32]
-	IsRemoved            psql.WhereNullMod[Q, bool]
-	RemovedByUserID      psql.WhereNullMod[Q, int64]
-	RemovedByPseudonymID psql.WhereNullMod[Q, string]
-	RemovalReason        psql.WhereNullMod[Q, string]
-	RemovedAt            psql.WhereNullMod[Q, time.Time]
-	PseudonymID          psql.WhereMod[Q, string]
-	Slug                 psql.WhereNullMod[Q, string]
+	PostID                   psql.WhereMod[Q, int64]
+	SubforumID               psql.WhereMod[Q, int32]
+	Title                    psql.WhereMod[Q, string]
+	Content                  psql.WhereNullMod[Q, string]
+	PostType                 psql.WhereMod[Q, string]
+	URL                      psql.WhereNullMod[Q, string]
+	IsSelfPost               psql.WhereNullMod[Q, bool]
+	IsNSFW                   psql.WhereNullMod[Q, bool]
+	IsSpoiler                psql.WhereNullMod[Q, bool]
+	IsLocked                 psql.WhereNullMod[Q, bool]
+	IsStickied               psql.WhereNullMod[Q, bool]
+	IsArchived               psql.WhereNullMod[Q, bool]
+	CreatedAt                psql.WhereNullMod[Q, time.Time]
+	UpdatedAt                psql.WhereNullMod[Q, time.Time]
+	Score                    psql.WhereNullMod[Q, int32]
+	Upvotes                  psql.WhereNullMod[Q, int32]
+	Downvotes                psql.WhereNullMod[Q, int32]
+	CommentCount             psql.WhereNullMod[Q, int32]
+	ViewCount                psql.WhereNullMod[Q, int32]
+	IsRemoved                psql.WhereNullMod[Q, bool]
+	RemovedByPseudonymID     psql.WhereNullMod[Q, string]
+	RemovalReason            psql.WhereNullMod[Q, string]
+	RemovedAt                psql.WhereNullMod[Q, time.Time]
+	PseudonymID              psql.WhereMod[Q, string]
+	Slug                     psql.WhereNullMod[Q, string]
+	IsDeleted                psql.WhereNullMod[Q, bool]
+	DeletedByPseudonymID     psql.WhereNullMod[Q, string]
+	DeletedByPseudonymAt     psql.WhereNullMod[Q, time.Time]
+	DeletedByPseudonymReason psql.WhereNullMod[Q, string]
 }
 
 func (postWhere[Q]) AliasedAs(alias string) postWhere[Q] {
@@ -211,32 +226,35 @@ func (postWhere[Q]) AliasedAs(alias string) postWhere[Q] {
 
 func buildPostWhere[Q psql.Filterable](cols postColumns) postWhere[Q] {
 	return postWhere[Q]{
-		PostID:               psql.Where[Q, int64](cols.PostID),
-		SubforumID:           psql.Where[Q, int32](cols.SubforumID),
-		Title:                psql.Where[Q, string](cols.Title),
-		Content:              psql.WhereNull[Q, string](cols.Content),
-		PostType:             psql.Where[Q, string](cols.PostType),
-		URL:                  psql.WhereNull[Q, string](cols.URL),
-		IsSelfPost:           psql.WhereNull[Q, bool](cols.IsSelfPost),
-		IsNSFW:               psql.WhereNull[Q, bool](cols.IsNSFW),
-		IsSpoiler:            psql.WhereNull[Q, bool](cols.IsSpoiler),
-		IsLocked:             psql.WhereNull[Q, bool](cols.IsLocked),
-		IsStickied:           psql.WhereNull[Q, bool](cols.IsStickied),
-		IsArchived:           psql.WhereNull[Q, bool](cols.IsArchived),
-		CreatedAt:            psql.WhereNull[Q, time.Time](cols.CreatedAt),
-		UpdatedAt:            psql.WhereNull[Q, time.Time](cols.UpdatedAt),
-		Score:                psql.WhereNull[Q, int32](cols.Score),
-		Upvotes:              psql.WhereNull[Q, int32](cols.Upvotes),
-		Downvotes:            psql.WhereNull[Q, int32](cols.Downvotes),
-		CommentCount:         psql.WhereNull[Q, int32](cols.CommentCount),
-		ViewCount:            psql.WhereNull[Q, int32](cols.ViewCount),
-		IsRemoved:            psql.WhereNull[Q, bool](cols.IsRemoved),
-		RemovedByUserID:      psql.WhereNull[Q, int64](cols.RemovedByUserID),
-		RemovedByPseudonymID: psql.WhereNull[Q, string](cols.RemovedByPseudonymID),
-		RemovalReason:        psql.WhereNull[Q, string](cols.RemovalReason),
-		RemovedAt:            psql.WhereNull[Q, time.Time](cols.RemovedAt),
-		PseudonymID:          psql.Where[Q, string](cols.PseudonymID),
-		Slug:                 psql.WhereNull[Q, string](cols.Slug),
+		PostID:                   psql.Where[Q, int64](cols.PostID),
+		SubforumID:               psql.Where[Q, int32](cols.SubforumID),
+		Title:                    psql.Where[Q, string](cols.Title),
+		Content:                  psql.WhereNull[Q, string](cols.Content),
+		PostType:                 psql.Where[Q, string](cols.PostType),
+		URL:                      psql.WhereNull[Q, string](cols.URL),
+		IsSelfPost:               psql.WhereNull[Q, bool](cols.IsSelfPost),
+		IsNSFW:                   psql.WhereNull[Q, bool](cols.IsNSFW),
+		IsSpoiler:                psql.WhereNull[Q, bool](cols.IsSpoiler),
+		IsLocked:                 psql.WhereNull[Q, bool](cols.IsLocked),
+		IsStickied:               psql.WhereNull[Q, bool](cols.IsStickied),
+		IsArchived:               psql.WhereNull[Q, bool](cols.IsArchived),
+		CreatedAt:                psql.WhereNull[Q, time.Time](cols.CreatedAt),
+		UpdatedAt:                psql.WhereNull[Q, time.Time](cols.UpdatedAt),
+		Score:                    psql.WhereNull[Q, int32](cols.Score),
+		Upvotes:                  psql.WhereNull[Q, int32](cols.Upvotes),
+		Downvotes:                psql.WhereNull[Q, int32](cols.Downvotes),
+		CommentCount:             psql.WhereNull[Q, int32](cols.CommentCount),
+		ViewCount:                psql.WhereNull[Q, int32](cols.ViewCount),
+		IsRemoved:                psql.WhereNull[Q, bool](cols.IsRemoved),
+		RemovedByPseudonymID:     psql.WhereNull[Q, string](cols.RemovedByPseudonymID),
+		RemovalReason:            psql.WhereNull[Q, string](cols.RemovalReason),
+		RemovedAt:                psql.WhereNull[Q, time.Time](cols.RemovedAt),
+		PseudonymID:              psql.Where[Q, string](cols.PseudonymID),
+		Slug:                     psql.WhereNull[Q, string](cols.Slug),
+		IsDeleted:                psql.WhereNull[Q, bool](cols.IsDeleted),
+		DeletedByPseudonymID:     psql.WhereNull[Q, string](cols.DeletedByPseudonymID),
+		DeletedByPseudonymAt:     psql.WhereNull[Q, time.Time](cols.DeletedByPseudonymAt),
+		DeletedByPseudonymReason: psql.WhereNull[Q, string](cols.DeletedByPseudonymReason),
 	}
 }
 
@@ -257,36 +275,39 @@ type postErrors struct {
 // All values are optional, and do not have to be set
 // Generated columns are not included
 type PostSetter struct {
-	PostID               *int64               `db:"post_id,pk" scan:"post_id" json:"post_id"`
-	SubforumID           *int32               `db:"subforum_id" scan:"subforum_id" json:"subforum_id"`
-	Title                *string              `db:"title" scan:"title" json:"title"`
-	Content              *sql.Null[string]    `db:"content" scan:"content" json:"content"`
-	PostType             *string              `db:"post_type" scan:"post_type" json:"post_type"`
-	URL                  *sql.Null[string]    `db:"url" scan:"url" json:"url"`
-	IsSelfPost           *sql.Null[bool]      `db:"is_self_post" scan:"is_self_post" json:"is_self_post"`
-	IsNSFW               *sql.Null[bool]      `db:"is_nsfw" scan:"is_nsfw" json:"is_nsfw"`
-	IsSpoiler            *sql.Null[bool]      `db:"is_spoiler" scan:"is_spoiler" json:"is_spoiler"`
-	IsLocked             *sql.Null[bool]      `db:"is_locked" scan:"is_locked" json:"is_locked"`
-	IsStickied           *sql.Null[bool]      `db:"is_stickied" scan:"is_stickied" json:"is_stickied"`
-	IsArchived           *sql.Null[bool]      `db:"is_archived" scan:"is_archived" json:"is_archived"`
-	CreatedAt            *sql.Null[time.Time] `db:"created_at" scan:"created_at" json:"created_at"`
-	UpdatedAt            *sql.Null[time.Time] `db:"updated_at" scan:"updated_at" json:"updated_at"`
-	Score                *sql.Null[int32]     `db:"score" scan:"score" json:"score"`
-	Upvotes              *sql.Null[int32]     `db:"upvotes" scan:"upvotes" json:"upvotes"`
-	Downvotes            *sql.Null[int32]     `db:"downvotes" scan:"downvotes" json:"downvotes"`
-	CommentCount         *sql.Null[int32]     `db:"comment_count" scan:"comment_count" json:"comment_count"`
-	ViewCount            *sql.Null[int32]     `db:"view_count" scan:"view_count" json:"view_count"`
-	IsRemoved            *sql.Null[bool]      `db:"is_removed" scan:"is_removed" json:"is_removed"`
-	RemovedByUserID      *sql.Null[int64]     `db:"removed_by_user_id" scan:"removed_by_user_id" json:"removed_by_user_id"`
-	RemovedByPseudonymID *sql.Null[string]    `db:"removed_by_pseudonym_id" scan:"removed_by_pseudonym_id" json:"removed_by_pseudonym_id"`
-	RemovalReason        *sql.Null[string]    `db:"removal_reason" scan:"removal_reason" json:"removal_reason"`
-	RemovedAt            *sql.Null[time.Time] `db:"removed_at" scan:"removed_at" json:"removed_at"`
-	PseudonymID          *string              `db:"pseudonym_id" scan:"pseudonym_id" json:"pseudonym_id"`
-	Slug                 *sql.Null[string]    `db:"slug" scan:"slug" json:"slug"`
+	PostID                   *int64               `db:"post_id,pk" scan:"post_id" json:"post_id"`
+	SubforumID               *int32               `db:"subforum_id" scan:"subforum_id" json:"subforum_id"`
+	Title                    *string              `db:"title" scan:"title" json:"title"`
+	Content                  *sql.Null[string]    `db:"content" scan:"content" json:"content"`
+	PostType                 *string              `db:"post_type" scan:"post_type" json:"post_type"`
+	URL                      *sql.Null[string]    `db:"url" scan:"url" json:"url"`
+	IsSelfPost               *sql.Null[bool]      `db:"is_self_post" scan:"is_self_post" json:"is_self_post"`
+	IsNSFW                   *sql.Null[bool]      `db:"is_nsfw" scan:"is_nsfw" json:"is_nsfw"`
+	IsSpoiler                *sql.Null[bool]      `db:"is_spoiler" scan:"is_spoiler" json:"is_spoiler"`
+	IsLocked                 *sql.Null[bool]      `db:"is_locked" scan:"is_locked" json:"is_locked"`
+	IsStickied               *sql.Null[bool]      `db:"is_stickied" scan:"is_stickied" json:"is_stickied"`
+	IsArchived               *sql.Null[bool]      `db:"is_archived" scan:"is_archived" json:"is_archived"`
+	CreatedAt                *sql.Null[time.Time] `db:"created_at" scan:"created_at" json:"created_at"`
+	UpdatedAt                *sql.Null[time.Time] `db:"updated_at" scan:"updated_at" json:"updated_at"`
+	Score                    *sql.Null[int32]     `db:"score" scan:"score" json:"score"`
+	Upvotes                  *sql.Null[int32]     `db:"upvotes" scan:"upvotes" json:"upvotes"`
+	Downvotes                *sql.Null[int32]     `db:"downvotes" scan:"downvotes" json:"downvotes"`
+	CommentCount             *sql.Null[int32]     `db:"comment_count" scan:"comment_count" json:"comment_count"`
+	ViewCount                *sql.Null[int32]     `db:"view_count" scan:"view_count" json:"view_count"`
+	IsRemoved                *sql.Null[bool]      `db:"is_removed" scan:"is_removed" json:"is_removed"`
+	RemovedByPseudonymID     *sql.Null[string]    `db:"removed_by_pseudonym_id" scan:"removed_by_pseudonym_id" json:"removed_by_pseudonym_id"`
+	RemovalReason            *sql.Null[string]    `db:"removal_reason" scan:"removal_reason" json:"removal_reason"`
+	RemovedAt                *sql.Null[time.Time] `db:"removed_at" scan:"removed_at" json:"removed_at"`
+	PseudonymID              *string              `db:"pseudonym_id" scan:"pseudonym_id" json:"pseudonym_id"`
+	Slug                     *sql.Null[string]    `db:"slug" scan:"slug" json:"slug"`
+	IsDeleted                *sql.Null[bool]      `db:"is_deleted" scan:"is_deleted" json:"is_deleted"`
+	DeletedByPseudonymID     *sql.Null[string]    `db:"deleted_by_pseudonym_id" scan:"deleted_by_pseudonym_id" json:"deleted_by_pseudonym_id"`
+	DeletedByPseudonymAt     *sql.Null[time.Time] `db:"deleted_by_pseudonym_at" scan:"deleted_by_pseudonym_at" json:"deleted_by_pseudonym_at"`
+	DeletedByPseudonymReason *sql.Null[string]    `db:"deleted_by_pseudonym_reason" scan:"deleted_by_pseudonym_reason" json:"deleted_by_pseudonym_reason"`
 }
 
 func (s PostSetter) SetColumns() []string {
-	vals := make([]string, 0, 26)
+	vals := make([]string, 0, 29)
 	if s.PostID != nil {
 		vals = append(vals, "post_id")
 	}
@@ -367,10 +388,6 @@ func (s PostSetter) SetColumns() []string {
 		vals = append(vals, "is_removed")
 	}
 
-	if s.RemovedByUserID != nil {
-		vals = append(vals, "removed_by_user_id")
-	}
-
 	if s.RemovedByPseudonymID != nil {
 		vals = append(vals, "removed_by_pseudonym_id")
 	}
@@ -389,6 +406,22 @@ func (s PostSetter) SetColumns() []string {
 
 	if s.Slug != nil {
 		vals = append(vals, "slug")
+	}
+
+	if s.IsDeleted != nil {
+		vals = append(vals, "is_deleted")
+	}
+
+	if s.DeletedByPseudonymID != nil {
+		vals = append(vals, "deleted_by_pseudonym_id")
+	}
+
+	if s.DeletedByPseudonymAt != nil {
+		vals = append(vals, "deleted_by_pseudonym_at")
+	}
+
+	if s.DeletedByPseudonymReason != nil {
+		vals = append(vals, "deleted_by_pseudonym_reason")
 	}
 
 	return vals
@@ -455,9 +488,6 @@ func (s PostSetter) Overwrite(t *Post) {
 	if s.IsRemoved != nil {
 		t.IsRemoved = *s.IsRemoved
 	}
-	if s.RemovedByUserID != nil {
-		t.RemovedByUserID = *s.RemovedByUserID
-	}
 	if s.RemovedByPseudonymID != nil {
 		t.RemovedByPseudonymID = *s.RemovedByPseudonymID
 	}
@@ -473,6 +503,18 @@ func (s PostSetter) Overwrite(t *Post) {
 	if s.Slug != nil {
 		t.Slug = *s.Slug
 	}
+	if s.IsDeleted != nil {
+		t.IsDeleted = *s.IsDeleted
+	}
+	if s.DeletedByPseudonymID != nil {
+		t.DeletedByPseudonymID = *s.DeletedByPseudonymID
+	}
+	if s.DeletedByPseudonymAt != nil {
+		t.DeletedByPseudonymAt = *s.DeletedByPseudonymAt
+	}
+	if s.DeletedByPseudonymReason != nil {
+		t.DeletedByPseudonymReason = *s.DeletedByPseudonymReason
+	}
 }
 
 func (s *PostSetter) Apply(q *dialect.InsertQuery) {
@@ -481,7 +523,7 @@ func (s *PostSetter) Apply(q *dialect.InsertQuery) {
 	})
 
 	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
-		vals := make([]bob.Expression, 26)
+		vals := make([]bob.Expression, 29)
 		if s.PostID != nil {
 			vals[0] = psql.Arg(*s.PostID)
 		} else {
@@ -602,40 +644,58 @@ func (s *PostSetter) Apply(q *dialect.InsertQuery) {
 			vals[19] = psql.Raw("DEFAULT")
 		}
 
-		if s.RemovedByUserID != nil {
-			vals[20] = psql.Arg(*s.RemovedByUserID)
+		if s.RemovedByPseudonymID != nil {
+			vals[20] = psql.Arg(*s.RemovedByPseudonymID)
 		} else {
 			vals[20] = psql.Raw("DEFAULT")
 		}
 
-		if s.RemovedByPseudonymID != nil {
-			vals[21] = psql.Arg(*s.RemovedByPseudonymID)
+		if s.RemovalReason != nil {
+			vals[21] = psql.Arg(*s.RemovalReason)
 		} else {
 			vals[21] = psql.Raw("DEFAULT")
 		}
 
-		if s.RemovalReason != nil {
-			vals[22] = psql.Arg(*s.RemovalReason)
+		if s.RemovedAt != nil {
+			vals[22] = psql.Arg(*s.RemovedAt)
 		} else {
 			vals[22] = psql.Raw("DEFAULT")
 		}
 
-		if s.RemovedAt != nil {
-			vals[23] = psql.Arg(*s.RemovedAt)
+		if s.PseudonymID != nil {
+			vals[23] = psql.Arg(*s.PseudonymID)
 		} else {
 			vals[23] = psql.Raw("DEFAULT")
 		}
 
-		if s.PseudonymID != nil {
-			vals[24] = psql.Arg(*s.PseudonymID)
+		if s.Slug != nil {
+			vals[24] = psql.Arg(*s.Slug)
 		} else {
 			vals[24] = psql.Raw("DEFAULT")
 		}
 
-		if s.Slug != nil {
-			vals[25] = psql.Arg(*s.Slug)
+		if s.IsDeleted != nil {
+			vals[25] = psql.Arg(*s.IsDeleted)
 		} else {
 			vals[25] = psql.Raw("DEFAULT")
+		}
+
+		if s.DeletedByPseudonymID != nil {
+			vals[26] = psql.Arg(*s.DeletedByPseudonymID)
+		} else {
+			vals[26] = psql.Raw("DEFAULT")
+		}
+
+		if s.DeletedByPseudonymAt != nil {
+			vals[27] = psql.Arg(*s.DeletedByPseudonymAt)
+		} else {
+			vals[27] = psql.Raw("DEFAULT")
+		}
+
+		if s.DeletedByPseudonymReason != nil {
+			vals[28] = psql.Arg(*s.DeletedByPseudonymReason)
+		} else {
+			vals[28] = psql.Raw("DEFAULT")
 		}
 
 		return bob.ExpressSlice(ctx, w, d, start, vals, "", ", ", "")
@@ -647,7 +707,7 @@ func (s PostSetter) UpdateMod() bob.Mod[*dialect.UpdateQuery] {
 }
 
 func (s PostSetter) Expressions(prefix ...string) []bob.Expression {
-	exprs := make([]bob.Expression, 0, 26)
+	exprs := make([]bob.Expression, 0, 29)
 
 	if s.PostID != nil {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
@@ -789,13 +849,6 @@ func (s PostSetter) Expressions(prefix ...string) []bob.Expression {
 		}})
 	}
 
-	if s.RemovedByUserID != nil {
-		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
-			psql.Quote(append(prefix, "removed_by_user_id")...),
-			psql.Arg(s.RemovedByUserID),
-		}})
-	}
-
 	if s.RemovedByPseudonymID != nil {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "removed_by_pseudonym_id")...),
@@ -828,6 +881,34 @@ func (s PostSetter) Expressions(prefix ...string) []bob.Expression {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "slug")...),
 			psql.Arg(s.Slug),
+		}})
+	}
+
+	if s.IsDeleted != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "is_deleted")...),
+			psql.Arg(s.IsDeleted),
+		}})
+	}
+
+	if s.DeletedByPseudonymID != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "deleted_by_pseudonym_id")...),
+			psql.Arg(s.DeletedByPseudonymID),
+		}})
+	}
+
+	if s.DeletedByPseudonymAt != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "deleted_by_pseudonym_at")...),
+			psql.Arg(s.DeletedByPseudonymAt),
+		}})
+	}
+
+	if s.DeletedByPseudonymReason != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "deleted_by_pseudonym_reason")...),
+			psql.Arg(s.DeletedByPseudonymReason),
 		}})
 	}
 
@@ -1062,9 +1143,9 @@ type postJoins[Q dialect.Joinable] struct {
 	Comments                    modAs[Q, commentColumns]
 	MediaAttachments            modAs[Q, mediaAttachmentColumns]
 	Poll                        modAs[Q, pollColumns]
+	DeletedByPseudonymPseudonym modAs[Q, pseudonymColumns]
 	Pseudonym                   modAs[Q, pseudonymColumns]
 	RemovedByPseudonymPseudonym modAs[Q, pseudonymColumns]
-	RemovedByUserUser           modAs[Q, userColumns]
 	Subforum                    modAs[Q, subforumColumns]
 }
 
@@ -1117,6 +1198,20 @@ func buildPostJoins[Q dialect.Joinable](cols postColumns, typ string) postJoins[
 				return mods
 			},
 		},
+		DeletedByPseudonymPseudonym: modAs[Q, pseudonymColumns]{
+			c: PseudonymColumns,
+			f: func(to pseudonymColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, Pseudonyms.Name().As(to.Alias())).On(
+						to.PseudonymID.EQ(cols.DeletedByPseudonymID),
+					))
+				}
+
+				return mods
+			},
+		},
 		Pseudonym: modAs[Q, pseudonymColumns]{
 			c: PseudonymColumns,
 			f: func(to pseudonymColumns) bob.Mod[Q] {
@@ -1139,20 +1234,6 @@ func buildPostJoins[Q dialect.Joinable](cols postColumns, typ string) postJoins[
 				{
 					mods = append(mods, dialect.Join[Q](typ, Pseudonyms.Name().As(to.Alias())).On(
 						to.PseudonymID.EQ(cols.RemovedByPseudonymID),
-					))
-				}
-
-				return mods
-			},
-		},
-		RemovedByUserUser: modAs[Q, userColumns]{
-			c: UserColumns,
-			f: func(to userColumns) bob.Mod[Q] {
-				mods := make(mods.QueryMods[Q], 0, 1)
-
-				{
-					mods = append(mods, dialect.Join[Q](typ, Users.Name().As(to.Alias())).On(
-						to.UserID.EQ(cols.RemovedByUserID),
 					))
 				}
 
@@ -1239,6 +1320,27 @@ func (os PostSlice) Poll(mods ...bob.Mod[*dialect.SelectQuery]) PollsQuery {
 	)...)
 }
 
+// DeletedByPseudonymPseudonym starts a query for related objects on pseudonyms
+func (o *Post) DeletedByPseudonymPseudonym(mods ...bob.Mod[*dialect.SelectQuery]) PseudonymsQuery {
+	return Pseudonyms.Query(append(mods,
+		sm.Where(PseudonymColumns.PseudonymID.EQ(psql.Arg(o.DeletedByPseudonymID))),
+	)...)
+}
+
+func (os PostSlice) DeletedByPseudonymPseudonym(mods ...bob.Mod[*dialect.SelectQuery]) PseudonymsQuery {
+	pkDeletedByPseudonymID := make(pgtypes.Array[sql.Null[string]], len(os))
+	for i, o := range os {
+		pkDeletedByPseudonymID[i] = o.DeletedByPseudonymID
+	}
+	PKArgExpr := psql.Select(sm.Columns(
+		psql.F("unnest", psql.Cast(psql.Arg(pkDeletedByPseudonymID), "character varying[]")),
+	))
+
+	return Pseudonyms.Query(append(mods,
+		sm.Where(psql.Group(PseudonymColumns.PseudonymID).OP("IN", PKArgExpr)),
+	)...)
+}
+
 // Pseudonym starts a query for related objects on pseudonyms
 func (o *Post) Pseudonym(mods ...bob.Mod[*dialect.SelectQuery]) PseudonymsQuery {
 	return Pseudonyms.Query(append(mods,
@@ -1278,27 +1380,6 @@ func (os PostSlice) RemovedByPseudonymPseudonym(mods ...bob.Mod[*dialect.SelectQ
 
 	return Pseudonyms.Query(append(mods,
 		sm.Where(psql.Group(PseudonymColumns.PseudonymID).OP("IN", PKArgExpr)),
-	)...)
-}
-
-// RemovedByUserUser starts a query for related objects on users
-func (o *Post) RemovedByUserUser(mods ...bob.Mod[*dialect.SelectQuery]) UsersQuery {
-	return Users.Query(append(mods,
-		sm.Where(UserColumns.UserID.EQ(psql.Arg(o.RemovedByUserID))),
-	)...)
-}
-
-func (os PostSlice) RemovedByUserUser(mods ...bob.Mod[*dialect.SelectQuery]) UsersQuery {
-	pkRemovedByUserID := make(pgtypes.Array[sql.Null[int64]], len(os))
-	for i, o := range os {
-		pkRemovedByUserID[i] = o.RemovedByUserID
-	}
-	PKArgExpr := psql.Select(sm.Columns(
-		psql.F("unnest", psql.Cast(psql.Arg(pkRemovedByUserID), "bigint[]")),
-	))
-
-	return Users.Query(append(mods,
-		sm.Where(psql.Group(UserColumns.UserID).OP("IN", PKArgExpr)),
 	)...)
 }
 
@@ -1369,6 +1450,18 @@ func (o *Post) Preload(name string, retrieved any) error {
 			rel.R.Post = o
 		}
 		return nil
+	case "DeletedByPseudonymPseudonym":
+		rel, ok := retrieved.(*Pseudonym)
+		if !ok {
+			return fmt.Errorf("post cannot load %T as %q", retrieved, name)
+		}
+
+		o.R.DeletedByPseudonymPseudonym = rel
+
+		if rel != nil {
+			rel.R.DeletedByPseudonymPosts = PostSlice{o}
+		}
+		return nil
 	case "Pseudonym":
 		rel, ok := retrieved.(*Pseudonym)
 		if !ok {
@@ -1393,18 +1486,6 @@ func (o *Post) Preload(name string, retrieved any) error {
 			rel.R.RemovedByPseudonymPosts = PostSlice{o}
 		}
 		return nil
-	case "RemovedByUserUser":
-		rel, ok := retrieved.(*User)
-		if !ok {
-			return fmt.Errorf("post cannot load %T as %q", retrieved, name)
-		}
-
-		o.R.RemovedByUserUser = rel
-
-		if rel != nil {
-			rel.R.RemovedByUserPosts = PostSlice{o}
-		}
-		return nil
 	case "Subforum":
 		rel, ok := retrieved.(*Subforum)
 		if !ok {
@@ -1424,9 +1505,9 @@ func (o *Post) Preload(name string, retrieved any) error {
 
 type postPreloader struct {
 	Poll                        func(...psql.PreloadOption) psql.Preloader
+	DeletedByPseudonymPseudonym func(...psql.PreloadOption) psql.Preloader
 	Pseudonym                   func(...psql.PreloadOption) psql.Preloader
 	RemovedByPseudonymPseudonym func(...psql.PreloadOption) psql.Preloader
-	RemovedByUserUser           func(...psql.PreloadOption) psql.Preloader
 	Subforum                    func(...psql.PreloadOption) psql.Preloader
 }
 
@@ -1448,6 +1529,23 @@ func buildPostPreloader() postPreloader {
 					},
 				},
 			}, Polls.Columns().Names(), opts...)
+		},
+		DeletedByPseudonymPseudonym: func(opts ...psql.PreloadOption) psql.Preloader {
+			return psql.Preload[*Pseudonym, PseudonymSlice](orm.Relationship{
+				Name: "DeletedByPseudonymPseudonym",
+				Sides: []orm.RelSide{
+					{
+						From: TableNames.Posts,
+						To:   TableNames.Pseudonyms,
+						FromColumns: []string{
+							ColumnNames.Posts.DeletedByPseudonymID,
+						},
+						ToColumns: []string{
+							ColumnNames.Pseudonyms.PseudonymID,
+						},
+					},
+				},
+			}, Pseudonyms.Columns().Names(), opts...)
 		},
 		Pseudonym: func(opts ...psql.PreloadOption) psql.Preloader {
 			return psql.Preload[*Pseudonym, PseudonymSlice](orm.Relationship{
@@ -1483,23 +1581,6 @@ func buildPostPreloader() postPreloader {
 				},
 			}, Pseudonyms.Columns().Names(), opts...)
 		},
-		RemovedByUserUser: func(opts ...psql.PreloadOption) psql.Preloader {
-			return psql.Preload[*User, UserSlice](orm.Relationship{
-				Name: "RemovedByUserUser",
-				Sides: []orm.RelSide{
-					{
-						From: TableNames.Posts,
-						To:   TableNames.Users,
-						FromColumns: []string{
-							ColumnNames.Posts.RemovedByUserID,
-						},
-						ToColumns: []string{
-							ColumnNames.Users.UserID,
-						},
-					},
-				},
-			}, Users.Columns().Names(), opts...)
-		},
 		Subforum: func(opts ...psql.PreloadOption) psql.Preloader {
 			return psql.Preload[*Subforum, SubforumSlice](orm.Relationship{
 				Name: "Subforum",
@@ -1524,9 +1605,9 @@ type postThenLoader[Q orm.Loadable] struct {
 	Comments                    func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	MediaAttachments            func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	Poll                        func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	DeletedByPseudonymPseudonym func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	Pseudonym                   func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	RemovedByPseudonymPseudonym func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	RemovedByUserUser           func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	Subforum                    func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 }
 
@@ -1540,14 +1621,14 @@ func buildPostThenLoader[Q orm.Loadable]() postThenLoader[Q] {
 	type PollLoadInterface interface {
 		LoadPoll(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
+	type DeletedByPseudonymPseudonymLoadInterface interface {
+		LoadDeletedByPseudonymPseudonym(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	}
 	type PseudonymLoadInterface interface {
 		LoadPseudonym(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 	type RemovedByPseudonymPseudonymLoadInterface interface {
 		LoadRemovedByPseudonymPseudonym(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
-	}
-	type RemovedByUserUserLoadInterface interface {
-		LoadRemovedByUserUser(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 	type SubforumLoadInterface interface {
 		LoadSubforum(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
@@ -1572,6 +1653,12 @@ func buildPostThenLoader[Q orm.Loadable]() postThenLoader[Q] {
 				return retrieved.LoadPoll(ctx, exec, mods...)
 			},
 		),
+		DeletedByPseudonymPseudonym: thenLoadBuilder[Q](
+			"DeletedByPseudonymPseudonym",
+			func(ctx context.Context, exec bob.Executor, retrieved DeletedByPseudonymPseudonymLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadDeletedByPseudonymPseudonym(ctx, exec, mods...)
+			},
+		),
 		Pseudonym: thenLoadBuilder[Q](
 			"Pseudonym",
 			func(ctx context.Context, exec bob.Executor, retrieved PseudonymLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
@@ -1582,12 +1669,6 @@ func buildPostThenLoader[Q orm.Loadable]() postThenLoader[Q] {
 			"RemovedByPseudonymPseudonym",
 			func(ctx context.Context, exec bob.Executor, retrieved RemovedByPseudonymPseudonymLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
 				return retrieved.LoadRemovedByPseudonymPseudonym(ctx, exec, mods...)
-			},
-		),
-		RemovedByUserUser: thenLoadBuilder[Q](
-			"RemovedByUserUser",
-			func(ctx context.Context, exec bob.Executor, retrieved RemovedByUserUserLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
-				return retrieved.LoadRemovedByUserUser(ctx, exec, mods...)
 			},
 		),
 		Subforum: thenLoadBuilder[Q](
@@ -1750,6 +1831,53 @@ func (os PostSlice) LoadPoll(ctx context.Context, exec bob.Executor, mods ...bob
 	return nil
 }
 
+// LoadDeletedByPseudonymPseudonym loads the post's DeletedByPseudonymPseudonym into the .R struct
+func (o *Post) LoadDeletedByPseudonymPseudonym(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if o == nil {
+		return nil
+	}
+
+	// Reset the relationship
+	o.R.DeletedByPseudonymPseudonym = nil
+
+	related, err := o.DeletedByPseudonymPseudonym(mods...).One(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	related.R.DeletedByPseudonymPosts = PostSlice{o}
+
+	o.R.DeletedByPseudonymPseudonym = related
+	return nil
+}
+
+// LoadDeletedByPseudonymPseudonym loads the post's DeletedByPseudonymPseudonym into the .R struct
+func (os PostSlice) LoadDeletedByPseudonymPseudonym(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if len(os) == 0 {
+		return nil
+	}
+
+	pseudonyms, err := os.DeletedByPseudonymPseudonym(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range os {
+		for _, rel := range pseudonyms {
+			if o.DeletedByPseudonymID.V != rel.PseudonymID {
+				continue
+			}
+
+			rel.R.DeletedByPseudonymPosts = append(rel.R.DeletedByPseudonymPosts, o)
+
+			o.R.DeletedByPseudonymPseudonym = rel
+			break
+		}
+	}
+
+	return nil
+}
+
 // LoadPseudonym loads the post's Pseudonym into the .R struct
 func (o *Post) LoadPseudonym(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
 	if o == nil {
@@ -1837,53 +1965,6 @@ func (os PostSlice) LoadRemovedByPseudonymPseudonym(ctx context.Context, exec bo
 			rel.R.RemovedByPseudonymPosts = append(rel.R.RemovedByPseudonymPosts, o)
 
 			o.R.RemovedByPseudonymPseudonym = rel
-			break
-		}
-	}
-
-	return nil
-}
-
-// LoadRemovedByUserUser loads the post's RemovedByUserUser into the .R struct
-func (o *Post) LoadRemovedByUserUser(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
-	if o == nil {
-		return nil
-	}
-
-	// Reset the relationship
-	o.R.RemovedByUserUser = nil
-
-	related, err := o.RemovedByUserUser(mods...).One(ctx, exec)
-	if err != nil {
-		return err
-	}
-
-	related.R.RemovedByUserPosts = PostSlice{o}
-
-	o.R.RemovedByUserUser = related
-	return nil
-}
-
-// LoadRemovedByUserUser loads the post's RemovedByUserUser into the .R struct
-func (os PostSlice) LoadRemovedByUserUser(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
-	if len(os) == 0 {
-		return nil
-	}
-
-	users, err := os.RemovedByUserUser(mods...).All(ctx, exec)
-	if err != nil {
-		return err
-	}
-
-	for _, o := range os {
-		for _, rel := range users {
-			if o.RemovedByUserID.V != rel.UserID {
-				continue
-			}
-
-			rel.R.RemovedByUserPosts = append(rel.R.RemovedByUserPosts, o)
-
-			o.R.RemovedByUserUser = rel
 			break
 		}
 	}
@@ -2126,6 +2207,55 @@ func (post0 *Post) AttachPoll(ctx context.Context, exec bob.Executor, poll1 *Pol
 	return nil
 }
 
+func attachPostDeletedByPseudonymPseudonym0(ctx context.Context, exec bob.Executor, count int, post0 *Post, pseudonym1 *Pseudonym) (*Post, error) {
+	setter := &PostSetter{
+		DeletedByPseudonymID: func() *sql.Null[string] {
+			v := sql.Null[string]{V: pseudonym1.PseudonymID, Valid: true}
+			return &v
+		}(),
+	}
+
+	err := post0.Update(ctx, exec, setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachPostDeletedByPseudonymPseudonym0: %w", err)
+	}
+
+	return post0, nil
+}
+
+func (post0 *Post) InsertDeletedByPseudonymPseudonym(ctx context.Context, exec bob.Executor, related *PseudonymSetter) error {
+	pseudonym1, err := Pseudonyms.Insert(related).One(ctx, exec)
+	if err != nil {
+		return fmt.Errorf("inserting related objects: %w", err)
+	}
+
+	_, err = attachPostDeletedByPseudonymPseudonym0(ctx, exec, 1, post0, pseudonym1)
+	if err != nil {
+		return err
+	}
+
+	post0.R.DeletedByPseudonymPseudonym = pseudonym1
+
+	pseudonym1.R.DeletedByPseudonymPosts = append(pseudonym1.R.DeletedByPseudonymPosts, post0)
+
+	return nil
+}
+
+func (post0 *Post) AttachDeletedByPseudonymPseudonym(ctx context.Context, exec bob.Executor, pseudonym1 *Pseudonym) error {
+	var err error
+
+	_, err = attachPostDeletedByPseudonymPseudonym0(ctx, exec, 1, post0, pseudonym1)
+	if err != nil {
+		return err
+	}
+
+	post0.R.DeletedByPseudonymPseudonym = pseudonym1
+
+	pseudonym1.R.DeletedByPseudonymPosts = append(pseudonym1.R.DeletedByPseudonymPosts, post0)
+
+	return nil
+}
+
 func attachPostPseudonym0(ctx context.Context, exec bob.Executor, count int, post0 *Post, pseudonym1 *Pseudonym) (*Post, error) {
 	setter := &PostSetter{
 		PseudonymID: &pseudonym1.PseudonymID,
@@ -2217,55 +2347,6 @@ func (post0 *Post) AttachRemovedByPseudonymPseudonym(ctx context.Context, exec b
 	post0.R.RemovedByPseudonymPseudonym = pseudonym1
 
 	pseudonym1.R.RemovedByPseudonymPosts = append(pseudonym1.R.RemovedByPseudonymPosts, post0)
-
-	return nil
-}
-
-func attachPostRemovedByUserUser0(ctx context.Context, exec bob.Executor, count int, post0 *Post, user1 *User) (*Post, error) {
-	setter := &PostSetter{
-		RemovedByUserID: func() *sql.Null[int64] {
-			v := sql.Null[int64]{V: user1.UserID, Valid: true}
-			return &v
-		}(),
-	}
-
-	err := post0.Update(ctx, exec, setter)
-	if err != nil {
-		return nil, fmt.Errorf("attachPostRemovedByUserUser0: %w", err)
-	}
-
-	return post0, nil
-}
-
-func (post0 *Post) InsertRemovedByUserUser(ctx context.Context, exec bob.Executor, related *UserSetter) error {
-	user1, err := Users.Insert(related).One(ctx, exec)
-	if err != nil {
-		return fmt.Errorf("inserting related objects: %w", err)
-	}
-
-	_, err = attachPostRemovedByUserUser0(ctx, exec, 1, post0, user1)
-	if err != nil {
-		return err
-	}
-
-	post0.R.RemovedByUserUser = user1
-
-	user1.R.RemovedByUserPosts = append(user1.R.RemovedByUserPosts, post0)
-
-	return nil
-}
-
-func (post0 *Post) AttachRemovedByUserUser(ctx context.Context, exec bob.Executor, user1 *User) error {
-	var err error
-
-	_, err = attachPostRemovedByUserUser0(ctx, exec, 1, post0, user1)
-	if err != nil {
-		return err
-	}
-
-	post0.R.RemovedByUserUser = user1
-
-	user1.R.RemovedByUserPosts = append(user1.R.RemovedByUserPosts, post0)
 
 	return nil
 }

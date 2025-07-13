@@ -24,24 +24,27 @@ import (
 
 // Comment is an object representing the database table.
 type Comment struct {
-	CommentID            int64               `db:"comment_id,pk" scan:"comment_id" json:"comment_id"`
-	PostID               int64               `db:"post_id" scan:"post_id" json:"post_id"`
-	ParentCommentID      sql.Null[int64]     `db:"parent_comment_id" scan:"parent_comment_id" json:"parent_comment_id"`
-	Content              string              `db:"content" scan:"content" json:"content"`
-	CreatedAt            sql.Null[time.Time] `db:"created_at" scan:"created_at" json:"created_at"`
-	UpdatedAt            sql.Null[time.Time] `db:"updated_at" scan:"updated_at" json:"updated_at"`
-	Score                sql.Null[int32]     `db:"score" scan:"score" json:"score"`
-	Upvotes              sql.Null[int32]     `db:"upvotes" scan:"upvotes" json:"upvotes"`
-	Downvotes            sql.Null[int32]     `db:"downvotes" scan:"downvotes" json:"downvotes"`
-	IsEdited             sql.Null[bool]      `db:"is_edited" scan:"is_edited" json:"is_edited"`
-	EditedAt             sql.Null[time.Time] `db:"edited_at" scan:"edited_at" json:"edited_at"`
-	EditReason           sql.Null[string]    `db:"edit_reason" scan:"edit_reason" json:"edit_reason"`
-	IsRemoved            sql.Null[bool]      `db:"is_removed" scan:"is_removed" json:"is_removed"`
-	RemovedByUserID      sql.Null[int64]     `db:"removed_by_user_id" scan:"removed_by_user_id" json:"removed_by_user_id"`
-	RemovedByPseudonymID sql.Null[string]    `db:"removed_by_pseudonym_id" scan:"removed_by_pseudonym_id" json:"removed_by_pseudonym_id"`
-	RemovalReason        sql.Null[string]    `db:"removal_reason" scan:"removal_reason" json:"removal_reason"`
-	RemovedAt            sql.Null[time.Time] `db:"removed_at" scan:"removed_at" json:"removed_at"`
-	PseudonymID          string              `db:"pseudonym_id" scan:"pseudonym_id" json:"pseudonym_id"`
+	CommentID                int64               `db:"comment_id,pk" scan:"comment_id" json:"comment_id"`
+	PostID                   int64               `db:"post_id" scan:"post_id" json:"post_id"`
+	ParentCommentID          sql.Null[int64]     `db:"parent_comment_id" scan:"parent_comment_id" json:"parent_comment_id"`
+	Content                  string              `db:"content" scan:"content" json:"content"`
+	CreatedAt                sql.Null[time.Time] `db:"created_at" scan:"created_at" json:"created_at"`
+	UpdatedAt                sql.Null[time.Time] `db:"updated_at" scan:"updated_at" json:"updated_at"`
+	Score                    sql.Null[int32]     `db:"score" scan:"score" json:"score"`
+	Upvotes                  sql.Null[int32]     `db:"upvotes" scan:"upvotes" json:"upvotes"`
+	Downvotes                sql.Null[int32]     `db:"downvotes" scan:"downvotes" json:"downvotes"`
+	IsEdited                 sql.Null[bool]      `db:"is_edited" scan:"is_edited" json:"is_edited"`
+	EditedAt                 sql.Null[time.Time] `db:"edited_at" scan:"edited_at" json:"edited_at"`
+	EditReason               sql.Null[string]    `db:"edit_reason" scan:"edit_reason" json:"edit_reason"`
+	IsRemoved                sql.Null[bool]      `db:"is_removed" scan:"is_removed" json:"is_removed"`
+	RemovedByPseudonymID     sql.Null[string]    `db:"removed_by_pseudonym_id" scan:"removed_by_pseudonym_id" json:"removed_by_pseudonym_id"`
+	RemovalReason            sql.Null[string]    `db:"removal_reason" scan:"removal_reason" json:"removal_reason"`
+	RemovedAt                sql.Null[time.Time] `db:"removed_at" scan:"removed_at" json:"removed_at"`
+	PseudonymID              string              `db:"pseudonym_id" scan:"pseudonym_id" json:"pseudonym_id"`
+	IsDeleted                sql.Null[bool]      `db:"is_deleted" scan:"is_deleted" json:"is_deleted"`
+	DeletedByPseudonymID     sql.Null[string]    `db:"deleted_by_pseudonym_id" scan:"deleted_by_pseudonym_id" json:"deleted_by_pseudonym_id"`
+	DeletedByPseudonymAt     sql.Null[time.Time] `db:"deleted_by_pseudonym_at" scan:"deleted_by_pseudonym_at" json:"deleted_by_pseudonym_at"`
+	DeletedByPseudonymReason sql.Null[string]    `db:"deleted_by_pseudonym_reason" scan:"deleted_by_pseudonym_reason" json:"deleted_by_pseudonym_reason"`
 
 	R commentR `db:"-" scan:"rel" json:"rel"`
 }
@@ -63,52 +66,58 @@ type commentR struct {
 	Post                        *Post        `scan:"Post" json:"Post"`                                               // comments.comments_post_id_fkey
 	Pseudonym                   *Pseudonym   `scan:"Pseudonym" json:"Pseudonym"`                                     // comments.comments_pseudonym_id_fkey
 	RemovedByPseudonymPseudonym *Pseudonym   `scan:"RemovedByPseudonymPseudonym" json:"RemovedByPseudonymPseudonym"` // comments.comments_removed_by_pseudonym_id_fkey
-	RemovedByUserUser           *User        `scan:"RemovedByUserUser" json:"RemovedByUserUser"`                     // comments.comments_removed_by_user_id_fkey
+	DeletedByPseudonymPseudonym *Pseudonym   `scan:"DeletedByPseudonymPseudonym" json:"DeletedByPseudonymPseudonym"` // comments.fk_comments_deleted_by_pseudonym
 }
 
 type commentColumnNames struct {
-	CommentID            string
-	PostID               string
-	ParentCommentID      string
-	Content              string
-	CreatedAt            string
-	UpdatedAt            string
-	Score                string
-	Upvotes              string
-	Downvotes            string
-	IsEdited             string
-	EditedAt             string
-	EditReason           string
-	IsRemoved            string
-	RemovedByUserID      string
-	RemovedByPseudonymID string
-	RemovalReason        string
-	RemovedAt            string
-	PseudonymID          string
+	CommentID                string
+	PostID                   string
+	ParentCommentID          string
+	Content                  string
+	CreatedAt                string
+	UpdatedAt                string
+	Score                    string
+	Upvotes                  string
+	Downvotes                string
+	IsEdited                 string
+	EditedAt                 string
+	EditReason               string
+	IsRemoved                string
+	RemovedByPseudonymID     string
+	RemovalReason            string
+	RemovedAt                string
+	PseudonymID              string
+	IsDeleted                string
+	DeletedByPseudonymID     string
+	DeletedByPseudonymAt     string
+	DeletedByPseudonymReason string
 }
 
 var CommentColumns = buildCommentColumns("comments")
 
 type commentColumns struct {
-	tableAlias           string
-	CommentID            psql.Expression
-	PostID               psql.Expression
-	ParentCommentID      psql.Expression
-	Content              psql.Expression
-	CreatedAt            psql.Expression
-	UpdatedAt            psql.Expression
-	Score                psql.Expression
-	Upvotes              psql.Expression
-	Downvotes            psql.Expression
-	IsEdited             psql.Expression
-	EditedAt             psql.Expression
-	EditReason           psql.Expression
-	IsRemoved            psql.Expression
-	RemovedByUserID      psql.Expression
-	RemovedByPseudonymID psql.Expression
-	RemovalReason        psql.Expression
-	RemovedAt            psql.Expression
-	PseudonymID          psql.Expression
+	tableAlias               string
+	CommentID                psql.Expression
+	PostID                   psql.Expression
+	ParentCommentID          psql.Expression
+	Content                  psql.Expression
+	CreatedAt                psql.Expression
+	UpdatedAt                psql.Expression
+	Score                    psql.Expression
+	Upvotes                  psql.Expression
+	Downvotes                psql.Expression
+	IsEdited                 psql.Expression
+	EditedAt                 psql.Expression
+	EditReason               psql.Expression
+	IsRemoved                psql.Expression
+	RemovedByPseudonymID     psql.Expression
+	RemovalReason            psql.Expression
+	RemovedAt                psql.Expression
+	PseudonymID              psql.Expression
+	IsDeleted                psql.Expression
+	DeletedByPseudonymID     psql.Expression
+	DeletedByPseudonymAt     psql.Expression
+	DeletedByPseudonymReason psql.Expression
 }
 
 func (c commentColumns) Alias() string {
@@ -121,47 +130,53 @@ func (commentColumns) AliasedAs(alias string) commentColumns {
 
 func buildCommentColumns(alias string) commentColumns {
 	return commentColumns{
-		tableAlias:           alias,
-		CommentID:            psql.Quote(alias, "comment_id"),
-		PostID:               psql.Quote(alias, "post_id"),
-		ParentCommentID:      psql.Quote(alias, "parent_comment_id"),
-		Content:              psql.Quote(alias, "content"),
-		CreatedAt:            psql.Quote(alias, "created_at"),
-		UpdatedAt:            psql.Quote(alias, "updated_at"),
-		Score:                psql.Quote(alias, "score"),
-		Upvotes:              psql.Quote(alias, "upvotes"),
-		Downvotes:            psql.Quote(alias, "downvotes"),
-		IsEdited:             psql.Quote(alias, "is_edited"),
-		EditedAt:             psql.Quote(alias, "edited_at"),
-		EditReason:           psql.Quote(alias, "edit_reason"),
-		IsRemoved:            psql.Quote(alias, "is_removed"),
-		RemovedByUserID:      psql.Quote(alias, "removed_by_user_id"),
-		RemovedByPseudonymID: psql.Quote(alias, "removed_by_pseudonym_id"),
-		RemovalReason:        psql.Quote(alias, "removal_reason"),
-		RemovedAt:            psql.Quote(alias, "removed_at"),
-		PseudonymID:          psql.Quote(alias, "pseudonym_id"),
+		tableAlias:               alias,
+		CommentID:                psql.Quote(alias, "comment_id"),
+		PostID:                   psql.Quote(alias, "post_id"),
+		ParentCommentID:          psql.Quote(alias, "parent_comment_id"),
+		Content:                  psql.Quote(alias, "content"),
+		CreatedAt:                psql.Quote(alias, "created_at"),
+		UpdatedAt:                psql.Quote(alias, "updated_at"),
+		Score:                    psql.Quote(alias, "score"),
+		Upvotes:                  psql.Quote(alias, "upvotes"),
+		Downvotes:                psql.Quote(alias, "downvotes"),
+		IsEdited:                 psql.Quote(alias, "is_edited"),
+		EditedAt:                 psql.Quote(alias, "edited_at"),
+		EditReason:               psql.Quote(alias, "edit_reason"),
+		IsRemoved:                psql.Quote(alias, "is_removed"),
+		RemovedByPseudonymID:     psql.Quote(alias, "removed_by_pseudonym_id"),
+		RemovalReason:            psql.Quote(alias, "removal_reason"),
+		RemovedAt:                psql.Quote(alias, "removed_at"),
+		PseudonymID:              psql.Quote(alias, "pseudonym_id"),
+		IsDeleted:                psql.Quote(alias, "is_deleted"),
+		DeletedByPseudonymID:     psql.Quote(alias, "deleted_by_pseudonym_id"),
+		DeletedByPseudonymAt:     psql.Quote(alias, "deleted_by_pseudonym_at"),
+		DeletedByPseudonymReason: psql.Quote(alias, "deleted_by_pseudonym_reason"),
 	}
 }
 
 type commentWhere[Q psql.Filterable] struct {
-	CommentID            psql.WhereMod[Q, int64]
-	PostID               psql.WhereMod[Q, int64]
-	ParentCommentID      psql.WhereNullMod[Q, int64]
-	Content              psql.WhereMod[Q, string]
-	CreatedAt            psql.WhereNullMod[Q, time.Time]
-	UpdatedAt            psql.WhereNullMod[Q, time.Time]
-	Score                psql.WhereNullMod[Q, int32]
-	Upvotes              psql.WhereNullMod[Q, int32]
-	Downvotes            psql.WhereNullMod[Q, int32]
-	IsEdited             psql.WhereNullMod[Q, bool]
-	EditedAt             psql.WhereNullMod[Q, time.Time]
-	EditReason           psql.WhereNullMod[Q, string]
-	IsRemoved            psql.WhereNullMod[Q, bool]
-	RemovedByUserID      psql.WhereNullMod[Q, int64]
-	RemovedByPseudonymID psql.WhereNullMod[Q, string]
-	RemovalReason        psql.WhereNullMod[Q, string]
-	RemovedAt            psql.WhereNullMod[Q, time.Time]
-	PseudonymID          psql.WhereMod[Q, string]
+	CommentID                psql.WhereMod[Q, int64]
+	PostID                   psql.WhereMod[Q, int64]
+	ParentCommentID          psql.WhereNullMod[Q, int64]
+	Content                  psql.WhereMod[Q, string]
+	CreatedAt                psql.WhereNullMod[Q, time.Time]
+	UpdatedAt                psql.WhereNullMod[Q, time.Time]
+	Score                    psql.WhereNullMod[Q, int32]
+	Upvotes                  psql.WhereNullMod[Q, int32]
+	Downvotes                psql.WhereNullMod[Q, int32]
+	IsEdited                 psql.WhereNullMod[Q, bool]
+	EditedAt                 psql.WhereNullMod[Q, time.Time]
+	EditReason               psql.WhereNullMod[Q, string]
+	IsRemoved                psql.WhereNullMod[Q, bool]
+	RemovedByPseudonymID     psql.WhereNullMod[Q, string]
+	RemovalReason            psql.WhereNullMod[Q, string]
+	RemovedAt                psql.WhereNullMod[Q, time.Time]
+	PseudonymID              psql.WhereMod[Q, string]
+	IsDeleted                psql.WhereNullMod[Q, bool]
+	DeletedByPseudonymID     psql.WhereNullMod[Q, string]
+	DeletedByPseudonymAt     psql.WhereNullMod[Q, time.Time]
+	DeletedByPseudonymReason psql.WhereNullMod[Q, string]
 }
 
 func (commentWhere[Q]) AliasedAs(alias string) commentWhere[Q] {
@@ -170,24 +185,27 @@ func (commentWhere[Q]) AliasedAs(alias string) commentWhere[Q] {
 
 func buildCommentWhere[Q psql.Filterable](cols commentColumns) commentWhere[Q] {
 	return commentWhere[Q]{
-		CommentID:            psql.Where[Q, int64](cols.CommentID),
-		PostID:               psql.Where[Q, int64](cols.PostID),
-		ParentCommentID:      psql.WhereNull[Q, int64](cols.ParentCommentID),
-		Content:              psql.Where[Q, string](cols.Content),
-		CreatedAt:            psql.WhereNull[Q, time.Time](cols.CreatedAt),
-		UpdatedAt:            psql.WhereNull[Q, time.Time](cols.UpdatedAt),
-		Score:                psql.WhereNull[Q, int32](cols.Score),
-		Upvotes:              psql.WhereNull[Q, int32](cols.Upvotes),
-		Downvotes:            psql.WhereNull[Q, int32](cols.Downvotes),
-		IsEdited:             psql.WhereNull[Q, bool](cols.IsEdited),
-		EditedAt:             psql.WhereNull[Q, time.Time](cols.EditedAt),
-		EditReason:           psql.WhereNull[Q, string](cols.EditReason),
-		IsRemoved:            psql.WhereNull[Q, bool](cols.IsRemoved),
-		RemovedByUserID:      psql.WhereNull[Q, int64](cols.RemovedByUserID),
-		RemovedByPseudonymID: psql.WhereNull[Q, string](cols.RemovedByPseudonymID),
-		RemovalReason:        psql.WhereNull[Q, string](cols.RemovalReason),
-		RemovedAt:            psql.WhereNull[Q, time.Time](cols.RemovedAt),
-		PseudonymID:          psql.Where[Q, string](cols.PseudonymID),
+		CommentID:                psql.Where[Q, int64](cols.CommentID),
+		PostID:                   psql.Where[Q, int64](cols.PostID),
+		ParentCommentID:          psql.WhereNull[Q, int64](cols.ParentCommentID),
+		Content:                  psql.Where[Q, string](cols.Content),
+		CreatedAt:                psql.WhereNull[Q, time.Time](cols.CreatedAt),
+		UpdatedAt:                psql.WhereNull[Q, time.Time](cols.UpdatedAt),
+		Score:                    psql.WhereNull[Q, int32](cols.Score),
+		Upvotes:                  psql.WhereNull[Q, int32](cols.Upvotes),
+		Downvotes:                psql.WhereNull[Q, int32](cols.Downvotes),
+		IsEdited:                 psql.WhereNull[Q, bool](cols.IsEdited),
+		EditedAt:                 psql.WhereNull[Q, time.Time](cols.EditedAt),
+		EditReason:               psql.WhereNull[Q, string](cols.EditReason),
+		IsRemoved:                psql.WhereNull[Q, bool](cols.IsRemoved),
+		RemovedByPseudonymID:     psql.WhereNull[Q, string](cols.RemovedByPseudonymID),
+		RemovalReason:            psql.WhereNull[Q, string](cols.RemovalReason),
+		RemovedAt:                psql.WhereNull[Q, time.Time](cols.RemovedAt),
+		PseudonymID:              psql.Where[Q, string](cols.PseudonymID),
+		IsDeleted:                psql.WhereNull[Q, bool](cols.IsDeleted),
+		DeletedByPseudonymID:     psql.WhereNull[Q, string](cols.DeletedByPseudonymID),
+		DeletedByPseudonymAt:     psql.WhereNull[Q, time.Time](cols.DeletedByPseudonymAt),
+		DeletedByPseudonymReason: psql.WhereNull[Q, string](cols.DeletedByPseudonymReason),
 	}
 }
 
@@ -208,28 +226,31 @@ type commentErrors struct {
 // All values are optional, and do not have to be set
 // Generated columns are not included
 type CommentSetter struct {
-	CommentID            *int64               `db:"comment_id,pk" scan:"comment_id" json:"comment_id"`
-	PostID               *int64               `db:"post_id" scan:"post_id" json:"post_id"`
-	ParentCommentID      *sql.Null[int64]     `db:"parent_comment_id" scan:"parent_comment_id" json:"parent_comment_id"`
-	Content              *string              `db:"content" scan:"content" json:"content"`
-	CreatedAt            *sql.Null[time.Time] `db:"created_at" scan:"created_at" json:"created_at"`
-	UpdatedAt            *sql.Null[time.Time] `db:"updated_at" scan:"updated_at" json:"updated_at"`
-	Score                *sql.Null[int32]     `db:"score" scan:"score" json:"score"`
-	Upvotes              *sql.Null[int32]     `db:"upvotes" scan:"upvotes" json:"upvotes"`
-	Downvotes            *sql.Null[int32]     `db:"downvotes" scan:"downvotes" json:"downvotes"`
-	IsEdited             *sql.Null[bool]      `db:"is_edited" scan:"is_edited" json:"is_edited"`
-	EditedAt             *sql.Null[time.Time] `db:"edited_at" scan:"edited_at" json:"edited_at"`
-	EditReason           *sql.Null[string]    `db:"edit_reason" scan:"edit_reason" json:"edit_reason"`
-	IsRemoved            *sql.Null[bool]      `db:"is_removed" scan:"is_removed" json:"is_removed"`
-	RemovedByUserID      *sql.Null[int64]     `db:"removed_by_user_id" scan:"removed_by_user_id" json:"removed_by_user_id"`
-	RemovedByPseudonymID *sql.Null[string]    `db:"removed_by_pseudonym_id" scan:"removed_by_pseudonym_id" json:"removed_by_pseudonym_id"`
-	RemovalReason        *sql.Null[string]    `db:"removal_reason" scan:"removal_reason" json:"removal_reason"`
-	RemovedAt            *sql.Null[time.Time] `db:"removed_at" scan:"removed_at" json:"removed_at"`
-	PseudonymID          *string              `db:"pseudonym_id" scan:"pseudonym_id" json:"pseudonym_id"`
+	CommentID                *int64               `db:"comment_id,pk" scan:"comment_id" json:"comment_id"`
+	PostID                   *int64               `db:"post_id" scan:"post_id" json:"post_id"`
+	ParentCommentID          *sql.Null[int64]     `db:"parent_comment_id" scan:"parent_comment_id" json:"parent_comment_id"`
+	Content                  *string              `db:"content" scan:"content" json:"content"`
+	CreatedAt                *sql.Null[time.Time] `db:"created_at" scan:"created_at" json:"created_at"`
+	UpdatedAt                *sql.Null[time.Time] `db:"updated_at" scan:"updated_at" json:"updated_at"`
+	Score                    *sql.Null[int32]     `db:"score" scan:"score" json:"score"`
+	Upvotes                  *sql.Null[int32]     `db:"upvotes" scan:"upvotes" json:"upvotes"`
+	Downvotes                *sql.Null[int32]     `db:"downvotes" scan:"downvotes" json:"downvotes"`
+	IsEdited                 *sql.Null[bool]      `db:"is_edited" scan:"is_edited" json:"is_edited"`
+	EditedAt                 *sql.Null[time.Time] `db:"edited_at" scan:"edited_at" json:"edited_at"`
+	EditReason               *sql.Null[string]    `db:"edit_reason" scan:"edit_reason" json:"edit_reason"`
+	IsRemoved                *sql.Null[bool]      `db:"is_removed" scan:"is_removed" json:"is_removed"`
+	RemovedByPseudonymID     *sql.Null[string]    `db:"removed_by_pseudonym_id" scan:"removed_by_pseudonym_id" json:"removed_by_pseudonym_id"`
+	RemovalReason            *sql.Null[string]    `db:"removal_reason" scan:"removal_reason" json:"removal_reason"`
+	RemovedAt                *sql.Null[time.Time] `db:"removed_at" scan:"removed_at" json:"removed_at"`
+	PseudonymID              *string              `db:"pseudonym_id" scan:"pseudonym_id" json:"pseudonym_id"`
+	IsDeleted                *sql.Null[bool]      `db:"is_deleted" scan:"is_deleted" json:"is_deleted"`
+	DeletedByPseudonymID     *sql.Null[string]    `db:"deleted_by_pseudonym_id" scan:"deleted_by_pseudonym_id" json:"deleted_by_pseudonym_id"`
+	DeletedByPseudonymAt     *sql.Null[time.Time] `db:"deleted_by_pseudonym_at" scan:"deleted_by_pseudonym_at" json:"deleted_by_pseudonym_at"`
+	DeletedByPseudonymReason *sql.Null[string]    `db:"deleted_by_pseudonym_reason" scan:"deleted_by_pseudonym_reason" json:"deleted_by_pseudonym_reason"`
 }
 
 func (s CommentSetter) SetColumns() []string {
-	vals := make([]string, 0, 18)
+	vals := make([]string, 0, 21)
 	if s.CommentID != nil {
 		vals = append(vals, "comment_id")
 	}
@@ -282,10 +303,6 @@ func (s CommentSetter) SetColumns() []string {
 		vals = append(vals, "is_removed")
 	}
 
-	if s.RemovedByUserID != nil {
-		vals = append(vals, "removed_by_user_id")
-	}
-
 	if s.RemovedByPseudonymID != nil {
 		vals = append(vals, "removed_by_pseudonym_id")
 	}
@@ -300,6 +317,22 @@ func (s CommentSetter) SetColumns() []string {
 
 	if s.PseudonymID != nil {
 		vals = append(vals, "pseudonym_id")
+	}
+
+	if s.IsDeleted != nil {
+		vals = append(vals, "is_deleted")
+	}
+
+	if s.DeletedByPseudonymID != nil {
+		vals = append(vals, "deleted_by_pseudonym_id")
+	}
+
+	if s.DeletedByPseudonymAt != nil {
+		vals = append(vals, "deleted_by_pseudonym_at")
+	}
+
+	if s.DeletedByPseudonymReason != nil {
+		vals = append(vals, "deleted_by_pseudonym_reason")
 	}
 
 	return vals
@@ -345,9 +378,6 @@ func (s CommentSetter) Overwrite(t *Comment) {
 	if s.IsRemoved != nil {
 		t.IsRemoved = *s.IsRemoved
 	}
-	if s.RemovedByUserID != nil {
-		t.RemovedByUserID = *s.RemovedByUserID
-	}
 	if s.RemovedByPseudonymID != nil {
 		t.RemovedByPseudonymID = *s.RemovedByPseudonymID
 	}
@@ -360,6 +390,18 @@ func (s CommentSetter) Overwrite(t *Comment) {
 	if s.PseudonymID != nil {
 		t.PseudonymID = *s.PseudonymID
 	}
+	if s.IsDeleted != nil {
+		t.IsDeleted = *s.IsDeleted
+	}
+	if s.DeletedByPseudonymID != nil {
+		t.DeletedByPseudonymID = *s.DeletedByPseudonymID
+	}
+	if s.DeletedByPseudonymAt != nil {
+		t.DeletedByPseudonymAt = *s.DeletedByPseudonymAt
+	}
+	if s.DeletedByPseudonymReason != nil {
+		t.DeletedByPseudonymReason = *s.DeletedByPseudonymReason
+	}
 }
 
 func (s *CommentSetter) Apply(q *dialect.InsertQuery) {
@@ -368,7 +410,7 @@ func (s *CommentSetter) Apply(q *dialect.InsertQuery) {
 	})
 
 	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
-		vals := make([]bob.Expression, 18)
+		vals := make([]bob.Expression, 21)
 		if s.CommentID != nil {
 			vals[0] = psql.Arg(*s.CommentID)
 		} else {
@@ -447,34 +489,52 @@ func (s *CommentSetter) Apply(q *dialect.InsertQuery) {
 			vals[12] = psql.Raw("DEFAULT")
 		}
 
-		if s.RemovedByUserID != nil {
-			vals[13] = psql.Arg(*s.RemovedByUserID)
+		if s.RemovedByPseudonymID != nil {
+			vals[13] = psql.Arg(*s.RemovedByPseudonymID)
 		} else {
 			vals[13] = psql.Raw("DEFAULT")
 		}
 
-		if s.RemovedByPseudonymID != nil {
-			vals[14] = psql.Arg(*s.RemovedByPseudonymID)
+		if s.RemovalReason != nil {
+			vals[14] = psql.Arg(*s.RemovalReason)
 		} else {
 			vals[14] = psql.Raw("DEFAULT")
 		}
 
-		if s.RemovalReason != nil {
-			vals[15] = psql.Arg(*s.RemovalReason)
+		if s.RemovedAt != nil {
+			vals[15] = psql.Arg(*s.RemovedAt)
 		} else {
 			vals[15] = psql.Raw("DEFAULT")
 		}
 
-		if s.RemovedAt != nil {
-			vals[16] = psql.Arg(*s.RemovedAt)
+		if s.PseudonymID != nil {
+			vals[16] = psql.Arg(*s.PseudonymID)
 		} else {
 			vals[16] = psql.Raw("DEFAULT")
 		}
 
-		if s.PseudonymID != nil {
-			vals[17] = psql.Arg(*s.PseudonymID)
+		if s.IsDeleted != nil {
+			vals[17] = psql.Arg(*s.IsDeleted)
 		} else {
 			vals[17] = psql.Raw("DEFAULT")
+		}
+
+		if s.DeletedByPseudonymID != nil {
+			vals[18] = psql.Arg(*s.DeletedByPseudonymID)
+		} else {
+			vals[18] = psql.Raw("DEFAULT")
+		}
+
+		if s.DeletedByPseudonymAt != nil {
+			vals[19] = psql.Arg(*s.DeletedByPseudonymAt)
+		} else {
+			vals[19] = psql.Raw("DEFAULT")
+		}
+
+		if s.DeletedByPseudonymReason != nil {
+			vals[20] = psql.Arg(*s.DeletedByPseudonymReason)
+		} else {
+			vals[20] = psql.Raw("DEFAULT")
 		}
 
 		return bob.ExpressSlice(ctx, w, d, start, vals, "", ", ", "")
@@ -486,7 +546,7 @@ func (s CommentSetter) UpdateMod() bob.Mod[*dialect.UpdateQuery] {
 }
 
 func (s CommentSetter) Expressions(prefix ...string) []bob.Expression {
-	exprs := make([]bob.Expression, 0, 18)
+	exprs := make([]bob.Expression, 0, 21)
 
 	if s.CommentID != nil {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
@@ -579,13 +639,6 @@ func (s CommentSetter) Expressions(prefix ...string) []bob.Expression {
 		}})
 	}
 
-	if s.RemovedByUserID != nil {
-		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
-			psql.Quote(append(prefix, "removed_by_user_id")...),
-			psql.Arg(s.RemovedByUserID),
-		}})
-	}
-
 	if s.RemovedByPseudonymID != nil {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "removed_by_pseudonym_id")...),
@@ -611,6 +664,34 @@ func (s CommentSetter) Expressions(prefix ...string) []bob.Expression {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "pseudonym_id")...),
 			psql.Arg(s.PseudonymID),
+		}})
+	}
+
+	if s.IsDeleted != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "is_deleted")...),
+			psql.Arg(s.IsDeleted),
+		}})
+	}
+
+	if s.DeletedByPseudonymID != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "deleted_by_pseudonym_id")...),
+			psql.Arg(s.DeletedByPseudonymID),
+		}})
+	}
+
+	if s.DeletedByPseudonymAt != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "deleted_by_pseudonym_at")...),
+			psql.Arg(s.DeletedByPseudonymAt),
+		}})
+	}
+
+	if s.DeletedByPseudonymReason != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "deleted_by_pseudonym_reason")...),
+			psql.Arg(s.DeletedByPseudonymReason),
 		}})
 	}
 
@@ -847,7 +928,7 @@ type commentJoins[Q dialect.Joinable] struct {
 	Post                        modAs[Q, postColumns]
 	Pseudonym                   modAs[Q, pseudonymColumns]
 	RemovedByPseudonymPseudonym modAs[Q, pseudonymColumns]
-	RemovedByUserUser           modAs[Q, userColumns]
+	DeletedByPseudonymPseudonym modAs[Q, pseudonymColumns]
 }
 
 func (j commentJoins[Q]) aliasedAs(alias string) commentJoins[Q] {
@@ -927,14 +1008,14 @@ func buildCommentJoins[Q dialect.Joinable](cols commentColumns, typ string) comm
 				return mods
 			},
 		},
-		RemovedByUserUser: modAs[Q, userColumns]{
-			c: UserColumns,
-			f: func(to userColumns) bob.Mod[Q] {
+		DeletedByPseudonymPseudonym: modAs[Q, pseudonymColumns]{
+			c: PseudonymColumns,
+			f: func(to pseudonymColumns) bob.Mod[Q] {
 				mods := make(mods.QueryMods[Q], 0, 1)
 
 				{
-					mods = append(mods, dialect.Join[Q](typ, Users.Name().As(to.Alias())).On(
-						to.UserID.EQ(cols.RemovedByUserID),
+					mods = append(mods, dialect.Join[Q](typ, Pseudonyms.Name().As(to.Alias())).On(
+						to.PseudonymID.EQ(cols.DeletedByPseudonymID),
 					))
 				}
 
@@ -1049,24 +1130,24 @@ func (os CommentSlice) RemovedByPseudonymPseudonym(mods ...bob.Mod[*dialect.Sele
 	)...)
 }
 
-// RemovedByUserUser starts a query for related objects on users
-func (o *Comment) RemovedByUserUser(mods ...bob.Mod[*dialect.SelectQuery]) UsersQuery {
-	return Users.Query(append(mods,
-		sm.Where(UserColumns.UserID.EQ(psql.Arg(o.RemovedByUserID))),
+// DeletedByPseudonymPseudonym starts a query for related objects on pseudonyms
+func (o *Comment) DeletedByPseudonymPseudonym(mods ...bob.Mod[*dialect.SelectQuery]) PseudonymsQuery {
+	return Pseudonyms.Query(append(mods,
+		sm.Where(PseudonymColumns.PseudonymID.EQ(psql.Arg(o.DeletedByPseudonymID))),
 	)...)
 }
 
-func (os CommentSlice) RemovedByUserUser(mods ...bob.Mod[*dialect.SelectQuery]) UsersQuery {
-	pkRemovedByUserID := make(pgtypes.Array[sql.Null[int64]], len(os))
+func (os CommentSlice) DeletedByPseudonymPseudonym(mods ...bob.Mod[*dialect.SelectQuery]) PseudonymsQuery {
+	pkDeletedByPseudonymID := make(pgtypes.Array[sql.Null[string]], len(os))
 	for i, o := range os {
-		pkRemovedByUserID[i] = o.RemovedByUserID
+		pkDeletedByPseudonymID[i] = o.DeletedByPseudonymID
 	}
 	PKArgExpr := psql.Select(sm.Columns(
-		psql.F("unnest", psql.Cast(psql.Arg(pkRemovedByUserID), "bigint[]")),
+		psql.F("unnest", psql.Cast(psql.Arg(pkDeletedByPseudonymID), "character varying[]")),
 	))
 
-	return Users.Query(append(mods,
-		sm.Where(psql.Group(UserColumns.UserID).OP("IN", PKArgExpr)),
+	return Pseudonyms.Query(append(mods,
+		sm.Where(psql.Group(PseudonymColumns.PseudonymID).OP("IN", PKArgExpr)),
 	)...)
 }
 
@@ -1138,16 +1219,16 @@ func (o *Comment) Preload(name string, retrieved any) error {
 			rel.R.RemovedByPseudonymComments = CommentSlice{o}
 		}
 		return nil
-	case "RemovedByUserUser":
-		rel, ok := retrieved.(*User)
+	case "DeletedByPseudonymPseudonym":
+		rel, ok := retrieved.(*Pseudonym)
 		if !ok {
 			return fmt.Errorf("comment cannot load %T as %q", retrieved, name)
 		}
 
-		o.R.RemovedByUserUser = rel
+		o.R.DeletedByPseudonymPseudonym = rel
 
 		if rel != nil {
-			rel.R.RemovedByUserComments = CommentSlice{o}
+			rel.R.DeletedByPseudonymComments = CommentSlice{o}
 		}
 		return nil
 	default:
@@ -1160,7 +1241,7 @@ type commentPreloader struct {
 	Post                        func(...psql.PreloadOption) psql.Preloader
 	Pseudonym                   func(...psql.PreloadOption) psql.Preloader
 	RemovedByPseudonymPseudonym func(...psql.PreloadOption) psql.Preloader
-	RemovedByUserUser           func(...psql.PreloadOption) psql.Preloader
+	DeletedByPseudonymPseudonym func(...psql.PreloadOption) psql.Preloader
 }
 
 func buildCommentPreloader() commentPreloader {
@@ -1233,22 +1314,22 @@ func buildCommentPreloader() commentPreloader {
 				},
 			}, Pseudonyms.Columns().Names(), opts...)
 		},
-		RemovedByUserUser: func(opts ...psql.PreloadOption) psql.Preloader {
-			return psql.Preload[*User, UserSlice](orm.Relationship{
-				Name: "RemovedByUserUser",
+		DeletedByPseudonymPseudonym: func(opts ...psql.PreloadOption) psql.Preloader {
+			return psql.Preload[*Pseudonym, PseudonymSlice](orm.Relationship{
+				Name: "DeletedByPseudonymPseudonym",
 				Sides: []orm.RelSide{
 					{
 						From: TableNames.Comments,
-						To:   TableNames.Users,
+						To:   TableNames.Pseudonyms,
 						FromColumns: []string{
-							ColumnNames.Comments.RemovedByUserID,
+							ColumnNames.Comments.DeletedByPseudonymID,
 						},
 						ToColumns: []string{
-							ColumnNames.Users.UserID,
+							ColumnNames.Pseudonyms.PseudonymID,
 						},
 					},
 				},
-			}, Users.Columns().Names(), opts...)
+			}, Pseudonyms.Columns().Names(), opts...)
 		},
 	}
 }
@@ -1259,7 +1340,7 @@ type commentThenLoader[Q orm.Loadable] struct {
 	Post                        func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	Pseudonym                   func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	RemovedByPseudonymPseudonym func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	RemovedByUserUser           func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	DeletedByPseudonymPseudonym func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 }
 
 func buildCommentThenLoader[Q orm.Loadable]() commentThenLoader[Q] {
@@ -1278,8 +1359,8 @@ func buildCommentThenLoader[Q orm.Loadable]() commentThenLoader[Q] {
 	type RemovedByPseudonymPseudonymLoadInterface interface {
 		LoadRemovedByPseudonymPseudonym(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
-	type RemovedByUserUserLoadInterface interface {
-		LoadRemovedByUserUser(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	type DeletedByPseudonymPseudonymLoadInterface interface {
+		LoadDeletedByPseudonymPseudonym(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 
 	return commentThenLoader[Q]{
@@ -1313,10 +1394,10 @@ func buildCommentThenLoader[Q orm.Loadable]() commentThenLoader[Q] {
 				return retrieved.LoadRemovedByPseudonymPseudonym(ctx, exec, mods...)
 			},
 		),
-		RemovedByUserUser: thenLoadBuilder[Q](
-			"RemovedByUserUser",
-			func(ctx context.Context, exec bob.Executor, retrieved RemovedByUserUserLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
-				return retrieved.LoadRemovedByUserUser(ctx, exec, mods...)
+		DeletedByPseudonymPseudonym: thenLoadBuilder[Q](
+			"DeletedByPseudonymPseudonym",
+			func(ctx context.Context, exec bob.Executor, retrieved DeletedByPseudonymPseudonymLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadDeletedByPseudonymPseudonym(ctx, exec, mods...)
 			},
 		),
 	}
@@ -1562,46 +1643,46 @@ func (os CommentSlice) LoadRemovedByPseudonymPseudonym(ctx context.Context, exec
 	return nil
 }
 
-// LoadRemovedByUserUser loads the comment's RemovedByUserUser into the .R struct
-func (o *Comment) LoadRemovedByUserUser(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+// LoadDeletedByPseudonymPseudonym loads the comment's DeletedByPseudonymPseudonym into the .R struct
+func (o *Comment) LoadDeletedByPseudonymPseudonym(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
 	if o == nil {
 		return nil
 	}
 
 	// Reset the relationship
-	o.R.RemovedByUserUser = nil
+	o.R.DeletedByPseudonymPseudonym = nil
 
-	related, err := o.RemovedByUserUser(mods...).One(ctx, exec)
+	related, err := o.DeletedByPseudonymPseudonym(mods...).One(ctx, exec)
 	if err != nil {
 		return err
 	}
 
-	related.R.RemovedByUserComments = CommentSlice{o}
+	related.R.DeletedByPseudonymComments = CommentSlice{o}
 
-	o.R.RemovedByUserUser = related
+	o.R.DeletedByPseudonymPseudonym = related
 	return nil
 }
 
-// LoadRemovedByUserUser loads the comment's RemovedByUserUser into the .R struct
-func (os CommentSlice) LoadRemovedByUserUser(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+// LoadDeletedByPseudonymPseudonym loads the comment's DeletedByPseudonymPseudonym into the .R struct
+func (os CommentSlice) LoadDeletedByPseudonymPseudonym(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
 	if len(os) == 0 {
 		return nil
 	}
 
-	users, err := os.RemovedByUserUser(mods...).All(ctx, exec)
+	pseudonyms, err := os.DeletedByPseudonymPseudonym(mods...).All(ctx, exec)
 	if err != nil {
 		return err
 	}
 
 	for _, o := range os {
-		for _, rel := range users {
-			if o.RemovedByUserID.V != rel.UserID {
+		for _, rel := range pseudonyms {
+			if o.DeletedByPseudonymID.V != rel.PseudonymID {
 				continue
 			}
 
-			rel.R.RemovedByUserComments = append(rel.R.RemovedByUserComments, o)
+			rel.R.DeletedByPseudonymComments = append(rel.R.DeletedByPseudonymComments, o)
 
-			o.R.RemovedByUserUser = rel
+			o.R.DeletedByPseudonymPseudonym = rel
 			break
 		}
 	}
@@ -1873,51 +1954,51 @@ func (comment0 *Comment) AttachRemovedByPseudonymPseudonym(ctx context.Context, 
 	return nil
 }
 
-func attachCommentRemovedByUserUser0(ctx context.Context, exec bob.Executor, count int, comment0 *Comment, user1 *User) (*Comment, error) {
+func attachCommentDeletedByPseudonymPseudonym0(ctx context.Context, exec bob.Executor, count int, comment0 *Comment, pseudonym1 *Pseudonym) (*Comment, error) {
 	setter := &CommentSetter{
-		RemovedByUserID: func() *sql.Null[int64] {
-			v := sql.Null[int64]{V: user1.UserID, Valid: true}
+		DeletedByPseudonymID: func() *sql.Null[string] {
+			v := sql.Null[string]{V: pseudonym1.PseudonymID, Valid: true}
 			return &v
 		}(),
 	}
 
 	err := comment0.Update(ctx, exec, setter)
 	if err != nil {
-		return nil, fmt.Errorf("attachCommentRemovedByUserUser0: %w", err)
+		return nil, fmt.Errorf("attachCommentDeletedByPseudonymPseudonym0: %w", err)
 	}
 
 	return comment0, nil
 }
 
-func (comment0 *Comment) InsertRemovedByUserUser(ctx context.Context, exec bob.Executor, related *UserSetter) error {
-	user1, err := Users.Insert(related).One(ctx, exec)
+func (comment0 *Comment) InsertDeletedByPseudonymPseudonym(ctx context.Context, exec bob.Executor, related *PseudonymSetter) error {
+	pseudonym1, err := Pseudonyms.Insert(related).One(ctx, exec)
 	if err != nil {
 		return fmt.Errorf("inserting related objects: %w", err)
 	}
 
-	_, err = attachCommentRemovedByUserUser0(ctx, exec, 1, comment0, user1)
+	_, err = attachCommentDeletedByPseudonymPseudonym0(ctx, exec, 1, comment0, pseudonym1)
 	if err != nil {
 		return err
 	}
 
-	comment0.R.RemovedByUserUser = user1
+	comment0.R.DeletedByPseudonymPseudonym = pseudonym1
 
-	user1.R.RemovedByUserComments = append(user1.R.RemovedByUserComments, comment0)
+	pseudonym1.R.DeletedByPseudonymComments = append(pseudonym1.R.DeletedByPseudonymComments, comment0)
 
 	return nil
 }
 
-func (comment0 *Comment) AttachRemovedByUserUser(ctx context.Context, exec bob.Executor, user1 *User) error {
+func (comment0 *Comment) AttachDeletedByPseudonymPseudonym(ctx context.Context, exec bob.Executor, pseudonym1 *Pseudonym) error {
 	var err error
 
-	_, err = attachCommentRemovedByUserUser0(ctx, exec, 1, comment0, user1)
+	_, err = attachCommentDeletedByPseudonymPseudonym0(ctx, exec, 1, comment0, pseudonym1)
 	if err != nil {
 		return err
 	}
 
-	comment0.R.RemovedByUserUser = user1
+	comment0.R.DeletedByPseudonymPseudonym = pseudonym1
 
-	user1.R.RemovedByUserComments = append(user1.R.RemovedByUserComments, comment0)
+	pseudonym1.R.DeletedByPseudonymComments = append(pseudonym1.R.DeletedByPseudonymComments, comment0)
 
 	return nil
 }

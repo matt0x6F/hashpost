@@ -55,11 +55,13 @@ type pseudonymR struct {
 	APIKeys                             APIKeySlice               `scan:"APIKeys" json:"APIKeys"`                                                         // api_keys.fk_api_keys_pseudonym
 	Comments                            CommentSlice              `scan:"Comments" json:"Comments"`                                                       // comments.comments_pseudonym_id_fkey
 	RemovedByPseudonymComments          CommentSlice              `scan:"RemovedByPseudonymComments" json:"RemovedByPseudonymComments"`                   // comments.comments_removed_by_pseudonym_id_fkey
+	DeletedByPseudonymComments          CommentSlice              `scan:"DeletedByPseudonymComments" json:"DeletedByPseudonymComments"`                   // comments.fk_comments_deleted_by_pseudonym
 	CorrelationAudits                   CorrelationAuditSlice     `scan:"CorrelationAudits" json:"CorrelationAudits"`                                     // correlation_audit.correlation_audit_pseudonym_id_fkey
 	RecipientPseudonymDirectMessages    DirectMessageSlice        `scan:"RecipientPseudonymDirectMessages" json:"RecipientPseudonymDirectMessages"`       // direct_messages.direct_messages_recipient_pseudonym_id_fkey
 	SenderPseudonymDirectMessages       DirectMessageSlice        `scan:"SenderPseudonymDirectMessages" json:"SenderPseudonymDirectMessages"`             // direct_messages.direct_messages_sender_pseudonym_id_fkey
 	ModeratorPseudonymModerationActions ModerationActionSlice     `scan:"ModeratorPseudonymModerationActions" json:"ModeratorPseudonymModerationActions"` // moderation_actions.moderation_actions_moderator_pseudonym_id_fkey
 	PollVotes                           PollVoteSlice             `scan:"PollVotes" json:"PollVotes"`                                                     // poll_votes.poll_votes_pseudonym_id_fkey
+	DeletedByPseudonymPosts             PostSlice                 `scan:"DeletedByPseudonymPosts" json:"DeletedByPseudonymPosts"`                         // posts.fk_posts_deleted_by_pseudonym
 	Posts                               PostSlice                 `scan:"Posts" json:"Posts"`                                                             // posts.posts_pseudonym_id_fkey
 	RemovedByPseudonymPosts             PostSlice                 `scan:"RemovedByPseudonymPosts" json:"RemovedByPseudonymPosts"`                         // posts.posts_removed_by_pseudonym_id_fkey
 	ReportedPseudonymReports            ReportSlice               `scan:"ReportedPseudonymReports" json:"ReportedPseudonymReports"`                       // reports.reports_reported_pseudonym_id_fkey
@@ -706,11 +708,13 @@ type pseudonymJoins[Q dialect.Joinable] struct {
 	APIKeys                             modAs[Q, apiKeyColumns]
 	Comments                            modAs[Q, commentColumns]
 	RemovedByPseudonymComments          modAs[Q, commentColumns]
+	DeletedByPseudonymComments          modAs[Q, commentColumns]
 	CorrelationAudits                   modAs[Q, correlationAuditColumns]
 	RecipientPseudonymDirectMessages    modAs[Q, directMessageColumns]
 	SenderPseudonymDirectMessages       modAs[Q, directMessageColumns]
 	ModeratorPseudonymModerationActions modAs[Q, moderationActionColumns]
 	PollVotes                           modAs[Q, pollVoteColumns]
+	DeletedByPseudonymPosts             modAs[Q, postColumns]
 	Posts                               modAs[Q, postColumns]
 	RemovedByPseudonymPosts             modAs[Q, postColumns]
 	ReportedPseudonymReports            modAs[Q, reportColumns]
@@ -768,6 +772,20 @@ func buildPseudonymJoins[Q dialect.Joinable](cols pseudonymColumns, typ string) 
 				{
 					mods = append(mods, dialect.Join[Q](typ, Comments.Name().As(to.Alias())).On(
 						to.RemovedByPseudonymID.EQ(cols.PseudonymID),
+					))
+				}
+
+				return mods
+			},
+		},
+		DeletedByPseudonymComments: modAs[Q, commentColumns]{
+			c: CommentColumns,
+			f: func(to commentColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, Comments.Name().As(to.Alias())).On(
+						to.DeletedByPseudonymID.EQ(cols.PseudonymID),
 					))
 				}
 
@@ -838,6 +856,20 @@ func buildPseudonymJoins[Q dialect.Joinable](cols pseudonymColumns, typ string) 
 				{
 					mods = append(mods, dialect.Join[Q](typ, PollVotes.Name().As(to.Alias())).On(
 						to.PseudonymID.EQ(cols.PseudonymID),
+					))
+				}
+
+				return mods
+			},
+		},
+		DeletedByPseudonymPosts: modAs[Q, postColumns]{
+			c: PostColumns,
+			f: func(to postColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, Posts.Name().As(to.Alias())).On(
+						to.DeletedByPseudonymID.EQ(cols.PseudonymID),
 					))
 				}
 
@@ -1078,6 +1110,27 @@ func (os PseudonymSlice) RemovedByPseudonymComments(mods ...bob.Mod[*dialect.Sel
 	)...)
 }
 
+// DeletedByPseudonymComments starts a query for related objects on comments
+func (o *Pseudonym) DeletedByPseudonymComments(mods ...bob.Mod[*dialect.SelectQuery]) CommentsQuery {
+	return Comments.Query(append(mods,
+		sm.Where(CommentColumns.DeletedByPseudonymID.EQ(psql.Arg(o.PseudonymID))),
+	)...)
+}
+
+func (os PseudonymSlice) DeletedByPseudonymComments(mods ...bob.Mod[*dialect.SelectQuery]) CommentsQuery {
+	pkPseudonymID := make(pgtypes.Array[string], len(os))
+	for i, o := range os {
+		pkPseudonymID[i] = o.PseudonymID
+	}
+	PKArgExpr := psql.Select(sm.Columns(
+		psql.F("unnest", psql.Cast(psql.Arg(pkPseudonymID), "character varying[]")),
+	))
+
+	return Comments.Query(append(mods,
+		sm.Where(psql.Group(CommentColumns.DeletedByPseudonymID).OP("IN", PKArgExpr)),
+	)...)
+}
+
 // CorrelationAudits starts a query for related objects on correlation_audit
 func (o *Pseudonym) CorrelationAudits(mods ...bob.Mod[*dialect.SelectQuery]) CorrelationAuditsQuery {
 	return CorrelationAudits.Query(append(mods,
@@ -1180,6 +1233,27 @@ func (os PseudonymSlice) PollVotes(mods ...bob.Mod[*dialect.SelectQuery]) PollVo
 
 	return PollVotes.Query(append(mods,
 		sm.Where(psql.Group(PollVoteColumns.PseudonymID).OP("IN", PKArgExpr)),
+	)...)
+}
+
+// DeletedByPseudonymPosts starts a query for related objects on posts
+func (o *Pseudonym) DeletedByPseudonymPosts(mods ...bob.Mod[*dialect.SelectQuery]) PostsQuery {
+	return Posts.Query(append(mods,
+		sm.Where(PostColumns.DeletedByPseudonymID.EQ(psql.Arg(o.PseudonymID))),
+	)...)
+}
+
+func (os PseudonymSlice) DeletedByPseudonymPosts(mods ...bob.Mod[*dialect.SelectQuery]) PostsQuery {
+	pkPseudonymID := make(pgtypes.Array[string], len(os))
+	for i, o := range os {
+		pkPseudonymID[i] = o.PseudonymID
+	}
+	PKArgExpr := psql.Select(sm.Columns(
+		psql.F("unnest", psql.Cast(psql.Arg(pkPseudonymID), "character varying[]")),
+	))
+
+	return Posts.Query(append(mods,
+		sm.Where(psql.Group(PostColumns.DeletedByPseudonymID).OP("IN", PKArgExpr)),
 	)...)
 }
 
@@ -1483,6 +1557,20 @@ func (o *Pseudonym) Preload(name string, retrieved any) error {
 			}
 		}
 		return nil
+	case "DeletedByPseudonymComments":
+		rels, ok := retrieved.(CommentSlice)
+		if !ok {
+			return fmt.Errorf("pseudonym cannot load %T as %q", retrieved, name)
+		}
+
+		o.R.DeletedByPseudonymComments = rels
+
+		for _, rel := range rels {
+			if rel != nil {
+				rel.R.DeletedByPseudonymPseudonym = o
+			}
+		}
+		return nil
 	case "CorrelationAudits":
 		rels, ok := retrieved.(CorrelationAuditSlice)
 		if !ok {
@@ -1550,6 +1638,20 @@ func (o *Pseudonym) Preload(name string, retrieved any) error {
 		for _, rel := range rels {
 			if rel != nil {
 				rel.R.Pseudonym = o
+			}
+		}
+		return nil
+	case "DeletedByPseudonymPosts":
+		rels, ok := retrieved.(PostSlice)
+		if !ok {
+			return fmt.Errorf("pseudonym cannot load %T as %q", retrieved, name)
+		}
+
+		o.R.DeletedByPseudonymPosts = rels
+
+		for _, rel := range rels {
+			if rel != nil {
+				rel.R.DeletedByPseudonymPseudonym = o
 			}
 		}
 		return nil
@@ -1736,11 +1838,13 @@ type pseudonymThenLoader[Q orm.Loadable] struct {
 	APIKeys                             func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	Comments                            func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	RemovedByPseudonymComments          func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	DeletedByPseudonymComments          func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	CorrelationAudits                   func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	RecipientPseudonymDirectMessages    func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	SenderPseudonymDirectMessages       func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	ModeratorPseudonymModerationActions func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	PollVotes                           func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	DeletedByPseudonymPosts             func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	Posts                               func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	RemovedByPseudonymPosts             func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	ReportedPseudonymReports            func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
@@ -1765,6 +1869,9 @@ func buildPseudonymThenLoader[Q orm.Loadable]() pseudonymThenLoader[Q] {
 	type RemovedByPseudonymCommentsLoadInterface interface {
 		LoadRemovedByPseudonymComments(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
+	type DeletedByPseudonymCommentsLoadInterface interface {
+		LoadDeletedByPseudonymComments(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	}
 	type CorrelationAuditsLoadInterface interface {
 		LoadCorrelationAudits(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
@@ -1779,6 +1886,9 @@ func buildPseudonymThenLoader[Q orm.Loadable]() pseudonymThenLoader[Q] {
 	}
 	type PollVotesLoadInterface interface {
 		LoadPollVotes(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	}
+	type DeletedByPseudonymPostsLoadInterface interface {
+		LoadDeletedByPseudonymPosts(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 	type PostsLoadInterface interface {
 		LoadPosts(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
@@ -1836,6 +1946,12 @@ func buildPseudonymThenLoader[Q orm.Loadable]() pseudonymThenLoader[Q] {
 				return retrieved.LoadRemovedByPseudonymComments(ctx, exec, mods...)
 			},
 		),
+		DeletedByPseudonymComments: thenLoadBuilder[Q](
+			"DeletedByPseudonymComments",
+			func(ctx context.Context, exec bob.Executor, retrieved DeletedByPseudonymCommentsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadDeletedByPseudonymComments(ctx, exec, mods...)
+			},
+		),
 		CorrelationAudits: thenLoadBuilder[Q](
 			"CorrelationAudits",
 			func(ctx context.Context, exec bob.Executor, retrieved CorrelationAuditsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
@@ -1864,6 +1980,12 @@ func buildPseudonymThenLoader[Q orm.Loadable]() pseudonymThenLoader[Q] {
 			"PollVotes",
 			func(ctx context.Context, exec bob.Executor, retrieved PollVotesLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
 				return retrieved.LoadPollVotes(ctx, exec, mods...)
+			},
+		),
+		DeletedByPseudonymPosts: thenLoadBuilder[Q](
+			"DeletedByPseudonymPosts",
+			func(ctx context.Context, exec bob.Executor, retrieved DeletedByPseudonymPostsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadDeletedByPseudonymPosts(ctx, exec, mods...)
 			},
 		),
 		Posts: thenLoadBuilder[Q](
@@ -2091,6 +2213,58 @@ func (os PseudonymSlice) LoadRemovedByPseudonymComments(ctx context.Context, exe
 			rel.R.RemovedByPseudonymPseudonym = o
 
 			o.R.RemovedByPseudonymComments = append(o.R.RemovedByPseudonymComments, rel)
+		}
+	}
+
+	return nil
+}
+
+// LoadDeletedByPseudonymComments loads the pseudonym's DeletedByPseudonymComments into the .R struct
+func (o *Pseudonym) LoadDeletedByPseudonymComments(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if o == nil {
+		return nil
+	}
+
+	// Reset the relationship
+	o.R.DeletedByPseudonymComments = nil
+
+	related, err := o.DeletedByPseudonymComments(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, rel := range related {
+		rel.R.DeletedByPseudonymPseudonym = o
+	}
+
+	o.R.DeletedByPseudonymComments = related
+	return nil
+}
+
+// LoadDeletedByPseudonymComments loads the pseudonym's DeletedByPseudonymComments into the .R struct
+func (os PseudonymSlice) LoadDeletedByPseudonymComments(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if len(os) == 0 {
+		return nil
+	}
+
+	comments, err := os.DeletedByPseudonymComments(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range os {
+		o.R.DeletedByPseudonymComments = nil
+	}
+
+	for _, o := range os {
+		for _, rel := range comments {
+			if o.PseudonymID != rel.DeletedByPseudonymID.V {
+				continue
+			}
+
+			rel.R.DeletedByPseudonymPseudonym = o
+
+			o.R.DeletedByPseudonymComments = append(o.R.DeletedByPseudonymComments, rel)
 		}
 	}
 
@@ -2351,6 +2525,58 @@ func (os PseudonymSlice) LoadPollVotes(ctx context.Context, exec bob.Executor, m
 			rel.R.Pseudonym = o
 
 			o.R.PollVotes = append(o.R.PollVotes, rel)
+		}
+	}
+
+	return nil
+}
+
+// LoadDeletedByPseudonymPosts loads the pseudonym's DeletedByPseudonymPosts into the .R struct
+func (o *Pseudonym) LoadDeletedByPseudonymPosts(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if o == nil {
+		return nil
+	}
+
+	// Reset the relationship
+	o.R.DeletedByPseudonymPosts = nil
+
+	related, err := o.DeletedByPseudonymPosts(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, rel := range related {
+		rel.R.DeletedByPseudonymPseudonym = o
+	}
+
+	o.R.DeletedByPseudonymPosts = related
+	return nil
+}
+
+// LoadDeletedByPseudonymPosts loads the pseudonym's DeletedByPseudonymPosts into the .R struct
+func (os PseudonymSlice) LoadDeletedByPseudonymPosts(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if len(os) == 0 {
+		return nil
+	}
+
+	posts, err := os.DeletedByPseudonymPosts(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range os {
+		o.R.DeletedByPseudonymPosts = nil
+	}
+
+	for _, o := range os {
+		for _, rel := range posts {
+			if o.PseudonymID != rel.DeletedByPseudonymID.V {
+				continue
+			}
+
+			rel.R.DeletedByPseudonymPseudonym = o
+
+			o.R.DeletedByPseudonymPosts = append(o.R.DeletedByPseudonymPosts, rel)
 		}
 	}
 
@@ -3197,6 +3423,80 @@ func (pseudonym0 *Pseudonym) AttachRemovedByPseudonymComments(ctx context.Contex
 	return nil
 }
 
+func insertPseudonymDeletedByPseudonymComments0(ctx context.Context, exec bob.Executor, comments1 []*CommentSetter, pseudonym0 *Pseudonym) (CommentSlice, error) {
+	for i := range comments1 {
+		comments1[i].DeletedByPseudonymID = func() *sql.Null[string] {
+			v := sql.Null[string]{V: pseudonym0.PseudonymID, Valid: true}
+			return &v
+		}()
+	}
+
+	ret, err := Comments.Insert(bob.ToMods(comments1...)).All(ctx, exec)
+	if err != nil {
+		return ret, fmt.Errorf("insertPseudonymDeletedByPseudonymComments0: %w", err)
+	}
+
+	return ret, nil
+}
+
+func attachPseudonymDeletedByPseudonymComments0(ctx context.Context, exec bob.Executor, count int, comments1 CommentSlice, pseudonym0 *Pseudonym) (CommentSlice, error) {
+	setter := &CommentSetter{
+		DeletedByPseudonymID: func() *sql.Null[string] {
+			v := sql.Null[string]{V: pseudonym0.PseudonymID, Valid: true}
+			return &v
+		}(),
+	}
+
+	err := comments1.UpdateAll(ctx, exec, *setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachPseudonymDeletedByPseudonymComments0: %w", err)
+	}
+
+	return comments1, nil
+}
+
+func (pseudonym0 *Pseudonym) InsertDeletedByPseudonymComments(ctx context.Context, exec bob.Executor, related ...*CommentSetter) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+
+	comments1, err := insertPseudonymDeletedByPseudonymComments0(ctx, exec, related, pseudonym0)
+	if err != nil {
+		return err
+	}
+
+	pseudonym0.R.DeletedByPseudonymComments = append(pseudonym0.R.DeletedByPseudonymComments, comments1...)
+
+	for _, rel := range comments1 {
+		rel.R.DeletedByPseudonymPseudonym = pseudonym0
+	}
+	return nil
+}
+
+func (pseudonym0 *Pseudonym) AttachDeletedByPseudonymComments(ctx context.Context, exec bob.Executor, related ...*Comment) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+	comments1 := CommentSlice(related)
+
+	_, err = attachPseudonymDeletedByPseudonymComments0(ctx, exec, len(related), comments1, pseudonym0)
+	if err != nil {
+		return err
+	}
+
+	pseudonym0.R.DeletedByPseudonymComments = append(pseudonym0.R.DeletedByPseudonymComments, comments1...)
+
+	for _, rel := range related {
+		rel.R.DeletedByPseudonymPseudonym = pseudonym0
+	}
+
+	return nil
+}
+
 func insertPseudonymCorrelationAudits0(ctx context.Context, exec bob.Executor, correlationAudits1 []*CorrelationAuditSetter, pseudonym0 *Pseudonym) (CorrelationAuditSlice, error) {
 	for i := range correlationAudits1 {
 		correlationAudits1[i].PseudonymID = &pseudonym0.PseudonymID
@@ -3532,6 +3832,80 @@ func (pseudonym0 *Pseudonym) AttachPollVotes(ctx context.Context, exec bob.Execu
 
 	for _, rel := range related {
 		rel.R.Pseudonym = pseudonym0
+	}
+
+	return nil
+}
+
+func insertPseudonymDeletedByPseudonymPosts0(ctx context.Context, exec bob.Executor, posts1 []*PostSetter, pseudonym0 *Pseudonym) (PostSlice, error) {
+	for i := range posts1 {
+		posts1[i].DeletedByPseudonymID = func() *sql.Null[string] {
+			v := sql.Null[string]{V: pseudonym0.PseudonymID, Valid: true}
+			return &v
+		}()
+	}
+
+	ret, err := Posts.Insert(bob.ToMods(posts1...)).All(ctx, exec)
+	if err != nil {
+		return ret, fmt.Errorf("insertPseudonymDeletedByPseudonymPosts0: %w", err)
+	}
+
+	return ret, nil
+}
+
+func attachPseudonymDeletedByPseudonymPosts0(ctx context.Context, exec bob.Executor, count int, posts1 PostSlice, pseudonym0 *Pseudonym) (PostSlice, error) {
+	setter := &PostSetter{
+		DeletedByPseudonymID: func() *sql.Null[string] {
+			v := sql.Null[string]{V: pseudonym0.PseudonymID, Valid: true}
+			return &v
+		}(),
+	}
+
+	err := posts1.UpdateAll(ctx, exec, *setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachPseudonymDeletedByPseudonymPosts0: %w", err)
+	}
+
+	return posts1, nil
+}
+
+func (pseudonym0 *Pseudonym) InsertDeletedByPseudonymPosts(ctx context.Context, exec bob.Executor, related ...*PostSetter) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+
+	posts1, err := insertPseudonymDeletedByPseudonymPosts0(ctx, exec, related, pseudonym0)
+	if err != nil {
+		return err
+	}
+
+	pseudonym0.R.DeletedByPseudonymPosts = append(pseudonym0.R.DeletedByPseudonymPosts, posts1...)
+
+	for _, rel := range posts1 {
+		rel.R.DeletedByPseudonymPseudonym = pseudonym0
+	}
+	return nil
+}
+
+func (pseudonym0 *Pseudonym) AttachDeletedByPseudonymPosts(ctx context.Context, exec bob.Executor, related ...*Post) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+	posts1 := PostSlice(related)
+
+	_, err = attachPseudonymDeletedByPseudonymPosts0(ctx, exec, len(related), posts1, pseudonym0)
+	if err != nil {
+		return err
+	}
+
+	pseudonym0.R.DeletedByPseudonymPosts = append(pseudonym0.R.DeletedByPseudonymPosts, posts1...)
+
+	for _, rel := range related {
+		rel.R.DeletedByPseudonymPseudonym = pseudonym0
 	}
 
 	return nil

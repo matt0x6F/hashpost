@@ -886,6 +886,89 @@ func (h *ContentHandler) RemovePost(ctx context.Context, input *models.PostRemov
 	return models.NewPostResponse(apiPost.PostID, apiPost.Title, apiPost.Content, apiPost.PostType, apiPost.Author.PseudonymID, apiPost.Author.DisplayName), nil
 }
 
+// EditPost handles editing a post
+func (h *ContentHandler) EditPost(ctx context.Context, input *models.PostEditInput) (*models.PostEditResponse, error) {
+	postID := input.PostID
+	title := input.Body.Title
+	content := input.Body.Content
+
+	// Extract user from AuthInput
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+	if err != nil {
+		log.Warn().Err(err).Msg("User context not available for post editing")
+		return nil, huma.Error401Unauthorized("Authentication required")
+	}
+
+	pseudonymID := userCtx.ActivePseudonymID
+	displayName := userCtx.DisplayName
+
+	log.Info().
+		Str("endpoint", "posts/edit").
+		Str("component", "handler").
+		Int64("post_id", postID).
+		Int64("user_id", userCtx.UserID).
+		Str("pseudonym_id", pseudonymID).
+		Msg("Edit post requested")
+
+	// Validate input
+	if title == "" {
+		return nil, huma.Error400BadRequest("title is required")
+	}
+	if content == "" {
+		return nil, huma.Error400BadRequest("content is required")
+	}
+
+	// Check if post exists
+	post, err := h.postDAO.GetPostByID(ctx, postID)
+	if err != nil {
+		log.Error().Err(err).Int64("post_id", postID).Msg("Failed to get post")
+		return nil, err
+	}
+	if post == nil {
+		log.Warn().Int64("post_id", postID).Msg("Post not found")
+		return nil, huma.Error404NotFound("post not found")
+	}
+
+	// Check if post is removed
+	if post.IsRemoved.Valid && post.IsRemoved.V {
+		log.Warn().Int64("post_id", postID).Msg("Cannot edit removed post")
+		return nil, huma.Error400BadRequest("cannot edit removed post")
+	}
+
+	// Check if user owns the post
+	if post.PseudonymID != pseudonymID {
+		log.Warn().Int64("post_id", postID).Str("pseudonym_id", pseudonymID).Msg("User does not own post")
+		return nil, huma.Error403Forbidden("you can only edit your own posts")
+	}
+
+	now := sql.Null[time.Time]{}
+	now.Scan(time.Now())
+
+	contentNull := sql.Null[string]{Valid: true, V: content}
+
+	updates := &dbmodels.PostSetter{
+		Title:     &title,
+		Content:   &contentNull,
+		UpdatedAt: &now,
+	}
+
+	err = post.Update(ctx, h.db, updates)
+	if err != nil {
+		log.Error().Err(err).Int64("post_id", postID).Msg("Failed to update post")
+		return nil, err
+	}
+
+	response := models.NewPostEditResponse(int(postID), title, content, pseudonymID, displayName, "", true)
+
+	log.Info().
+		Str("endpoint", "posts/edit").
+		Str("component", "handler").
+		Int64("post_id", postID).
+		Msg("Edit post completed")
+
+	return response, nil
+}
+
 // EditComment handles editing a comment
 func (h *ContentHandler) EditComment(ctx context.Context, input *models.CommentEditInput) (*models.CommentEditResponse, error) {
 	commentID := input.CommentID
@@ -1054,7 +1137,6 @@ func (h *ContentHandler) RemoveComment(ctx context.Context, input *models.Commen
 		IsRemoved:            &sql.Null[bool]{Valid: true, V: removed},
 		RemovalReason:        &reasonNull,
 		RemovedAt:            &now,
-		RemovedByUserID:      &sql.Null[int64]{Valid: true, V: userCtx.UserID},
 		RemovedByPseudonymID: &sql.Null[string]{Valid: true, V: pseudonymID},
 		UpdatedAt:            &now,
 	}
@@ -1146,6 +1228,108 @@ func (h *ContentHandler) ReportComment(ctx context.Context, input *models.Commen
 	return response, nil
 }
 
+// DeletePost allows the post author to delete their own post (soft delete)
+func (h *ContentHandler) DeletePost(ctx context.Context, input *models.PostDeleteInput) (*models.PostDeleteResponse, error) {
+	user, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+	if err != nil {
+		return nil, huma.Error401Unauthorized("User not authenticated")
+	}
+
+	pseudonymID := user.ActivePseudonymID
+	if pseudonymID == "" {
+		return nil, huma.Error422UnprocessableEntity("No active pseudonym")
+	}
+
+	err = h.postDAO.MarkPostAsDeletedByPseudonym(ctx, input.PostID, pseudonymID, input.Body.Reason)
+	if err != nil {
+		log.Error().Err(err).Int64("post_id", input.PostID).Str("pseudonym_id", pseudonymID).Msg("Failed to delete post by user")
+		return nil, huma.Error500InternalServerError("Failed to delete post")
+	}
+
+	// Get the updated post to return in response
+	post, err := h.postDAO.GetPostByID(ctx, input.PostID)
+	if err != nil {
+		log.Error().Err(err).Int64("post_id", input.PostID).Msg("Failed to get post after deletion")
+		return nil, huma.Error500InternalServerError("Failed to get post details")
+	}
+
+	// Get user info for response
+	pseudonymInfo, err := h.securePseudonymDAO.GetPseudonymByID(ctx, pseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", pseudonymID).Msg("Failed to get pseudonym info for deletion response")
+		// Continue without user info
+	}
+
+	response := &models.PostDeleteResponse{
+		Status: 200,
+		Body: models.PostDeleteResponseBody{
+			PostID:       int(post.PostID),
+			DeletedAt:    post.DeletedByPseudonymAt.V.Format(time.RFC3339),
+			DeleteReason: post.DeletedByPseudonymReason.V,
+			DeletedBy: struct {
+				PseudonymID string `json:"pseudonym_id" example:"user_pseudonym_id"`
+				DisplayName string `json:"display_name" example:"user_name"`
+			}{
+				PseudonymID: post.DeletedByPseudonymID.V,
+				DisplayName: pseudonymInfo.DisplayName,
+			},
+		},
+	}
+
+	return response, nil
+}
+
+// DeleteComment allows the comment author to delete their own comment (soft delete)
+func (h *ContentHandler) DeleteComment(ctx context.Context, input *models.CommentDeleteInput) (*models.CommentDeleteResponse, error) {
+	user, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+	if err != nil {
+		return nil, huma.Error401Unauthorized("User not authenticated")
+	}
+
+	pseudonymID := user.ActivePseudonymID
+	if pseudonymID == "" {
+		return nil, huma.Error422UnprocessableEntity("No active pseudonym")
+	}
+
+	err = h.commentDAO.MarkCommentAsDeletedByPseudonym(ctx, input.CommentID, pseudonymID, input.Body.Reason)
+	if err != nil {
+		log.Error().Err(err).Int64("comment_id", input.CommentID).Str("pseudonym_id", pseudonymID).Msg("Failed to delete comment by user")
+		return nil, huma.Error500InternalServerError("Failed to delete comment")
+	}
+
+	// Get the updated comment to return in response
+	comment, err := h.commentDAO.GetCommentByID(ctx, input.CommentID)
+	if err != nil {
+		log.Error().Err(err).Int64("comment_id", input.CommentID).Msg("Failed to get comment after deletion")
+		return nil, huma.Error500InternalServerError("Failed to get comment details")
+	}
+
+	// Get user info for response
+	pseudonymInfo, err := h.securePseudonymDAO.GetPseudonymByID(ctx, pseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", pseudonymID).Msg("Failed to get pseudonym info for deletion response")
+		// Continue without user info
+	}
+
+	response := &models.CommentDeleteResponse{
+		Status: 200,
+		Body: models.CommentDeleteResponseBody{
+			CommentID:    int(comment.CommentID),
+			DeletedAt:    comment.DeletedByPseudonymAt.V.Format(time.RFC3339),
+			DeleteReason: comment.DeletedByPseudonymReason.V,
+			DeletedBy: struct {
+				PseudonymID string `json:"pseudonym_id" example:"user_pseudonym_id"`
+				DisplayName string `json:"display_name" example:"user_name"`
+			}{
+				PseudonymID: comment.DeletedByPseudonymID.V,
+				DisplayName: pseudonymInfo.DisplayName,
+			},
+		},
+	}
+
+	return response, nil
+}
+
 // convertDBPostToAPIPost converts a database post to an API post model
 func (h *ContentHandler) convertDBPostToAPIPost(ctx context.Context, dbPost *dbmodels.Post) models.Post {
 	// Get pseudonym display name
@@ -1184,14 +1368,15 @@ func (h *ContentHandler) convertDBPostToAPIPost(ctx context.Context, dbPost *dbm
 		IsSelfPost:   dbPost.IsSelfPost.V,
 		IsNSFW:       dbPost.IsNSFW.V,
 		IsSpoiler:    dbPost.IsSpoiler.V,
+		IsLocked:     dbPost.IsLocked.V,
+		IsSticky:     dbPost.IsStickied.V,
+		IsRemoved:    dbPost.IsRemoved.V,
 		Score:        int(dbPost.Score.V),
 		Upvotes:      int(dbPost.Upvotes.V),
 		Downvotes:    int(dbPost.Downvotes.V),
 		CommentCount: int(dbPost.CommentCount.V),
-		ViewCount:    int(dbPost.ViewCount.V),
 		CreatedAt:    dbPost.CreatedAt.V.Format("2006-01-02T15:04:05Z"),
 		UserVote:     userVote,
-		IsSaved:      false, // TODO: Implement saved posts functionality
 	}
 
 	// Set author info
@@ -1199,7 +1384,6 @@ func (h *ContentHandler) convertDBPostToAPIPost(ctx context.Context, dbPost *dbm
 	apiPost.Author.DisplayName = displayName
 
 	// Set subforum info
-	apiPost.Subforum.SubforumID = int(dbPost.SubforumID)
 	apiPost.Subforum.Name = subforumName
 	apiPost.Subforum.DisplayName = subforumDisplayName
 
@@ -1260,9 +1444,12 @@ func (h *ContentHandler) convertDBCommentToAPICommentWithReplies(ctx context.Con
 		log.Warn().Msg("User context missing in convertDBCommentToAPICommentWithReplies")
 	} else {
 		log.Info().Str("pseudonym_id", userCtx.ActivePseudonymID).Msg("User context found in convertDBCommentToAPICommentWithReplies")
-		vote, err := h.voteDAO.GetVoteByPseudonymAndContent(ctx, userCtx.ActivePseudonymID, "comment", dbComment.CommentID)
-		if err == nil && vote != nil {
-			userVote = int(vote.VoteValue)
+		// Only get user vote if comment is not deleted (freeze voting for deleted comments)
+		if !dbComment.IsDeleted.Valid || !dbComment.IsDeleted.V {
+			vote, err := h.voteDAO.GetVoteByPseudonymAndContent(ctx, userCtx.ActivePseudonymID, "comment", dbComment.CommentID)
+			if err == nil && vote != nil {
+				userVote = int(vote.VoteValue)
+			}
 		}
 	}
 
@@ -1277,18 +1464,47 @@ func (h *ContentHandler) convertDBCommentToAPICommentWithReplies(ctx context.Con
 		replies[i] = h.convertDBCommentToAPICommentWithReplies(ctx, reply)
 	}
 
+	// Handle deleted comments
+	content := dbComment.Content
+	authorDisplayName := displayName
+	isDeleted := false
+	deletedAt := ""
+	deleteReason := ""
+	var deletedBy struct {
+		PseudonymID string `json:"pseudonym_id" example:"user_pseudonym_id"`
+		DisplayName string `json:"display_name" example:"user_name"`
+	}
+
+	if dbComment.IsDeleted.Valid && dbComment.IsDeleted.V {
+		content = "[deleted]"
+		authorDisplayName = "[deleted]"
+		isDeleted = true
+		deletedAt = dbComment.DeletedByPseudonymAt.V.Format("2006-01-02T15:04:05Z")
+		deleteReason = dbComment.DeletedByPseudonymReason.V
+
+		// Get deleted by info
+		if dbComment.R.DeletedByPseudonymPseudonym != nil {
+			deletedBy.PseudonymID = dbComment.DeletedByPseudonymID.V
+			deletedBy.DisplayName = dbComment.R.DeletedByPseudonymPseudonym.DisplayName
+		}
+	}
+
 	apiComment := models.Comment{
 		CommentID:       int(dbComment.CommentID),
-		Content:         dbComment.Content,
+		Content:         content,
 		ParentCommentID: parentCommentID,
 		Score:           int(dbComment.Score.V),
 		CreatedAt:       dbComment.CreatedAt.V.Format("2006-01-02T15:04:05Z"),
 		UserVote:        userVote,
 		Replies:         replies,
+		IsDeleted:       isDeleted,
+		DeletedAt:       deletedAt,
+		DeleteReason:    deleteReason,
+		DeletedBy:       deletedBy,
 	}
 
 	apiComment.Author.PseudonymID = dbComment.PseudonymID
-	apiComment.Author.DisplayName = displayName
+	apiComment.Author.DisplayName = authorDisplayName
 
 	return apiComment
 }

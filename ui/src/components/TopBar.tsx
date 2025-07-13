@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Menu, Sun, Moon } from "lucide-react";
 import Image from "next/image";
 import { Button } from "./shadcn/button";
@@ -14,6 +14,11 @@ interface TopBarProps {
 export default function TopBar({ onMenuClick }: TopBarProps) {
   const { isAuthenticated, isLoading } = useAuth();
   const { theme, setTheme } = useTheme();
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleLoginSuccess = () => {
     // TODO: Handle successful login (e.g., update user state, redirect, etc.)
@@ -52,10 +57,12 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
           onClick={toggleTheme}
           className="w-9 h-9 p-0"
         >
-          {theme === "dark" ? (
-            <Sun className="w-4 h-4" />
-          ) : (
-            <Moon className="w-4 h-4" />
+          {mounted && (
+            theme === "dark" ? (
+              <Sun className="w-4 h-4" />
+            ) : (
+              <Moon className="w-4 h-4" />
+            )
           )}
           <span className="sr-only">Toggle theme</span>
         </Button>

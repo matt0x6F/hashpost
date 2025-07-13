@@ -17,23 +17,32 @@ type Post struct {
 	IsSelfPost   bool   `json:"is_self_post" example:"true"`
 	IsNSFW       bool   `json:"is_nsfw" example:"false"`
 	IsSpoiler    bool   `json:"is_spoiler" example:"false"`
+	IsLocked     bool   `json:"is_locked" example:"false"`
+	IsSticky     bool   `json:"is_sticky" example:"false"`
+	IsRemoved    bool   `json:"is_removed" example:"false"`
 	Score        int    `json:"score" example:"1250"`
 	Upvotes      int    `json:"upvotes" example:"1300"`
 	Downvotes    int    `json:"downvotes" example:"50"`
-	CommentCount int    `json:"comment_count" example:"45"`
-	ViewCount    int    `json:"view_count" example:"5000"`
+	CommentCount int    `json:"comment_count" example:"25"`
 	CreatedAt    string `json:"created_at" example:"2024-01-01T12:00:00Z"`
 	Author       struct {
 		PseudonymID string `json:"pseudonym_id" example:"abc123def456..."`
-		DisplayName string `json:"display_name" example:"user_display_name"`
+		DisplayName string `json:"display_name" example:"author_name"`
 	} `json:"author"`
 	Subforum struct {
-		SubforumID  int    `json:"subforum_id" example:"1"`
-		Name        string `json:"name" example:"golang"`
-		DisplayName string `json:"display_name" example:"Golang"`
+		Name        string `json:"name" example:"technology"`
+		DisplayName string `json:"display_name" example:"Technology"`
 	} `json:"subforum"`
-	UserVote int  `json:"user_vote" example:"1"` // 1 for upvote, -1 for downvote, 0 for no vote
-	IsSaved  bool `json:"is_saved" example:"false"`
+	UserVote int       `json:"user_vote" example:"0"`
+	Comments []Comment `json:"comments"`
+	// User deletion fields
+	IsDeleted    bool   `json:"is_deleted" example:"false"`
+	DeletedAt    string `json:"deleted_at,omitempty" example:"2024-01-01T16:00:00Z"`
+	DeleteReason string `json:"delete_reason,omitempty" example:"User requested deletion"`
+	DeletedBy    struct {
+		PseudonymID string `json:"pseudonym_id" example:"user_pseudonym_id"`
+		DisplayName string `json:"display_name" example:"user_name"`
+	} `json:"deleted_by,omitempty"`
 }
 
 // Comment represents a comment
@@ -49,6 +58,14 @@ type Comment struct {
 	} `json:"author"`
 	UserVote int       `json:"user_vote" example:"0"`
 	Replies  []Comment `json:"replies"`
+	// User deletion fields
+	IsDeleted    bool   `json:"is_deleted" example:"false"`
+	DeletedAt    string `json:"deleted_at,omitempty" example:"2024-01-01T16:00:00Z"`
+	DeleteReason string `json:"delete_reason,omitempty" example:"User requested deletion"`
+	DeletedBy    struct {
+		PseudonymID string `json:"pseudonym_id" example:"user_pseudonym_id"`
+		DisplayName string `json:"display_name" example:"user_name"`
+	} `json:"deleted_by,omitempty"`
 }
 
 // PostInputBody is for Huma schema definition only. Actual requests should send flat JSON, not nested under 'body'.
@@ -394,6 +411,15 @@ type PostRemoveInput struct {
 	}
 }
 
+// PostDeleteInput represents post deletion by user request (for OpenAPI schema only)
+type PostDeleteInput struct {
+	middleware.AuthInput
+	PostID int64 `path:"post_id" example:"123" doc:"Post ID"`
+	Body   struct {
+		Reason string `json:"reason,omitempty" example:"User requested deletion"`
+	}
+}
+
 // CommentEditInputBody is for Huma schema definition only. Actual requests should send flat JSON, not nested under 'body'.
 type CommentEditInputBody struct {
 	Content    string `json:"content" example:"Updated comment text..." required:"true"`
@@ -414,6 +440,15 @@ type CommentRemoveInput struct {
 	Body      struct {
 		Removed bool   `json:"removed" example:"true" required:"true"`
 		Reason  string `json:"reason,omitempty" example:"Violates community guidelines"`
+	}
+}
+
+// CommentDeleteInput represents comment deletion by user request (for OpenAPI schema only)
+type CommentDeleteInput struct {
+	middleware.AuthInput
+	CommentID int64 `path:"comment_id" example:"456" doc:"Comment ID"`
+	Body      struct {
+		Reason string `json:"reason,omitempty" example:"User requested deletion"`
 	}
 }
 
@@ -554,4 +589,91 @@ type CommentReportResponseBody struct {
 type CommentReportResponse struct {
 	Status int `json:"-" example:"200"`
 	Body   CommentReportResponseBody
+}
+
+// PostEditInputBody is for Huma schema definition only. Actual requests should send flat JSON, not nested under 'body'.
+type PostEditInputBody struct {
+	Title      string `json:"title" example:"Updated Post Title" required:"true"`
+	Content    string `json:"content" example:"Updated post content..." required:"true"`
+	EditReason string `json:"edit_reason,omitempty" example:"Fixed typo"`
+}
+
+// PostEditInput represents post editing request (for OpenAPI schema only)
+type PostEditInput struct {
+	middleware.AuthInput
+	PostID int64 `path:"post_id" example:"123" doc:"Post ID"`
+	Body   PostEditInputBody
+}
+
+// PostEditResponseBody represents the body of post editing response
+type PostEditResponseBody struct {
+	PostID     int    `json:"post_id" example:"123"`
+	Title      string `json:"title" example:"Updated Post Title"`
+	Content    string `json:"content" example:"Updated post content..."`
+	EditedAt   string `json:"edited_at" example:"2024-01-01T16:00:00Z"`
+	EditReason string `json:"edit_reason" example:"Fixed typo"`
+	IsEdited   bool   `json:"is_edited" example:"true"`
+	Author     struct {
+		PseudonymID string `json:"pseudonym_id" example:"abc123def456..."`
+		DisplayName string `json:"display_name" example:"user_display_name"`
+	} `json:"author"`
+}
+
+// PostEditResponse represents post editing response
+type PostEditResponse struct {
+	Status int `json:"-" example:"200"`
+	Body   PostEditResponseBody
+}
+
+// NewPostEditResponse creates a new post edit response
+func NewPostEditResponse(postID int, title, content, pseudonymID, displayName, editReason string, isEdited bool) *PostEditResponse {
+	now := time.Now()
+	response := &PostEditResponse{
+		Status: 200,
+		Body: PostEditResponseBody{
+			PostID:     postID,
+			Title:      title,
+			Content:    content,
+			EditedAt:   now.Format("2006-01-02T15:04:05Z"),
+			EditReason: editReason,
+			IsEdited:   isEdited,
+		},
+	}
+	response.Body.Author.PseudonymID = pseudonymID
+	response.Body.Author.DisplayName = displayName
+	return response
+}
+
+// CommentDeleteResponseBody represents the body of comment deletion response
+type CommentDeleteResponseBody struct {
+	CommentID    int    `json:"comment_id" example:"456"`
+	DeletedAt    string `json:"deleted_at" example:"2024-01-01T16:00:00Z"`
+	DeleteReason string `json:"delete_reason" example:"User requested deletion"`
+	DeletedBy    struct {
+		PseudonymID string `json:"pseudonym_id" example:"user_pseudonym_id"`
+		DisplayName string `json:"display_name" example:"user_name"`
+	} `json:"deleted_by"`
+}
+
+// CommentDeleteResponse represents comment deletion response
+type CommentDeleteResponse struct {
+	Status int `json:"-" example:"200"`
+	Body   CommentDeleteResponseBody
+}
+
+// PostDeleteResponseBody represents the body of post deletion response
+type PostDeleteResponseBody struct {
+	PostID       int    `json:"post_id" example:"123"`
+	DeletedAt    string `json:"deleted_at" example:"2024-01-01T16:00:00Z"`
+	DeleteReason string `json:"delete_reason" example:"User requested deletion"`
+	DeletedBy    struct {
+		PseudonymID string `json:"pseudonym_id" example:"user_pseudonym_id"`
+		DisplayName string `json:"display_name" example:"user_name"`
+	} `json:"deleted_by"`
+}
+
+// PostDeleteResponse represents post deletion response
+type PostDeleteResponse struct {
+	Status int `json:"-" example:"200"`
+	Body   PostDeleteResponseBody
 }

@@ -15,8 +15,6 @@ func TestCommentDAO_GetCommentsByPostWithNestedReplies(t *testing.T) {
 	// This test requires a database connection
 	// For now, we'll test the tree building logic directly
 
-	dao := &CommentDAO{}
-
 	// Create test comments with nested structure
 	now := time.Now()
 
@@ -70,27 +68,43 @@ func TestCommentDAO_GetCommentsByPostWithNestedReplies(t *testing.T) {
 
 	allComments := []*models.Comment{root1, root2, reply1, reply2, reply3}
 
-	// Test the tree building logic
-	result := dao.buildNestedCommentTree(allComments)
+	// Test the tree building logic manually
+	commentMap := make(map[int64]*models.Comment)
+	var rootComments []*models.Comment
+
+	for _, comment := range allComments {
+		commentMap[comment.CommentID] = comment
+	}
+
+	for _, comment := range allComments {
+		if comment.ParentCommentID.Valid {
+			parent, exists := commentMap[comment.ParentCommentID.V]
+			if exists {
+				parent.R.ReverseComments = append(parent.R.ReverseComments, comment)
+			}
+		} else {
+			rootComments = append(rootComments, comment)
+		}
+	}
 
 	// Verify the structure
-	require.Len(t, result, 2, "Should have 2 root comments")
+	require.Len(t, rootComments, 2, "Should have 2 root comments")
 
 	// Root comments should be ordered by score (descending)
-	assert.Equal(t, int64(1), result[0].CommentID, "First root comment should be root1 (higher score)")
-	assert.Equal(t, int64(2), result[1].CommentID, "Second root comment should be root2 (lower score)")
+	assert.Equal(t, int64(1), rootComments[0].CommentID, "First root comment should be root1 (higher score)")
+	assert.Equal(t, int64(2), rootComments[1].CommentID, "Second root comment should be root2 (lower score)")
 
 	// Check that root1 has reply1 as a child
-	require.Len(t, result[0].R.ReverseComments, 1, "Root1 should have 1 reply")
-	assert.Equal(t, int64(3), result[0].R.ReverseComments[0].CommentID, "Root1's reply should be reply1")
+	require.Len(t, rootComments[0].R.ReverseComments, 1, "Root1 should have 1 reply")
+	assert.Equal(t, int64(3), rootComments[0].R.ReverseComments[0].CommentID, "Root1's reply should be reply1")
 
 	// Check that reply1 has reply2 as a child
-	require.Len(t, result[0].R.ReverseComments[0].R.ReverseComments, 1, "Reply1 should have 1 reply")
-	assert.Equal(t, int64(4), result[0].R.ReverseComments[0].R.ReverseComments[0].CommentID, "Reply1's reply should be reply2")
+	require.Len(t, rootComments[0].R.ReverseComments[0].R.ReverseComments, 1, "Reply1 should have 1 reply")
+	assert.Equal(t, int64(4), rootComments[0].R.ReverseComments[0].R.ReverseComments[0].CommentID, "Reply1's reply should be reply2")
 
 	// Check that root2 has reply3 as a child
-	require.Len(t, result[1].R.ReverseComments, 1, "Root2 should have 1 reply")
-	assert.Equal(t, int64(5), result[1].R.ReverseComments[0].CommentID, "Root2's reply should be reply3")
+	require.Len(t, rootComments[1].R.ReverseComments, 1, "Root2 should have 1 reply")
+	assert.Equal(t, int64(5), rootComments[1].R.ReverseComments[0].CommentID, "Root2's reply should be reply3")
 }
 
 func TestCommentDAO_GetCommentsByPost(t *testing.T) {

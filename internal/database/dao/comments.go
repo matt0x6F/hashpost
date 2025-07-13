@@ -77,13 +77,52 @@ func (dao *CommentDAO) GetCommentByID(ctx context.Context, commentID int64) (*mo
 	return comment, nil
 }
 
-// GetCommentsByPost retrieves comments for a post
+// MarkCommentAsDeletedByPseudonym marks a comment as deleted by the pseudonym
+func (dao *CommentDAO) MarkCommentAsDeletedByPseudonym(ctx context.Context, commentID int64, pseudonymID string, reason string) error {
+	comment, err := models.Comments.Query(
+		models.SelectWhere.Comments.CommentID.EQ(commentID),
+	).One(ctx, dao.db)
+	if err != nil {
+		return fmt.Errorf("failed to find comment: %w", err)
+	}
+
+	// Check if the comment belongs to the pseudonym
+	if comment.PseudonymID != pseudonymID {
+		return fmt.Errorf("comment does not belong to pseudonym")
+	}
+
+	// Check if comment is already deleted
+	if comment.IsDeleted.Valid && comment.IsDeleted.V {
+		return fmt.Errorf("comment is already deleted")
+	}
+
+	now := time.Now()
+	updates := &models.CommentSetter{
+		IsDeleted:                &sql.Null[bool]{V: true, Valid: true},
+		DeletedByPseudonymID:     &sql.Null[string]{V: pseudonymID, Valid: true},
+		DeletedByPseudonymAt:     &sql.Null[time.Time]{V: now, Valid: true},
+		DeletedByPseudonymReason: &sql.Null[string]{V: reason, Valid: true},
+	}
+
+	err = comment.Update(ctx, dao.db, updates)
+	if err != nil {
+		return fmt.Errorf("failed to mark comment as deleted by pseudonym: %w", err)
+	}
+
+	return nil
+}
+
+// GetCommentsByPost retrieves comments for a post (excluding user-deleted ones)
 func (dao *CommentDAO) GetCommentsByPost(ctx context.Context, postID int64) ([]*models.Comment, error) {
 	comments, err := models.Comments.Query(
 		models.SelectWhere.Comments.PostID.EQ(postID),
 		sm.Where(psql.Group(psql.Or(
 			psql.Quote("comments", "is_removed").IsNull(),
 			psql.Quote("comments", "is_removed").EQ(psql.Arg(false)),
+		))),
+		sm.Where(psql.Group(psql.Or(
+			psql.Quote("comments", "is_deleted").IsNull(),
+			psql.Quote("comments", "is_deleted").EQ(psql.Arg(false)),
 		))),
 		sm.OrderBy("score DESC NULLS LAST, created_at ASC"),
 	).All(ctx, dao.db)
@@ -102,8 +141,9 @@ func (dao *CommentDAO) GetCommentsByPost(ctx context.Context, postID int64) ([]*
 }
 
 // GetCommentsByPostWithNestedReplies retrieves comments for a post and builds nested reply structure
+// Includes deleted comments but clears their content and user info, and freezes voting
 func (dao *CommentDAO) GetCommentsByPostWithNestedReplies(ctx context.Context, postID int64) ([]*models.Comment, error) {
-	// Get all comments for the post, ordered by score (descending) then creation time (ascending)
+	// Get all comments for the post, including deleted ones (but excluding moderator-removed ones)
 	allComments, err := models.Comments.Query(
 		models.SelectWhere.Comments.PostID.EQ(postID),
 		sm.Where(psql.Group(psql.Or(
@@ -121,49 +161,63 @@ func (dao *CommentDAO) GetCommentsByPostWithNestedReplies(ctx context.Context, p
 		if err := comment.LoadPseudonym(ctx, dao.db); err != nil {
 			log.Warn().Err(err).Int64("comment_id", comment.CommentID).Msg("Failed to load comment pseudonym")
 		}
-	}
 
-	// Build nested structure
-	return dao.buildNestedCommentTree(allComments), nil
-}
+		// Load deleted by pseudonym if comment is deleted
+		if comment.IsDeleted.Valid && comment.IsDeleted.V && comment.DeletedByPseudonymID.Valid {
+			if err := comment.LoadDeletedByPseudonymPseudonym(ctx, dao.db); err != nil {
+				log.Warn().Err(err).Int64("comment_id", comment.CommentID).Msg("Failed to load deleted by pseudonym")
+			}
+		}
 
-// buildNestedCommentTree builds a nested tree structure from flat comments
-func (dao *CommentDAO) buildNestedCommentTree(allComments []*models.Comment) []*models.Comment {
-	// Create maps for quick lookup
-	commentMap := make(map[int64]*models.Comment)
-	rootComments := make([]*models.Comment, 0)
+		// Clear content and user info for deleted comments
+		if comment.IsDeleted.Valid && comment.IsDeleted.V {
+			// Clear content
+			comment.Content = "[deleted]"
 
-	// First pass: create map and identify root comments
-	for _, comment := range allComments {
-		commentMap[comment.CommentID] = comment
-		comment.R.ReverseComments = make([]*models.Comment, 0) // Initialize replies slice
+			// Clear author info but keep the pseudonym ID for reference
+			if comment.R.Pseudonym != nil {
+				comment.R.Pseudonym.DisplayName = "[deleted]"
+				comment.R.Pseudonym.Bio = sql.Null[string]{Valid: false}
+			}
 
-		// If no parent, it's a root comment
-		if !comment.ParentCommentID.Valid {
-			rootComments = append(rootComments, comment)
+			// Note: UserVote is computed at the API level, not stored in the database
+			// The API layer will handle freezing voting for deleted comments
 		}
 	}
 
-	// Second pass: build the tree structure
+	// Build nested structure
+	commentMap := make(map[int64]*models.Comment)
+	var rootComments []*models.Comment
+
+	for _, comment := range allComments {
+		commentMap[comment.CommentID] = comment
+	}
+
 	for _, comment := range allComments {
 		if comment.ParentCommentID.Valid {
 			parent, exists := commentMap[comment.ParentCommentID.V]
 			if exists {
 				parent.R.ReverseComments = append(parent.R.ReverseComments, comment)
 			}
+		} else {
+			rootComments = append(rootComments, comment)
 		}
 	}
 
-	return rootComments
+	return rootComments, nil
 }
 
-// CountCommentsByPost counts total comments for a post
+// CountCommentsByPost counts total comments for a post (excluding user-deleted ones)
 func (dao *CommentDAO) CountCommentsByPost(ctx context.Context, postID int64) (int64, error) {
 	count, err := models.Comments.Query(
 		models.SelectWhere.Comments.PostID.EQ(postID),
 		sm.Where(psql.Group(psql.Or(
 			psql.Quote("comments", "is_removed").IsNull(),
 			psql.Quote("comments", "is_removed").EQ(psql.Arg(false)),
+		))),
+		sm.Where(psql.Group(psql.Or(
+			psql.Quote("comments", "is_deleted").IsNull(),
+			psql.Quote("comments", "is_deleted").EQ(psql.Arg(false)),
 		))),
 	).Count(ctx, dao.db)
 	if err != nil {
@@ -203,6 +257,10 @@ func (dao *CommentDAO) CountCommentsByPseudonym(ctx context.Context, pseudonymID
 			psql.Quote("comments", "is_removed").IsNull(),
 			psql.Quote("comments", "is_removed").EQ(psql.Arg(false)),
 		))),
+		sm.Where(psql.Group(psql.Or(
+			psql.Quote("comments", "is_deleted_by_user").IsNull(),
+			psql.Quote("comments", "is_deleted_by_user").EQ(psql.Arg(false)),
+		))),
 	).Count(ctx, dao.db)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count comments by pseudonym: %w", err)
@@ -211,7 +269,7 @@ func (dao *CommentDAO) CountCommentsByPseudonym(ctx context.Context, pseudonymID
 	return count, nil
 }
 
-// CountCommentsByPseudonymInSubforum counts comments by a pseudonym in a specific subforum
+// CountCommentsByPseudonymInSubforum counts total comments by a pseudonym in a specific subforum
 func (dao *CommentDAO) CountCommentsByPseudonymInSubforum(ctx context.Context, pseudonymID string, subforumID int32) (int64, error) {
 	// Get all comments by the pseudonym
 	comments, err := models.Comments.Query(
@@ -219,6 +277,10 @@ func (dao *CommentDAO) CountCommentsByPseudonymInSubforum(ctx context.Context, p
 		sm.Where(psql.Group(psql.Or(
 			psql.Quote("comments", "is_removed").IsNull(),
 			psql.Quote("comments", "is_removed").EQ(psql.Arg(false)),
+		))),
+		sm.Where(psql.Group(psql.Or(
+			psql.Quote("comments", "is_deleted_by_user").IsNull(),
+			psql.Quote("comments", "is_deleted_by_user").EQ(psql.Arg(false)),
 		))),
 	).All(ctx, dao.db)
 	if err != nil {
@@ -246,6 +308,10 @@ func (dao *CommentDAO) GetSubforumsByPseudonymComments(ctx context.Context, pseu
 			psql.Quote("comments", "is_removed").IsNull(),
 			psql.Quote("comments", "is_removed").EQ(psql.Arg(false)),
 		))),
+		sm.Where(psql.Group(psql.Or(
+			psql.Quote("comments", "is_deleted_by_user").IsNull(),
+			psql.Quote("comments", "is_deleted_by_user").EQ(psql.Arg(false)),
+		))),
 	).All(ctx, dao.db)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get comments by pseudonym: %w", err)
@@ -266,4 +332,66 @@ func (dao *CommentDAO) GetSubforumsByPseudonymComments(ctx context.Context, pseu
 	}
 
 	return subforums, nil
+}
+
+// DeleteCommentByUser marks a comment as deleted by the user
+func (dao *CommentDAO) DeleteCommentByUser(ctx context.Context, commentID int64, reason string) error {
+	now := sql.Null[time.Time]{}
+	now.Scan(time.Now())
+
+	reasonNull := sql.Null[string]{Valid: false}
+	if reason != "" {
+		reasonNull.Scan(reason)
+	}
+
+	updates := &models.CommentSetter{
+		IsDeleted:                &sql.Null[bool]{Valid: true, V: true},
+		DeletedByPseudonymID:     &sql.Null[string]{Valid: true, V: ""}, // This will be set by the caller
+		DeletedByPseudonymAt:     &now,
+		DeletedByPseudonymReason: &reasonNull,
+		UpdatedAt:                &now,
+	}
+
+	comment, err := models.FindComment(ctx, dao.db, commentID)
+	if err != nil {
+		return fmt.Errorf("failed to find comment for user deletion: %w", err)
+	}
+
+	err = comment.Update(ctx, dao.db, updates)
+	if err != nil {
+		return fmt.Errorf("failed to mark comment as deleted by user: %w", err)
+	}
+
+	return nil
+}
+
+// GetCommentsByPostWithDeleted retrieves comments for a post including user-deleted ones (for display)
+func (dao *CommentDAO) GetCommentsByPostWithDeleted(ctx context.Context, postID int64) ([]*models.Comment, error) {
+	comments, err := models.Comments.Query(
+		models.SelectWhere.Comments.PostID.EQ(postID),
+		sm.Where(psql.Group(psql.Or(
+			psql.Quote("comments", "is_removed").IsNull(),
+			psql.Quote("comments", "is_removed").EQ(psql.Arg(false)),
+		))),
+		sm.OrderBy("score DESC NULLS LAST, created_at ASC"),
+	).All(ctx, dao.db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get comments by post with deleted: %w", err)
+	}
+
+	// Load related data for all comments
+	for _, comment := range comments {
+		if err := comment.LoadPseudonym(ctx, dao.db); err != nil {
+			log.Warn().Err(err).Int64("comment_id", comment.CommentID).Msg("Failed to load comment pseudonym")
+		}
+
+		// Load deleted by pseudonym if comment is deleted
+		if comment.IsDeleted.Valid && comment.IsDeleted.V && comment.DeletedByPseudonymID.Valid {
+			if err := comment.LoadDeletedByPseudonymPseudonym(ctx, dao.db); err != nil {
+				log.Warn().Err(err).Int64("comment_id", comment.CommentID).Msg("Failed to load deleted by pseudonym")
+			}
+		}
+	}
+
+	return comments, nil
 }

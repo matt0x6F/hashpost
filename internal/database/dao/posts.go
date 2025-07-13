@@ -401,3 +401,38 @@ func (dao *PostDAO) GetPostBySubforumAndSlug(ctx context.Context, subforumID int
 
 	return post, nil
 }
+
+// MarkPostAsDeletedByPseudonym marks a post as deleted by the pseudonym
+func (dao *PostDAO) MarkPostAsDeletedByPseudonym(ctx context.Context, postID int64, pseudonymID string, reason string) error {
+	post, err := models.Posts.Query(
+		models.SelectWhere.Posts.PostID.EQ(postID),
+	).One(ctx, dao.db)
+	if err != nil {
+		return fmt.Errorf("failed to find post: %w", err)
+	}
+
+	// Check if the post belongs to the pseudonym
+	if post.PseudonymID != pseudonymID {
+		return fmt.Errorf("post does not belong to pseudonym")
+	}
+
+	// Check if post is already deleted
+	if post.IsDeleted.Valid && post.IsDeleted.V {
+		return fmt.Errorf("post is already deleted")
+	}
+
+	now := time.Now()
+	updates := &models.PostSetter{
+		IsDeleted:                &sql.Null[bool]{V: true, Valid: true},
+		DeletedByPseudonymID:     &sql.Null[string]{V: pseudonymID, Valid: true},
+		DeletedByPseudonymAt:     &sql.Null[time.Time]{V: now, Valid: true},
+		DeletedByPseudonymReason: &sql.Null[string]{V: reason, Valid: true},
+	}
+
+	err = post.Update(ctx, dao.db, updates)
+	if err != nil {
+		return fmt.Errorf("failed to mark post as deleted by pseudonym: %w", err)
+	}
+
+	return nil
+}

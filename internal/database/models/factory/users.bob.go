@@ -61,14 +61,12 @@ type UserTemplate struct {
 }
 
 type userR struct {
-	RemovedByUserComments          []*userRRemovedByUserCommentsR
 	AssignedUserComplianceReports  []*userRAssignedUserComplianceReportsR
 	CorrelationAudits              []*userRCorrelationAuditsR
 	IdentityMappings               []*userRIdentityMappingsR
 	KeyUsageAudits                 []*userRKeyUsageAuditsR
 	ModeratorUserModerationActions []*userRModeratorUserModerationActionsR
 	TargetUserModerationActions    []*userRTargetUserModerationActionsR
-	RemovedByUserPosts             []*userRRemovedByUserPostsR
 	ResolvedByUserReports          []*userRResolvedByUserReportsR
 	CreatedByRoleKeys              []*userRCreatedByRoleKeysR
 	CreatedByUserSubforums         []*userRCreatedByUserSubforumsR
@@ -79,10 +77,6 @@ type userR struct {
 	UserPreference                 *userRUserPreferenceR
 }
 
-type userRRemovedByUserCommentsR struct {
-	number int
-	o      *CommentTemplate
-}
 type userRAssignedUserComplianceReportsR struct {
 	number int
 	o      *ComplianceReportTemplate
@@ -106,10 +100,6 @@ type userRModeratorUserModerationActionsR struct {
 type userRTargetUserModerationActionsR struct {
 	number int
 	o      *ModerationActionTemplate
-}
-type userRRemovedByUserPostsR struct {
-	number int
-	o      *PostTemplate
 }
 type userRResolvedByUserReportsR struct {
 	number int
@@ -153,19 +143,6 @@ func (o *UserTemplate) Apply(ctx context.Context, mods ...UserMod) {
 // setModelRels creates and sets the relationships on *models.User
 // according to the relationships in the template. Nothing is inserted into the db
 func (t UserTemplate) setModelRels(o *models.User) {
-	if t.r.RemovedByUserComments != nil {
-		rel := models.CommentSlice{}
-		for _, r := range t.r.RemovedByUserComments {
-			related := r.o.BuildMany(r.number)
-			for _, rel := range related {
-				rel.RemovedByUserID = sql.Null[int64]{V: o.UserID, Valid: true} // h2
-				rel.R.RemovedByUserUser = o
-			}
-			rel = append(rel, related...)
-		}
-		o.R.RemovedByUserComments = rel
-	}
-
 	if t.r.AssignedUserComplianceReports != nil {
 		rel := models.ComplianceReportSlice{}
 		for _, r := range t.r.AssignedUserComplianceReports {
@@ -242,19 +219,6 @@ func (t UserTemplate) setModelRels(o *models.User) {
 			rel = append(rel, related...)
 		}
 		o.R.TargetUserModerationActions = rel
-	}
-
-	if t.r.RemovedByUserPosts != nil {
-		rel := models.PostSlice{}
-		for _, r := range t.r.RemovedByUserPosts {
-			related := r.o.BuildMany(r.number)
-			for _, rel := range related {
-				rel.RemovedByUserID = sql.Null[int64]{V: o.UserID, Valid: true} // h2
-				rel.R.RemovedByUserUser = o
-			}
-			rel = append(rel, related...)
-		}
-		o.R.RemovedByUserPosts = rel
 	}
 
 	if t.r.ResolvedByUserReports != nil {
@@ -545,34 +509,17 @@ func ensureCreatableUser(m *models.UserSetter) {
 func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *models.User) (context.Context, error) {
 	var err error
 
-	isRemovedByUserCommentsDone, _ := userRelRemovedByUserCommentsCtx.Value(ctx)
-	if !isRemovedByUserCommentsDone && o.r.RemovedByUserComments != nil {
-		ctx = userRelRemovedByUserCommentsCtx.WithValue(ctx, true)
-		for _, r := range o.r.RemovedByUserComments {
-			var rel0 models.CommentSlice
+	isAssignedUserComplianceReportsDone, _ := userRelAssignedUserComplianceReportsCtx.Value(ctx)
+	if !isAssignedUserComplianceReportsDone && o.r.AssignedUserComplianceReports != nil {
+		ctx = userRelAssignedUserComplianceReportsCtx.WithValue(ctx, true)
+		for _, r := range o.r.AssignedUserComplianceReports {
+			var rel0 models.ComplianceReportSlice
 			ctx, rel0, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachRemovedByUserComments(ctx, exec, rel0...)
-			if err != nil {
-				return ctx, err
-			}
-		}
-	}
-
-	isAssignedUserComplianceReportsDone, _ := userRelAssignedUserComplianceReportsCtx.Value(ctx)
-	if !isAssignedUserComplianceReportsDone && o.r.AssignedUserComplianceReports != nil {
-		ctx = userRelAssignedUserComplianceReportsCtx.WithValue(ctx, true)
-		for _, r := range o.r.AssignedUserComplianceReports {
-			var rel1 models.ComplianceReportSlice
-			ctx, rel1, err = r.o.createMany(ctx, exec, r.number)
-			if err != nil {
-				return ctx, err
-			}
-
-			err = m.AttachAssignedUserComplianceReports(ctx, exec, rel1...)
+			err = m.AttachAssignedUserComplianceReports(ctx, exec, rel0...)
 			if err != nil {
 				return ctx, err
 			}
@@ -583,13 +530,13 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 	if !isCorrelationAuditsDone && o.r.CorrelationAudits != nil {
 		ctx = userRelCorrelationAuditsCtx.WithValue(ctx, true)
 		for _, r := range o.r.CorrelationAudits {
-			var rel2 models.CorrelationAuditSlice
-			ctx, rel2, err = r.o.createMany(ctx, exec, r.number)
+			var rel1 models.CorrelationAuditSlice
+			ctx, rel1, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachCorrelationAudits(ctx, exec, rel2...)
+			err = m.AttachCorrelationAudits(ctx, exec, rel1...)
 			if err != nil {
 				return ctx, err
 			}
@@ -600,13 +547,13 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 	if !isIdentityMappingsDone && o.r.IdentityMappings != nil {
 		ctx = userRelIdentityMappingsCtx.WithValue(ctx, true)
 		for _, r := range o.r.IdentityMappings {
-			var rel3 models.IdentityMappingSlice
-			ctx, rel3, err = r.o.createMany(ctx, exec, r.number)
+			var rel2 models.IdentityMappingSlice
+			ctx, rel2, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachIdentityMappings(ctx, exec, rel3...)
+			err = m.AttachIdentityMappings(ctx, exec, rel2...)
 			if err != nil {
 				return ctx, err
 			}
@@ -617,13 +564,13 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 	if !isKeyUsageAuditsDone && o.r.KeyUsageAudits != nil {
 		ctx = userRelKeyUsageAuditsCtx.WithValue(ctx, true)
 		for _, r := range o.r.KeyUsageAudits {
-			var rel4 models.KeyUsageAuditSlice
-			ctx, rel4, err = r.o.createMany(ctx, exec, r.number)
+			var rel3 models.KeyUsageAuditSlice
+			ctx, rel3, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachKeyUsageAudits(ctx, exec, rel4...)
+			err = m.AttachKeyUsageAudits(ctx, exec, rel3...)
 			if err != nil {
 				return ctx, err
 			}
@@ -634,13 +581,13 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 	if !isModeratorUserModerationActionsDone && o.r.ModeratorUserModerationActions != nil {
 		ctx = userRelModeratorUserModerationActionsCtx.WithValue(ctx, true)
 		for _, r := range o.r.ModeratorUserModerationActions {
-			var rel5 models.ModerationActionSlice
-			ctx, rel5, err = r.o.createMany(ctx, exec, r.number)
+			var rel4 models.ModerationActionSlice
+			ctx, rel4, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachModeratorUserModerationActions(ctx, exec, rel5...)
+			err = m.AttachModeratorUserModerationActions(ctx, exec, rel4...)
 			if err != nil {
 				return ctx, err
 			}
@@ -651,30 +598,13 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 	if !isTargetUserModerationActionsDone && o.r.TargetUserModerationActions != nil {
 		ctx = userRelTargetUserModerationActionsCtx.WithValue(ctx, true)
 		for _, r := range o.r.TargetUserModerationActions {
-			var rel6 models.ModerationActionSlice
-			ctx, rel6, err = r.o.createMany(ctx, exec, r.number)
+			var rel5 models.ModerationActionSlice
+			ctx, rel5, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachTargetUserModerationActions(ctx, exec, rel6...)
-			if err != nil {
-				return ctx, err
-			}
-		}
-	}
-
-	isRemovedByUserPostsDone, _ := userRelRemovedByUserPostsCtx.Value(ctx)
-	if !isRemovedByUserPostsDone && o.r.RemovedByUserPosts != nil {
-		ctx = userRelRemovedByUserPostsCtx.WithValue(ctx, true)
-		for _, r := range o.r.RemovedByUserPosts {
-			var rel7 models.PostSlice
-			ctx, rel7, err = r.o.createMany(ctx, exec, r.number)
-			if err != nil {
-				return ctx, err
-			}
-
-			err = m.AttachRemovedByUserPosts(ctx, exec, rel7...)
+			err = m.AttachTargetUserModerationActions(ctx, exec, rel5...)
 			if err != nil {
 				return ctx, err
 			}
@@ -685,13 +615,13 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 	if !isResolvedByUserReportsDone && o.r.ResolvedByUserReports != nil {
 		ctx = userRelResolvedByUserReportsCtx.WithValue(ctx, true)
 		for _, r := range o.r.ResolvedByUserReports {
-			var rel8 models.ReportSlice
-			ctx, rel8, err = r.o.createMany(ctx, exec, r.number)
+			var rel6 models.ReportSlice
+			ctx, rel6, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachResolvedByUserReports(ctx, exec, rel8...)
+			err = m.AttachResolvedByUserReports(ctx, exec, rel6...)
 			if err != nil {
 				return ctx, err
 			}
@@ -702,13 +632,13 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 	if !isCreatedByRoleKeysDone && o.r.CreatedByRoleKeys != nil {
 		ctx = userRelCreatedByRoleKeysCtx.WithValue(ctx, true)
 		for _, r := range o.r.CreatedByRoleKeys {
-			var rel9 models.RoleKeySlice
-			ctx, rel9, err = r.o.createMany(ctx, exec, r.number)
+			var rel7 models.RoleKeySlice
+			ctx, rel7, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachCreatedByRoleKeys(ctx, exec, rel9...)
+			err = m.AttachCreatedByRoleKeys(ctx, exec, rel7...)
 			if err != nil {
 				return ctx, err
 			}
@@ -719,13 +649,13 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 	if !isCreatedByUserSubforumsDone && o.r.CreatedByUserSubforums != nil {
 		ctx = userRelCreatedByUserSubforumsCtx.WithValue(ctx, true)
 		for _, r := range o.r.CreatedByUserSubforums {
-			var rel10 models.SubforumSlice
-			ctx, rel10, err = r.o.createMany(ctx, exec, r.number)
+			var rel8 models.SubforumSlice
+			ctx, rel8, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachCreatedByUserSubforums(ctx, exec, rel10...)
+			err = m.AttachCreatedByUserSubforums(ctx, exec, rel8...)
 			if err != nil {
 				return ctx, err
 			}
@@ -736,13 +666,13 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 	if !isUpdatedBySystemSettingsDone && o.r.UpdatedBySystemSettings != nil {
 		ctx = userRelUpdatedBySystemSettingsCtx.WithValue(ctx, true)
 		for _, r := range o.r.UpdatedBySystemSettings {
-			var rel11 models.SystemSettingSlice
-			ctx, rel11, err = r.o.createMany(ctx, exec, r.number)
+			var rel9 models.SystemSettingSlice
+			ctx, rel9, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachUpdatedBySystemSettings(ctx, exec, rel11...)
+			err = m.AttachUpdatedBySystemSettings(ctx, exec, rel9...)
 			if err != nil {
 				return ctx, err
 			}
@@ -753,13 +683,13 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 	if !isBannedByUserUserBansDone && o.r.BannedByUserUserBans != nil {
 		ctx = userRelBannedByUserUserBansCtx.WithValue(ctx, true)
 		for _, r := range o.r.BannedByUserUserBans {
-			var rel12 models.UserBanSlice
-			ctx, rel12, err = r.o.createMany(ctx, exec, r.number)
+			var rel10 models.UserBanSlice
+			ctx, rel10, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachBannedByUserUserBans(ctx, exec, rel12...)
+			err = m.AttachBannedByUserUserBans(ctx, exec, rel10...)
 			if err != nil {
 				return ctx, err
 			}
@@ -770,13 +700,13 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 	if !isBannedUserUserBansDone && o.r.BannedUserUserBans != nil {
 		ctx = userRelBannedUserUserBansCtx.WithValue(ctx, true)
 		for _, r := range o.r.BannedUserUserBans {
-			var rel13 models.UserBanSlice
-			ctx, rel13, err = r.o.createMany(ctx, exec, r.number)
+			var rel11 models.UserBanSlice
+			ctx, rel11, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachBannedUserUserBans(ctx, exec, rel13...)
+			err = m.AttachBannedUserUserBans(ctx, exec, rel11...)
 			if err != nil {
 				return ctx, err
 			}
@@ -787,13 +717,13 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 	if !isBlockedUserUserBlocksDone && o.r.BlockedUserUserBlocks != nil {
 		ctx = userRelBlockedUserUserBlocksCtx.WithValue(ctx, true)
 		for _, r := range o.r.BlockedUserUserBlocks {
-			var rel14 models.UserBlockSlice
-			ctx, rel14, err = r.o.createMany(ctx, exec, r.number)
+			var rel12 models.UserBlockSlice
+			ctx, rel12, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachBlockedUserUserBlocks(ctx, exec, rel14...)
+			err = m.AttachBlockedUserUserBlocks(ctx, exec, rel12...)
 			if err != nil {
 				return ctx, err
 			}
@@ -803,12 +733,12 @@ func (o *UserTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 	isUserPreferenceDone, _ := userRelUserPreferenceCtx.Value(ctx)
 	if !isUserPreferenceDone && o.r.UserPreference != nil {
 		ctx = userRelUserPreferenceCtx.WithValue(ctx, true)
-		var rel15 *models.UserPreference
-		ctx, rel15, err = o.r.UserPreference.o.create(ctx, exec)
+		var rel13 *models.UserPreference
+		ctx, rel13, err = o.r.UserPreference.o.create(ctx, exec)
 		if err != nil {
 			return ctx, err
 		}
-		err = m.AttachUserPreference(ctx, exec, rel15)
+		err = m.AttachUserPreference(ctx, exec, rel13)
 		if err != nil {
 			return ctx, err
 		}
@@ -1867,44 +1797,6 @@ func (m userMods) WithoutUserPreference() UserMod {
 	})
 }
 
-func (m userMods) WithRemovedByUserComments(number int, related *CommentTemplate) UserMod {
-	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
-		o.r.RemovedByUserComments = []*userRRemovedByUserCommentsR{{
-			number: number,
-			o:      related,
-		}}
-	})
-}
-
-func (m userMods) WithNewRemovedByUserComments(number int, mods ...CommentMod) UserMod {
-	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
-		related := o.f.NewComment(ctx, mods...)
-		m.WithRemovedByUserComments(number, related).Apply(ctx, o)
-	})
-}
-
-func (m userMods) AddRemovedByUserComments(number int, related *CommentTemplate) UserMod {
-	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
-		o.r.RemovedByUserComments = append(o.r.RemovedByUserComments, &userRRemovedByUserCommentsR{
-			number: number,
-			o:      related,
-		})
-	})
-}
-
-func (m userMods) AddNewRemovedByUserComments(number int, mods ...CommentMod) UserMod {
-	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
-		related := o.f.NewComment(ctx, mods...)
-		m.AddRemovedByUserComments(number, related).Apply(ctx, o)
-	})
-}
-
-func (m userMods) WithoutRemovedByUserComments() UserMod {
-	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
-		o.r.RemovedByUserComments = nil
-	})
-}
-
 func (m userMods) WithAssignedUserComplianceReports(number int, related *ComplianceReportTemplate) UserMod {
 	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
 		o.r.AssignedUserComplianceReports = []*userRAssignedUserComplianceReportsR{{
@@ -2130,44 +2022,6 @@ func (m userMods) AddNewTargetUserModerationActions(number int, mods ...Moderati
 func (m userMods) WithoutTargetUserModerationActions() UserMod {
 	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
 		o.r.TargetUserModerationActions = nil
-	})
-}
-
-func (m userMods) WithRemovedByUserPosts(number int, related *PostTemplate) UserMod {
-	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
-		o.r.RemovedByUserPosts = []*userRRemovedByUserPostsR{{
-			number: number,
-			o:      related,
-		}}
-	})
-}
-
-func (m userMods) WithNewRemovedByUserPosts(number int, mods ...PostMod) UserMod {
-	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
-		related := o.f.NewPost(ctx, mods...)
-		m.WithRemovedByUserPosts(number, related).Apply(ctx, o)
-	})
-}
-
-func (m userMods) AddRemovedByUserPosts(number int, related *PostTemplate) UserMod {
-	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
-		o.r.RemovedByUserPosts = append(o.r.RemovedByUserPosts, &userRRemovedByUserPostsR{
-			number: number,
-			o:      related,
-		})
-	})
-}
-
-func (m userMods) AddNewRemovedByUserPosts(number int, mods ...PostMod) UserMod {
-	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
-		related := o.f.NewPost(ctx, mods...)
-		m.AddRemovedByUserPosts(number, related).Apply(ctx, o)
-	})
-}
-
-func (m userMods) WithoutRemovedByUserPosts() UserMod {
-	return UserModFunc(func(ctx context.Context, o *UserTemplate) {
-		o.r.RemovedByUserPosts = nil
 	})
 }
 

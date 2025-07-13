@@ -35,32 +35,35 @@ func (mods PostModSlice) Apply(ctx context.Context, n *PostTemplate) {
 // PostTemplate is an object representing the database table.
 // all columns are optional and should be set by mods
 type PostTemplate struct {
-	PostID               func() int64
-	SubforumID           func() int32
-	Title                func() string
-	Content              func() sql.Null[string]
-	PostType             func() string
-	URL                  func() sql.Null[string]
-	IsSelfPost           func() sql.Null[bool]
-	IsNSFW               func() sql.Null[bool]
-	IsSpoiler            func() sql.Null[bool]
-	IsLocked             func() sql.Null[bool]
-	IsStickied           func() sql.Null[bool]
-	IsArchived           func() sql.Null[bool]
-	CreatedAt            func() sql.Null[time.Time]
-	UpdatedAt            func() sql.Null[time.Time]
-	Score                func() sql.Null[int32]
-	Upvotes              func() sql.Null[int32]
-	Downvotes            func() sql.Null[int32]
-	CommentCount         func() sql.Null[int32]
-	ViewCount            func() sql.Null[int32]
-	IsRemoved            func() sql.Null[bool]
-	RemovedByUserID      func() sql.Null[int64]
-	RemovedByPseudonymID func() sql.Null[string]
-	RemovalReason        func() sql.Null[string]
-	RemovedAt            func() sql.Null[time.Time]
-	PseudonymID          func() string
-	Slug                 func() sql.Null[string]
+	PostID                   func() int64
+	SubforumID               func() int32
+	Title                    func() string
+	Content                  func() sql.Null[string]
+	PostType                 func() string
+	URL                      func() sql.Null[string]
+	IsSelfPost               func() sql.Null[bool]
+	IsNSFW                   func() sql.Null[bool]
+	IsSpoiler                func() sql.Null[bool]
+	IsLocked                 func() sql.Null[bool]
+	IsStickied               func() sql.Null[bool]
+	IsArchived               func() sql.Null[bool]
+	CreatedAt                func() sql.Null[time.Time]
+	UpdatedAt                func() sql.Null[time.Time]
+	Score                    func() sql.Null[int32]
+	Upvotes                  func() sql.Null[int32]
+	Downvotes                func() sql.Null[int32]
+	CommentCount             func() sql.Null[int32]
+	ViewCount                func() sql.Null[int32]
+	IsRemoved                func() sql.Null[bool]
+	RemovedByPseudonymID     func() sql.Null[string]
+	RemovalReason            func() sql.Null[string]
+	RemovedAt                func() sql.Null[time.Time]
+	PseudonymID              func() string
+	Slug                     func() sql.Null[string]
+	IsDeleted                func() sql.Null[bool]
+	DeletedByPseudonymID     func() sql.Null[string]
+	DeletedByPseudonymAt     func() sql.Null[time.Time]
+	DeletedByPseudonymReason func() sql.Null[string]
 
 	r postR
 	f *Factory
@@ -70,9 +73,9 @@ type postR struct {
 	Comments                    []*postRCommentsR
 	MediaAttachments            []*postRMediaAttachmentsR
 	Poll                        *postRPollR
+	DeletedByPseudonymPseudonym *postRDeletedByPseudonymPseudonymR
 	Pseudonym                   *postRPseudonymR
 	RemovedByPseudonymPseudonym *postRRemovedByPseudonymPseudonymR
-	RemovedByUserUser           *postRRemovedByUserUserR
 	Subforum                    *postRSubforumR
 }
 
@@ -87,14 +90,14 @@ type postRMediaAttachmentsR struct {
 type postRPollR struct {
 	o *PollTemplate
 }
+type postRDeletedByPseudonymPseudonymR struct {
+	o *PseudonymTemplate
+}
 type postRPseudonymR struct {
 	o *PseudonymTemplate
 }
 type postRRemovedByPseudonymPseudonymR struct {
 	o *PseudonymTemplate
-}
-type postRRemovedByUserUserR struct {
-	o *UserTemplate
 }
 type postRSubforumR struct {
 	o *SubforumTemplate
@@ -143,6 +146,13 @@ func (t PostTemplate) setModelRels(o *models.Post) {
 		o.R.Poll = rel
 	}
 
+	if t.r.DeletedByPseudonymPseudonym != nil {
+		rel := t.r.DeletedByPseudonymPseudonym.o.Build()
+		rel.R.DeletedByPseudonymPosts = append(rel.R.DeletedByPseudonymPosts, o)
+		o.DeletedByPseudonymID = sql.Null[string]{V: rel.PseudonymID, Valid: true} // h2
+		o.R.DeletedByPseudonymPseudonym = rel
+	}
+
 	if t.r.Pseudonym != nil {
 		rel := t.r.Pseudonym.o.Build()
 		rel.R.Posts = append(rel.R.Posts, o)
@@ -155,13 +165,6 @@ func (t PostTemplate) setModelRels(o *models.Post) {
 		rel.R.RemovedByPseudonymPosts = append(rel.R.RemovedByPseudonymPosts, o)
 		o.RemovedByPseudonymID = sql.Null[string]{V: rel.PseudonymID, Valid: true} // h2
 		o.R.RemovedByPseudonymPseudonym = rel
-	}
-
-	if t.r.RemovedByUserUser != nil {
-		rel := t.r.RemovedByUserUser.o.Build()
-		rel.R.RemovedByUserPosts = append(rel.R.RemovedByUserPosts, o)
-		o.RemovedByUserID = sql.Null[int64]{V: rel.UserID, Valid: true} // h2
-		o.R.RemovedByUserUser = rel
 	}
 
 	if t.r.Subforum != nil {
@@ -257,10 +260,6 @@ func (o PostTemplate) BuildSetter() *models.PostSetter {
 		val := o.IsRemoved()
 		m.IsRemoved = &val
 	}
-	if o.RemovedByUserID != nil {
-		val := o.RemovedByUserID()
-		m.RemovedByUserID = &val
-	}
 	if o.RemovedByPseudonymID != nil {
 		val := o.RemovedByPseudonymID()
 		m.RemovedByPseudonymID = &val
@@ -280,6 +279,22 @@ func (o PostTemplate) BuildSetter() *models.PostSetter {
 	if o.Slug != nil {
 		val := o.Slug()
 		m.Slug = &val
+	}
+	if o.IsDeleted != nil {
+		val := o.IsDeleted()
+		m.IsDeleted = &val
+	}
+	if o.DeletedByPseudonymID != nil {
+		val := o.DeletedByPseudonymID()
+		m.DeletedByPseudonymID = &val
+	}
+	if o.DeletedByPseudonymAt != nil {
+		val := o.DeletedByPseudonymAt()
+		m.DeletedByPseudonymAt = &val
+	}
+	if o.DeletedByPseudonymReason != nil {
+		val := o.DeletedByPseudonymReason()
+		m.DeletedByPseudonymReason = &val
 	}
 
 	return m
@@ -363,9 +378,6 @@ func (o PostTemplate) Build() *models.Post {
 	if o.IsRemoved != nil {
 		m.IsRemoved = o.IsRemoved()
 	}
-	if o.RemovedByUserID != nil {
-		m.RemovedByUserID = o.RemovedByUserID()
-	}
 	if o.RemovedByPseudonymID != nil {
 		m.RemovedByPseudonymID = o.RemovedByPseudonymID()
 	}
@@ -380,6 +392,18 @@ func (o PostTemplate) Build() *models.Post {
 	}
 	if o.Slug != nil {
 		m.Slug = o.Slug()
+	}
+	if o.IsDeleted != nil {
+		m.IsDeleted = o.IsDeleted()
+	}
+	if o.DeletedByPseudonymID != nil {
+		m.DeletedByPseudonymID = o.DeletedByPseudonymID()
+	}
+	if o.DeletedByPseudonymAt != nil {
+		m.DeletedByPseudonymAt = o.DeletedByPseudonymAt()
+	}
+	if o.DeletedByPseudonymReason != nil {
+		m.DeletedByPseudonymReason = o.DeletedByPseudonymReason()
 	}
 
 	o.setModelRels(m)
@@ -470,30 +494,30 @@ func (o *PostTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *
 
 	}
 
-	isRemovedByPseudonymPseudonymDone, _ := postRelRemovedByPseudonymPseudonymCtx.Value(ctx)
-	if !isRemovedByPseudonymPseudonymDone && o.r.RemovedByPseudonymPseudonym != nil {
-		ctx = postRelRemovedByPseudonymPseudonymCtx.WithValue(ctx, true)
-		var rel4 *models.Pseudonym
-		ctx, rel4, err = o.r.RemovedByPseudonymPseudonym.o.create(ctx, exec)
+	isDeletedByPseudonymPseudonymDone, _ := postRelDeletedByPseudonymPseudonymCtx.Value(ctx)
+	if !isDeletedByPseudonymPseudonymDone && o.r.DeletedByPseudonymPseudonym != nil {
+		ctx = postRelDeletedByPseudonymPseudonymCtx.WithValue(ctx, true)
+		var rel3 *models.Pseudonym
+		ctx, rel3, err = o.r.DeletedByPseudonymPseudonym.o.create(ctx, exec)
 		if err != nil {
 			return ctx, err
 		}
-		err = m.AttachRemovedByPseudonymPseudonym(ctx, exec, rel4)
+		err = m.AttachDeletedByPseudonymPseudonym(ctx, exec, rel3)
 		if err != nil {
 			return ctx, err
 		}
 
 	}
 
-	isRemovedByUserUserDone, _ := postRelRemovedByUserUserCtx.Value(ctx)
-	if !isRemovedByUserUserDone && o.r.RemovedByUserUser != nil {
-		ctx = postRelRemovedByUserUserCtx.WithValue(ctx, true)
-		var rel5 *models.User
-		ctx, rel5, err = o.r.RemovedByUserUser.o.create(ctx, exec)
+	isRemovedByPseudonymPseudonymDone, _ := postRelRemovedByPseudonymPseudonymCtx.Value(ctx)
+	if !isRemovedByPseudonymPseudonymDone && o.r.RemovedByPseudonymPseudonym != nil {
+		ctx = postRelRemovedByPseudonymPseudonymCtx.WithValue(ctx, true)
+		var rel5 *models.Pseudonym
+		ctx, rel5, err = o.r.RemovedByPseudonymPseudonym.o.create(ctx, exec)
 		if err != nil {
 			return ctx, err
 		}
-		err = m.AttachRemovedByUserUser(ctx, exec, rel5)
+		err = m.AttachRemovedByPseudonymPseudonym(ctx, exec, rel5)
 		if err != nil {
 			return ctx, err
 		}
@@ -546,15 +570,15 @@ func (o *PostTemplate) create(ctx context.Context, exec bob.Executor) (context.C
 		PostMods.WithNewPseudonym().Apply(ctx, o)
 	}
 
-	rel3, ok := pseudonymCtx.Value(ctx)
+	rel4, ok := pseudonymCtx.Value(ctx)
 	if !ok {
-		ctx, rel3, err = o.r.Pseudonym.o.create(ctx, exec)
+		ctx, rel4, err = o.r.Pseudonym.o.create(ctx, exec)
 		if err != nil {
 			return ctx, nil, err
 		}
 	}
 
-	opt.PseudonymID = &rel3.PseudonymID
+	opt.PseudonymID = &rel4.PseudonymID
 
 	if o.r.Subforum == nil {
 		PostMods.WithNewSubforum().Apply(ctx, o)
@@ -576,7 +600,7 @@ func (o *PostTemplate) create(ctx context.Context, exec bob.Executor) (context.C
 	}
 	ctx = postCtx.WithValue(ctx, m)
 
-	m.R.Pseudonym = rel3
+	m.R.Pseudonym = rel4
 	m.R.Subforum = rel6
 
 	ctx, err = o.insertOptRels(ctx, exec, m)
@@ -658,12 +682,15 @@ func (m postMods) RandomizeAllColumns(f *faker.Faker) PostMod {
 		PostMods.RandomCommentCount(f),
 		PostMods.RandomViewCount(f),
 		PostMods.RandomIsRemoved(f),
-		PostMods.RandomRemovedByUserID(f),
 		PostMods.RandomRemovedByPseudonymID(f),
 		PostMods.RandomRemovalReason(f),
 		PostMods.RandomRemovedAt(f),
 		PostMods.RandomPseudonymID(f),
 		PostMods.RandomSlug(f),
+		PostMods.RandomIsDeleted(f),
+		PostMods.RandomDeletedByPseudonymID(f),
+		PostMods.RandomDeletedByPseudonymAt(f),
+		PostMods.RandomDeletedByPseudonymReason(f),
 	}
 }
 
@@ -1640,59 +1667,6 @@ func (m postMods) RandomIsRemovedNotNull(f *faker.Faker) PostMod {
 }
 
 // Set the model columns to this value
-func (m postMods) RemovedByUserID(val sql.Null[int64]) PostMod {
-	return PostModFunc(func(_ context.Context, o *PostTemplate) {
-		o.RemovedByUserID = func() sql.Null[int64] { return val }
-	})
-}
-
-// Set the Column from the function
-func (m postMods) RemovedByUserIDFunc(f func() sql.Null[int64]) PostMod {
-	return PostModFunc(func(_ context.Context, o *PostTemplate) {
-		o.RemovedByUserID = f
-	})
-}
-
-// Clear any values for the column
-func (m postMods) UnsetRemovedByUserID() PostMod {
-	return PostModFunc(func(_ context.Context, o *PostTemplate) {
-		o.RemovedByUserID = nil
-	})
-}
-
-// Generates a random value for the column using the given faker
-// if faker is nil, a default faker is used
-// The generated value is sometimes null
-func (m postMods) RandomRemovedByUserID(f *faker.Faker) PostMod {
-	return PostModFunc(func(_ context.Context, o *PostTemplate) {
-		o.RemovedByUserID = func() sql.Null[int64] {
-			if f == nil {
-				f = &defaultFaker
-			}
-
-			val := random_int64(f)
-			return sql.Null[int64]{V: val, Valid: f.Bool()}
-		}
-	})
-}
-
-// Generates a random value for the column using the given faker
-// if faker is nil, a default faker is used
-// The generated value is never null
-func (m postMods) RandomRemovedByUserIDNotNull(f *faker.Faker) PostMod {
-	return PostModFunc(func(_ context.Context, o *PostTemplate) {
-		o.RemovedByUserID = func() sql.Null[int64] {
-			if f == nil {
-				f = &defaultFaker
-			}
-
-			val := random_int64(f)
-			return sql.Null[int64]{V: val, Valid: true}
-		}
-	})
-}
-
-// Set the model columns to this value
 func (m postMods) RemovedByPseudonymID(val sql.Null[string]) PostMod {
 	return PostModFunc(func(_ context.Context, o *PostTemplate) {
 		o.RemovedByPseudonymID = func() sql.Null[string] { return val }
@@ -1935,6 +1909,218 @@ func (m postMods) RandomSlugNotNull(f *faker.Faker) PostMod {
 	})
 }
 
+// Set the model columns to this value
+func (m postMods) IsDeleted(val sql.Null[bool]) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.IsDeleted = func() sql.Null[bool] { return val }
+	})
+}
+
+// Set the Column from the function
+func (m postMods) IsDeletedFunc(f func() sql.Null[bool]) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.IsDeleted = f
+	})
+}
+
+// Clear any values for the column
+func (m postMods) UnsetIsDeleted() PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.IsDeleted = nil
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+// The generated value is sometimes null
+func (m postMods) RandomIsDeleted(f *faker.Faker) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.IsDeleted = func() sql.Null[bool] {
+			if f == nil {
+				f = &defaultFaker
+			}
+
+			val := random_bool(f)
+			return sql.Null[bool]{V: val, Valid: f.Bool()}
+		}
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+// The generated value is never null
+func (m postMods) RandomIsDeletedNotNull(f *faker.Faker) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.IsDeleted = func() sql.Null[bool] {
+			if f == nil {
+				f = &defaultFaker
+			}
+
+			val := random_bool(f)
+			return sql.Null[bool]{V: val, Valid: true}
+		}
+	})
+}
+
+// Set the model columns to this value
+func (m postMods) DeletedByPseudonymID(val sql.Null[string]) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.DeletedByPseudonymID = func() sql.Null[string] { return val }
+	})
+}
+
+// Set the Column from the function
+func (m postMods) DeletedByPseudonymIDFunc(f func() sql.Null[string]) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.DeletedByPseudonymID = f
+	})
+}
+
+// Clear any values for the column
+func (m postMods) UnsetDeletedByPseudonymID() PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.DeletedByPseudonymID = nil
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+// The generated value is sometimes null
+func (m postMods) RandomDeletedByPseudonymID(f *faker.Faker) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.DeletedByPseudonymID = func() sql.Null[string] {
+			if f == nil {
+				f = &defaultFaker
+			}
+
+			val := random_string(f, "64")
+			return sql.Null[string]{V: val, Valid: f.Bool()}
+		}
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+// The generated value is never null
+func (m postMods) RandomDeletedByPseudonymIDNotNull(f *faker.Faker) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.DeletedByPseudonymID = func() sql.Null[string] {
+			if f == nil {
+				f = &defaultFaker
+			}
+
+			val := random_string(f, "64")
+			return sql.Null[string]{V: val, Valid: true}
+		}
+	})
+}
+
+// Set the model columns to this value
+func (m postMods) DeletedByPseudonymAt(val sql.Null[time.Time]) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.DeletedByPseudonymAt = func() sql.Null[time.Time] { return val }
+	})
+}
+
+// Set the Column from the function
+func (m postMods) DeletedByPseudonymAtFunc(f func() sql.Null[time.Time]) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.DeletedByPseudonymAt = f
+	})
+}
+
+// Clear any values for the column
+func (m postMods) UnsetDeletedByPseudonymAt() PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.DeletedByPseudonymAt = nil
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+// The generated value is sometimes null
+func (m postMods) RandomDeletedByPseudonymAt(f *faker.Faker) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.DeletedByPseudonymAt = func() sql.Null[time.Time] {
+			if f == nil {
+				f = &defaultFaker
+			}
+
+			val := random_time_Time(f)
+			return sql.Null[time.Time]{V: val, Valid: f.Bool()}
+		}
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+// The generated value is never null
+func (m postMods) RandomDeletedByPseudonymAtNotNull(f *faker.Faker) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.DeletedByPseudonymAt = func() sql.Null[time.Time] {
+			if f == nil {
+				f = &defaultFaker
+			}
+
+			val := random_time_Time(f)
+			return sql.Null[time.Time]{V: val, Valid: true}
+		}
+	})
+}
+
+// Set the model columns to this value
+func (m postMods) DeletedByPseudonymReason(val sql.Null[string]) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.DeletedByPseudonymReason = func() sql.Null[string] { return val }
+	})
+}
+
+// Set the Column from the function
+func (m postMods) DeletedByPseudonymReasonFunc(f func() sql.Null[string]) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.DeletedByPseudonymReason = f
+	})
+}
+
+// Clear any values for the column
+func (m postMods) UnsetDeletedByPseudonymReason() PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.DeletedByPseudonymReason = nil
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+// The generated value is sometimes null
+func (m postMods) RandomDeletedByPseudonymReason(f *faker.Faker) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.DeletedByPseudonymReason = func() sql.Null[string] {
+			if f == nil {
+				f = &defaultFaker
+			}
+
+			val := random_string(f, "100")
+			return sql.Null[string]{V: val, Valid: f.Bool()}
+		}
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+// The generated value is never null
+func (m postMods) RandomDeletedByPseudonymReasonNotNull(f *faker.Faker) PostMod {
+	return PostModFunc(func(_ context.Context, o *PostTemplate) {
+		o.DeletedByPseudonymReason = func() sql.Null[string] {
+			if f == nil {
+				f = &defaultFaker
+			}
+
+			val := random_string(f, "100")
+			return sql.Null[string]{V: val, Valid: true}
+		}
+	})
+}
+
 func (m postMods) WithParentsCascading() PostMod {
 	return PostModFunc(func(ctx context.Context, o *PostTemplate) {
 		if isDone, _ := postWithParentsCascadingCtx.Value(ctx); isDone {
@@ -1949,17 +2135,17 @@ func (m postMods) WithParentsCascading() PostMod {
 		{
 
 			related := o.f.NewPseudonym(ctx, PseudonymMods.WithParentsCascading())
+			m.WithDeletedByPseudonymPseudonym(related).Apply(ctx, o)
+		}
+		{
+
+			related := o.f.NewPseudonym(ctx, PseudonymMods.WithParentsCascading())
 			m.WithPseudonym(related).Apply(ctx, o)
 		}
 		{
 
 			related := o.f.NewPseudonym(ctx, PseudonymMods.WithParentsCascading())
 			m.WithRemovedByPseudonymPseudonym(related).Apply(ctx, o)
-		}
-		{
-
-			related := o.f.NewUser(ctx, UserMods.WithParentsCascading())
-			m.WithRemovedByUserUser(related).Apply(ctx, o)
 		}
 		{
 
@@ -1988,6 +2174,28 @@ func (m postMods) WithNewPoll(mods ...PollMod) PostMod {
 func (m postMods) WithoutPoll() PostMod {
 	return PostModFunc(func(ctx context.Context, o *PostTemplate) {
 		o.r.Poll = nil
+	})
+}
+
+func (m postMods) WithDeletedByPseudonymPseudonym(rel *PseudonymTemplate) PostMod {
+	return PostModFunc(func(ctx context.Context, o *PostTemplate) {
+		o.r.DeletedByPseudonymPseudonym = &postRDeletedByPseudonymPseudonymR{
+			o: rel,
+		}
+	})
+}
+
+func (m postMods) WithNewDeletedByPseudonymPseudonym(mods ...PseudonymMod) PostMod {
+	return PostModFunc(func(ctx context.Context, o *PostTemplate) {
+		related := o.f.NewPseudonym(ctx, mods...)
+
+		m.WithDeletedByPseudonymPseudonym(related).Apply(ctx, o)
+	})
+}
+
+func (m postMods) WithoutDeletedByPseudonymPseudonym() PostMod {
+	return PostModFunc(func(ctx context.Context, o *PostTemplate) {
+		o.r.DeletedByPseudonymPseudonym = nil
 	})
 }
 
@@ -2032,28 +2240,6 @@ func (m postMods) WithNewRemovedByPseudonymPseudonym(mods ...PseudonymMod) PostM
 func (m postMods) WithoutRemovedByPseudonymPseudonym() PostMod {
 	return PostModFunc(func(ctx context.Context, o *PostTemplate) {
 		o.r.RemovedByPseudonymPseudonym = nil
-	})
-}
-
-func (m postMods) WithRemovedByUserUser(rel *UserTemplate) PostMod {
-	return PostModFunc(func(ctx context.Context, o *PostTemplate) {
-		o.r.RemovedByUserUser = &postRRemovedByUserUserR{
-			o: rel,
-		}
-	})
-}
-
-func (m postMods) WithNewRemovedByUserUser(mods ...UserMod) PostMod {
-	return PostModFunc(func(ctx context.Context, o *PostTemplate) {
-		related := o.f.NewUser(ctx, mods...)
-
-		m.WithRemovedByUserUser(related).Apply(ctx, o)
-	})
-}
-
-func (m postMods) WithoutRemovedByUserUser() PostMod {
-	return PostModFunc(func(ctx context.Context, o *PostTemplate) {
-		o.r.RemovedByUserUser = nil
 	})
 }
 

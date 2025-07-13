@@ -115,6 +115,16 @@ func RegisterContentRoutes(api huma.API, db bob.Executor, rawDB *sql.DB, ibeSyst
 		Tags:        []string{"Content", "Moderation"},
 	}, contentHandler.RemovePost)
 
+	// Edit post
+	huma.Register(api, huma.Operation{
+		OperationID: "edit-post",
+		Method:      http.MethodPatch,
+		Path:        "/posts/{post_id}",
+		Summary:     "Edit a post",
+		Description: "Edits a post. Users can only edit their own posts.",
+		Tags:        []string{"Content"},
+	}, contentHandler.EditPost)
+
 	// Edit comment
 	huma.Register(api, huma.Operation{
 		OperationID: "edit-comment",
@@ -144,4 +154,23 @@ func RegisterContentRoutes(api huma.API, db bob.Executor, rawDB *sql.DB, ibeSyst
 		Description: "Reports a comment for moderation review. Users cannot report their own comments.",
 		Tags:        []string{"Content", "Moderation"},
 	}, contentHandler.ReportComment)
+
+	// User deletion endpoints
+	huma.Register(api, huma.Operation{
+		OperationID: "delete-post",
+		Method:      http.MethodDelete,
+		Path:        "/posts/{post_id}",
+		Summary:     "Delete post by user",
+		Description: "Allows users to delete their own posts",
+		Tags:        []string{"Content"},
+	}, contentHandler.DeletePost)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "delete-comment",
+		Method:      http.MethodDelete,
+		Path:        "/comments/{comment_id}",
+		Summary:     "Delete a comment (user-initiated)",
+		Description: "Allows the comment author to delete their own comment.",
+		Tags:        []string{"Content"},
+	}, contentHandler.DeleteComment)
 }
