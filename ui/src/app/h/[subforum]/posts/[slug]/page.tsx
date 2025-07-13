@@ -9,16 +9,25 @@ import { getApi } from '@/lib/api-client';
 import { ContentApi } from '@/generated/api/src/apis/ContentApi';
 import { PostDetailsResponseBody } from '@/generated/api/src/models';
 import { toast } from 'sonner';
-import { Badge } from '@/components/shadcn/badge';
 import { 
   MessageSquare,
   Calendar,
-  User
+  User,
+  MoreHorizontal,
+  Lock,
+  Unlock,
+  Pin,
+  PinOff,
+  Trash2,
+  RotateCcw
 } from 'lucide-react';
 import CommentForm from '@/components/CommentForm';
 import Comment from '@/components/Comment';
 import VoteButtons from '@/components/VoteButtons';
 import { Comment as CommentType } from '@/generated/api/src/models';
+import { useAuth } from '@/lib/auth-context';
+import { MarkdownRenderer } from '@/components/MarkdownRenderer';
+import { PostBadges } from '@/components/PostBadges';
 
 export default function PostPage() {
   const params = useParams();
@@ -29,6 +38,8 @@ export default function PostPage() {
   const [error, setError] = useState<string | null>(null);
   // Add post voting handler
   const [isVoting, setIsVoting] = useState(false);
+  const { user } = useAuth();
+  const [showDropdown, setShowDropdown] = useState(false);
 
   useEffect(() => {
     if (subforum && slug) {
@@ -197,6 +208,57 @@ export default function PostPage() {
     }
   };
 
+  // Helper to check if current user is the post author
+  const isPostAuthor = user?.activePseudonymId && postDetails?.author?.pseudonymId && (user.activePseudonymId === postDetails.author.pseudonymId);
+  const isModerator = user?.roles?.includes('moderator') || 
+                     user?.roles?.includes('subforum_owner') || 
+                     user?.roles?.includes('platform_admin') || 
+                     user?.roles?.includes('trust_safety') || 
+                     user?.roles?.includes('legal_team') ||
+                     user?.capabilities?.includes('moderate_content');
+  const handleModeratorAction = async (action: string, value: boolean) => {
+    if (!isModerator || !postDetails) {
+      toast.error('You do not have permission to perform this action');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const contentApi = getApi(ContentApi);
+      switch (action) {
+        case 'lock':
+          await contentApi.lockPost(postDetails.postId, { locked: value });
+          break;
+        case 'sticky':
+          await contentApi.stickyPost(postDetails.postId, { sticky: value });
+          break;
+        case 'remove':
+          await contentApi.removePost(postDetails.postId, { removed: value });
+          break;
+      }
+      setPostDetails(prev => prev ? {
+        ...prev,
+        isLocked: action === 'lock' ? value : (prev.isLocked ?? false),
+        isSticky: action === 'sticky' ? value : (prev.isSticky ?? false),
+        isRemoved: action === 'remove' ? value : (prev.isRemoved ?? false),
+      } : prev);
+      toast.success(`Post ${action === 'lock' ? (value ? 'locked' : 'unlocked') : action === 'sticky' ? (value ? 'stickied' : 'unstickied') : (value ? 'removed' : 'restored')}`);
+    } catch {
+      toast.error('Failed to update post');
+    } finally {
+      setIsLoading(false);
+      setShowDropdown(false);
+    }
+  };
+
+  // Debug logs for author check
+  if (postDetails) {
+    console.log('user.activePseudonymId', user?.activePseudonymId);
+    console.log('postDetails.author.pseudonymId', postDetails.author.pseudonymId);
+    console.log('isPostAuthor', isPostAuthor);
+  }
+
+
+
   if (isLoading) {
     return (
       <div className="max-w-4xl mx-auto p-6">
@@ -256,17 +318,110 @@ export default function PostPage() {
 
       {/* Post Header */}
       <div className="mb-6">
-        <div className="flex items-center gap-2 mb-2">
-          <h1 className="text-2xl font-bold">{postDetails.title}</h1>
-          {postDetails.isSpoiler && (
-            <Badge variant="secondary" className="text-xs">
-              Spoiler
-            </Badge>
-          )}
-          {postDetails.isNsfw && (
-            <Badge variant="destructive" className="text-xs">
-              NSFW
-            </Badge>
+        <div className="flex items-center gap-2 mb-2 justify-between">
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">{postDetails.title}</h1>
+            <PostBadges
+              isSpoiler={postDetails.isSpoiler}
+              isNsfw={postDetails.isNsfw}
+              isSticky={postDetails.isSticky}
+              isLocked={postDetails.isLocked}
+              isRemoved={postDetails.isRemoved}
+            />
+          </div>
+          {(isPostAuthor || isModerator) && (
+            <div className="relative">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowDropdown(!showDropdown)}
+                disabled={isLoading}
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </Button>
+              {showDropdown && (
+                <div className="absolute right-0 top-full mt-1 bg-popover border border-border rounded-md shadow-lg z-10 min-w-48">
+                  <div className="p-2 space-y-1">
+                    {isPostAuthor && (
+                      <>
+                        <Link href={`/h/${postDetails.subforum.name}/posts/${postDetails.slug}/edit`}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full justify-start"
+                          >
+                            Edit
+                          </Button>
+                        </Link>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full justify-start text-destructive hover:text-destructive"
+                          onClick={async () => {
+                            if (confirm('Are you sure you want to delete this post? This action cannot be undone.')) {
+                              setIsLoading(true);
+                              try {
+                                const contentApi = getApi(ContentApi);
+                                await contentApi.deletePost(postDetails.postId, { reason: 'User requested deletion' });
+                                toast.success('Post deleted');
+                                // Redirect to subforum
+                                window.location.href = `/h/${postDetails.subforum.name}`;
+                              } catch (error: unknown) {
+                                console.error('Error deleting post:', error);
+                                const errorMessage = error instanceof Error ? error.message : 'Failed to delete post';
+                                toast.error('Failed to delete post', { description: errorMessage });
+                              } finally {
+                                setIsLoading(false);
+                                setShowDropdown(false);
+                              }
+                            }
+                          }}
+                          disabled={isLoading}
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Delete
+                        </Button>
+                      </>
+                    )}
+                    {isPostAuthor && isModerator && <hr className="my-2 border-border" />}
+                    {isModerator && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full justify-start"
+                          onClick={() => handleModeratorAction('lock', !(postDetails.isLocked ?? false))}
+                          disabled={isLoading}
+                        >
+                          {postDetails.isLocked ? <Unlock className="w-4 h-4 mr-2" /> : <Lock className="w-4 h-4 mr-2" />}
+                          {postDetails.isLocked ? 'Unlock Post' : 'Lock Post'}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full justify-start"
+                          onClick={() => handleModeratorAction('sticky', !(postDetails.isSticky ?? false))}
+                          disabled={isLoading}
+                        >
+                          {postDetails.isSticky ? <PinOff className="w-4 h-4 mr-2" /> : <Pin className="w-4 h-4 mr-2" />}
+                          {postDetails.isSticky ? 'Unsticky Post' : 'Sticky Post'}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full justify-start text-destructive hover:text-destructive"
+                          onClick={() => handleModeratorAction('remove', !(postDetails.isRemoved ?? false))}
+                          disabled={isLoading}
+                        >
+                          {postDetails.isRemoved ? <RotateCcw className="w-4 h-4 mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                          {postDetails.isRemoved ? 'Restore Post' : 'Remove Post'}
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
         
@@ -290,7 +445,7 @@ export default function PostPage() {
       <div className="bg-card border border-border rounded-lg p-6 mb-6">
         {postDetails.content && (
           <div className="prose prose-sm max-w-none mb-4">
-            <p className="text-foreground whitespace-pre-wrap">{postDetails.content}</p>
+            <MarkdownRenderer content={postDetails.content} />
           </div>
         )}
         
@@ -317,20 +472,32 @@ export default function PostPage() {
             size="md"
           />
         </div>
+
       </div>
 
       {/* Comment Form */}
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold mb-4">Add a Comment</h2>
-        <CommentForm
-          postId={postDetails.postId}
-          onCommentSubmitted={loadPostDetails}
-        />
-      </div>
+      {!postDetails.isLocked && (
+        <div className="mb-6">
+          <h2 className="text-xl font-semibold mb-4">Add a Comment</h2>
+          <CommentForm
+            postId={postDetails.postId}
+            onCommentSubmitted={loadPostDetails}
+          />
+        </div>
+      )}
+      
+      {postDetails.isLocked && (
+        <div className="mb-6 p-4 bg-muted/20 border border-border rounded-lg">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Lock className="w-4 h-4" />
+            <span className="text-sm">This post is locked. New comments are not allowed.</span>
+          </div>
+        </div>
+      )}
 
       {/* Comments Section */}
       <div id="comments" className="space-y-4">
-        <h2 className="text-xl font-semibold">Comments ({comments?.length || 0})</h2>
+        <h2 className="text-xl font-semibold">Comments ({postDetails.commentCount || 0})</h2>
         
         {!comments || comments.length === 0 ? (
           <div className="text-center py-8">

@@ -7,7 +7,9 @@ import { useAuth } from '@/lib/auth-context';
 import { getApi } from '@/lib/api-client';
 import { ContentApi } from '@/generated/api/src/apis/ContentApi';
 import { toast } from 'sonner';
-import { Send, X } from 'lucide-react';
+import { Send, X, Eye, EyeOff } from 'lucide-react';
+import MarkdownHelp from './MarkdownHelp';
+import { MarkdownPreview } from './MarkdownPreview';
 
 interface CommentFormProps {
   postId: number;
@@ -28,6 +30,7 @@ export default function CommentForm({
 }: CommentFormProps) {
   const [content, setContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const { user, isAuthenticated } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -99,15 +102,35 @@ export default function CommentForm({
           </div>
         )}
         
-        <div className="flex items-start gap-3">
-          <div className="flex-1">
-            <Textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder={placeholder}
-              className="min-h-[80px] resize-none"
-              disabled={isSubmitting}
-            />
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPreview(!showPreview)}
+                className="h-8 px-3"
+              >
+                {showPreview ? <EyeOff className="w-3 h-3 mr-1" /> : <Eye className="w-3 h-3 mr-1" />}
+                {showPreview ? 'Hide Preview' : 'Show Preview'}
+              </Button>
+            </div>
+          </div>
+          
+          {showPreview && (
+            <MarkdownPreview content={content} />
+          )}
+          
+          <Textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder={placeholder + " (supports markdown)"}
+            className="min-h-[80px] resize-none"
+            disabled={isSubmitting}
+          />
+          <div className="mt-2">
+            <MarkdownHelp />
           </div>
         </div>
         

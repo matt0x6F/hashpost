@@ -55,7 +55,7 @@ var (
 	commentRelPostCtx                        = newContextual[bool]("comments.posts.comments.comments_post_id_fkey")
 	commentRelPseudonymCtx                   = newContextual[bool]("comments.pseudonyms.comments.comments_pseudonym_id_fkey")
 	commentRelRemovedByPseudonymPseudonymCtx = newContextual[bool]("comments.pseudonyms.comments.comments_removed_by_pseudonym_id_fkey")
-	commentRelRemovedByUserUserCtx           = newContextual[bool]("comments.users.comments.comments_removed_by_user_id_fkey")
+	commentRelDeletedByPseudonymPseudonymCtx = newContextual[bool]("comments.pseudonyms.comments.fk_comments_deleted_by_pseudonym")
 
 	// Relationship Contexts for compliance_correlations
 	complianceCorrelationWithParentsCascadingCtx      = newContextual[bool]("complianceCorrelationWithParentsCascading")
@@ -116,9 +116,9 @@ var (
 	postRelCommentsCtx                    = newContextual[bool]("comments.posts.comments.comments_post_id_fkey")
 	postRelMediaAttachmentsCtx            = newContextual[bool]("media_attachments.posts.media_attachments.media_attachments_post_id_fkey")
 	postRelPollCtx                        = newContextual[bool]("polls.posts.polls.polls_post_id_fkey")
+	postRelDeletedByPseudonymPseudonymCtx = newContextual[bool]("posts.pseudonyms.posts.fk_posts_deleted_by_pseudonym")
 	postRelPseudonymCtx                   = newContextual[bool]("posts.pseudonyms.posts.posts_pseudonym_id_fkey")
 	postRelRemovedByPseudonymPseudonymCtx = newContextual[bool]("posts.pseudonyms.posts.posts_removed_by_pseudonym_id_fkey")
-	postRelRemovedByUserUserCtx           = newContextual[bool]("posts.users.posts.posts_removed_by_user_id_fkey")
 	postRelSubforumCtx                    = newContextual[bool]("posts.subforums.posts.posts_subforum_id_fkey")
 
 	// Relationship Contexts for pseudonyms
@@ -126,11 +126,13 @@ var (
 	pseudonymRelAPIKeysCtx                             = newContextual[bool]("api_keys.pseudonyms.api_keys.fk_api_keys_pseudonym")
 	pseudonymRelCommentsCtx                            = newContextual[bool]("comments.pseudonyms.comments.comments_pseudonym_id_fkey")
 	pseudonymRelRemovedByPseudonymCommentsCtx          = newContextual[bool]("comments.pseudonyms.comments.comments_removed_by_pseudonym_id_fkey")
+	pseudonymRelDeletedByPseudonymCommentsCtx          = newContextual[bool]("comments.pseudonyms.comments.fk_comments_deleted_by_pseudonym")
 	pseudonymRelCorrelationAuditsCtx                   = newContextual[bool]("correlation_audit.pseudonyms.correlation_audit.correlation_audit_pseudonym_id_fkey")
 	pseudonymRelRecipientPseudonymDirectMessagesCtx    = newContextual[bool]("direct_messages.pseudonyms.direct_messages.direct_messages_recipient_pseudonym_id_fkey")
 	pseudonymRelSenderPseudonymDirectMessagesCtx       = newContextual[bool]("direct_messages.pseudonyms.direct_messages.direct_messages_sender_pseudonym_id_fkey")
 	pseudonymRelModeratorPseudonymModerationActionsCtx = newContextual[bool]("moderation_actions.pseudonyms.moderation_actions.moderation_actions_moderator_pseudonym_id_fkey")
 	pseudonymRelPollVotesCtx                           = newContextual[bool]("poll_votes.pseudonyms.poll_votes.poll_votes_pseudonym_id_fkey")
+	pseudonymRelDeletedByPseudonymPostsCtx             = newContextual[bool]("posts.pseudonyms.posts.fk_posts_deleted_by_pseudonym")
 	pseudonymRelPostsCtx                               = newContextual[bool]("posts.pseudonyms.posts.posts_pseudonym_id_fkey")
 	pseudonymRelRemovedByPseudonymPostsCtx             = newContextual[bool]("posts.pseudonyms.posts.posts_removed_by_pseudonym_id_fkey")
 	pseudonymRelReportedPseudonymReportsCtx            = newContextual[bool]("pseudonyms.reports.reports.reports_reported_pseudonym_id_fkey")
@@ -208,14 +210,12 @@ var (
 
 	// Relationship Contexts for users
 	userWithParentsCascadingCtx              = newContextual[bool]("userWithParentsCascading")
-	userRelRemovedByUserCommentsCtx          = newContextual[bool]("comments.users.comments.comments_removed_by_user_id_fkey")
 	userRelAssignedUserComplianceReportsCtx  = newContextual[bool]("compliance_reports.users.compliance_reports.compliance_reports_assigned_user_id_fkey")
 	userRelCorrelationAuditsCtx              = newContextual[bool]("correlation_audit.users.correlation_audit.correlation_audit_user_id_fkey")
 	userRelIdentityMappingsCtx               = newContextual[bool]("identity_mappings.users.identity_mappings.identity_mappings_user_id_fkey")
 	userRelKeyUsageAuditsCtx                 = newContextual[bool]("key_usage_audit.users.key_usage_audit.key_usage_audit_user_id_fkey")
 	userRelModeratorUserModerationActionsCtx = newContextual[bool]("moderation_actions.users.moderation_actions.moderation_actions_moderator_user_id_fkey")
 	userRelTargetUserModerationActionsCtx    = newContextual[bool]("moderation_actions.users.moderation_actions.moderation_actions_target_user_id_fkey")
-	userRelRemovedByUserPostsCtx             = newContextual[bool]("posts.users.posts.posts_removed_by_user_id_fkey")
 	userRelResolvedByUserReportsCtx          = newContextual[bool]("reports.users.reports.reports_resolved_by_user_id_fkey")
 	userRelCreatedByRoleKeysCtx              = newContextual[bool]("role_keys.users.role_keys.role_keys_created_by_fkey")
 	userRelCreatedByUserSubforumsCtx         = newContextual[bool]("subforums.users.subforums.subforums_created_by_user_id_fkey")

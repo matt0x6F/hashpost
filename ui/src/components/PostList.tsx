@@ -3,11 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from './shadcn/button';
 import { PostCard } from './PostCard';
-import { CreatePostDialog } from './CreatePostDialog';
 import { getApi } from '@/lib/api-client';
 import { ContentApi } from '@/generated/api/src/apis/ContentApi';
 import { toast } from 'sonner';
 import { Plus, Loader2 } from 'lucide-react';
+import Link from 'next/link';
 
 interface Post {
   postId: number;
@@ -34,10 +34,9 @@ interface Post {
 
 interface PostListProps {
   subforumName: string;
-  onPostUpdated?: (postId: number) => void;
 }
 
-export function PostList({ subforumName, onPostUpdated }: PostListProps) {
+export function PostList({ subforumName }: PostListProps) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +53,7 @@ export function PostList({ subforumName, onPostUpdated }: PostListProps) {
     
     try {
       const contentApi = getApi(ContentApi);
-      const response = await contentApi.getSubforumPosts(subforumName, page, 20, 'new', 'all');
+      const response = await contentApi.getSubforumPosts(subforumName, undefined, undefined, page, 20, 'new', 'all');
       
       if (response.posts && Array.isArray(response.posts)) {
         const newPosts = response.posts;
@@ -80,20 +79,6 @@ export function PostList({ subforumName, onPostUpdated }: PostListProps) {
     }
   };
 
-  const handlePostUpdated = (postId: number) => {
-    // Refresh the posts list when a post is updated
-    setPage(1);
-    loadPosts();
-    onPostUpdated?.(postId);
-  };
-
-  const handlePostCreated = (postId: number) => {
-    // Refresh the posts list when a new post is created
-    setPage(1);
-    loadPosts();
-    onPostUpdated?.(postId);
-  };
-
   const loadMore = () => {
     setPage(prev => prev + 1);
   };
@@ -114,15 +99,12 @@ export function PostList({ subforumName, onPostUpdated }: PostListProps) {
       {/* Create Post Button */}
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold">Posts</h2>
-        <CreatePostDialog 
-          subforumName={subforumName}
-          onPostCreated={handlePostCreated}
-        >
+        <Link href={`/forums/${subforumName}/posts/new`}>
           <Button>
             <Plus className="w-4 h-4 mr-2" />
             Create Post
           </Button>
-        </CreatePostDialog>
+        </Link>
       </div>
 
       {/* Posts List */}
@@ -138,7 +120,6 @@ export function PostList({ subforumName, onPostUpdated }: PostListProps) {
             <PostCard
               key={post.postId}
               post={post}
-              onPostUpdated={handlePostUpdated}
             />
           ))
         )}
