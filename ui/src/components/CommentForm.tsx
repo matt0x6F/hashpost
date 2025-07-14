@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/shadcn/button';
-import { Textarea } from '@/components/shadcn/textarea';
 import { useAuth } from '@/lib/auth-context';
 import { getApi } from '@/lib/api-client';
 import { ContentApi } from '@/generated/api/src/apis/ContentApi';
@@ -10,6 +9,7 @@ import { toast } from 'sonner';
 import { Send, X, Eye, EyeOff } from 'lucide-react';
 import MarkdownHelp from './MarkdownHelp';
 import { MarkdownPreview } from './MarkdownPreview';
+import { MarkdownTextarea } from './MarkdownTextarea';
 
 interface CommentFormProps {
   postId: number;
@@ -122,11 +122,12 @@ export default function CommentForm({
             <MarkdownPreview content={content} />
           )}
           
-          <Textarea
+          <MarkdownTextarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
             placeholder={placeholder + " (supports markdown)"}
-            className="min-h-[80px] resize-none"
+            minHeight={80}
+            maxHeight={400}
             disabled={isSubmitting}
           />
           <div className="mt-2">

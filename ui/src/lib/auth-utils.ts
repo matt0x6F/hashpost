@@ -45,6 +45,45 @@ export async function authenticateUser(): Promise<UserLoginResponseBody | null> 
     };
   } catch (error) {
     console.log('[auth-utils] /auth/me failed:', error);
+    // Check if it's a 401 Unauthorized response
+    if (error && typeof error === 'object' && 'response' in error) {
+      const response = (error as { response?: Response }).response;
+      if (response && response.status === 401) {
+        console.log('[auth-utils] Server returned 401 - attempting token refresh');
+        
+        // Try to refresh the token
+        try {
+          const refreshResponse = await authApi.refreshToken({ refreshToken: '' });
+          console.log('[auth-utils] Token refresh successful:', refreshResponse);
+          
+          // After successful refresh, try /auth/me again
+          const retryResponse = await authApi.getCurrentUserSession();
+          console.log('[auth-utils] /auth/me retry successful:', retryResponse);
+          
+          return {
+            userId: retryResponse.userId,
+            email: retryResponse.email,
+            createdAt: retryResponse.createdAt,
+            lastActiveAt: retryResponse.lastActiveAt,
+            isActive: retryResponse.isActive,
+            isSuspended: retryResponse.isSuspended,
+            roles: retryResponse.roles || [],
+            capabilities: retryResponse.capabilities || [],
+            activePseudonymId: retryResponse.activePseudonymId,
+            displayName: retryResponse.displayName,
+            pseudonyms: retryResponse.pseudonyms || [],
+            accessToken: '',
+            refreshToken: ''
+          };
+        } catch (refreshError) {
+          console.log('[auth-utils] Token refresh failed:', refreshError);
+          // If refresh fails, throw AuthRefreshFailedError
+          throw new AuthRefreshFailedError('Token refresh failed');
+        }
+      } else if (response) {
+        console.warn('[auth-utils] Server returned unexpected status:', response.status);
+      }
+    }
     return null;
   }
 }
@@ -74,6 +113,45 @@ export async function authenticateUserForSubforum(subforumName: string): Promise
     };
   } catch (error) {
     console.log('[auth-utils] /auth/me/subforum failed:', error);
+    // Check if it's a 401 Unauthorized response
+    if (error && typeof error === 'object' && 'response' in error) {
+      const response = (error as { response?: Response }).response;
+      if (response && response.status === 401) {
+        console.log('[auth-utils] Server returned 401 - attempting token refresh for subforum');
+        
+        // Try to refresh the token
+        try {
+          const refreshResponse = await authApi.refreshToken({ refreshToken: '' });
+          console.log('[auth-utils] Token refresh successful:', refreshResponse);
+          
+          // After successful refresh, try /auth/me/subforum again
+          const retryResponse = await authApi.getCurrentUserSessionForSubforum(subforumName);
+          console.log('[auth-utils] /auth/me/subforum retry successful:', retryResponse);
+          
+          return {
+            userId: retryResponse.userId,
+            email: retryResponse.email,
+            createdAt: retryResponse.createdAt,
+            lastActiveAt: retryResponse.lastActiveAt,
+            isActive: retryResponse.isActive,
+            isSuspended: retryResponse.isSuspended,
+            roles: retryResponse.roles || [],
+            capabilities: retryResponse.capabilities || [],
+            activePseudonymId: retryResponse.activePseudonymId,
+            displayName: retryResponse.displayName,
+            pseudonyms: retryResponse.pseudonyms || [],
+            accessToken: '',
+            refreshToken: ''
+          };
+        } catch (refreshError) {
+          console.log('[auth-utils] Token refresh failed:', refreshError);
+          // If refresh fails, throw AuthRefreshFailedError
+          throw new AuthRefreshFailedError('Token refresh failed');
+        }
+      } else if (response) {
+        console.warn('[auth-utils] Server returned unexpected status:', response.status);
+      }
+    }
     return null;
   }
 }

@@ -63,21 +63,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log('User authenticated successfully:', authResult);
           login(authResult);
         } else {
-          console.log('Authentication failed, checking localStorage...');
-          // Check if we have user data in localStorage as fallback
-          const storedUser = localStorage.getItem('hashpost_user');
-          if (storedUser) {
-            try {
-              const userData = JSON.parse(storedUser);
-              console.log('Using stored user data from localStorage');
-              setUser(userData);
-            } catch (error) {
-              console.error('Error parsing stored user data:', error);
-              localStorage.removeItem('hashpost_user');
-            }
-          } else {
-            console.log('No stored user data found');
-          }
+          console.log('Authentication failed - user is not authenticated');
+          // Clear any stale localStorage data when server says user is not authenticated
+          localStorage.removeItem('hashpost_user');
+          setUser(null);
         }
       } catch (error) {
         if (error instanceof AuthRefreshFailedError) {
@@ -88,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('Error checking authentication:', error);
         // Clear invalid data
         localStorage.removeItem('hashpost_user');
+        setUser(null);
       } finally {
         setIsLoading(false);
       }
@@ -157,6 +147,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
     isAuthenticated: !!user,
   };
+
+  // Debug logging
+  console.log('[auth-context] State update:', { user: !!user, isLoading, isAuthenticated: !!user });
 
   return (
     <AuthContext.Provider value={value}>
