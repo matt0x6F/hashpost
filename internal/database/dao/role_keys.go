@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid/v5"
+	"github.com/matt0x6f/hashpost/internal/api/constants"
 	"github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/matt0x6f/hashpost/internal/ibe"
 	"github.com/rs/zerolog/log"
@@ -261,7 +262,7 @@ func (dao *RoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interfac
 	fmt.Printf("[DEBUG] EnsureDefaultKeys: user_id=%d, user_roles=%v\n", userID, userRoles)
 	log.Debug().Int64("user_id", userID).Strs("user_roles", userRoles).Msg("Provisioning role keys for user")
 
-	// Define default keys for each user role
+	// Define default keys for each user role using constants
 	defaultKeys := []struct {
 		roleName     string
 		scope        string
@@ -276,11 +277,11 @@ func (dao *RoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interfac
 			capabilities []string
 		}{
 			roleName: userRole,
-			scope:    "authentication",
+			scope:    constants.ScopeAuthentication,
 			capabilities: []string{
-				"access_own_pseudonyms",
-				"login",
-				"session_management",
+				constants.CapabilityAccessOwnPseudonyms,
+				constants.CapabilityLogin,
+				constants.CapabilitySessionManagement,
 			},
 		})
 		defaultKeys = append(defaultKeys, struct {
@@ -289,34 +290,33 @@ func (dao *RoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interfac
 			capabilities []string
 		}{
 			roleName: userRole,
-			scope:    "self_correlation",
+			scope:    constants.ScopeSelfCorrelation,
 			capabilities: []string{
-				"verify_own_pseudonym_ownership",
-				"manage_own_profile",
+				constants.CapabilityVerifyOwnPseudonymOwnership,
+				constants.CapabilityManageOwnProfile,
 			},
 		})
 	}
 
 	// Add admin-specific correlation keys for admin roles
-	adminRoles := []string{"platform_admin", "trust_safety", "legal_team"}
+	adminRoles := []string{constants.RolePlatformAdmin, constants.RoleTrustSafety, constants.RoleLegalTeam}
 	for _, userRole := range userRoles {
 		for _, adminRole := range adminRoles {
 			if userRole == adminRole {
-				defaultKeys = append(defaultKeys, struct {
-					roleName     string
-					scope        string
-					capabilities []string
-				}{
-					roleName: userRole, // Use the actual user role, not hardcoded "admin"
-					scope:    "correlation",
-					capabilities: []string{
-						"access_all_pseudonyms",
-						"cross_user_correlation",
-						"moderation",
-						"compliance",
-						"legal_requests",
-					},
-				})
+				// Get the role definition to get the correct capabilities
+				roleDef := constants.GetRoleDefinition(userRole)
+				if roleDef != nil {
+					correlationCaps := roleDef.Capabilities[constants.ScopeCorrelation]
+					defaultKeys = append(defaultKeys, struct {
+						roleName     string
+						scope        string
+						capabilities []string
+					}{
+						roleName:     userRole,
+						scope:        constants.ScopeCorrelation,
+						capabilities: correlationCaps,
+					})
+				}
 				break
 			}
 		}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/matt0x6f/hashpost/internal/api/constants"
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	apimodels "github.com/matt0x6f/hashpost/internal/api/models"
 	"github.com/matt0x6f/hashpost/internal/database/dao"
@@ -135,7 +136,7 @@ func (h *UserHandler) UpdatePseudonymProfile(ctx context.Context, input *struct 
 	}
 
 	// Use role-based access control for ownership verification
-	ownsPseudonym, err := h.securePseudonymDAO.VerifyPseudonymOwnership(ctx, pseudonymID, int64(userID), "user", "self_correlation")
+	ownsPseudonym, err := h.securePseudonymDAO.VerifyPseudonymOwnership(ctx, pseudonymID, int64(userID), constants.RoleUser, constants.ScopeSelfCorrelation)
 	if err != nil {
 		log.Error().Err(err).Str("pseudonym_id", pseudonymID).Int("user_id", userID).Msg("Failed to verify pseudonym ownership")
 		return nil, fmt.Errorf("failed to verify ownership: %w", err)
@@ -327,21 +328,26 @@ func (h *UserHandler) GetUserProfile(ctx context.Context, input *middleware.Auth
 	}
 
 	// Get user roles from database to determine which role to use for authentication
-	roles := []string{"user"} // Default role
+	// Parse user roles from JSON
+	var userRoles []string
 	if user.Roles.Valid {
-		rawValue, err := user.Roles.V.Value()
-		if err == nil {
-			var userRoles []string
-			if err := json.Unmarshal(rawValue.([]byte), &userRoles); err == nil && len(userRoles) > 0 {
-				roles = userRoles
-			}
+		rolesBytes, err := user.Roles.V.Value()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get user roles value: %w", err)
+		}
+		if err := json.Unmarshal(rolesBytes.([]byte), &userRoles); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal user roles: %w", err)
 		}
 	}
 
-	// Use role-based access control for getting pseudonyms
-	// Use the user's actual roles, not hardcoded "user"
-	primaryRole := roles[0] // Use the first role for authentication
-	pseudonyms, err := h.securePseudonymDAO.GetPseudonymsByUserID(ctx, int64(userID), primaryRole, "authentication")
+	// If no roles found, default to "user"
+	if len(userRoles) == 0 {
+		userRoles = []string{constants.RoleUser}
+	}
+
+	// Use the first role for authentication
+	primaryRole := userRoles[0]
+	pseudonyms, err := h.securePseudonymDAO.GetPseudonymsByUserID(ctx, int64(userID), primaryRole, constants.ScopeAuthentication)
 	if err != nil {
 		log.Error().Err(err).Int64("user_id", int64(userID)).Str("role", primaryRole).Msg("Failed to get user pseudonyms")
 		return nil, fmt.Errorf("failed to get pseudonyms: %w", err)
@@ -400,7 +406,7 @@ func (h *UserHandler) GetUserProfile(ctx context.Context, input *middleware.Auth
 	}
 	email := user.Email
 	capabilities := userCtx.Capabilities
-	response := apimodels.NewUserProfileResponse(userID, email, roles, capabilities, pseudonymProfiles)
+	response := apimodels.NewUserProfileResponse(userID, email, userRoles, capabilities, pseudonymProfiles)
 	log.Info().Str("endpoint", "users/profile").Str("component", "handler").Int("user_id", userID).Msg("Get user profile completed")
 	return response, nil
 }
@@ -569,7 +575,7 @@ func (h *UserHandler) BlockUser(ctx context.Context, input *struct {
 	}
 
 	// Use role-based access control for ownership verification
-	ownsPseudonym, err := h.securePseudonymDAO.VerifyPseudonymOwnership(ctx, blockedPseudonymID, userID, "user", "self_correlation")
+	ownsPseudonym, err := h.securePseudonymDAO.VerifyPseudonymOwnership(ctx, blockedPseudonymID, userID, constants.RoleUser, constants.ScopeSelfCorrelation)
 	if err != nil {
 		log.Error().Err(err).Str("blocked_pseudonym_id", blockedPseudonymID).Int64("user_id", userID).Msg("Failed to verify pseudonym ownership")
 		return nil, fmt.Errorf("failed to verify ownership: %w", err)
@@ -583,7 +589,7 @@ func (h *UserHandler) BlockUser(ctx context.Context, input *struct {
 	if input.Body.BlockAllPersonas != nil && *input.Body.BlockAllPersonas {
 		// ✅ Use IBE-based correlation to block all personas of the user
 		// Get the blocked user's ID (not the blocker's ID)
-		blockedUserID, err := h.securePseudonymDAO.GetUserIDByPseudonym(ctx, blockedPseudonymID, "user", "self_correlation")
+		blockedUserID, err := h.securePseudonymDAO.GetUserIDByPseudonym(ctx, blockedPseudonymID, constants.RoleUser, constants.ScopeSelfCorrelation)
 		if err != nil {
 			log.Error().Err(err).Str("blocked_pseudonym_id", blockedPseudonymID).Msg("Failed to get blocked user ID")
 			return nil, fmt.Errorf("failed to get blocked user ID: %w", err)
@@ -643,7 +649,7 @@ func (h *UserHandler) UnblockUser(ctx context.Context, input *struct {
 	// If no direct block found, check for fingerprint-level block
 	if existingBlock == nil {
 		// Get the blocked user's ID to check for fingerprint-level blocks
-		blockedUserID, err := h.securePseudonymDAO.GetUserIDByPseudonym(ctx, blockedPseudonymID, "user", "self_correlation")
+		blockedUserID, err := h.securePseudonymDAO.GetUserIDByPseudonym(ctx, blockedPseudonymID, constants.RoleUser, constants.ScopeSelfCorrelation)
 		if err != nil {
 			log.Error().Err(err).Str("blocked_pseudonym_id", blockedPseudonymID).Msg("Failed to get blocked user ID for unblock")
 			return nil, fmt.Errorf("failed to get blocked user ID: %w", err)

@@ -12,6 +12,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/matt0x6f/hashpost/internal/api/constants"
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	"github.com/matt0x6f/hashpost/internal/api/models"
 	"github.com/matt0x6f/hashpost/internal/api/validation"
@@ -315,7 +316,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *models.UserLoginInpu
 	// Use IBE-based correlation to get user's pseudonyms
 	// Use the user's actual roles, not hardcoded "user"
 	primaryRole := roles[0] // Use the first role for authentication
-	pseudonyms, err := h.securePseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, primaryRole, "authentication")
+	pseudonyms, err := h.securePseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, primaryRole, constants.ScopeAuthentication)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -334,7 +335,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *models.UserLoginInpu
 	}
 
 	// Get the default pseudonym for the user
-	defaultPseudonym, err := h.securePseudonymDAO.GetDefaultPseudonymByUserID(ctx, user.UserID, primaryRole, "authentication")
+	defaultPseudonym, err := h.securePseudonymDAO.GetDefaultPseudonymByUserID(ctx, user.UserID, primaryRole, constants.ScopeAuthentication)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -636,7 +637,7 @@ func (h *AuthHandler) GetCurrentUserSession(ctx context.Context, input *middlewa
 	// Use IBE-based correlation to get user's pseudonyms
 	// Use the user's actual roles, not hardcoded "user"
 	primaryRole := roles[0] // Use the first role for authentication
-	pseudonyms, err := h.securePseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, primaryRole, "authentication")
+	pseudonyms, err := h.securePseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, primaryRole, constants.ScopeAuthentication)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -806,7 +807,7 @@ func (h *AuthHandler) GetCurrentUserSessionForSubforum(ctx context.Context, inpu
 	// Use IBE-based correlation to get user's pseudonyms
 	// Use the user's actual roles, not hardcoded "user"
 	primaryRole := roles[0] // Use the first role for authentication
-	pseudonyms, err := h.securePseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, primaryRole, "authentication")
+	pseudonyms, err := h.securePseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, primaryRole, constants.ScopeAuthentication)
 	if err != nil {
 		log.Error().
 			Err(err).

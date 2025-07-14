@@ -11,6 +11,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/matt0x6f/hashpost/internal/api/constants"
 	"github.com/matt0x6f/hashpost/internal/config"
 	"github.com/matt0x6f/hashpost/internal/database"
 	"github.com/matt0x6f/hashpost/internal/database/dao"
@@ -553,7 +554,7 @@ func validateAdminInput(input *AdminCreateInput) error {
 		return fmt.Errorf("display name must be 50 characters or less")
 	}
 
-	validRoles := []string{"platform_admin", "trust_safety", "legal_team"}
+	validRoles := []string{constants.RolePlatformAdmin, constants.RoleTrustSafety, constants.RoleLegalTeam}
 	roleValid := false
 	for _, role := range validRoles {
 		if input.AdminRole == role {
@@ -600,43 +601,21 @@ func hashPassword(password string) string {
 func getCapabilitiesForRole(role string) []string {
 	// Basic user capabilities that all users should have
 	basicUserCapabilities := []string{
-		"create_content",
-		"vote",
-		"message",
-		"report",
-		"create_subforum",
+		constants.CapabilityCreateContent,
+		constants.CapabilityVote,
+		constants.CapabilityMessage,
+		constants.CapabilityReport,
+		constants.CapabilityCreateSubforum,
 	}
 
-	roleCapabilities := map[string][]string{
-		"platform_admin": {
-			"system_admin",
-			"user_management",
-			"correlate_identities",
-			"access_private_subforums",
-			"cross_platform_access",
-			"system_moderation",
-		},
-		"trust_safety": {
-			"correlate_identities",
-			"cross_platform_access",
-			"system_moderation",
-			"harassment_investigation",
-		},
-		"legal_team": {
-			"correlate_identities",
-			"legal_compliance",
-			"court_orders",
-			"cross_platform_access",
-		},
-	}
+	// Use the constants package to get role capabilities
+	roleCapabilities := constants.GetRoleCapabilities(role)
 
 	// Start with basic user capabilities
 	capabilities := append([]string{}, basicUserCapabilities...)
 
 	// Add role-specific capabilities
-	if roleCaps, exists := roleCapabilities[role]; exists {
-		capabilities = append(capabilities, roleCaps...)
-	}
+	capabilities = append(capabilities, roleCapabilities...)
 
 	return capabilities
 }
