@@ -54,4 +54,4 @@ HashPost uses a role-based access control (RBAC) system to manage what users can
 
 ---
 
-For more details on what each role can do, or if you have questions about permissions, please contact your platform administrator or see the [RBAC Usage Example](rbac-usage-example.md). 
+For more detailed information about implementing roles and permissions, contact your platform administrator or see the [RBAC Usage Example](rbac-usage-example.md). 

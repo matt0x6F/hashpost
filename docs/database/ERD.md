@@ -153,6 +153,6 @@ For large diagrams, consider:
 ## Related Documentation
 
 - [Database Schema Documentation](database-schema.md)
-- [API Documentation](api-documentation.md)
-- [Identity-Based Encryption Documentation](identity-based-encryption.md)
+- [API Documentation](../api/api-documentation.md)
+- [Identity-Based Encryption Documentation](../security/identity-based-encryption.md)
 - [Database Operations Guide](database-operations.md) 
