@@ -562,13 +562,12 @@ LOG_LEVEL=info
 SECURITY_ENABLE_MFA=true
 ```
 
-## Additional Resources
+## Related Documentation
 
-### Documentation
-- [API Documentation](api-documentation.md)
-- [Database Schema](database-schema.md)
-- [Authentication Guide](authentication.md)
-- [Identity-Based Encryption](identity-based-encryption.md)
+- [API Documentation](../api/documentation.md)
+- [Database Schema](../database/schema.md)
+- [Authentication Guide](../api/authentication.md)
+- [Identity-Based Encryption](../security/ibe.md)
 
 ### External Resources
 - [Go Documentation](https://golang.org/doc/)

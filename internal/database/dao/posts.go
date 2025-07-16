@@ -166,13 +166,16 @@ func (dao *PostDAO) GetPostsBySubforum(ctx context.Context, subforumID int32, pa
 		direction = "DESC"
 	}
 
+	// Always order by is_stickied DESC first, then by the selected field
+	orderByClause := fmt.Sprintf("is_stickied DESC, %s %s", orderExpr, direction)
+
 	posts, err := models.Posts.Query(
 		models.SelectWhere.Posts.SubforumID.EQ(subforumID),
 		sm.Where(psql.Group(psql.Or(
 			psql.Quote("posts", "is_removed").IsNull(),
 			psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
 		))),
-		sm.OrderBy(fmt.Sprintf("%s %s", orderExpr, direction)),
+		sm.OrderBy(orderByClause),
 		sm.Limit(limit),
 		sm.Offset((page-1)*limit),
 	).All(ctx, dao.db)

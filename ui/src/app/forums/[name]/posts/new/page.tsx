@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { Eye, EyeOff } from "lucide-react";
 import MarkdownHelp from "@/components/MarkdownHelp";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
-import { AutoResizeTextarea } from "@/components/AutoResizeTextarea";
+import { MarkdownTextarea } from "@/components/MarkdownTextarea";
 
 export default function NewPostPage() {
   const router = useRouter();
@@ -86,7 +86,7 @@ export default function NewPostPage() {
             <MarkdownPreview content={content} className="mb-3" />
           )}
           
-          <AutoResizeTextarea
+          <MarkdownTextarea
             id="content"
             value={content}
             onChange={e => setContent(e.target.value)}

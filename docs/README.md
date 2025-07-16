@@ -75,25 +75,29 @@ HashPost is a Reddit-like social media platform that uses Identity-Based Encrypt
 - **Legal Compliance**: Handle court orders and legal requests
 - **Cross-Platform Access**: Investigate issues across multiple subforums
 
-## Documentation Structure
+## 📚 **Documentation Structure**
 
-### 📚 **Core Documentation**
-- **[API Reference](api-documentation.md)**: Complete API documentation with authentication flows
-- **[Database Schema](database-schema.md)**: Complete database schema with role-based access control
-- **[Authentication Guide](authentication.md)**: JWT and API key authentication implementation
-- **[Identity-Based Encryption](identity-based-encryption.md)**: IBE system and pseudonym generation
+This documentation is organized into logical categories:
+
+### 🔐 **Security & Access Control**
+- **[RBAC Documentation](rbac/)**: Complete Role-Based Access Control system
+- **[Security Documentation](security/)**: IBE, cryptography, and security analysis
+
+### 📡 **API & Integration**
+- **[API Documentation](api/)**: Complete API reference and authentication
+- **[API Keys](api/keys.md)**: API key management and usage
+
+### 🗄️ **Database & Data**
+- **[Database Schema](database/schema.md)**: Complete database schema with role-based access control
+- **[Database Operations](database/operations.md)**: Common operations, maintenance, and best practices
+- **[Database ERD](database/erd.puml)**: Entity Relationship Diagram
 
 ### 🛠️ **Development & Operations**
-- **[Development Setup](development.md)**: Docker development environment and setup
-- **[Database Operations](database-operations.md)**: Common operations, maintenance, and best practices
-- **[API Keys](api-keys.md)**: API key management and usage
+- **[Development Setup](development/setup.md)**: Docker development environment and setup
+- **[CORS Configuration](development/cors.md)**: Cross-Origin Resource Sharing setup
 
-### 📊 **Visual Documentation**
-- **[Database ERD](database-erd.puml)**: Entity Relationship Diagram (PlantUML)
-- **[README-ERD](README-ERD.md)**: Instructions for generating and viewing the ERD
-
-### 📝 **Changelog & History**
-- **[Changelog](changelog/)**: Historical changes and feature updates
+### 🎯 **Features & Functionality**
+- **[Comment Workflow](features/comments.md)**: Comment system implementation
 
 ## Getting Started
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/matt0x6f/hashpost/internal/api/constants"
 	"github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/rs/zerolog/log"
 	"github.com/stephenafamo/bob"
@@ -327,49 +328,26 @@ func (dao *PermissionDAO) GetUserSubforumCapabilities(ctx context.Context, userI
 
 // CanModerateSubforum checks if a user can moderate a specific subforum
 func (dao *PermissionDAO) CanModerateSubforum(ctx context.Context, userID int64, subforumID int32) (bool, error) {
-	return dao.HasSubforumCapability(ctx, userID, subforumID, "moderate_content")
+	return dao.HasSubforumCapability(ctx, userID, subforumID, constants.CapabilityModerateContent)
 }
 
 // CanBanUsers checks if a user can ban users in a specific subforum
 func (dao *PermissionDAO) CanBanUsers(ctx context.Context, userID int64, subforumID int32) (bool, error) {
-	return dao.HasSubforumCapability(ctx, userID, subforumID, "ban_users")
+	return dao.HasSubforumCapability(ctx, userID, subforumID, constants.CapabilityBanUsers)
 }
 
 // CanRemoveContent checks if a user can remove content in a specific subforum
 func (dao *PermissionDAO) CanRemoveContent(ctx context.Context, userID int64, subforumID int32) (bool, error) {
-	return dao.HasSubforumCapability(ctx, userID, subforumID, "remove_content")
+	return dao.HasSubforumCapability(ctx, userID, subforumID, constants.CapabilityRemoveContent)
 }
 
 // CanManageModerators checks if a user can manage moderators in a specific subforum
 func (dao *PermissionDAO) CanManageModerators(ctx context.Context, userID int64, subforumID int32) (bool, error) {
-	return dao.HasSubforumCapability(ctx, userID, subforumID, "manage_moderators")
+	return dao.HasSubforumCapability(ctx, userID, subforumID, constants.CapabilityManageModerators)
 }
 
 // getRoleCapabilities returns the capabilities associated with a specific role
 func (dao *PermissionDAO) getRoleCapabilities(role string) []string {
-	roleCapabilities := map[string][]string{
-		"owner": {
-			"moderate_content",
-			"ban_users",
-			"remove_content",
-			"correlate_fingerprints",
-			"manage_moderators",
-			"access_private_subforums",
-		},
-		"moderator": {
-			"moderate_content",
-			"ban_users",
-			"remove_content",
-			"correlate_fingerprints",
-		},
-		"junior_moderator": {
-			"moderate_content",
-			"remove_content",
-		},
-	}
-
-	if caps, exists := roleCapabilities[role]; exists {
-		return caps
-	}
-	return []string{}
+	// Use the constants package to get role capabilities
+	return constants.GetRoleCapabilities(role)
 }

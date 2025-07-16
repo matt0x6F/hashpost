@@ -12,7 +12,7 @@ import type { Comment } from '@/generated/api/src/models';
 import { Eye, EyeOff } from 'lucide-react';
 import MarkdownHelp from './MarkdownHelp';
 import { MarkdownPreview } from './MarkdownPreview';
-import { AutoResizeTextarea } from './AutoResizeTextarea';
+import { MarkdownTextarea } from './MarkdownTextarea';
 
 interface EditCommentDialogProps {
   comment: Comment;
@@ -102,7 +102,7 @@ export default function EditCommentDialog({
               <MarkdownPreview content={content} />
             )}
             
-            <AutoResizeTextarea
+            <MarkdownTextarea
               id="content"
               value={content}
               onChange={(e) => setContent(e.target.value)}

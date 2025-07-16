@@ -78,6 +78,72 @@ func main() {
 	cmd.Use = "hashpost"
 	cmd.Version = "1.0.0"
 
+	// Create the roles subcommand
+	rolesCmd := &cobra.Command{
+		Use:   "roles",
+		Short: "Manage roles and role keys",
+		Long:  "Commands for managing roles, role keys, and related operations.",
+	}
+
+	// Add 'setup' subcommand under 'roles'
+	setupRolesCmd := &cobra.Command{
+		Use:   "setup",
+		Short: "Setup role keys for all roles",
+		Long:  "Create the necessary role keys for all roles: user, moderator, subforum_owner, platform_admin, trust_safety, and legal_team",
+		Run: humacli.WithOptions(func(cmd *cobra.Command, args []string, options *Options) {
+			if err := commands.SetupRoles(); err != nil {
+				log.Fatal().Err(err).Msg("Failed to setup roles")
+			}
+		}),
+	}
+	rolesCmd.AddCommand(setupRolesCmd)
+
+	// Add 'list' subcommand under 'roles'
+	listRolesCmd := &cobra.Command{
+		Use:   "list",
+		Short: "List all available roles and their capabilities",
+		Long:  "Display all roles defined in the system with their capabilities, correlation access, scope, and time windows",
+		Run: humacli.WithOptions(func(cmd *cobra.Command, args []string, options *Options) {
+			if err := commands.ListRoles(); err != nil {
+				log.Fatal().Err(err).Msg("Failed to list roles")
+			}
+		}),
+	}
+	rolesCmd.AddCommand(listRolesCmd)
+
+	// Add 'keys' subcommand under 'roles'
+	listRoleKeysCmd := &cobra.Command{
+		Use:   "keys",
+		Short: "List all active role keys",
+		Long:  "Display all active role keys with their capabilities, expiration dates, and metadata",
+		Run: humacli.WithOptions(func(cmd *cobra.Command, args []string, options *Options) {
+			if err := commands.ListRoleKeys(); err != nil {
+				log.Fatal().Err(err).Msg("Failed to list role keys")
+			}
+		}),
+	}
+	rolesCmd.AddCommand(listRoleKeysCmd)
+
+	// Add 'rotate' subcommand under 'roles'
+	rotateRoleKeysCmd := &cobra.Command{
+		Use:   "rotate",
+		Short: "Rotate role keys for security",
+		Long:  "Rotate role keys for a specific role or all roles. This deactivates existing keys and creates new ones.",
+		Run: humacli.WithOptions(func(cmd *cobra.Command, args []string, options *Options) {
+			roleName, _ := cmd.Flags().GetString("role")
+			force, _ := cmd.Flags().GetBool("force")
+			if err := commands.RotateRoleKeys(roleName, force); err != nil {
+				log.Fatal().Err(err).Msg("Failed to rotate role keys")
+			}
+		}),
+	}
+	rotateRoleKeysCmd.Flags().String("role", "", "Specific role to rotate keys for (optional, rotates all roles if not specified)")
+	rotateRoleKeysCmd.Flags().Bool("force", false, "Force rotation even if keys already exist")
+	rolesCmd.AddCommand(rotateRoleKeysCmd)
+
+	// Register the roles group
+	cli.Root().AddCommand(rolesCmd)
+
 	// Add create-admin subcommand
 	createAdminCmd := &cobra.Command{
 		Use:   "create-admin",
@@ -100,20 +166,6 @@ func main() {
 	createAdminCmd.Flags().Bool("non-interactive", false, "Non-interactive mode (requires all flags)")
 
 	cli.Root().AddCommand(createAdminCmd)
-
-	// Add setup-roles subcommand
-	setupRolesCmd := &cobra.Command{
-		Use:   "setup-roles",
-		Short: "Setup role keys for all roles",
-		Long:  "Create the necessary role keys for all roles: user, moderator, subforum_owner, platform_admin, trust_safety, and legal_team",
-		Run: humacli.WithOptions(func(cmd *cobra.Command, args []string, options *Options) {
-			if err := commands.SetupRoles(); err != nil {
-				log.Fatal().Err(err).Msg("Failed to setup roles")
-			}
-		}),
-	}
-
-	cli.Root().AddCommand(setupRolesCmd)
 
 	// Add set-moderator subcommand
 	setModeratorCmd := &cobra.Command{

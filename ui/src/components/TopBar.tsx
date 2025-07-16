@@ -15,6 +15,9 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
   const { isAuthenticated, isLoading } = useAuth();
   const { theme, setTheme } = useTheme();
 
+  // Debug logging
+  console.log('[TopBar] Auth state:', { isAuthenticated, isLoading });
+
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);

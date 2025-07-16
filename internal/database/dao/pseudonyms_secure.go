@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/matt0x6f/hashpost/internal/api/constants"
 	"github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/matt0x6f/hashpost/internal/ibe"
 	"github.com/rs/zerolog/log"
@@ -41,7 +42,7 @@ func NewSecurePseudonymDAO(db bob.Executor, ibeSystem *ibe.IBESystem, identityMa
 // GetPseudonymsByUserID retrieves all pseudonyms for a user using role-based access control
 func (dao *SecurePseudonymDAO) GetPseudonymsByUserID(ctx context.Context, userID int64, roleName, scope string) ([]*models.Pseudonym, error) {
 	// Validate that the key has the required capability
-	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, "access_own_pseudonyms")
+	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, constants.CapabilityAccessOwnPseudonyms)
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate key capability: %w", err)
 	}
@@ -63,7 +64,7 @@ func (dao *SecurePseudonymDAO) GetPseudonymsByUserID(ctx context.Context, userID
 // GetPseudonymsByRealIdentity retrieves all pseudonyms for a real identity using role-based access control
 func (dao *SecurePseudonymDAO) GetPseudonymsByRealIdentity(ctx context.Context, realIdentity string, roleName, scope string) ([]*models.Pseudonym, error) {
 	// Validate that the operation is allowed for this role/scope
-	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, "access_all_pseudonyms")
+	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, constants.CapabilityAccessAllPseudonyms)
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate key capability: %w", err)
 	}
@@ -85,7 +86,7 @@ func (dao *SecurePseudonymDAO) GetPseudonymsByRealIdentity(ctx context.Context, 
 // VerifyPseudonymOwnership verifies if a user owns a pseudonym using role-based access control
 func (dao *SecurePseudonymDAO) VerifyPseudonymOwnership(ctx context.Context, pseudonymID string, userID int64, roleName, scope string) (bool, error) {
 	// Validate that the key has the required capability
-	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, "verify_own_pseudonym_ownership")
+	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, constants.CapabilityVerifyOwnPseudonymOwnership)
 	if err != nil {
 		return false, fmt.Errorf("failed to validate key capability: %w", err)
 	}
@@ -107,7 +108,7 @@ func (dao *SecurePseudonymDAO) VerifyPseudonymOwnership(ctx context.Context, pse
 // GetRealIdentityByPseudonym retrieves the real identity fingerprint for a pseudonym using role-based access control
 func (dao *SecurePseudonymDAO) GetRealIdentityByPseudonym(ctx context.Context, pseudonymID string, roleName, scope string) (string, error) {
 	// Validate that the operation is allowed for this role/scope
-	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, "cross_user_correlation")
+	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, constants.CapabilityCrossUserCorrelation)
 	if err != nil {
 		return "", fmt.Errorf("failed to validate key capability: %w", err)
 	}
@@ -353,7 +354,7 @@ func (dao *SecurePseudonymDAO) UpdateLastActive(ctx context.Context, pseudonymID
 // GetDefaultPseudonymByUserID retrieves the default pseudonym for a user using role-based access control
 func (dao *SecurePseudonymDAO) GetDefaultPseudonymByUserID(ctx context.Context, userID int64, roleName, scope string) (*models.Pseudonym, error) {
 	// Validate that the key has the required capability
-	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, "access_own_pseudonyms")
+	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, constants.CapabilityAccessOwnPseudonyms)
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate key capability: %w", err)
 	}

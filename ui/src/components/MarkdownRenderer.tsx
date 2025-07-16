@@ -2,7 +2,9 @@
 
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import remarkEmoji from 'remark-emoji';
+import remarkNodeEmoji from '@/lib/remark-node-emoji';
+// @ts-ignore
+const nodeEmoji = require('node-emoji');
 import rehypeHighlight from 'rehype-highlight';
 import { cn } from '@/lib/utils';
 import type { Components } from 'react-markdown';
@@ -140,7 +142,7 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
   return (
     <div className={cn('prose prose-sm max-w-none', className)}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkEmoji]}
+        remarkPlugins={[remarkGfm, remarkNodeEmoji]}
         rehypePlugins={[rehypeHighlight]}
         components={components}
       >
