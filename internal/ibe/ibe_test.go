@@ -12,23 +12,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// createTestIBESystem creates an IBE system with consistent test configuration
+func createTestIBESystem() *IBESystem {
+	return NewIBESystemWithOptions(IBEOptions{
+		DomainMasters: map[string][]byte{
+			DOMAIN_USER_PSEUDONYMS:   []byte("0123456789abcdef0123456789abcdef"),
+			DOMAIN_USER_CORRELATION:  []byte("0123456789abcdef0123456789abcdef"),
+			DOMAIN_MOD_CORRELATION:   []byte("0123456789abcdef0123456789abcdef"),
+			DOMAIN_ADMIN_CORRELATION: []byte("0123456789abcdef0123456789abcdef"),
+			DOMAIN_LEGAL_CORRELATION: []byte("0123456789abcdef0123456789abcdef"),
+		},
+		KeyVersion: 1,
+		Salt:       "test_fingerprint_salt_v1",
+	})
+}
+
 func TestIBESystem_EnhancedArchitecture(t *testing.T) {
 	// Create a temporary directory for test keys
 	tempDir := t.TempDir()
 
 	t.Run("Domain Separation", func(t *testing.T) {
 		// Create IBE system with test configuration
-		ibeSystem := NewIBESystemWithOptions(IBEOptions{
-			DomainMasters: map[string][]byte{
-				DOMAIN_USER_PSEUDONYMS:   []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_USER_CORRELATION:  []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_MOD_CORRELATION:   []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_ADMIN_CORRELATION: []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_LEGAL_CORRELATION: []byte("0123456789abcdef0123456789abcdef"),
-			},
-			KeyVersion: 1,
-			Salt:       "test_fingerprint_salt_v1",
-		})
+		ibeSystem := createTestIBESystem()
 
 		// Test that different roles get different domains
 		userKey := ibeSystem.GenerateTimeBoundedKey("user", "correlation", time.Hour)
@@ -51,17 +56,7 @@ func TestIBESystem_EnhancedArchitecture(t *testing.T) {
 
 	t.Run("Time Bounded Keys", func(t *testing.T) {
 		// Create IBE system
-		ibeSystem := NewIBESystemWithOptions(IBEOptions{
-			DomainMasters: map[string][]byte{
-				DOMAIN_USER_PSEUDONYMS:   []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_USER_CORRELATION:  []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_MOD_CORRELATION:   []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_ADMIN_CORRELATION: []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_LEGAL_CORRELATION: []byte("0123456789abcdef0123456789abcdef"),
-			},
-			KeyVersion: 1,
-			Salt:       "test_fingerprint_salt_v1",
-		})
+		ibeSystem := createTestIBESystem()
 
 		// Test different time windows
 		hourKey := ibeSystem.GenerateTimeBoundedKey("user", "correlation", time.Hour)
@@ -76,17 +71,7 @@ func TestIBESystem_EnhancedArchitecture(t *testing.T) {
 
 	t.Run("Enhanced Pseudonyms", func(t *testing.T) {
 		// Create IBE system
-		ibeSystem := NewIBESystemWithOptions(IBEOptions{
-			DomainMasters: map[string][]byte{
-				DOMAIN_USER_PSEUDONYMS:   []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_USER_CORRELATION:  []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_MOD_CORRELATION:   []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_ADMIN_CORRELATION: []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_LEGAL_CORRELATION: []byte("0123456789abcdef0123456789abcdef"),
-			},
-			KeyVersion: 1,
-			Salt:       "test_fingerprint_salt_v1",
-		})
+		ibeSystem := createTestIBESystem()
 
 		// Test enhanced pseudonym generation
 		pseudonym1 := ibeSystem.CreateEnhancedPseudonym(1, "test_context_1")
@@ -105,17 +90,7 @@ func TestIBESystem_EnhancedArchitecture(t *testing.T) {
 
 	t.Run("Key File Generation", func(t *testing.T) {
 		// Create IBE system
-		ibeSystem := NewIBESystemWithOptions(IBEOptions{
-			DomainMasters: map[string][]byte{
-				DOMAIN_USER_PSEUDONYMS:   []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_USER_CORRELATION:  []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_MOD_CORRELATION:   []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_ADMIN_CORRELATION: []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_LEGAL_CORRELATION: []byte("0123456789abcdef0123456789abcdef"),
-			},
-			KeyVersion: 1,
-			Salt:       "test_fingerprint_salt_v1",
-		})
+		ibeSystem := createTestIBESystem()
 
 		// Test master key file generation
 		masterKeyPath := filepath.Join(tempDir, "master.key")
@@ -156,17 +131,7 @@ func TestIBESystem_EnhancedArchitecture(t *testing.T) {
 
 	t.Run("Domain Key Generation", func(t *testing.T) {
 		// Create IBE system
-		ibeSystem := NewIBESystemWithOptions(IBEOptions{
-			DomainMasters: map[string][]byte{
-				DOMAIN_USER_PSEUDONYMS:   []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_USER_CORRELATION:  []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_MOD_CORRELATION:   []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_ADMIN_CORRELATION: []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_LEGAL_CORRELATION: []byte("0123456789abcdef0123456789abcdef"),
-			},
-			KeyVersion: 1,
-			Salt:       "test_fingerprint_salt_v1",
-		})
+		ibeSystem := createTestIBESystem()
 
 		// Test domain key generation
 		domains := []string{
@@ -196,17 +161,7 @@ func TestIBESystem_EnhancedArchitecture(t *testing.T) {
 
 	t.Run("Role Key Validation", func(t *testing.T) {
 		// Create IBE system
-		ibeSystem := NewIBESystemWithOptions(IBEOptions{
-			DomainMasters: map[string][]byte{
-				DOMAIN_USER_PSEUDONYMS:   []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_USER_CORRELATION:  []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_MOD_CORRELATION:   []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_ADMIN_CORRELATION: []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_LEGAL_CORRELATION: []byte("0123456789abcdef0123456789abcdef"),
-			},
-			KeyVersion: 1,
-			Salt:       "test_fingerprint_salt_v1",
-		})
+		ibeSystem := createTestIBESystem()
 
 		// Test role key generation and validation
 		roles := []string{"user", "moderator", "platform_admin", "trust_safety", "legal_team"}
@@ -231,17 +186,7 @@ func TestIBESystem_EnhancedArchitecture(t *testing.T) {
 
 	t.Run("Backward Compatibility", func(t *testing.T) {
 		// Create IBE system
-		ibeSystem := NewIBESystemWithOptions(IBEOptions{
-			DomainMasters: map[string][]byte{
-				DOMAIN_USER_PSEUDONYMS:   []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_USER_CORRELATION:  []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_MOD_CORRELATION:   []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_ADMIN_CORRELATION: []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_LEGAL_CORRELATION: []byte("0123456789abcdef0123456789abcdef"),
-			},
-			KeyVersion: 1,
-			Salt:       "test_fingerprint_salt_v1",
-		})
+		ibeSystem := createTestIBESystem()
 
 		// Test backward compatibility with legacy methods
 		userSecret := []byte("test_user_secret")
@@ -261,17 +206,7 @@ func TestIBESystem_EnhancedArchitecture(t *testing.T) {
 func TestIBESystem_IntegrationWithDatabase(t *testing.T) {
 	t.Run("Database Integration", func(t *testing.T) {
 		// Create IBE system
-		ibeSystem := NewIBESystemWithOptions(IBEOptions{
-			DomainMasters: map[string][]byte{
-				DOMAIN_USER_PSEUDONYMS:   []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_USER_CORRELATION:  []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_MOD_CORRELATION:   []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_ADMIN_CORRELATION: []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_LEGAL_CORRELATION: []byte("0123456789abcdef0123456789abcdef"),
-			},
-			KeyVersion: 1,
-			Salt:       "test_fingerprint_salt_v1",
-		})
+		ibeSystem := createTestIBESystem()
 
 		// Test pseudonym generation for database user
 		pseudonym := ibeSystem.CreateEnhancedPseudonym(1, "database_test")
@@ -346,17 +281,7 @@ func TestIBESystem_FileOperations(t *testing.T) {
 	tempDir := t.TempDir()
 
 	t.Run("Save and Load Domain Masters", func(t *testing.T) {
-		ibeSystem := NewIBESystemWithOptions(IBEOptions{
-			DomainMasters: map[string][]byte{
-				DOMAIN_USER_PSEUDONYMS:   []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_USER_CORRELATION:  []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_MOD_CORRELATION:   []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_ADMIN_CORRELATION: []byte("0123456789abcdef0123456789abcdef"),
-				DOMAIN_LEGAL_CORRELATION: []byte("0123456789abcdef0123456789abcdef"),
-			},
-			KeyVersion: 1,
-			Salt:       "test_fingerprint_salt_v1",
-		})
+		ibeSystem := createTestIBESystem()
 
 		// Save domain masters
 		err := ibeSystem.SaveDomainMastersToDir(tempDir)
@@ -389,17 +314,7 @@ func TestIBESystem_FileOperations(t *testing.T) {
 }
 
 func TestIBESystem_IdentityOperations(t *testing.T) {
-	ibeSystem := NewIBESystemWithOptions(IBEOptions{
-		DomainMasters: map[string][]byte{
-			DOMAIN_USER_PSEUDONYMS:   []byte("0123456789abcdef0123456789abcdef"),
-			DOMAIN_USER_CORRELATION:  []byte("0123456789abcdef0123456789abcdef"),
-			DOMAIN_MOD_CORRELATION:   []byte("0123456789abcdef0123456789abcdef"),
-			DOMAIN_ADMIN_CORRELATION: []byte("0123456789abcdef0123456789abcdef"),
-			DOMAIN_LEGAL_CORRELATION: []byte("0123456789abcdef0123456789abcdef"),
-		},
-		KeyVersion: 1,
-		Salt:       "test_fingerprint_salt_v1",
-	})
+	ibeSystem := createTestIBESystem()
 
 	t.Run("Fingerprint Generation", func(t *testing.T) {
 		// Test fingerprint generation
