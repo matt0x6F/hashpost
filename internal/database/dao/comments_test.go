@@ -11,35 +11,40 @@ import (
 
 // createTestDataForComments creates the required test data (subforum, pseudonym, and post)
 func createTestDataForComments(t *testing.T, db bob.Executor) (int64, string) {
+	return createTestDataForCommentsWithConfig(t, db, DefaultTestConfig())
+}
+
+// createTestDataForCommentsWithConfig creates test data for comments with custom configuration
+func createTestDataForCommentsWithConfig(t *testing.T, db bob.Executor, config *TestDBConfig) (int64, string) {
 	ctx := context.Background()
 
 	// Create test subforum using raw SQL
 	_, err := db.ExecContext(ctx, `
 		INSERT INTO subforums (name, display_name, description) 
-		VALUES ('Test Subforum', 'Test Subforum', 'A test subforum for testing')
+		VALUES ($1, $2, $3)
 		RETURNING subforum_id
-	`)
+	`, config.SubforumName, config.SubforumDisplay, config.SubforumDesc)
 	require.NoError(t, err, "Failed to create test subforum")
 
 	// Get the subforum ID
 	var subforumID int32
 	err = db.(bob.DB).DB.QueryRowContext(ctx,
-		"SELECT subforum_id FROM subforums WHERE name = 'Test Subforum'").Scan(&subforumID)
+		"SELECT subforum_id FROM subforums WHERE name = $1", config.SubforumName).Scan(&subforumID)
 	require.NoError(t, err, "Failed to get subforum ID")
 
 	// Create test pseudonym using raw SQL
 	_, err = db.ExecContext(ctx, `
 		INSERT INTO pseudonyms (pseudonym_id, display_name, bio, is_default) 
-		VALUES ('test-pseudonym-123', 'Test Pseudonym', 'A test pseudonym', true)
-	`)
+		VALUES ($1, $2, $3, true)
+	`, config.PseudonymID, config.PseudonymName, config.PseudonymBio)
 	require.NoError(t, err, "Failed to create test pseudonym")
 
 	// Create test post using raw SQL
 	_, err = db.ExecContext(ctx, `
 		INSERT INTO posts (subforum_id, pseudonym_id, title, content, post_type) 
-		VALUES ($1, 'test-pseudonym-123', 'Test Post', 'Test content', 'text')
+		VALUES ($1, $2, 'Test Post', 'Test content', 'text')
 		RETURNING post_id
-	`, subforumID)
+	`, subforumID, config.PseudonymID)
 	require.NoError(t, err, "Failed to create test post")
 
 	// Get the post ID
@@ -48,7 +53,7 @@ func createTestDataForComments(t *testing.T, db bob.Executor) (int64, string) {
 		"SELECT post_id FROM posts WHERE title = 'Test Post'").Scan(&postID)
 	require.NoError(t, err, "Failed to get post ID")
 
-	return postID, "test-pseudonym-123"
+	return postID, config.PseudonymID
 }
 
 func TestCommentDAO_GetCommentByID_FiltersDeletedComments(t *testing.T) {
@@ -300,4 +305,32 @@ func TestCommentDAO_CountCommentsByPseudonym_FiltersDeletedComments(t *testing.T
 	count, err = dao.CountCommentsByPseudonym(ctx, pseudonymID)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), count)
+}
+
+func TestCommentDAO_FindCommentForScoreUpdate_WorksWithDeletedComments(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.(bob.DB).DB.Close()
+
+	dao := NewCommentDAO(db)
+	ctx := context.Background()
+
+	// Clean up after test
+	defer cleanupTestData(t, db)
+
+	// Create test data
+	postID, pseudonymID := createTestDataForComments(t, db)
+
+	// Create a comment
+	comment, err := dao.CreateComment(ctx, postID, pseudonymID, "Test comment", nil)
+	require.NoError(t, err)
+
+	// Delete the comment
+	err = dao.MarkCommentAsDeletedByPseudonym(ctx, comment.CommentID, pseudonymID, "User requested deletion")
+	require.NoError(t, err)
+
+	// Verify that FindCommentForScoreUpdate can still find the deleted comment
+	foundComment, err := dao.FindCommentForScoreUpdate(ctx, comment.CommentID)
+	require.NoError(t, err)
+	assert.Equal(t, comment.CommentID, foundComment.CommentID)
+	assert.True(t, foundComment.IsDeleted.Valid && foundComment.IsDeleted.V, "Comment should be marked as deleted")
 }

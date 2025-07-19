@@ -12,6 +12,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestDBConfig holds configuration for test database setup
+type TestDBConfig struct {
+	SubforumName    string
+	SubforumDisplay string
+	SubforumDesc    string
+	PseudonymID     string
+	PseudonymName   string
+	PseudonymBio    string
+}
+
+// DefaultTestConfig returns a default test configuration
+func DefaultTestConfig() *TestDBConfig {
+	return &TestDBConfig{
+		SubforumName:    "Test Subforum",
+		SubforumDisplay: "Test Subforum",
+		SubforumDesc:    "A test subforum for testing",
+		PseudonymID:     "test-pseudonym-123",
+		PseudonymName:   "Test Pseudonym",
+		PseudonymBio:    "A test pseudonym",
+	}
+}
+
 // setupTestDB creates a database connection for testing
 func setupTestDB(t *testing.T) bob.Executor {
 	dsn := os.Getenv("TEST_DATABASE_URL")
@@ -48,30 +70,35 @@ func cleanupTestData(t *testing.T, db bob.Executor) {
 
 // createTestData creates the required test data (subforum and pseudonym)
 func createTestData(t *testing.T, db bob.Executor) (int32, string) {
+	return createTestDataWithConfig(t, db, DefaultTestConfig())
+}
+
+// createTestDataWithConfig creates test data with custom configuration
+func createTestDataWithConfig(t *testing.T, db bob.Executor, config *TestDBConfig) (int32, string) {
 	ctx := context.Background()
 
 	// Create test subforum using raw SQL
 	_, err := db.ExecContext(ctx, `
 		INSERT INTO subforums (name, display_name, description) 
-		VALUES ('Test Subforum', 'Test Subforum', 'A test subforum for testing')
+		VALUES ($1, $2, $3)
 		RETURNING subforum_id
-	`)
+	`, config.SubforumName, config.SubforumDisplay, config.SubforumDesc)
 	require.NoError(t, err, "Failed to create test subforum")
 
 	// Get the subforum ID
 	var subforumID int32
 	err = db.(bob.DB).DB.QueryRowContext(ctx,
-		"SELECT subforum_id FROM subforums WHERE name = 'Test Subforum'").Scan(&subforumID)
+		"SELECT subforum_id FROM subforums WHERE name = $1", config.SubforumName).Scan(&subforumID)
 	require.NoError(t, err, "Failed to get subforum ID")
 
 	// Create test pseudonym using raw SQL
 	_, err = db.ExecContext(ctx, `
 		INSERT INTO pseudonyms (pseudonym_id, display_name, bio, is_default) 
-		VALUES ('test-pseudonym-123', 'Test Pseudonym', 'A test pseudonym', true)
-	`)
+		VALUES ($1, $2, $3, true)
+	`, config.PseudonymID, config.PseudonymName, config.PseudonymBio)
 	require.NoError(t, err, "Failed to create test pseudonym")
 
-	return subforumID, "test-pseudonym-123"
+	return subforumID, config.PseudonymID
 }
 
 func TestPostDAO_GetPostByID_FiltersDeletedPosts(t *testing.T) {
@@ -289,4 +316,32 @@ func TestPostDAO_GetPostBySubforumAndSlug_FiltersDeletedPosts(t *testing.T) {
 	retrievedPost, err = dao.GetPostBySubforumAndSlug(ctx, subforumID, "test-post")
 	require.NoError(t, err)
 	assert.Nil(t, retrievedPost, "Deleted post should not be returned")
+}
+
+func TestPostDAO_FindPostForScoreUpdate_WorksWithDeletedPosts(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.(bob.DB).DB.Close()
+
+	dao := NewPostDAO(db)
+	ctx := context.Background()
+
+	// Clean up after test
+	defer cleanupTestData(t, db)
+
+	// Create test data
+	subforumID, pseudonymID := createTestData(t, db)
+
+	// Create a post
+	post, err := dao.CreatePost(ctx, subforumID, pseudonymID, "Test Post", "Test content", "text", nil, false, false)
+	require.NoError(t, err)
+
+	// Delete the post
+	err = dao.MarkPostAsDeletedByPseudonym(ctx, post.PostID, pseudonymID, "User requested deletion")
+	require.NoError(t, err)
+
+	// Verify that FindPostForScoreUpdate can still find the deleted post
+	foundPost, err := dao.FindPostForScoreUpdate(ctx, post.PostID)
+	require.NoError(t, err)
+	assert.Equal(t, post.PostID, foundPost.PostID)
+	assert.True(t, foundPost.IsDeleted.Valid && foundPost.IsDeleted.V, "Post should be marked as deleted")
 }

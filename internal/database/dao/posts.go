@@ -230,6 +230,16 @@ func (dao *PostDAO) CountPostsBySubforum(ctx context.Context, subforumID int32) 
 	return count, nil
 }
 
+// FindPostForScoreUpdate retrieves a post by ID for score updates, including deleted posts
+// This method is specifically for score updates where we need to update scores even for deleted content
+func (dao *PostDAO) FindPostForScoreUpdate(ctx context.Context, postID int64) (*models.Post, error) {
+	post, err := models.FindPost(ctx, dao.db, postID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find post for score update: %w", err)
+	}
+	return post, nil
+}
+
 // UpdatePostScore updates the post score and vote counts
 func (dao *PostDAO) UpdatePostScore(ctx context.Context, postID int64, score, upvotes, downvotes int32) error {
 	updates := &models.PostSetter{
@@ -240,7 +250,7 @@ func (dao *PostDAO) UpdatePostScore(ctx context.Context, postID int64, score, up
 	}
 
 	// For score updates, we need to find the post even if it's deleted
-	post, err := models.FindPost(ctx, dao.db, postID)
+	post, err := dao.FindPostForScoreUpdate(ctx, postID)
 	if err != nil {
 		return fmt.Errorf("failed to find post for score update: %w", err)
 	}

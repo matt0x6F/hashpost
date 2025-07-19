@@ -247,6 +247,16 @@ func (dao *CommentDAO) CountCommentsByPost(ctx context.Context, postID int64) (i
 	return count, nil
 }
 
+// FindCommentForScoreUpdate retrieves a comment by ID for score updates, including deleted comments
+// This method is specifically for score updates where we need to update scores even for deleted content
+func (dao *CommentDAO) FindCommentForScoreUpdate(ctx context.Context, commentID int64) (*models.Comment, error) {
+	comment, err := models.FindComment(ctx, dao.db, commentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find comment for score update: %w", err)
+	}
+	return comment, nil
+}
+
 // UpdateCommentScore updates the comment score and vote counts
 func (dao *CommentDAO) UpdateCommentScore(ctx context.Context, commentID int64, score, upvotes, downvotes int32) error {
 	updates := &models.CommentSetter{
@@ -257,7 +267,7 @@ func (dao *CommentDAO) UpdateCommentScore(ctx context.Context, commentID int64, 
 	}
 
 	// For score updates, we need to find the comment even if it's deleted
-	comment, err := models.FindComment(ctx, dao.db, commentID)
+	comment, err := dao.FindCommentForScoreUpdate(ctx, commentID)
 	if err != nil {
 		return fmt.Errorf("failed to find comment for score update: %w", err)
 	}
