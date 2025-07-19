@@ -134,12 +134,6 @@ test-dao-ci: test-dao-ci-setup test-dao-ci-run
 
 test-dao-ci-setup:
 	@echo "🔧 Setting up test database for CI DAO integration tests..."
-	@echo "Creating test database..."
-	@PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "CREATE DATABASE hashpost_test;" || true
-	@echo "Creating test user..."
-	@PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "CREATE USER hashpost WITH PASSWORD 'hashpost_test';" || true
-	@echo "Granting privileges..."
-	@PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE hashpost_test TO hashpost;" || true
 	@echo "Applying migrations to test database..."
 	@sql-migrate up -config=dbconfig.yml -env=ci
 	@echo "✅ CI test database setup complete!"

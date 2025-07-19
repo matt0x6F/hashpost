@@ -25,9 +25,9 @@ jobs:
       postgres:
         image: postgres:15
         env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_USER: postgres
-          POSTGRES_DB: postgres
+          POSTGRES_PASSWORD: hashpost_test
+          POSTGRES_USER: hashpost
+          POSTGRES_DB: hashpost_test
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -44,7 +44,5 @@ jobs:
           cache: true
       - name: Install sql-migrate
         run: go install github.com/rubenv/sql-migrate/...@latest
-      - name: Install PostgreSQL client
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client
       - name: Run DAO integration tests
         run: make test-dao-ci 
