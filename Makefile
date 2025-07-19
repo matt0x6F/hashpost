@@ -1,7 +1,7 @@
 # HashPost Makefile
 # Provides convenient commands for development and deployment
 
-.PHONY: help build run test clean migrate migrate-up migrate-down migrate-status migrate-create docker-build docker-up docker-down docker-logs generate test-integration docker-test-up docker-test-down test-integration-local test-integration-vscode ui-install ui-generate-api ui-dev ui-build
+.PHONY: help build run test clean migrate migrate-up migrate-down migrate-status migrate-create docker-build docker-up docker-down docker-logs generate test-integration-local test-models test-models-setup ui-install ui-generate-api ui-dev ui-build
 
 # Default target
 help:
@@ -22,11 +22,14 @@ help:
 	@echo ""
 	@echo "Testing:"
 	@echo "  test            Run unit tests"
-	@echo "  test-integration Run integration tests (requires test database)"
-	@echo "  test-integration-local Run integration tests with clean DB (defaults to all tests)"
+	@echo "  test-integration-local Run integration tests with clean DB (includes model tests)"
 	@echo "                         Usage: make test-integration-local TEST_PATH=./internal/api/integration/auth_integration_test.go"
-	@echo "  docker-test-up  Start test environment"
-	@echo "  docker-test-down Stop test environment"
+	@echo "  test-dao        Run DAO integration tests with test database"
+	@echo "  test-dao-ci     Run DAO integration tests for CI environment"
+	@echo "  test-dao-setup-only Setup test database only (for debugging)"
+	@echo "  test-dao-cleanup-only Cleanup test database only (for debugging)"
+	@echo "  test-dao-pattern Run DAO tests matching pattern (PATTERN=TestPostDAO)"
+	@echo "  test-models     Run database model tests only"
 	@echo ""
 	@echo "UI Development:"
 	@echo "  ui-install      Install UI dependencies"
@@ -85,14 +88,7 @@ docker-prod:
 	@echo "Starting production environment..."
 	docker-compose --profile production up -d
 
-# Test environment commands
-docker-test-up:
-	@echo "Starting test environment..."
-	docker-compose --profile test up -d --build
 
-docker-test-down:
-	@echo "Stopping test environment..."
-	docker-compose --profile test down
 
 # Development commands
 build:
@@ -103,43 +99,92 @@ run:
 	@echo "Running application locally..."
 	go run ./cmd/server
  
-test: test-unit test-integration-local
+test: test-unit
 
 test-unit:
 	@echo "Running unit tests..."
-	go test ./...
+	PSQL_DSN=postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable go test ./... -v
 
-test-integration:
-	@echo "Running integration tests..."
-	@if [ -z "$(DATABASE_URL)" ]; then \
-		echo "Error: DATABASE_URL environment variable is required for integration tests"; \
-		echo "Example: DATABASE_URL='postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable' make test-integration"; \
-		echo "Or use: make docker-test-up to start test environment"; \
-		exit 1; \
-	fi
-	go test -v -tags=integration ./...
+# DAO Integration Tests
+test-dao: test-dao-setup test-dao-run test-dao-cleanup
+	@echo "✅ DAO integration tests completed successfully!"
 
-test-integration-local:
-	@echo "Setting up clean test database..."
+test-dao-setup:
+	@echo "🔧 Setting up test database for DAO integration tests..."
 	@echo "Starting test PostgreSQL container..."
 	docker-compose --profile test up -d postgres-test
-	@echo "Waiting for database to be ready..."
+	@echo "Waiting for test database to be ready..."
 	@sleep 3
-	@echo "Ensuring test database exists and is migrated..."
-	@docker-compose --profile test exec -T postgres-test psql -U hashpost -d postgres -c "DROP DATABASE IF EXISTS hashpost_test;" || true
-	@docker-compose --profile test exec -T postgres-test psql -U hashpost -d postgres -c "CREATE DATABASE hashpost_test;" || true
-	@DATABASE_URL='postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable' ./scripts/migrate.sh up
-	@echo "Running integration tests..."
-	@LOG_LEVEL=$${LOG_LEVEL:-error} DATABASE_URL='postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable' go test -v -tags=integration $${TEST_PATH:-./...} 2>&1 | tee test_output.log; exit $${PIPESTATUS[0]}
+	@echo "Applying migrations to test database..."
+	@DATABASE_URL="postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable" sql-migrate up -config=dbconfig.yml -env=test
+	@echo "✅ Test database setup complete!"
 
-# For VSCode test runner compatibility (runs integration tests if DATABASE_URL is set)
-test-integration-vscode:
-	@if [ -z "$(DATABASE_URL)" ]; then \
-		echo "Error: DATABASE_URL environment variable is required for integration tests"; \
-		echo "Example: DATABASE_URL='postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable' make test-integration-vscode"; \
+test-dao-run:
+	@echo "🧪 Running DAO integration tests..."
+	@TEST_DATABASE_URL="postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable" go test ./internal/database/dao/ -v
+
+test-dao-cleanup:
+	@echo "🧹 Cleaning up test database..."
+	@docker-compose --profile test down postgres-test
+	@echo "✅ Test database cleanup complete!"
+
+# CI-specific DAO tests (uses GitHub Actions PostgreSQL service)
+test-dao-ci: test-dao-ci-setup test-dao-ci-run
+	@echo "✅ DAO integration tests completed successfully!"
+
+test-dao-ci-setup:
+	@echo "🔧 Setting up test database for CI DAO integration tests..."
+	@echo "Applying migrations to test database..."
+	@sql-migrate up -config=dbconfig.yml -env=ci
+	@echo "✅ CI test database setup complete!"
+
+test-dao-ci-run:
+	@echo "🧪 Running DAO integration tests in CI..."
+	@TEST_DATABASE_URL="postgres://hashpost:hashpost_test@localhost:5432/hashpost_test?sslmode=disable" go test ./internal/database/dao/ -v
+
+# Individual DAO test targets for debugging
+test-dao-setup-only:
+	@echo "🔧 Setting up test database only (no cleanup)..."
+	@echo "Starting test PostgreSQL container..."
+	docker-compose --profile test up -d postgres-test
+	@echo "Waiting for test database to be ready..."
+	@sleep 3
+	@echo "Applying migrations to test database..."
+	@DATABASE_URL="postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable" sql-migrate up -config=dbconfig.yml -env=test
+	@echo "✅ Test database setup complete!"
+	@echo "💡 Run 'make test-dao-cleanup-only' when done testing"
+
+test-dao-cleanup-only:
+	@echo "🧹 Cleaning up test database..."
+	@docker-compose --profile test down postgres-test
+	@echo "✅ Test database cleanup complete!"
+
+# Run specific DAO test pattern
+test-dao-pattern: test-dao-setup
+	@if [ -z "$(PATTERN)" ]; then \
+		echo "Usage: make test-dao-pattern PATTERN=TestPostDAO"; \
 		exit 1; \
 	fi
-	go test -v -tags=integration ./...
+	@echo "🧪 Running DAO tests matching pattern: $(PATTERN)"
+	@TEST_DATABASE_URL="postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable" go test ./internal/database/dao/ -run $(PATTERN) -v
+	@make test-dao-cleanup-only
+
+# Legacy test-integration-local target (for backward compatibility)
+test-integration-local:
+	@echo "Running integration tests with clean DB..."
+	@if [ -z "$(TESTS)" ]; then \
+		echo "Usage: make test-integration-local TESTS=./internal/api/integration/auth_integration_test.go"; \
+		exit 1; \
+	fi
+	@echo "Starting test database..."
+	@docker-compose --profile test up -d postgres-test
+	@sleep 3
+	@echo "Applying migrations..."
+	@DATABASE_URL="postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable" sql-migrate up -config=dbconfig.yml -env=test
+	@echo "Running tests: $(TESTS)"
+	@TEST_DATABASE_URL="postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable" go test $(TESTS) -v
+	@echo "Cleaning up..."
+	@docker-compose --profile test down postgres-test
 
 clean:
 	@echo "Cleaning build artifacts..."

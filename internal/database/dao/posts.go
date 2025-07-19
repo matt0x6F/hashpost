@@ -115,7 +115,13 @@ func (dao *PostDAO) CreatePost(ctx context.Context, subforumID int32, pseudonymI
 
 // GetPostByID retrieves a post by ID with related data
 func (dao *PostDAO) GetPostByID(ctx context.Context, postID int64) (*models.Post, error) {
-	post, err := models.FindPost(ctx, dao.db, postID)
+	post, err := models.Posts.Query(
+		models.SelectWhere.Posts.PostID.EQ(postID),
+		sm.Where(psql.Group(psql.Or(
+			psql.Quote("posts", "is_deleted").IsNull(),
+			psql.Quote("posts", "is_deleted").EQ(psql.Arg(false)),
+		))),
+	).One(ctx, dao.db)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -171,9 +177,15 @@ func (dao *PostDAO) GetPostsBySubforum(ctx context.Context, subforumID int32, pa
 
 	posts, err := models.Posts.Query(
 		models.SelectWhere.Posts.SubforumID.EQ(subforumID),
-		sm.Where(psql.Group(psql.Or(
-			psql.Quote("posts", "is_removed").IsNull(),
-			psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
+		sm.Where(psql.Group(psql.And(
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_removed").IsNull(),
+				psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
+			)),
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_deleted").IsNull(),
+				psql.Quote("posts", "is_deleted").EQ(psql.Arg(false)),
+			)),
 		))),
 		sm.OrderBy(orderByClause),
 		sm.Limit(limit),
@@ -200,9 +212,15 @@ func (dao *PostDAO) GetPostsBySubforum(ctx context.Context, subforumID int32, pa
 func (dao *PostDAO) CountPostsBySubforum(ctx context.Context, subforumID int32) (int64, error) {
 	count, err := models.Posts.Query(
 		models.SelectWhere.Posts.SubforumID.EQ(subforumID),
-		sm.Where(psql.Group(psql.Or(
-			psql.Quote("posts", "is_removed").IsNull(),
-			psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
+		sm.Where(psql.Group(psql.And(
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_removed").IsNull(),
+				psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
+			)),
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_deleted").IsNull(),
+				psql.Quote("posts", "is_deleted").EQ(psql.Arg(false)),
+			)),
 		))),
 	).Count(ctx, dao.db)
 	if err != nil {
@@ -210,6 +228,16 @@ func (dao *PostDAO) CountPostsBySubforum(ctx context.Context, subforumID int32) 
 	}
 
 	return count, nil
+}
+
+// FindPostForScoreUpdate retrieves a post by ID for score updates, including deleted posts
+// This method is specifically for score updates where we need to update scores even for deleted content
+func (dao *PostDAO) FindPostForScoreUpdate(ctx context.Context, postID int64) (*models.Post, error) {
+	post, err := models.FindPost(ctx, dao.db, postID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find post for score update: %w", err)
+	}
+	return post, nil
 }
 
 // UpdatePostScore updates the post score and vote counts
@@ -221,7 +249,8 @@ func (dao *PostDAO) UpdatePostScore(ctx context.Context, postID int64, score, up
 		UpdatedAt: &sql.Null[time.Time]{Valid: true, V: time.Now()},
 	}
 
-	post, err := models.FindPost(ctx, dao.db, postID)
+	// For score updates, we need to find the post even if it's deleted
+	post, err := dao.FindPostForScoreUpdate(ctx, postID)
 	if err != nil {
 		return fmt.Errorf("failed to find post for score update: %w", err)
 	}
@@ -236,8 +265,23 @@ func (dao *PostDAO) UpdatePostScore(ctx context.Context, postID int64, score, up
 
 // IncrementViewCount increments the view count for a post
 func (dao *PostDAO) IncrementViewCount(ctx context.Context, postID int64) error {
-	post, err := models.FindPost(ctx, dao.db, postID)
+	post, err := models.Posts.Query(
+		models.SelectWhere.Posts.PostID.EQ(postID),
+		sm.Where(psql.Group(psql.And(
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_removed").IsNull(),
+				psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
+			)),
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_deleted").IsNull(),
+				psql.Quote("posts", "is_deleted").EQ(psql.Arg(false)),
+			)),
+		))),
+	).One(ctx, dao.db)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("post not found")
+		}
 		return fmt.Errorf("failed to find post for view count increment: %w", err)
 	}
 
@@ -267,8 +311,23 @@ func (dao *PostDAO) UpdateCommentCount(ctx context.Context, postID int64, commen
 		UpdatedAt:    &sql.Null[time.Time]{Valid: true, V: time.Now()},
 	}
 
-	post, err := models.FindPost(ctx, dao.db, postID)
+	post, err := models.Posts.Query(
+		models.SelectWhere.Posts.PostID.EQ(postID),
+		sm.Where(psql.Group(psql.And(
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_removed").IsNull(),
+				psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
+			)),
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_deleted").IsNull(),
+				psql.Quote("posts", "is_deleted").EQ(psql.Arg(false)),
+			)),
+		))),
+	).One(ctx, dao.db)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("post not found")
+		}
 		return fmt.Errorf("failed to find post for comment count update: %w", err)
 	}
 
@@ -284,9 +343,15 @@ func (dao *PostDAO) UpdateCommentCount(ctx context.Context, postID int64, commen
 func (dao *PostDAO) CountPostsByPseudonym(ctx context.Context, pseudonymID string) (int64, error) {
 	count, err := models.Posts.Query(
 		models.SelectWhere.Posts.PseudonymID.EQ(pseudonymID),
-		sm.Where(psql.Group(psql.Or(
-			psql.Quote("posts", "is_removed").IsNull(),
-			psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
+		sm.Where(psql.Group(psql.And(
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_removed").IsNull(),
+				psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
+			)),
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_deleted").IsNull(),
+				psql.Quote("posts", "is_deleted").EQ(psql.Arg(false)),
+			)),
 		))),
 	).Count(ctx, dao.db)
 	if err != nil {
@@ -301,9 +366,15 @@ func (dao *PostDAO) CountPostsByPseudonymInSubforum(ctx context.Context, pseudon
 	count, err := models.Posts.Query(
 		models.SelectWhere.Posts.PseudonymID.EQ(pseudonymID),
 		models.SelectWhere.Posts.SubforumID.EQ(subforumID),
-		sm.Where(psql.Group(psql.Or(
-			psql.Quote("posts", "is_removed").IsNull(),
-			psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
+		sm.Where(psql.Group(psql.And(
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_removed").IsNull(),
+				psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
+			)),
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_deleted").IsNull(),
+				psql.Quote("posts", "is_deleted").EQ(psql.Arg(false)),
+			)),
 		))),
 	).Count(ctx, dao.db)
 	if err != nil {
@@ -317,9 +388,15 @@ func (dao *PostDAO) CountPostsByPseudonymInSubforum(ctx context.Context, pseudon
 func (dao *PostDAO) GetSubforumsByPseudonym(ctx context.Context, pseudonymID string) ([]int32, error) {
 	posts, err := models.Posts.Query(
 		models.SelectWhere.Posts.PseudonymID.EQ(pseudonymID),
-		sm.Where(psql.Group(psql.Or(
-			psql.Quote("posts", "is_removed").IsNull(),
-			psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
+		sm.Where(psql.Group(psql.And(
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_removed").IsNull(),
+				psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
+			)),
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_deleted").IsNull(),
+				psql.Quote("posts", "is_deleted").EQ(psql.Arg(false)),
+			)),
 		))),
 		sm.Columns(models.PostColumns.SubforumID),
 	).All(ctx, dao.db)
@@ -343,8 +420,23 @@ func (dao *PostDAO) GetSubforumsByPseudonym(ctx context.Context, pseudonymID str
 
 // SetLocked sets the is_locked field for a post
 func (dao *PostDAO) SetLocked(ctx context.Context, postID int64, locked bool) error {
-	post, err := models.FindPost(ctx, dao.db, postID)
+	post, err := models.Posts.Query(
+		models.SelectWhere.Posts.PostID.EQ(postID),
+		sm.Where(psql.Group(psql.And(
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_removed").IsNull(),
+				psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
+			)),
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_deleted").IsNull(),
+				psql.Quote("posts", "is_deleted").EQ(psql.Arg(false)),
+			)),
+		))),
+	).One(ctx, dao.db)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("post not found")
+		}
 		return fmt.Errorf("failed to find post for lock update: %w", err)
 	}
 	updates := &models.PostSetter{
@@ -356,8 +448,23 @@ func (dao *PostDAO) SetLocked(ctx context.Context, postID int64, locked bool) er
 
 // SetSticky sets the is_stickied field for a post
 func (dao *PostDAO) SetSticky(ctx context.Context, postID int64, sticky bool) error {
-	post, err := models.FindPost(ctx, dao.db, postID)
+	post, err := models.Posts.Query(
+		models.SelectWhere.Posts.PostID.EQ(postID),
+		sm.Where(psql.Group(psql.And(
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_removed").IsNull(),
+				psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
+			)),
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_deleted").IsNull(),
+				psql.Quote("posts", "is_deleted").EQ(psql.Arg(false)),
+			)),
+		))),
+	).One(ctx, dao.db)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("post not found")
+		}
 		return fmt.Errorf("failed to find post for sticky update: %w", err)
 	}
 	updates := &models.PostSetter{
@@ -369,8 +476,23 @@ func (dao *PostDAO) SetSticky(ctx context.Context, postID int64, sticky bool) er
 
 // SetRemoved sets the is_removed field for a post
 func (dao *PostDAO) SetRemoved(ctx context.Context, postID int64, removed bool) error {
-	post, err := models.FindPost(ctx, dao.db, postID)
+	post, err := models.Posts.Query(
+		models.SelectWhere.Posts.PostID.EQ(postID),
+		sm.Where(psql.Group(psql.And(
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_removed").IsNull(),
+				psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
+			)),
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_deleted").IsNull(),
+				psql.Quote("posts", "is_deleted").EQ(psql.Arg(false)),
+			)),
+		))),
+	).One(ctx, dao.db)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("post not found")
+		}
 		return fmt.Errorf("failed to find post for remove update: %w", err)
 	}
 	updates := &models.PostSetter{
@@ -385,6 +507,16 @@ func (dao *PostDAO) GetPostBySubforumAndSlug(ctx context.Context, subforumID int
 	post, err := models.Posts.Query(
 		models.SelectWhere.Posts.SubforumID.EQ(subforumID),
 		models.SelectWhere.Posts.Slug.EQ(slug),
+		sm.Where(psql.Group(psql.And(
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_removed").IsNull(),
+				psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
+			)),
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_deleted").IsNull(),
+				psql.Quote("posts", "is_deleted").EQ(psql.Arg(false)),
+			)),
+		))),
 	).One(ctx, dao.db)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -409,19 +541,27 @@ func (dao *PostDAO) GetPostBySubforumAndSlug(ctx context.Context, subforumID int
 func (dao *PostDAO) MarkPostAsDeletedByPseudonym(ctx context.Context, postID int64, pseudonymID string, reason string) error {
 	post, err := models.Posts.Query(
 		models.SelectWhere.Posts.PostID.EQ(postID),
+		sm.Where(psql.Group(psql.And(
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_removed").IsNull(),
+				psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
+			)),
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_deleted").IsNull(),
+				psql.Quote("posts", "is_deleted").EQ(psql.Arg(false)),
+			)),
+		))),
 	).One(ctx, dao.db)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("post not found")
+		}
 		return fmt.Errorf("failed to find post: %w", err)
 	}
 
 	// Check if the post belongs to the pseudonym
 	if post.PseudonymID != pseudonymID {
 		return fmt.Errorf("post does not belong to pseudonym")
-	}
-
-	// Check if post is already deleted
-	if post.IsDeleted.Valid && post.IsDeleted.V {
-		return fmt.Errorf("post is already deleted")
 	}
 
 	now := time.Now()

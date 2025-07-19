@@ -27,11 +27,12 @@ import (
 type AuthHandler struct {
 	config             *config.Config
 	db                 bob.Executor
-	userDAO            *dao.UserDAO
-	securePseudonymDAO *dao.SecurePseudonymDAO
-	identityMappingDAO *dao.IdentityMappingDAO
+	userDAO            dao.UserDAOInterface
+	securePseudonymDAO dao.SecurePseudonymDAOInterface
+	identityMappingDAO dao.IdentityMappingDAOInterface
+	roleKeyDAO         dao.RoleKeyDAOInterface
 	ibeSystem          *ibe.IBESystem
-	subforumDAO        *dao.SubforumDAO
+	subforumDAO        dao.SubforumDAOInterface
 }
 
 // NewAuthHandler creates a new authentication handler
@@ -70,6 +71,19 @@ func NewAuthHandlerWithIBE(cfg *config.Config, db bob.Executor, rawDB *sql.DB, i
 		userDAO:            userDAO,
 		securePseudonymDAO: securePseudonymDAO,
 		identityMappingDAO: identityMappingDAO,
+		ibeSystem:          ibeSystem,
+		subforumDAO:        subforumDAO,
+	}
+}
+
+// NewAuthHandlerWithDependencies creates a new authentication handler with injected dependencies
+func NewAuthHandlerWithDependencies(cfg *config.Config, userDAO dao.UserDAOInterface, securePseudonymDAO dao.SecurePseudonymDAOInterface, identityMappingDAO dao.IdentityMappingDAOInterface, roleKeyDAO dao.RoleKeyDAOInterface, ibeSystem *ibe.IBESystem, subforumDAO dao.SubforumDAOInterface) *AuthHandler {
+	return &AuthHandler{
+		config:             cfg,
+		userDAO:            userDAO,
+		securePseudonymDAO: securePseudonymDAO,
+		identityMappingDAO: identityMappingDAO,
+		roleKeyDAO:         roleKeyDAO,
 		ibeSystem:          ibeSystem,
 		subforumDAO:        subforumDAO,
 	}
@@ -118,8 +132,7 @@ func (h *AuthHandler) RegisterUser(ctx context.Context, input *models.UserRegist
 	}
 
 	// Create default role keys for the user
-	roleKeyDAO := dao.NewRoleKeyDAO(h.db)
-	if err := roleKeyDAO.EnsureDefaultKeys(ctx, h.ibeSystem, user.UserID); err != nil {
+	if err := h.roleKeyDAO.EnsureDefaultKeys(ctx, h.ibeSystem, user.UserID); err != nil {
 		log.Error().
 			Err(err).
 			Int64("user_id", user.UserID).

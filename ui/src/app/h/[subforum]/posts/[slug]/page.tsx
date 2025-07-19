@@ -308,7 +308,7 @@ export default function PostPage() {
     <div className="max-w-4xl mx-auto p-6">
       {/* Navigation */}
       <div className="flex items-center gap-4 mb-8">
-        <Link href={`/forums/${postDetails.subforum.name}`}>
+        <Link href={`/h/${postDetails.subforum.name}`}>
           <Button variant="outline" size="sm">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to h/{postDetails.subforum.name}

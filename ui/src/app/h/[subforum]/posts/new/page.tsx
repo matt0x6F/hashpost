@@ -16,7 +16,7 @@ import { MarkdownTextarea } from "@/components/MarkdownTextarea";
 export default function NewPostPage() {
   const router = useRouter();
   const params = useParams();
-  const subforumName = params.name as string;
+  const subforumName = params.subforum as string;
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);

@@ -168,7 +168,7 @@ export function ForumList({ className }: ForumListProps) {
         ) : (
           <div className="grid gap-4">
             {filteredForums.map((forum) => (
-              <Link key={forum.name} href={`/forums/${forum.name}`} className="block">
+              <Link key={forum.name} href={`/h/${forum.name}`} className="block">
                 <div
                   className="p-4 border border-border rounded-lg cursor-pointer"
                 >

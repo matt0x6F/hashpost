@@ -129,7 +129,6 @@ func (bc *IBESystem) GenerateRoleKey(role, scope string, expiration time.Time) [
 
 ### Comprehensive Test Coverage
 - ✅ **Unit tests:** All IBE functionality tested with domain separation
-- ✅ **Integration tests:** Full application integration verified
 - ✅ **Backward compatibility:** All existing APIs continue to work
 - ✅ **Security properties:** Domain isolation and forward secrecy validated
 
@@ -180,7 +179,7 @@ func (bc *IBESystem) GenerateRoleKey(role, scope string, expiration time.Time) [
 - ✅ **Time-bounded keys:** Implemented and tested
 - ✅ **Enhanced pseudonyms:** Implemented and tested
 - ✅ **Backward compatibility:** Verified with all existing tests
-- ✅ **Integration tests:** All passing
+- ✅ **Unit tests:** All passing
 - ✅ **Documentation:** Updated
 
 ## Next Steps

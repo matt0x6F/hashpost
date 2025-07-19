@@ -16,7 +16,7 @@ import { authenticateUserForSubforum } from '@/lib/auth-utils';
 
 export default function ForumPage() {
   const params = useParams();
-  const forumName = params.name as string;
+  const forumName = params.subforum as string;
   const [forum, setForum] = useState<SubforumDetailsResponseBody | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,10 +65,7 @@ export default function ForumPage() {
     }
   };
 
-  const handlePostUpdated = (postId: number) => {
-    // Optionally refresh forum data when a post is updated
-    console.log('Post updated:', postId);
-  };
+
 
   if (isLoading) {
     return (
@@ -155,7 +152,6 @@ export default function ForumPage() {
           {/* Posts List */}
           <PostList 
             subforumName={forum.name} 
-            onPostUpdated={handlePostUpdated}
           />
         </div>
 

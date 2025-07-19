@@ -64,47 +64,136 @@ After applying migrations, always regenerate the Bob models:
 
 ## Testing
 
-### Integration Tests
-For integration testing, use the isolated test framework:
-
-1. **Run Locally**: `make test-integration-local`
-   - This drops/recreates the test database
-   - Runs migrations on clean database
-   - Executes integration tests
-   - Cleans up after completion
-
-2. **Test Structure**: Each test should be self-contained:
-   - Create all required test data using `suite.CreateTestUser()`, `suite.CreateTestSubforum()`, etc.
-   - The framework automatically tracks and cleans up all created entities
-   - Tests run in isolation - no shared state between tests
-
-3. **Test Data Creation**:
-   ```go
-   // Create test user with roles
-   testUser := suite.CreateTestUser(t, "test@example.com", "password123", []string{"user"})
-   
-   // Create test subforum
-   testSubforum := suite.CreateTestSubforum(t, "test-sub", "Description", testUser.UserID, false)
-   
-   // Create test post
-   testPost := suite.CreateTestPost(t, "Title", "Content", testSubforum.SubforumID, testUser.UserID, testUser.PseudonymID)
-   ```
-
-4. **HTTP Testing**: Use the test suite helpers:
-   ```go
-   // Login and get token
-   loginResp := suite.LoginUser(t, server, testUser.Email, testUser.Password)
-   token := suite.ExtractTokenFromResponse(t, loginResp)
-   
-   // Make authenticated requests
-   resp := suite.MakeAuthenticatedRequest(t, server, "POST", "/endpoint", token, requestBody)
-   ```
-
 ### Unit Tests
 - Run with: `make test`
 - Use table-driven tests where appropriate
 - Mock external dependencies
 - Test both success and error cases
+- Write comprehensive tests for all new functionality
+
+### Testing Patterns
+
+#### Table-Driven Tests
+Use table-driven tests for comprehensive coverage of different scenarios:
+
+```go
+func TestUserHandler_BlockUser(t *testing.T) {
+    tests := []struct {
+        name           string
+        blockedPseudonymID string
+        wantErr        bool
+        expectedStatus int
+    }{
+        {
+            name: "BlockPseudonymLevel",
+            blockedPseudonymID: "blocked-pseudonym-456",
+            wantErr: false,
+            expectedStatus: 200,
+        },
+        {
+            name: "BlockFingerprintLevel", 
+            blockedPseudonymID: "blocked-pseudonym-456",
+            wantErr: false,
+            expectedStatus: 200,
+        },
+        {
+            name: "BlockSelfPrevention",
+            blockedPseudonymID: "self-pseudonym-123",
+            wantErr: true,
+            expectedStatus: 400,
+        },
+    }
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            // Test implementation
+        })
+    }
+}
+```
+
+#### Authentication Testing
+Use JWT tokens for authentication in tests:
+
+```go
+// Generate test JWT token
+jwtToken := generateTestJWT(t, userID, email, roles, capabilities)
+
+// Use in requests
+req.Header.Set("Authorization", "Bearer "+jwtToken)
+```
+
+#### Logging in Tests
+Tests include structured logging with zerolog:
+
+```go
+// Debug logging shows token extraction
+{"level":"debug","Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...","time":"2025-07-19T14:32:12-07:00","message":"Extracting token from Huma input"}
+
+// Info logging shows business operations
+{"level":"info","endpoint":"users/block","component":"handler","user_id":1,"blocked_pseudonym_id":"blocked-pseudonym-456","time":"2025-07-19T14:32:12-07:00","message":"Block user requested"}
+```
+
+#### Error Testing
+Test both success and error cases with proper error messages:
+
+```go
+// Test error cases
+t.Run("BlockNonExistentPseudonym", func(t *testing.T) {
+    // Should return appropriate error
+    // Verify error message and status code
+})
+
+t.Run("BlockSelfPrevention", func(t *testing.T) {
+    // Should prevent self-blocking
+    // Verify warning message and status code
+})
+```
+
+#### Permission Testing
+Test role-based access control thoroughly:
+
+```go
+func TestUserContext_HasCapability(t *testing.T) {
+    tests := []struct {
+        name       string
+        capability string
+        hasCap     bool
+    }{
+        {"has_create_content", "create_content", true},
+        {"has_vote", "vote", true},
+        {"does_not_have_admin", "admin", false},
+    }
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            // Test capability checking
+        })
+    }
+}
+```
+
+#### MFA Testing
+Test multi-factor authentication requirements:
+
+```go
+func TestUserContext_RequiresMFA(t *testing.T) {
+    tests := []struct {
+        name    string
+        action  string
+        requiresMFA bool
+    }{
+        {"correlate_identities_requires_MFA", "correlate_identities", true},
+        {"create_content_does_not_require_MFA", "create_content", false},
+    }
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            // Test MFA requirement logic
+        })
+    }
+}
+```
 
 ## Development Workflow
 
@@ -151,7 +240,6 @@ The system supports two authentication methods:
 **Implementation Notes:**
 - The auth middleware automatically detects the token type and validates accordingly
 - JWT tokens take precedence over API keys when both are present
-- For integration tests, use the test suite helpers that handle authentication automatically
 - When creating API endpoints, the middleware automatically injects user context into the request
 
 **Security Considerations:**
@@ -182,8 +270,6 @@ The system supports two authentication methods:
 
 ### Testing
 - `make test` - Run unit tests
-- `make test-integration-local` - Run integration tests with clean database
-- `make test-integration` - Run integration tests (requires DATABASE_URL)
 
 ### Code Quality
 - `make fmt` - Format code
@@ -191,15 +277,14 @@ The system supports two authentication methods:
 
 ## Best Practices
 
-1. **Always run integration tests locally before committing**
-2. **Use the isolated test framework for all integration tests**
-3. **Follow Huma patterns for request/response handling**
-4. **Keep migrations small and focused**
-5. **Regenerate Bob models after schema changes**
-6. **Use proper error handling and logging**
-7. **Write comprehensive tests for new functionality**
-8. **Use environment variables for configuration**
-9. **Follow Go naming conventions and style guidelines**
+1. **Always run unit tests before committing**
+2. **Follow Huma patterns for request/response handling**
+3. **Keep migrations small and focused**
+4. **Regenerate Bob models after schema changes**
+5. **Use proper error handling and logging**
+6. **Write comprehensive tests for new functionality**
+7. **Use environment variables for configuration**
+8. **Follow Go naming conventions and style guidelines**
 
 ## Common Operations
 
@@ -303,9 +388,9 @@ Both are handled by the auth middleware automatically.
 - Test both success and error cases
 - Run tests before committing: `make test`
 
-## Integration Test Payloads
+## Test Payloads
 
-- When writing integration tests, always send request payloads as flat JSON objects.
+- When writing tests, always send request payloads as flat JSON objects.
 - Do NOT nest payloads under a 'body' key in test requests.
 - The 'body' key is only used in Huma input schemas to delineate body fields, not in actual API requests.
 - Example:
@@ -315,7 +400,6 @@ Both are handled by the auth middleware automatically.
       "display_name": "TestPseudonym",
       "bio": "Test bio",
   }
-  resp := suite.MakeAuthenticatedRequest(t, server, "POST", "/pseudonyms", token, payload)
   // Incorrect:
   payload := map[string]interface{}{
       "body": map[string]string{
@@ -323,7 +407,6 @@ Both are handled by the auth middleware automatically.
           "bio": "Test bio",
       },
   }
-  resp := suite.MakeAuthenticatedRequest(t, server, "POST", "/pseudonyms", token, payload)
   ```
 
 ## UI Development

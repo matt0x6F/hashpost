@@ -19,17 +19,38 @@ import (
 
 // UserHandler handles user management requests
 type UserHandler struct {
-	userDAO            *dao.UserDAO
-	securePseudonymDAO *dao.SecurePseudonymDAO
-	userPreferencesDAO *dao.UserPreferencesDAO
-	userBlocksDAO      *dao.UserBlocksDAO
-	postDAO            *dao.PostDAO
-	commentDAO         *dao.CommentDAO
+	userDAO            dao.UserDAOInterface
+	securePseudonymDAO dao.SecurePseudonymDAOInterface
+	userPreferencesDAO dao.UserPreferencesDAOInterface
+	userBlocksDAO      dao.UserBlocksDAOInterface
+	postDAO            dao.PostDAOInterface
+	commentDAO         dao.CommentDAOInterface
 	ibeSystem          *ibe.IBESystem
 }
 
 // NewUserHandler creates a new user handler
 func NewUserHandler(userDAO *dao.UserDAO, securePseudonymDAO *dao.SecurePseudonymDAO, userPreferencesDAO *dao.UserPreferencesDAO, userBlocksDAO *dao.UserBlocksDAO, postDAO *dao.PostDAO, commentDAO *dao.CommentDAO, ibeSystem *ibe.IBESystem) *UserHandler {
+	return &UserHandler{
+		userDAO:            userDAO,
+		securePseudonymDAO: securePseudonymDAO,
+		userPreferencesDAO: userPreferencesDAO,
+		userBlocksDAO:      userBlocksDAO,
+		postDAO:            postDAO,
+		commentDAO:         commentDAO,
+		ibeSystem:          ibeSystem,
+	}
+}
+
+// NewUserHandlerWithDependencies creates a new user handler with injected dependencies
+func NewUserHandlerWithDependencies(
+	userDAO dao.UserDAOInterface,
+	securePseudonymDAO dao.SecurePseudonymDAOInterface,
+	userPreferencesDAO dao.UserPreferencesDAOInterface,
+	userBlocksDAO dao.UserBlocksDAOInterface,
+	postDAO dao.PostDAOInterface,
+	commentDAO dao.CommentDAOInterface,
+	ibeSystem *ibe.IBESystem,
+) *UserHandler {
 	return &UserHandler{
 		userDAO:            userDAO,
 		securePseudonymDAO: securePseudonymDAO,

@@ -61,7 +61,19 @@ func (dao *CommentDAO) CreateComment(ctx context.Context, postID int64, pseudony
 
 // GetCommentByID retrieves a comment by ID with related data
 func (dao *CommentDAO) GetCommentByID(ctx context.Context, commentID int64) (*models.Comment, error) {
-	comment, err := models.FindComment(ctx, dao.db, commentID)
+	comment, err := models.Comments.Query(
+		models.SelectWhere.Comments.CommentID.EQ(commentID),
+		sm.Where(psql.Group(psql.And(
+			psql.Group(psql.Or(
+				psql.Quote("comments", "is_removed").IsNull(),
+				psql.Quote("comments", "is_removed").EQ(psql.Arg(false)),
+			)),
+			psql.Group(psql.Or(
+				psql.Quote("comments", "is_deleted").IsNull(),
+				psql.Quote("comments", "is_deleted").EQ(psql.Arg(false)),
+			)),
+		))),
+	).One(ctx, dao.db)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -81,19 +93,27 @@ func (dao *CommentDAO) GetCommentByID(ctx context.Context, commentID int64) (*mo
 func (dao *CommentDAO) MarkCommentAsDeletedByPseudonym(ctx context.Context, commentID int64, pseudonymID string, reason string) error {
 	comment, err := models.Comments.Query(
 		models.SelectWhere.Comments.CommentID.EQ(commentID),
+		sm.Where(psql.Group(psql.And(
+			psql.Group(psql.Or(
+				psql.Quote("comments", "is_removed").IsNull(),
+				psql.Quote("comments", "is_removed").EQ(psql.Arg(false)),
+			)),
+			psql.Group(psql.Or(
+				psql.Quote("comments", "is_deleted").IsNull(),
+				psql.Quote("comments", "is_deleted").EQ(psql.Arg(false)),
+			)),
+		))),
 	).One(ctx, dao.db)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("comment not found")
+		}
 		return fmt.Errorf("failed to find comment: %w", err)
 	}
 
 	// Check if the comment belongs to the pseudonym
 	if comment.PseudonymID != pseudonymID {
 		return fmt.Errorf("comment does not belong to pseudonym")
-	}
-
-	// Check if comment is already deleted
-	if comment.IsDeleted.Valid && comment.IsDeleted.V {
-		return fmt.Errorf("comment is already deleted")
 	}
 
 	now := time.Now()
@@ -227,6 +247,16 @@ func (dao *CommentDAO) CountCommentsByPost(ctx context.Context, postID int64) (i
 	return count, nil
 }
 
+// FindCommentForScoreUpdate retrieves a comment by ID for score updates, including deleted comments
+// This method is specifically for score updates where we need to update scores even for deleted content
+func (dao *CommentDAO) FindCommentForScoreUpdate(ctx context.Context, commentID int64) (*models.Comment, error) {
+	comment, err := models.FindComment(ctx, dao.db, commentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find comment for score update: %w", err)
+	}
+	return comment, nil
+}
+
 // UpdateCommentScore updates the comment score and vote counts
 func (dao *CommentDAO) UpdateCommentScore(ctx context.Context, commentID int64, score, upvotes, downvotes int32) error {
 	updates := &models.CommentSetter{
@@ -236,7 +266,8 @@ func (dao *CommentDAO) UpdateCommentScore(ctx context.Context, commentID int64, 
 		UpdatedAt: &sql.Null[time.Time]{Valid: true, V: time.Now()},
 	}
 
-	comment, err := models.FindComment(ctx, dao.db, commentID)
+	// For score updates, we need to find the comment even if it's deleted
+	comment, err := dao.FindCommentForScoreUpdate(ctx, commentID)
 	if err != nil {
 		return fmt.Errorf("failed to find comment for score update: %w", err)
 	}
@@ -258,8 +289,8 @@ func (dao *CommentDAO) CountCommentsByPseudonym(ctx context.Context, pseudonymID
 			psql.Quote("comments", "is_removed").EQ(psql.Arg(false)),
 		))),
 		sm.Where(psql.Group(psql.Or(
-			psql.Quote("comments", "is_deleted_by_user").IsNull(),
-			psql.Quote("comments", "is_deleted_by_user").EQ(psql.Arg(false)),
+			psql.Quote("comments", "is_deleted").IsNull(),
+			psql.Quote("comments", "is_deleted").EQ(psql.Arg(false)),
 		))),
 	).Count(ctx, dao.db)
 	if err != nil {
@@ -279,8 +310,8 @@ func (dao *CommentDAO) CountCommentsByPseudonymInSubforum(ctx context.Context, p
 			psql.Quote("comments", "is_removed").EQ(psql.Arg(false)),
 		))),
 		sm.Where(psql.Group(psql.Or(
-			psql.Quote("comments", "is_deleted_by_user").IsNull(),
-			psql.Quote("comments", "is_deleted_by_user").EQ(psql.Arg(false)),
+			psql.Quote("comments", "is_deleted").IsNull(),
+			psql.Quote("comments", "is_deleted").EQ(psql.Arg(false)),
 		))),
 	).All(ctx, dao.db)
 	if err != nil {
@@ -290,7 +321,19 @@ func (dao *CommentDAO) CountCommentsByPseudonymInSubforum(ctx context.Context, p
 	// Count comments in the specific subforum
 	count := int64(0)
 	for _, comment := range comments {
-		post, err := models.FindPost(ctx, dao.db, comment.PostID)
+		post, err := models.Posts.Query(
+			models.SelectWhere.Posts.PostID.EQ(comment.PostID),
+			sm.Where(psql.Group(psql.And(
+				psql.Group(psql.Or(
+					psql.Quote("posts", "is_removed").IsNull(),
+					psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
+				)),
+				psql.Group(psql.Or(
+					psql.Quote("posts", "is_deleted").IsNull(),
+					psql.Quote("posts", "is_deleted").EQ(psql.Arg(false)),
+				)),
+			))),
+		).One(ctx, dao.db)
 		if err == nil && post != nil && post.SubforumID == subforumID {
 			count++
 		}
@@ -309,8 +352,8 @@ func (dao *CommentDAO) GetSubforumsByPseudonymComments(ctx context.Context, pseu
 			psql.Quote("comments", "is_removed").EQ(psql.Arg(false)),
 		))),
 		sm.Where(psql.Group(psql.Or(
-			psql.Quote("comments", "is_deleted_by_user").IsNull(),
-			psql.Quote("comments", "is_deleted_by_user").EQ(psql.Arg(false)),
+			psql.Quote("comments", "is_deleted").IsNull(),
+			psql.Quote("comments", "is_deleted").EQ(psql.Arg(false)),
 		))),
 	).All(ctx, dao.db)
 	if err != nil {
@@ -320,7 +363,19 @@ func (dao *CommentDAO) GetSubforumsByPseudonymComments(ctx context.Context, pseu
 	// Extract unique subforum IDs
 	subforumMap := make(map[int32]bool)
 	for _, comment := range comments {
-		post, err := models.FindPost(ctx, dao.db, comment.PostID)
+		post, err := models.Posts.Query(
+			models.SelectWhere.Posts.PostID.EQ(comment.PostID),
+			sm.Where(psql.Group(psql.And(
+				psql.Group(psql.Or(
+					psql.Quote("posts", "is_removed").IsNull(),
+					psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
+				)),
+				psql.Group(psql.Or(
+					psql.Quote("posts", "is_deleted").IsNull(),
+					psql.Quote("posts", "is_deleted").EQ(psql.Arg(false)),
+				)),
+			))),
+		).One(ctx, dao.db)
 		if err == nil && post != nil {
 			subforumMap[post.SubforumID] = true
 		}
@@ -352,8 +407,23 @@ func (dao *CommentDAO) DeleteCommentByUser(ctx context.Context, commentID int64,
 		UpdatedAt:                &now,
 	}
 
-	comment, err := models.FindComment(ctx, dao.db, commentID)
+	comment, err := models.Comments.Query(
+		models.SelectWhere.Comments.CommentID.EQ(commentID),
+		sm.Where(psql.Group(psql.And(
+			psql.Group(psql.Or(
+				psql.Quote("comments", "is_removed").IsNull(),
+				psql.Quote("comments", "is_removed").EQ(psql.Arg(false)),
+			)),
+			psql.Group(psql.Or(
+				psql.Quote("comments", "is_deleted").IsNull(),
+				psql.Quote("comments", "is_deleted").EQ(psql.Arg(false)),
+			)),
+		))),
+	).One(ctx, dao.db)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("comment not found")
+		}
 		return fmt.Errorf("failed to find comment for user deletion: %w", err)
 	}
 
