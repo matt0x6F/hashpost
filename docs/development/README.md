@@ -47,7 +47,6 @@ Cross-Origin Resource Sharing setup:
 
 ### Testing
 - Unit test execution
-- Integration test frameworks
 - Test data management
 - Coverage reporting
 

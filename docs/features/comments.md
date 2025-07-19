@@ -248,9 +248,9 @@ func (dao *CommentDAO) CountCommentsByPost(ctx context.Context, postID int64) (i
 
 ## Testing
 
-### Integration Tests
+### Unit Tests
 
-The comment workflow is thoroughly tested in `internal/api/integration/comment_integration_test.go`:
+The comment workflow is thoroughly tested in unit tests:
 
 ```go
 func TestCommentWorkflow(t *testing.T) {

@@ -99,7 +99,7 @@ export function PostList({ subforumName }: PostListProps) {
       {/* Create Post Button */}
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold">Posts</h2>
-        <Link href={`/forums/${subforumName}/posts/new`}>
+        <Link href={`/h/${subforumName}/posts/new`}>
           <Button>
             <Plus className="w-4 h-4 mr-2" />
             Create Post

@@ -49,13 +49,13 @@ type ContentHandler struct {
 	db                 bob.Executor
 	rawDB              *sql.DB
 	ibeSystem          *ibe.IBESystem
-	identityMappingDAO *dao.IdentityMappingDAO
-	userDAO            *dao.UserDAO
-	postDAO            *dao.PostDAO
-	commentDAO         *dao.CommentDAO
-	subforumDAO        *dao.SubforumDAO
-	securePseudonymDAO *dao.SecurePseudonymDAO
-	voteDAO            *dao.VoteDAO
+	identityMappingDAO dao.IdentityMappingDAOInterface
+	userDAO            dao.UserDAOInterface
+	postDAO            dao.PostDAOInterface
+	commentDAO         dao.CommentDAOInterface
+	subforumDAO        dao.SubforumDAOInterface
+	securePseudonymDAO dao.SecurePseudonymDAOInterface
+	voteDAO            dao.VoteDAOInterface
 	permissionChecker  *middleware.PermissionChecker
 }
 
@@ -77,6 +77,37 @@ func NewContentHandler(db bob.Executor, rawDB *sql.DB, ibeSystem *ibe.IBESystem,
 		securePseudonymDAO: securePseudonymDAO,
 		voteDAO:            dao.NewVoteDAO(db),
 		permissionChecker:  middleware.NewPermissionChecker(db),
+	}
+}
+
+// NewContentHandlerWithDependencies creates a new content handler with injected dependencies
+func NewContentHandlerWithDependencies(
+	db bob.Executor,
+	rawDB *sql.DB,
+	ibeSystem *ibe.IBESystem,
+	identityMappingDAO dao.IdentityMappingDAOInterface,
+	userDAO dao.UserDAOInterface,
+	postDAO dao.PostDAOInterface,
+	commentDAO dao.CommentDAOInterface,
+	subforumDAO dao.SubforumDAOInterface,
+	securePseudonymDAO dao.SecurePseudonymDAOInterface,
+	voteDAO dao.VoteDAOInterface,
+	userBlocksDAO dao.UserBlocksDAOInterface,
+	roleKeyDAO dao.RoleKeyDAOInterface,
+	permissionChecker *middleware.PermissionChecker,
+) *ContentHandler {
+	return &ContentHandler{
+		db:                 db,
+		rawDB:              rawDB,
+		ibeSystem:          ibeSystem,
+		identityMappingDAO: identityMappingDAO,
+		userDAO:            userDAO,
+		postDAO:            postDAO,
+		commentDAO:         commentDAO,
+		subforumDAO:        subforumDAO,
+		securePseudonymDAO: securePseudonymDAO,
+		voteDAO:            voteDAO,
+		permissionChecker:  permissionChecker,
 	}
 }
 
@@ -271,14 +302,21 @@ func (h *ContentHandler) CreatePost(ctx context.Context, input *models.PostCreat
 
 	// Check moderator permissions for sticky/locked options
 	if isSticky || isLocked {
-		canModerate, err := h.permissionChecker.CheckSubforumCapability(ctx, userCtx.UserID, subforum.SubforumID, "moderate_content")
-		if err != nil {
-			log.Error().Err(err).
-				Int64("user_id", userCtx.UserID).
-				Int32("subforum_id", subforum.SubforumID).
-				Msg("Failed to check moderator permissions")
-			return nil, fmt.Errorf("failed to verify moderator permissions")
+		canModerate := false
+		var err error
+
+		// Only check permissions if permission checker is available
+		if h.permissionChecker != nil {
+			canModerate, err = h.permissionChecker.CheckSubforumCapability(ctx, userCtx.UserID, subforum.SubforumID, "moderate_content")
+			if err != nil {
+				log.Error().Err(err).
+					Int64("user_id", userCtx.UserID).
+					Int32("subforum_id", subforum.SubforumID).
+					Msg("Failed to check moderator permissions")
+				return nil, fmt.Errorf("failed to verify moderator permissions")
+			}
 		}
+
 		if !canModerate {
 			log.Info().
 				Int64("user_id", userCtx.UserID).
@@ -303,14 +341,20 @@ func (h *ContentHandler) CreatePost(ctx context.Context, input *models.PostCreat
 	// Allow access if IsPrivate is null or false, deny only if explicitly true
 	if subforum.IsPrivate.Valid && subforum.IsPrivate.V {
 		// Check if user has access to this private subforum using RBAC
-		canAccess, err := h.permissionChecker.CheckPrivateSubforumAccess(ctx, userCtx.UserID, subforum.SubforumID)
-		if err != nil {
-			log.Error().Err(err).
-				Int64("user_id", userCtx.UserID).
-				Int32("subforum_id", subforum.SubforumID).
-				Str("subforum_name", subforumName).
-				Msg("Failed to check private subforum access")
-			return nil, fmt.Errorf("failed to verify subforum access")
+		canAccess := false
+		var err error
+
+		// Only check permissions if permission checker is available
+		if h.permissionChecker != nil {
+			canAccess, err = h.permissionChecker.CheckPrivateSubforumAccess(ctx, userCtx.UserID, subforum.SubforumID)
+			if err != nil {
+				log.Error().Err(err).
+					Int64("user_id", userCtx.UserID).
+					Int32("subforum_id", subforum.SubforumID).
+					Str("subforum_name", subforumName).
+					Msg("Failed to check private subforum access")
+				return nil, fmt.Errorf("failed to verify subforum access")
+			}
 		}
 
 		if !canAccess {
@@ -357,7 +401,16 @@ func (h *ContentHandler) CreatePost(ctx context.Context, input *models.PostCreat
 		}
 	}
 
-	response := models.NewPostResponse(int(post.PostID), title, content, postType, pseudonymID, displayName)
+	// Get the slug from the created post
+	var slug string
+	if post.Slug.Valid {
+		slug = post.Slug.V
+	} else {
+		// Fallback: generate slug if not set
+		slug = generateSlug(title, post.PostID)
+	}
+
+	response := models.NewPostResponse(int(post.PostID), title, content, postType, pseudonymID, displayName, slug)
 
 	log.Info().
 		Str("endpoint", "subforums/create-post").
@@ -559,6 +612,12 @@ func (h *ContentHandler) VoteOnPost(ctx context.Context, input *models.PostVoteI
 		return nil, fmt.Errorf("cannot vote on removed post")
 	}
 
+	// Check if post is deleted
+	if post.IsDeleted.Valid && post.IsDeleted.V {
+		log.Warn().Int64("post_id", postID).Msg("Cannot vote on deleted post")
+		return nil, fmt.Errorf("cannot vote on deleted post")
+	}
+
 	// Handle vote
 	if voteValue == 0 {
 		// Remove vote
@@ -758,6 +817,12 @@ func (h *ContentHandler) VoteOnComment(ctx context.Context, input *models.Commen
 		return nil, fmt.Errorf("cannot vote on removed comment")
 	}
 
+	// Check if comment is deleted
+	if comment.IsDeleted.Valid && comment.IsDeleted.V {
+		log.Warn().Int64("comment_id", commentID).Msg("Cannot vote on deleted comment")
+		return nil, fmt.Errorf("cannot vote on deleted comment")
+	}
+
 	// Handle vote
 	if voteValue == 0 {
 		// Remove vote
@@ -833,7 +898,7 @@ func (h *ContentHandler) LockPost(ctx context.Context, input *models.PostLockInp
 		return nil, fmt.Errorf("failed to fetch post: %w", err)
 	}
 	apiPost := h.convertDBPostToAPIPost(ctx, post)
-	return models.NewPostResponse(apiPost.PostID, apiPost.Title, apiPost.Content, apiPost.PostType, apiPost.Author.PseudonymID, apiPost.Author.DisplayName), nil
+	return models.NewPostResponse(apiPost.PostID, apiPost.Title, apiPost.Content, apiPost.PostType, apiPost.Author.PseudonymID, apiPost.Author.DisplayName, apiPost.Slug), nil
 }
 
 // Sticky/Unsticky Post
@@ -858,7 +923,7 @@ func (h *ContentHandler) StickyPost(ctx context.Context, input *models.PostStick
 		return nil, fmt.Errorf("failed to fetch post: %w", err)
 	}
 	apiPost := h.convertDBPostToAPIPost(ctx, post)
-	return models.NewPostResponse(apiPost.PostID, apiPost.Title, apiPost.Content, apiPost.PostType, apiPost.Author.PseudonymID, apiPost.Author.DisplayName), nil
+	return models.NewPostResponse(apiPost.PostID, apiPost.Title, apiPost.Content, apiPost.PostType, apiPost.Author.PseudonymID, apiPost.Author.DisplayName, apiPost.Slug), nil
 }
 
 // Remove/Restore Post
@@ -883,7 +948,7 @@ func (h *ContentHandler) RemovePost(ctx context.Context, input *models.PostRemov
 		return nil, fmt.Errorf("failed to fetch post: %w", err)
 	}
 	apiPost := h.convertDBPostToAPIPost(ctx, post)
-	return models.NewPostResponse(apiPost.PostID, apiPost.Title, apiPost.Content, apiPost.PostType, apiPost.Author.PseudonymID, apiPost.Author.DisplayName), nil
+	return models.NewPostResponse(apiPost.PostID, apiPost.Title, apiPost.Content, apiPost.PostType, apiPost.Author.PseudonymID, apiPost.Author.DisplayName, apiPost.Slug), nil
 }
 
 // EditPost handles editing a post
@@ -1246,13 +1311,6 @@ func (h *ContentHandler) DeletePost(ctx context.Context, input *models.PostDelet
 		return nil, huma.Error500InternalServerError("Failed to delete post")
 	}
 
-	// Get the updated post to return in response
-	post, err := h.postDAO.GetPostByID(ctx, input.PostID)
-	if err != nil {
-		log.Error().Err(err).Int64("post_id", input.PostID).Msg("Failed to get post after deletion")
-		return nil, huma.Error500InternalServerError("Failed to get post details")
-	}
-
 	// Get user info for response
 	pseudonymInfo, err := h.securePseudonymDAO.GetPseudonymByID(ctx, pseudonymID)
 	if err != nil {
@@ -1260,17 +1318,20 @@ func (h *ContentHandler) DeletePost(ctx context.Context, input *models.PostDelet
 		// Continue without user info
 	}
 
+	// Since we filter out deleted posts, we can't get the post after deletion
+	// We'll construct the response with the information we have
+	now := time.Now()
 	response := &models.PostDeleteResponse{
 		Status: 200,
 		Body: models.PostDeleteResponseBody{
-			PostID:       int(post.PostID),
-			DeletedAt:    post.DeletedByPseudonymAt.V.Format(time.RFC3339),
-			DeleteReason: post.DeletedByPseudonymReason.V,
+			PostID:       int(input.PostID),
+			DeletedAt:    now.Format(time.RFC3339),
+			DeleteReason: input.Body.Reason,
 			DeletedBy: struct {
 				PseudonymID string `json:"pseudonym_id" example:"user_pseudonym_id"`
 				DisplayName string `json:"display_name" example:"user_name"`
 			}{
-				PseudonymID: post.DeletedByPseudonymID.V,
+				PseudonymID: pseudonymID,
 				DisplayName: pseudonymInfo.DisplayName,
 			},
 		},
@@ -1297,13 +1358,6 @@ func (h *ContentHandler) DeleteComment(ctx context.Context, input *models.Commen
 		return nil, huma.Error500InternalServerError("Failed to delete comment")
 	}
 
-	// Get the updated comment to return in response
-	comment, err := h.commentDAO.GetCommentByID(ctx, input.CommentID)
-	if err != nil {
-		log.Error().Err(err).Int64("comment_id", input.CommentID).Msg("Failed to get comment after deletion")
-		return nil, huma.Error500InternalServerError("Failed to get comment details")
-	}
-
 	// Get user info for response
 	pseudonymInfo, err := h.securePseudonymDAO.GetPseudonymByID(ctx, pseudonymID)
 	if err != nil {
@@ -1311,17 +1365,20 @@ func (h *ContentHandler) DeleteComment(ctx context.Context, input *models.Commen
 		// Continue without user info
 	}
 
+	// Since we filter out deleted comments, we can't get the comment after deletion
+	// We'll construct the response with the information we have
+	now := time.Now()
 	response := &models.CommentDeleteResponse{
 		Status: 200,
 		Body: models.CommentDeleteResponseBody{
-			CommentID:    int(comment.CommentID),
-			DeletedAt:    comment.DeletedByPseudonymAt.V.Format(time.RFC3339),
-			DeleteReason: comment.DeletedByPseudonymReason.V,
+			CommentID:    int(input.CommentID),
+			DeletedAt:    now.Format(time.RFC3339),
+			DeleteReason: input.Body.Reason,
 			DeletedBy: struct {
 				PseudonymID string `json:"pseudonym_id" example:"user_pseudonym_id"`
 				DisplayName string `json:"display_name" example:"user_name"`
 			}{
-				PseudonymID: comment.DeletedByPseudonymID.V,
+				PseudonymID: pseudonymID,
 				DisplayName: pseudonymInfo.DisplayName,
 			},
 		},

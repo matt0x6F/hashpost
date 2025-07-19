@@ -249,9 +249,9 @@ The command automatically generates test keys for development:
 export IBE_MASTER_KEY_PATH="./test-keys/master.key"
 ```
 
-### Integration Testing
+### Unit Testing
 
-Test keys are used in integration tests to verify the enhanced architecture:
+Test keys are used in unit tests to verify the enhanced architecture:
 
 ```go
 // Test domain separation
@@ -336,8 +336,8 @@ export IBE_KEY_VERSION="2"
 ### Step 4: Verify Migration
 
 ```bash
-# Run integration tests
-make test-integration-local
+# Run unit tests
+make test
 
 # Verify key functionality
 ./hashpost-server generate-ibe-keys --output-dir ./test-migration --generate-new

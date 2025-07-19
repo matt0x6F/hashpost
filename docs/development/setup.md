@@ -369,13 +369,13 @@ go test -v ./internal/api/handlers/
 go test -race ./internal/api/handlers/
 ```
 
-#### Integration Tests
+#### Unit Tests
 ```bash
-# Run integration tests (requires database)
-make test-integration
+# Run unit tests
+make test
 
-# Run with test database
-DB_NAME=hashpost_test make test-integration
+# Run with verbose output
+make test VERBOSE=1
 ```
 
 #### Test Coverage

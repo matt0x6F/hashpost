@@ -1,125 +1,303 @@
 package dao
 
 import (
-	"database/sql"
+	"context"
 	"testing"
-	"time"
 
-	"github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/stephenafamo/bob"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestCommentDAO_GetCommentsByPostWithNestedReplies(t *testing.T) {
-	// This test requires a database connection
-	// For now, we'll test the tree building logic directly
+// createTestDataForComments creates the required test data (subforum, pseudonym, and post)
+func createTestDataForComments(t *testing.T, db bob.Executor) (int64, string) {
+	ctx := context.Background()
 
-	// Create test comments with nested structure
-	now := time.Now()
+	// Create test subforum using raw SQL
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO subforums (name, display_name, description) 
+		VALUES ('Test Subforum', 'Test Subforum', 'A test subforum for testing')
+		RETURNING subforum_id
+	`)
+	require.NoError(t, err, "Failed to create test subforum")
 
-	// Root comment 1 (score: 10)
-	root1 := &models.Comment{
-		CommentID: 1,
-		PostID:    1,
-		Content:   "Root comment 1",
-		Score:     sql.Null[int32]{Valid: true, V: 10},
-		CreatedAt: sql.Null[time.Time]{Valid: true, V: now},
-	}
+	// Get the subforum ID
+	var subforumID int32
+	err = db.(bob.DB).DB.QueryRowContext(ctx,
+		"SELECT subforum_id FROM subforums WHERE name = 'Test Subforum'").Scan(&subforumID)
+	require.NoError(t, err, "Failed to get subforum ID")
 
-	// Root comment 2 (score: 5)
-	root2 := &models.Comment{
-		CommentID: 2,
-		PostID:    1,
-		Content:   "Root comment 2",
-		Score:     sql.Null[int32]{Valid: true, V: 5},
-		CreatedAt: sql.Null[time.Time]{Valid: true, V: now.Add(time.Minute)},
-	}
+	// Create test pseudonym using raw SQL
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO pseudonyms (pseudonym_id, display_name, bio, is_default) 
+		VALUES ('test-pseudonym-123', 'Test Pseudonym', 'A test pseudonym', true)
+	`)
+	require.NoError(t, err, "Failed to create test pseudonym")
 
-	// Reply to root1 (score: 8)
-	reply1 := &models.Comment{
-		CommentID:       3,
-		PostID:          1,
-		ParentCommentID: sql.Null[int64]{Valid: true, V: 1},
-		Content:         "Reply to root 1",
-		Score:           sql.Null[int32]{Valid: true, V: 8},
-		CreatedAt:       sql.Null[time.Time]{Valid: true, V: now.Add(2 * time.Minute)},
-	}
+	// Create test post using raw SQL
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO posts (subforum_id, pseudonym_id, title, content, post_type) 
+		VALUES ($1, 'test-pseudonym-123', 'Test Post', 'Test content', 'text')
+		RETURNING post_id
+	`, subforumID)
+	require.NoError(t, err, "Failed to create test post")
 
-	// Reply to reply1 (score: 3)
-	reply2 := &models.Comment{
-		CommentID:       4,
-		PostID:          1,
-		ParentCommentID: sql.Null[int64]{Valid: true, V: 3},
-		Content:         "Reply to reply 1",
-		Score:           sql.Null[int32]{Valid: true, V: 3},
-		CreatedAt:       sql.Null[time.Time]{Valid: true, V: now.Add(3 * time.Minute)},
-	}
+	// Get the post ID
+	var postID int64
+	err = db.(bob.DB).DB.QueryRowContext(ctx,
+		"SELECT post_id FROM posts WHERE title = 'Test Post'").Scan(&postID)
+	require.NoError(t, err, "Failed to get post ID")
 
-	// Reply to root2 (score: 2)
-	reply3 := &models.Comment{
-		CommentID:       5,
-		PostID:          1,
-		ParentCommentID: sql.Null[int64]{Valid: true, V: 2},
-		Content:         "Reply to root 2",
-		Score:           sql.Null[int32]{Valid: true, V: 2},
-		CreatedAt:       sql.Null[time.Time]{Valid: true, V: now.Add(4 * time.Minute)},
-	}
-
-	allComments := []*models.Comment{root1, root2, reply1, reply2, reply3}
-
-	// Test the tree building logic manually
-	commentMap := make(map[int64]*models.Comment)
-	var rootComments []*models.Comment
-
-	for _, comment := range allComments {
-		commentMap[comment.CommentID] = comment
-	}
-
-	for _, comment := range allComments {
-		if comment.ParentCommentID.Valid {
-			parent, exists := commentMap[comment.ParentCommentID.V]
-			if exists {
-				parent.R.ReverseComments = append(parent.R.ReverseComments, comment)
-			}
-		} else {
-			rootComments = append(rootComments, comment)
-		}
-	}
-
-	// Verify the structure
-	require.Len(t, rootComments, 2, "Should have 2 root comments")
-
-	// Root comments should be ordered by score (descending)
-	assert.Equal(t, int64(1), rootComments[0].CommentID, "First root comment should be root1 (higher score)")
-	assert.Equal(t, int64(2), rootComments[1].CommentID, "Second root comment should be root2 (lower score)")
-
-	// Check that root1 has reply1 as a child
-	require.Len(t, rootComments[0].R.ReverseComments, 1, "Root1 should have 1 reply")
-	assert.Equal(t, int64(3), rootComments[0].R.ReverseComments[0].CommentID, "Root1's reply should be reply1")
-
-	// Check that reply1 has reply2 as a child
-	require.Len(t, rootComments[0].R.ReverseComments[0].R.ReverseComments, 1, "Reply1 should have 1 reply")
-	assert.Equal(t, int64(4), rootComments[0].R.ReverseComments[0].R.ReverseComments[0].CommentID, "Reply1's reply should be reply2")
-
-	// Check that root2 has reply3 as a child
-	require.Len(t, rootComments[1].R.ReverseComments, 1, "Root2 should have 1 reply")
-	assert.Equal(t, int64(5), rootComments[1].R.ReverseComments[0].CommentID, "Root2's reply should be reply3")
+	return postID, "test-pseudonym-123"
 }
 
-func TestCommentDAO_GetCommentsByPost(t *testing.T) {
-	// Test that the original method still works and includes ordering
-	dao := &CommentDAO{}
+func TestCommentDAO_GetCommentByID_FiltersDeletedComments(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.(bob.DB).DB.Close()
 
-	// This test would require a real database connection
-	// For now, we'll just verify the method signature and basic logic
+	dao := NewCommentDAO(db)
+	ctx := context.Background()
 
-	// Test with a mock executor (this won't actually work, but tests the interface)
-	var mockDB bob.Executor
-	dao.db = mockDB
+	// Clean up after test
+	defer cleanupTestData(t, db)
 
-	// The method should not panic even with a nil executor
-	// (it will return an error, but that's expected)
-	// We'll skip this test since it requires a real database connection
-	t.Skip("Skipping test that requires real database connection")
+	// Create test data
+	postID, pseudonymID := createTestDataForComments(t, db)
+
+	// Create a test comment
+	comment, err := dao.CreateComment(ctx, postID, pseudonymID, "Test comment", nil)
+	require.NoError(t, err)
+	require.NotNil(t, comment)
+
+	// Verify comment can be retrieved normally
+	retrievedComment, err := dao.GetCommentByID(ctx, comment.CommentID)
+	require.NoError(t, err)
+	require.NotNil(t, retrievedComment)
+	assert.Equal(t, comment.CommentID, retrievedComment.CommentID)
+	assert.Equal(t, "Test comment", retrievedComment.Content)
+
+	// Mark comment as deleted
+	err = dao.MarkCommentAsDeletedByPseudonym(ctx, comment.CommentID, pseudonymID, "User requested deletion")
+	require.NoError(t, err)
+
+	// Verify comment is no longer retrievable
+	retrievedComment, err = dao.GetCommentByID(ctx, comment.CommentID)
+	require.NoError(t, err)
+	assert.Nil(t, retrievedComment, "Deleted comment should not be returned")
+}
+
+func TestCommentDAO_GetCommentsByPost_FiltersDeletedComments(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.(bob.DB).DB.Close()
+
+	dao := NewCommentDAO(db)
+	ctx := context.Background()
+
+	// Clean up after test
+	defer cleanupTestData(t, db)
+
+	// Create test data
+	postID, pseudonymID := createTestDataForComments(t, db)
+
+	// Create multiple comments
+	comment1, err := dao.CreateComment(ctx, postID, pseudonymID, "Test Comment 1", nil)
+	require.NoError(t, err)
+
+	comment2, err := dao.CreateComment(ctx, postID, pseudonymID, "Test Comment 2", nil)
+	require.NoError(t, err)
+
+	_, err = dao.CreateComment(ctx, postID, pseudonymID, "Test Comment 3", nil)
+	require.NoError(t, err)
+
+	// Verify all comments are retrievable
+	comments, err := dao.GetCommentsByPost(ctx, postID)
+	require.NoError(t, err)
+	assert.Len(t, comments, 3)
+
+	// Delete one comment
+	err = dao.MarkCommentAsDeletedByPseudonym(ctx, comment2.CommentID, pseudonymID, "User requested deletion")
+	require.NoError(t, err)
+
+	// Verify only non-deleted comments are returned
+	comments, err = dao.GetCommentsByPost(ctx, postID)
+	require.NoError(t, err)
+	assert.Len(t, comments, 2)
+
+	// Verify the deleted comment is not in the results
+	for _, c := range comments {
+		assert.NotEqual(t, comment2.CommentID, c.CommentID)
+	}
+
+	// Verify comment1 is still in the results
+	foundComment1 := false
+	for _, c := range comments {
+		if c.CommentID == comment1.CommentID {
+			foundComment1 = true
+			break
+		}
+	}
+	assert.True(t, foundComment1, "Comment1 should still be in the results")
+}
+
+func TestCommentDAO_CountCommentsByPost_FiltersDeletedComments(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.(bob.DB).DB.Close()
+
+	dao := NewCommentDAO(db)
+	ctx := context.Background()
+
+	// Clean up after test
+	defer cleanupTestData(t, db)
+
+	// Create test data
+	postID, pseudonymID := createTestDataForComments(t, db)
+
+	// Create comments
+	comment1, err := dao.CreateComment(ctx, postID, pseudonymID, "Test Comment 1", nil)
+	require.NoError(t, err)
+
+	_, err = dao.CreateComment(ctx, postID, pseudonymID, "Test Comment 2", nil)
+	require.NoError(t, err)
+
+	// Verify count is correct
+	count, err := dao.CountCommentsByPost(ctx, postID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), count)
+
+	// Delete one comment
+	err = dao.MarkCommentAsDeletedByPseudonym(ctx, comment1.CommentID, pseudonymID, "User requested deletion")
+	require.NoError(t, err)
+
+	// Verify count excludes deleted comment
+	count, err = dao.CountCommentsByPost(ctx, postID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), count)
+}
+
+func TestCommentDAO_UpdateCommentScore_WorksWithDeletedComments(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.(bob.DB).DB.Close()
+
+	dao := NewCommentDAO(db)
+	ctx := context.Background()
+
+	// Clean up after test
+	defer cleanupTestData(t, db)
+
+	// Create test data
+	postID, pseudonymID := createTestDataForComments(t, db)
+
+	// Create a comment
+	comment, err := dao.CreateComment(ctx, postID, pseudonymID, "Test comment", nil)
+	require.NoError(t, err)
+
+	// Delete the comment
+	err = dao.MarkCommentAsDeletedByPseudonym(ctx, comment.CommentID, pseudonymID, "User requested deletion")
+	require.NoError(t, err)
+
+	// Verify score can still be updated (for vote calculations)
+	err = dao.UpdateCommentScore(ctx, comment.CommentID, 100, 150, 50)
+	require.NoError(t, err)
+
+	// Verify the score was updated by checking the raw database
+	var score, upvotes, downvotes int32
+	err = db.(bob.DB).DB.QueryRowContext(ctx,
+		"SELECT score, upvotes, downvotes FROM comments WHERE comment_id = $1",
+		comment.CommentID).Scan(&score, &upvotes, &downvotes)
+	require.NoError(t, err)
+
+	assert.Equal(t, int32(100), score)
+	assert.Equal(t, int32(150), upvotes)
+	assert.Equal(t, int32(50), downvotes)
+}
+
+func TestCommentDAO_MarkCommentAsDeletedByPseudonym_PreventsDoubleDeletion(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.(bob.DB).DB.Close()
+
+	dao := NewCommentDAO(db)
+	ctx := context.Background()
+
+	// Clean up after test
+	defer cleanupTestData(t, db)
+
+	// Create test data
+	postID, pseudonymID := createTestDataForComments(t, db)
+
+	// Create a comment
+	comment, err := dao.CreateComment(ctx, postID, pseudonymID, "Test comment", nil)
+	require.NoError(t, err)
+
+	// Delete the comment
+	err = dao.MarkCommentAsDeletedByPseudonym(ctx, comment.CommentID, pseudonymID, "User requested deletion")
+	require.NoError(t, err)
+
+	// Try to delete again - should fail because comment is not found (filtered out)
+	err = dao.MarkCommentAsDeletedByPseudonym(ctx, comment.CommentID, pseudonymID, "User requested deletion again")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "comment not found")
+}
+
+func TestCommentDAO_GetCommentsByPostWithNestedReplies_IncludesDeletedComments(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.(bob.DB).DB.Close()
+
+	dao := NewCommentDAO(db)
+	ctx := context.Background()
+
+	// Clean up after test
+	defer cleanupTestData(t, db)
+
+	// Create test data
+	postID, pseudonymID := createTestDataForComments(t, db)
+
+	// Create a comment
+	comment, err := dao.CreateComment(ctx, postID, pseudonymID, "Test comment", nil)
+	require.NoError(t, err)
+
+	// Delete the comment
+	err = dao.MarkCommentAsDeletedByPseudonym(ctx, comment.CommentID, pseudonymID, "User requested deletion")
+	require.NoError(t, err)
+
+	// Verify deleted comment is still returned but with cleared content
+	comments, err := dao.GetCommentsByPostWithNestedReplies(ctx, postID)
+	require.NoError(t, err)
+	assert.Len(t, comments, 1)
+	assert.Equal(t, "[deleted]", comments[0].Content)
+	assert.True(t, comments[0].IsDeleted.Valid && comments[0].IsDeleted.V)
+}
+
+func TestCommentDAO_CountCommentsByPseudonym_FiltersDeletedComments(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.(bob.DB).DB.Close()
+
+	dao := NewCommentDAO(db)
+	ctx := context.Background()
+
+	// Clean up after test
+	defer cleanupTestData(t, db)
+
+	// Create test data
+	postID, pseudonymID := createTestDataForComments(t, db)
+
+	// Create comments by the same pseudonym
+	comment1, err := dao.CreateComment(ctx, postID, pseudonymID, "Test Comment 1", nil)
+	require.NoError(t, err)
+
+	_, err = dao.CreateComment(ctx, postID, pseudonymID, "Test Comment 2", nil)
+	require.NoError(t, err)
+
+	// Verify count is correct
+	count, err := dao.CountCommentsByPseudonym(ctx, pseudonymID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), count)
+
+	// Delete one comment
+	err = dao.MarkCommentAsDeletedByPseudonym(ctx, comment1.CommentID, pseudonymID, "User requested deletion")
+	require.NoError(t, err)
+
+	// Verify count excludes deleted comment
+	count, err = dao.CountCommentsByPseudonym(ctx, pseudonymID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), count)
 }

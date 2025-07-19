@@ -286,12 +286,12 @@ func NewPostDetailsResponse(post Post, comments []Comment) *PostDetailsResponse 
 }
 
 // NewPostResponse creates a new post creation response
-func NewPostResponse(postID int, title, content, postType, pseudonymID, displayName string) *PostResponse {
+func NewPostResponse(postID int, title, content, postType, pseudonymID, displayName, slug string) *PostResponse {
 	return &PostResponse{
 		Status: 200,
 		Body: PostResponseBody{
 			PostID:       postID,
-			Slug:         "", // Slug will be generated on creation
+			Slug:         slug,
 			Title:        title,
 			Content:      content,
 			PostType:     postType,
