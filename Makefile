@@ -141,7 +141,7 @@ test-dao-ci-setup:
 	@echo "Granting privileges..."
 	@PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE hashpost_test TO hashpost;" || true
 	@echo "Applying migrations to test database..."
-	@DATABASE_URL="postgres://hashpost:hashpost_test@localhost:5432/hashpost_test?sslmode=disable" sql-migrate up -config=dbconfig.yml -env=test
+	@sql-migrate up -config=dbconfig.yml -env=ci
 	@echo "✅ CI test database setup complete!"
 
 test-dao-ci-run:

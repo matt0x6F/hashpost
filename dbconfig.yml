@@ -17,4 +17,10 @@ test:
   dialect: postgres
   datasource: "postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable"
   dir: "internal/database/migrations"
+  table: "schema_migrations"
+
+ci:
+  dialect: postgres
+  datasource: "postgres://hashpost:hashpost_test@localhost:5432/hashpost_test?sslmode=disable"
+  dir: "internal/database/migrations"
   table: "schema_migrations" 
