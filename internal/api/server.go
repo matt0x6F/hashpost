@@ -63,9 +63,9 @@ func NewServer() *Server {
 	subforumDAO := dao.NewSubforumDAO(db)
 
 	// Create moderation DAOs
-	reportDAO := dao.NewReportDAO(rawDB)
-	moderationActionDAO := dao.NewModerationActionDAO(rawDB)
-	userBanDAO := dao.NewUserBanDAO(rawDB)
+	reportDAO := dao.NewReportDAO(db)
+	moderationActionDAO := dao.NewModerationActionDAO(db)
+	userBanDAO := dao.NewUserBanDAO(db)
 
 	// Create auth middleware with configuration
 	authMiddleware := middleware.NewAuthMiddleware(cfg.JWT.Secret, apiKeyDAO, &cfg.JWT, &cfg.Security)
