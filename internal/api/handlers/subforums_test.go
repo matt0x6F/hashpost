@@ -411,7 +411,7 @@ func TestSubforumHandler_CreateSubforum(t *testing.T) {
 		{
 			name: "CreateSubforumWithPermission",
 			input: &models.SubforumCreateInput{
-				Authorization: "Bearer " + fixtures.GenerateTestJWTToken(1, "moderator-pseudonym-123"),
+				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "moderator-pseudonym-123"),
 				Body: models.SubforumCreateBody{
 					Slug:         "new-subforum",
 					Name:         "New Subforum",
@@ -428,7 +428,7 @@ func TestSubforumHandler_CreateSubforum(t *testing.T) {
 		{
 			name: "CreateSubforumWithoutPermission",
 			input: &models.SubforumCreateInput{
-				Authorization: "Bearer " + fixtures.GenerateTestJWTToken(1, "moderator-pseudonym-123"),
+				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "moderator-pseudonym-123"),
 				Body: models.SubforumCreateBody{
 					Slug:         "new-subforum",
 					Name:         "New Subforum",
@@ -526,7 +526,7 @@ func TestSubforumHandler_GetPseudonymSubscriptions(t *testing.T) {
 				models.PseudonymSubscriptionsInput
 			}{
 				AuthInput: middleware.AuthInput{
-					Authorization: "Bearer " + fixtures.GenerateTestJWTToken(1, "moderator-pseudonym-123"),
+					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "moderator-pseudonym-123"),
 				},
 				PseudonymSubscriptionsInput: models.PseudonymSubscriptionsInput{
 					PseudonymID: "moderator-pseudonym-123",
@@ -543,7 +543,7 @@ func TestSubforumHandler_GetPseudonymSubscriptions(t *testing.T) {
 				models.PseudonymSubscriptionsInput
 			}{
 				AuthInput: middleware.AuthInput{
-					Authorization: "Bearer " + fixtures.GenerateTestJWTToken(1, "moderator-pseudonym-123"),
+					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "moderator-pseudonym-123"),
 				},
 				PseudonymSubscriptionsInput: models.PseudonymSubscriptionsInput{
 					PseudonymID: "other-pseudonym-456",

@@ -2,6 +2,7 @@ package fixtures
 
 import (
 	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/gofrs/uuid/v5"
@@ -81,7 +82,7 @@ func CreateTestUserBlock(blockID int64, blockerPseudonymID, blockedPseudonymID s
 }
 
 // GenerateTestJWTToken generates a valid JWT token for testing
-func GenerateTestJWTToken(userID int64, activePseudonymID string) string {
+func GenerateTestJWTToken(userID int64, activePseudonymID string) (string, error) {
 	// Create a JWT token using the actual JWT generation logic
 	// This ensures the token is valid for the test environment
 	claims := &middleware.JWTClaims{
@@ -102,10 +103,20 @@ func GenerateTestJWTToken(userID int64, activePseudonymID string) string {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString([]byte("test-secret"))
 	if err != nil {
-		panic("Failed to generate test JWT token: " + err.Error())
+		return "", fmt.Errorf("failed to generate test JWT token: %w", err)
 	}
 
-	return tokenString
+	return tokenString, nil
+}
+
+// MustGenerateTestJWTToken generates a test JWT token and panics if it fails
+// This is a convenience function for tests where token generation failure should cause the test to fail
+func MustGenerateTestJWTToken(userID int64, activePseudonymID string) string {
+	token, err := GenerateTestJWTToken(userID, activePseudonymID)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to generate test JWT token: %v", err))
+	}
+	return token
 }
 
 // CreateTestRoleKey creates a test role key

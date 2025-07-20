@@ -65,7 +65,7 @@ func TestUserHandler_BlockUser(t *testing.T) {
 			apimodels.BlockUserInput
 		}{
 			AuthInput: middleware.AuthInput{
-				Authorization: "Bearer " + fixtures.GenerateTestJWTToken(blockerUserID, blockerPseudonymID),
+				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(blockerUserID, blockerPseudonymID),
 			},
 			PseudonymIDPathParam: apimodels.PseudonymIDPathParam{
 				PseudonymID: blockedPseudonymID,
@@ -121,7 +121,7 @@ func TestUserHandler_BlockUser(t *testing.T) {
 			apimodels.BlockUserInput
 		}{
 			AuthInput: middleware.AuthInput{
-				Authorization: "Bearer " + fixtures.GenerateTestJWTToken(blockerUserID, blockerPseudonymID),
+				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(blockerUserID, blockerPseudonymID),
 			},
 			PseudonymIDPathParam: apimodels.PseudonymIDPathParam{
 				PseudonymID: blockedPseudonymID,
@@ -169,7 +169,7 @@ func TestUserHandler_BlockUser(t *testing.T) {
 			apimodels.BlockUserInput
 		}{
 			AuthInput: middleware.AuthInput{
-				Authorization: "Bearer " + fixtures.GenerateTestJWTToken(blockerUserID, blockerPseudonymID),
+				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(blockerUserID, blockerPseudonymID),
 			},
 			PseudonymIDPathParam: apimodels.PseudonymIDPathParam{
 				PseudonymID: blockedPseudonymID,
@@ -212,7 +212,7 @@ func TestUserHandler_BlockUser(t *testing.T) {
 			apimodels.BlockUserInput
 		}{
 			AuthInput: middleware.AuthInput{
-				Authorization: "Bearer " + fixtures.GenerateTestJWTToken(blockerUserID, blockerPseudonymID),
+				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(blockerUserID, blockerPseudonymID),
 			},
 			PseudonymIDPathParam: apimodels.PseudonymIDPathParam{
 				PseudonymID: blockedPseudonymID,
@@ -266,7 +266,7 @@ func TestUserHandler_UnblockUser(t *testing.T) {
 			apimodels.PseudonymIDPathParam
 		}{
 			AuthInput: middleware.AuthInput{
-				Authorization: "Bearer " + fixtures.GenerateTestJWTToken(1, blockerPseudonymID),
+				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, blockerPseudonymID),
 			},
 			PseudonymIDPathParam: apimodels.PseudonymIDPathParam{
 				PseudonymID: blockedPseudonymID,
@@ -312,7 +312,7 @@ func TestUserHandler_UnblockUser(t *testing.T) {
 			apimodels.PseudonymIDPathParam
 		}{
 			AuthInput: middleware.AuthInput{
-				Authorization: "Bearer " + fixtures.GenerateTestJWTToken(1, blockerPseudonymID),
+				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, blockerPseudonymID),
 			},
 			PseudonymIDPathParam: apimodels.PseudonymIDPathParam{
 				PseudonymID: blockedPseudonymID,
@@ -355,7 +355,7 @@ func TestUserHandler_UnblockUser(t *testing.T) {
 			apimodels.PseudonymIDPathParam
 		}{
 			AuthInput: middleware.AuthInput{
-				Authorization: "Bearer " + fixtures.GenerateTestJWTToken(1, blockerPseudonymID),
+				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, blockerPseudonymID),
 			},
 			PseudonymIDPathParam: apimodels.PseudonymIDPathParam{
 				PseudonymID: blockedPseudonymID,
