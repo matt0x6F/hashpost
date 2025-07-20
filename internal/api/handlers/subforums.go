@@ -18,18 +18,34 @@ import (
 
 // SubforumHandler handles subforum-related requests
 type SubforumHandler struct {
-	subforumDAO             *dao.SubforumDAO
-	subforumSubscriptionDAO *dao.SubforumSubscriptionDAO
-	permissionDAO           *dao.PermissionDAO
+	subforumDAO             dao.SubforumDAOInterface
+	subforumSubscriptionDAO dao.SubforumSubscriptionDAOInterface
+	permissionDAO           dao.PermissionDAOInterface
+	subforumModeratorDAO    dao.SubforumModeratorDAOInterface
+	identityMappingDAO      dao.IdentityMappingDAOInterface
 	db                      bob.Executor
 }
 
-// NewSubforumHandler creates a new subforum handler
+// NewSubforumHandler creates a new subforum handler with real DAOs
 func NewSubforumHandler(db bob.Executor) *SubforumHandler {
 	return &SubforumHandler{
 		subforumDAO:             dao.NewSubforumDAO(db),
 		subforumSubscriptionDAO: dao.NewSubforumSubscriptionDAO(db),
 		permissionDAO:           dao.NewPermissionDAO(db),
+		subforumModeratorDAO:    dao.NewSubforumModeratorDAO(db),
+		identityMappingDAO:      dao.NewIdentityMappingDAO(db),
+		db:                      db,
+	}
+}
+
+// NewSubforumHandlerWithMocks creates a new subforum handler with mock DAOs for testing
+func NewSubforumHandlerWithMocks(subforumDAO dao.SubforumDAOInterface, subforumSubscriptionDAO dao.SubforumSubscriptionDAOInterface, permissionDAO dao.PermissionDAOInterface, subforumModeratorDAO dao.SubforumModeratorDAOInterface, identityMappingDAO dao.IdentityMappingDAOInterface, db bob.Executor) *SubforumHandler {
+	return &SubforumHandler{
+		subforumDAO:             subforumDAO,
+		subforumSubscriptionDAO: subforumSubscriptionDAO,
+		permissionDAO:           permissionDAO,
+		subforumModeratorDAO:    subforumModeratorDAO,
+		identityMappingDAO:      identityMappingDAO,
 		db:                      db,
 	}
 }
@@ -324,9 +340,7 @@ func (h *SubforumHandler) GetSubforumDetails(ctx context.Context, input *models.
 
 // getSubforumModerators retrieves moderators for a subforum
 func (h *SubforumHandler) getSubforumModerators(ctx context.Context, subforumID int32) ([]*dbmodels.SubforumModerator, error) {
-	moderators, err := dbmodels.SubforumModerators.Query(
-		dbmodels.SelectWhere.SubforumModerators.SubforumID.EQ(subforumID),
-	).All(ctx, h.db)
+	moderators, err := h.subforumModeratorDAO.GetModeratorsBySubforum(ctx, subforumID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get subforum moderators: %w", err)
 	}
@@ -524,14 +538,10 @@ func (h *SubforumHandler) CreateSubforum(ctx context.Context, input *models.Subf
 		Bool("is_restricted", input.Body.IsRestricted).
 		Msg("Received subforum creation input")
 
-	// Extract user context from the authentication fields
-	authInput := &middleware.AuthInput{
-		Authorization: input.Authorization,
-		AccessToken:   input.AccessToken,
-	}
-	userCtx, err := middleware.ExtractUserFromHumaInput(authInput)
-	if err != nil || userCtx == nil {
-		log.Warn().Msg("Authentication required for subforum creation")
+	// Extract user from context
+	userCtx, err := middleware.ExtractUserFromContext(ctx)
+	if err != nil {
+		log.Error().Err(err).Msg("Authentication required for subforum creation")
 		return nil, huma.Error401Unauthorized("authentication required")
 	}
 
@@ -593,8 +603,8 @@ func (h *SubforumHandler) GetPseudonymSubscriptions(ctx context.Context, input *
 	middleware.AuthInput
 	models.PseudonymSubscriptionsInput
 }) (*models.SubforumSubscriptionsResponse, error) {
-	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
-	if err != nil || userCtx == nil {
+	userCtx, err := middleware.ExtractUserFromContext(ctx)
+	if err != nil {
 		log := zerolog.Ctx(ctx)
 		log.Error().Err(err).Msg("Failed to extract user from context in GetPseudonymSubscriptions")
 		return nil, huma.Error401Unauthorized("Authentication required")
@@ -604,10 +614,7 @@ func (h *SubforumHandler) GetPseudonymSubscriptions(ctx context.Context, input *
 	log.Info().Int64("user_id", userCtx.UserID).Str("pseudonym_id", input.PseudonymSubscriptionsInput.PseudonymID).Msg("Checking pseudonym ownership for subscriptions")
 
 	// Only allow if the pseudonym belongs to the user
-	identityMappings, err := dbmodels.IdentityMappings.Query(
-		dbmodels.SelectWhere.IdentityMappings.UserID.EQ(userCtx.UserID),
-		dbmodels.SelectWhere.IdentityMappings.IsActive.EQ(true),
-	).All(ctx, h.db)
+	identityMappings, err := h.identityMappingDAO.GetIdentityMappingsByUserID(ctx, userCtx.UserID)
 	if err != nil {
 		log.Error().Err(err).Int64("user_id", userCtx.UserID).Msg("Failed to fetch user identity mappings")
 		return nil, huma.Error500InternalServerError("Failed to fetch user pseudonyms")

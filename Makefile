@@ -1,7 +1,7 @@
 # HashPost Makefile
 # Provides convenient commands for development and deployment
 
-.PHONY: help build run test clean migrate migrate-up migrate-down migrate-status migrate-create docker-build docker-up docker-down docker-logs generate test-integration-local test-models test-models-setup ui-install ui-generate-api ui-dev ui-build
+.PHONY: help build run test clean migrate migrate-up migrate-down migrate-status migrate-create docker-build docker-up docker-down docker-logs generate test-integration-local test-models test-models-setup ui-install ui-generate-api ui-dev ui-build test-coverage test-coverage-html test-coverage-ci test-coverage-report
 
 # Default target
 help:
@@ -22,6 +22,10 @@ help:
 	@echo ""
 	@echo "Testing:"
 	@echo "  test            Run unit tests"
+	@echo "  test-coverage   Run unit tests with coverage report"
+	@echo "  test-coverage-html Run tests and generate HTML coverage report"
+	@echo "  test-coverage-ci Run tests with coverage for CI (fails if < 70%)"
+	@echo "  test-coverage-report Generate detailed coverage report"
 	@echo "  test-integration-local Run integration tests with clean DB (includes model tests)"
 	@echo "                         Usage: make test-integration-local TEST_PATH=./internal/api/integration/auth_integration_test.go"
 	@echo "  test-dao        Run DAO integration tests with test database"
@@ -88,8 +92,6 @@ docker-prod:
 	@echo "Starting production environment..."
 	docker-compose --profile production up -d
 
-
-
 # Development commands
 build:
 	@echo "Building application..."
@@ -104,6 +106,50 @@ test: test-unit
 test-unit:
 	@echo "Running unit tests..."
 	PSQL_DSN=postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable go test ./... -v
+
+# Code Coverage Targets
+test-coverage:
+	@echo "🧪 Running unit tests with coverage..."
+	@PSQL_DSN=postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable go test ./... -v -coverprofile=coverage.out
+	@echo "📊 Coverage Summary:"
+	@go tool cover -func=coverage.out | tail -1
+	@echo "📁 Coverage data saved to: coverage.out"
+
+test-coverage-html: test-coverage
+	@echo "🌐 Generating HTML coverage report..."
+	@go tool cover -html=coverage.out -o coverage.html
+	@echo "📄 HTML coverage report generated: coverage.html"
+	@echo "💡 Open coverage.html in your browser to view detailed coverage"
+
+test-coverage-ci:
+	@echo "🧪 Running tests with coverage for CI..."
+	@PSQL_DSN=postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable go test ./... -v -coverprofile=coverage.out -covermode=atomic
+	@echo "📊 Coverage Summary:"
+	@COVERAGE=$$(go tool cover -func=coverage.out | tail -1 | awk '{print $$3}' | sed 's/%//'); \
+	echo "Total coverage: $$COVERAGE%"; \
+	if [ $$(echo "$$COVERAGE < 70" | bc -l) -eq 1 ]; then \
+		echo "❌ Coverage is below 70% threshold ($$COVERAGE%)"; \
+		exit 1; \
+	else \
+		echo "✅ Coverage meets threshold ($$COVERAGE% >= 70%)"; \
+	fi
+
+test-coverage-report:
+	@echo "📋 Generating detailed coverage report..."
+	@if [ ! -f coverage.out ]; then \
+		echo "No coverage data found. Running tests first..."; \
+		make test-coverage; \
+	fi
+	@echo "📊 Coverage by package:"
+	@go tool cover -func=coverage.out
+	@echo ""
+	@echo "📈 Coverage summary:"
+	@go tool cover -func=coverage.out | tail -1
+	@echo ""
+	@echo "🔍 Files with low coverage (< 80%):"
+	@go tool cover -func=coverage.out | grep -E "\.go:[0-9]+" | awk '$$3 < 80 {print $$1 ":" $$3 "%"}' | head -10
+	@echo ""
+	@echo "💡 Run 'make test-coverage-html' to generate visual report"
 
 # DAO Integration Tests
 test-dao: test-dao-setup test-dao-run test-dao-cleanup
@@ -189,6 +235,7 @@ test-integration-local:
 clean:
 	@echo "Cleaning build artifacts..."
 	rm -rf bin/
+	rm -f coverage.out coverage.html
 	go clean
 
 # Database commands (local)

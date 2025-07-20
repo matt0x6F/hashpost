@@ -74,6 +74,8 @@ type PostDAOInterface interface {
 	GetPostsBySubforum(ctx context.Context, subforumID int32, page, limit int, sortField string, sortDesc bool) ([]*models.Post, error)
 	CountPostsBySubforum(ctx context.Context, subforumID int32) (int64, error)
 	CountPostsByPseudonym(ctx context.Context, pseudonymID string) (int64, error)
+	CountPostsByPseudonymInSubforum(ctx context.Context, pseudonymID string, subforumID int32) (int64, error)
+	GetSubforumsByPseudonym(ctx context.Context, pseudonymID string) ([]int32, error)
 	GetPostBySubforumAndSlug(ctx context.Context, subforumID int32, slug string) (*models.Post, error)
 	UpdatePostScore(ctx context.Context, postID int64, score, upvotes, downvotes int32) error
 	IncrementViewCount(ctx context.Context, postID int64) error
@@ -92,9 +94,12 @@ type CommentDAOInterface interface {
 	GetCommentsByPostWithNestedReplies(ctx context.Context, postID int64) ([]*models.Comment, error)
 	CountCommentsByPost(ctx context.Context, postID int64) (int64, error)
 	CountCommentsByPseudonym(ctx context.Context, pseudonymID string) (int64, error)
+	CountCommentsByPseudonymInSubforum(ctx context.Context, pseudonymID string, subforumID int32) (int64, error)
+	GetSubforumsByPseudonymComments(ctx context.Context, pseudonymID string) ([]int32, error)
 	UpdateCommentScore(ctx context.Context, commentID int64, score, upvotes, downvotes int32) error
 	MarkCommentAsDeletedByPseudonym(ctx context.Context, commentID int64, pseudonymID string, reason string) error
 	DeleteCommentByUser(ctx context.Context, commentID int64, reason string) error
+	SetRemoved(ctx context.Context, commentID int64, removed bool) error
 }
 
 // VoteDAOInterface defines the interface for vote data access operations
@@ -140,4 +145,69 @@ type UserPreferencesDAOInterface interface {
 	GetUserPreferences(ctx context.Context, userID int64) (*models.UserPreference, error)
 	UpdateUserPreferences(ctx context.Context, userID int64, updates *models.UserPreferenceSetter) error
 	UpsertUserPreferences(ctx context.Context, userID int64, preferences *models.UserPreferenceSetter) (*models.UserPreference, error)
+}
+
+// CorrelationAuditDAOInterface defines the interface for correlation audit operations
+type CorrelationAuditDAOInterface interface {
+	CreateCorrelationAudit(ctx context.Context, auditRecord *models.CorrelationAuditSetter) error
+	GetCorrelationHistory(ctx context.Context, correlationType string, page, limit int) (models.CorrelationAuditSlice, error)
+}
+
+// ReportDAOInterface defines the interface for report data access operations
+type ReportDAOInterface interface {
+	CreateReport(ctx context.Context, report *models.ReportSetter) (*models.Report, error)
+	GetReportByID(ctx context.Context, reportID int64) (*models.Report, error)
+	GetReports(ctx context.Context, status string, page, limit int) ([]*models.Report, error)
+	CountReports(ctx context.Context, status string) (int64, error)
+	UpdateReport(ctx context.Context, reportID int64, updates *models.ReportSetter) error
+	ResolveReport(ctx context.Context, reportID int64, resolverUserID int64, resolverPseudonymID string, resolutionNotes string) error
+}
+
+// ModerationActionDAOInterface defines the interface for moderation action data access operations
+type ModerationActionDAOInterface interface {
+	CreateModerationAction(ctx context.Context, action *models.ModerationActionSetter) (*models.ModerationAction, error)
+	GetModerationActionByID(ctx context.Context, actionID int64) (*models.ModerationAction, error)
+	GetModerationActions(ctx context.Context, actionType string, page, limit int) ([]*models.ModerationAction, error)
+	CountModerationActions(ctx context.Context, actionType string) (int64, error)
+	GetModerationActionsByModerator(ctx context.Context, moderatorUserID int64, page, limit int) ([]*models.ModerationAction, error)
+}
+
+// UserBanDAOInterface defines the interface for user ban data access operations
+type UserBanDAOInterface interface {
+	CreateUserBan(ctx context.Context, ban *models.UserBanSetter) (*models.UserBan, error)
+	GetUserBanByID(ctx context.Context, banID int64) (*models.UserBan, error)
+	GetUserBansBySubforum(ctx context.Context, subforumID int32, page, limit int) ([]*models.UserBan, error)
+	GetUserBansByUser(ctx context.Context, bannedUserID int64, page, limit int) ([]*models.UserBan, error)
+	CountUserBansBySubforum(ctx context.Context, subforumID int32) (int64, error)
+	CountUserBansByUser(ctx context.Context, bannedUserID int64) (int64, error)
+	IsUserBannedFromSubforum(ctx context.Context, userID int64, subforumID int32) (bool, error)
+	UpdateUserBan(ctx context.Context, banID int64, updates *models.UserBanSetter) error
+	DeactivateUserBan(ctx context.Context, banID int64) error
+}
+
+// SubforumSubscriptionDAOInterface defines the interface for subforum subscription data access operations
+type SubforumSubscriptionDAOInterface interface {
+	CreateSubscription(ctx context.Context, pseudonymID string, subforumID int32, isFavorite bool) (*models.SubforumSubscription, error)
+	GetSubscription(ctx context.Context, pseudonymID string, subforumID int32) (*models.SubforumSubscription, error)
+	GetSubscriptionsByPseudonym(ctx context.Context, pseudonymID string) ([]*models.SubforumSubscription, error)
+	IsSubscribed(ctx context.Context, pseudonymID string, subforumID int32) (bool, error)
+	IsFavorite(ctx context.Context, pseudonymID string, subforumID int32) (bool, error)
+	DeleteSubscription(ctx context.Context, pseudonymID string, subforumID int32) error
+	CountSubscriptionsBySubforum(ctx context.Context, subforumID int32) (int64, error)
+}
+
+// PermissionDAOInterface defines the interface for permission data access operations
+type PermissionDAOInterface interface {
+	CanAccessPrivateSubforum(ctx context.Context, userID int64, subforumID int32) (bool, error)
+	HasSubforumCapability(ctx context.Context, userID int64, subforumID int32, capability string) (bool, error)
+	CanModerateSubforum(ctx context.Context, userID int64, subforumID int32) (bool, error)
+}
+
+// SubforumModeratorDAOInterface defines the interface for subforum moderator data access operations
+type SubforumModeratorDAOInterface interface {
+	GetModeratorsBySubforum(ctx context.Context, subforumID int32) ([]*models.SubforumModerator, error)
+	GetModeratorByPseudonym(ctx context.Context, pseudonymID string, subforumID int32) (*models.SubforumModerator, error)
+	CreateModerator(ctx context.Context, subforumID int32, pseudonymID, role string, addedByPseudonymID string) (*models.SubforumModerator, error)
+	DeleteModerator(ctx context.Context, pseudonymID string, subforumID int32) error
+	UpdateModeratorRole(ctx context.Context, pseudonymID string, subforumID int32, newRole string) error
 }

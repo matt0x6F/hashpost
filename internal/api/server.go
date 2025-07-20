@@ -62,6 +62,11 @@ func NewServer() *Server {
 	apiKeyDAO := dao.NewAPIKeyDAO(db)
 	subforumDAO := dao.NewSubforumDAO(db)
 
+	// Create moderation DAOs
+	reportDAO := dao.NewReportDAO(rawDB)
+	moderationActionDAO := dao.NewModerationActionDAO(rawDB)
+	userBanDAO := dao.NewUserBanDAO(rawDB)
+
 	// Create auth middleware with configuration
 	authMiddleware := middleware.NewAuthMiddleware(cfg.JWT.Secret, apiKeyDAO, &cfg.JWT, &cfg.Security)
 
@@ -96,7 +101,7 @@ func NewServer() *Server {
 	routes.RegisterSubforumRoutes(api, db)
 	routes.RegisterMessagesRoutes(api)
 	routes.RegisterSearchRoutes(api)
-	routes.RegisterModerationRoutes(api)
+	routes.RegisterModerationRoutes(api, reportDAO, moderationActionDAO, userBanDAO, securePseudonymDAO, subforumDAO, postDAO, commentDAO)
 	routes.RegisterContentRoutes(api, db, rawDB, ibeSystem, identityMappingDAO, userDAO)
 	routes.RegisterCorrelationRoutes(api, db, ibeSystem, securePseudonymDAO, identityMappingDAO, postDAO, commentDAO, subforumDAO)
 
