@@ -22,25 +22,27 @@ import (
 
 // CorrelationHandler handles administrative correlation requests
 type CorrelationHandler struct {
-	db                 bob.Executor
-	ibeSystem          *ibe.IBESystem
-	securePseudonymDAO *dao.SecurePseudonymDAO
-	identityMappingDAO *dao.IdentityMappingDAO
-	postDAO            *dao.PostDAO
-	commentDAO         *dao.CommentDAO
-	subforumDAO        *dao.SubforumDAO
+	db                  bob.Executor
+	ibeSystem           *ibe.IBESystem
+	securePseudonymDAO  dao.SecurePseudonymDAOInterface
+	identityMappingDAO  dao.IdentityMappingDAOInterface
+	postDAO             dao.PostDAOInterface
+	commentDAO          dao.CommentDAOInterface
+	subforumDAO         dao.SubforumDAOInterface
+	correlationAuditDAO dao.CorrelationAuditDAOInterface
 }
 
 // NewCorrelationHandler creates a new correlation handler
-func NewCorrelationHandler(db bob.Executor, ibeSystem *ibe.IBESystem, securePseudonymDAO *dao.SecurePseudonymDAO, identityMappingDAO *dao.IdentityMappingDAO, postDAO *dao.PostDAO, commentDAO *dao.CommentDAO, subforumDAO *dao.SubforumDAO) *CorrelationHandler {
+func NewCorrelationHandler(db bob.Executor, ibeSystem *ibe.IBESystem, securePseudonymDAO dao.SecurePseudonymDAOInterface, identityMappingDAO dao.IdentityMappingDAOInterface, postDAO dao.PostDAOInterface, commentDAO dao.CommentDAOInterface, subforumDAO dao.SubforumDAOInterface, correlationAuditDAO dao.CorrelationAuditDAOInterface) *CorrelationHandler {
 	return &CorrelationHandler{
-		db:                 db,
-		ibeSystem:          ibeSystem,
-		securePseudonymDAO: securePseudonymDAO,
-		identityMappingDAO: identityMappingDAO,
-		postDAO:            postDAO,
-		commentDAO:         commentDAO,
-		subforumDAO:        subforumDAO,
+		db:                  db,
+		ibeSystem:           ibeSystem,
+		securePseudonymDAO:  securePseudonymDAO,
+		identityMappingDAO:  identityMappingDAO,
+		postDAO:             postDAO,
+		commentDAO:          commentDAO,
+		subforumDAO:         subforumDAO,
+		correlationAuditDAO: correlationAuditDAO,
 	}
 }
 
@@ -234,7 +236,7 @@ func (h *CorrelationHandler) RequestFingerprintCorrelation(ctx context.Context, 
 	}
 
 	// Store audit record in database
-	_, err = dbmodels.CorrelationAudits.Insert(auditRecord).One(ctx, h.db)
+	err = h.correlationAuditDAO.CreateCorrelationAudit(ctx, auditRecord)
 	if err != nil {
 		log.Error().Err(err).
 			Str("audit_id", auditID.String()).
@@ -506,7 +508,7 @@ func (h *CorrelationHandler) RequestIdentityCorrelation(ctx context.Context, inp
 	}
 
 	// Store audit record in database
-	_, err = dbmodels.CorrelationAudits.Insert(auditRecord).One(ctx, h.db)
+	err = h.correlationAuditDAO.CreateCorrelationAudit(ctx, auditRecord)
 	if err != nil {
 		log.Error().Err(err).
 			Str("audit_id", auditID.String()).
@@ -555,9 +557,7 @@ func (h *CorrelationHandler) GetCorrelationHistory(ctx context.Context, input *m
 	}
 
 	// Get correlation history from database with basic pagination
-	// Note: The CorrelationAudits table uses a ViewQuery type which has different methods
-	// than regular SelectQuery. For now, we'll use a simple approach.
-	auditRecords, err := dbmodels.CorrelationAudits.Query().All(ctx, h.db)
+	auditRecords, err := h.correlationAuditDAO.GetCorrelationHistory(ctx, input.CorrelationType, input.Page, input.Limit)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to get correlation history")
 		return nil, fmt.Errorf("failed to get correlation history: %w", err)

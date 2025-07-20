@@ -453,6 +453,12 @@ func (h *ContentHandler) GetPostDetails(ctx context.Context, input *models.PostD
 		return nil, fmt.Errorf("post is removed")
 	}
 
+	// Check if post is deleted
+	if post.IsDeleted.Valid && post.IsDeleted.V {
+		log.Warn().Int64("post_id", postID).Msg("Post is deleted")
+		return nil, fmt.Errorf("post is deleted")
+	}
+
 	// Get comments for the post
 	comments, err := h.commentDAO.GetCommentsByPostWithNestedReplies(ctx, postID)
 	if err != nil {
@@ -534,6 +540,12 @@ func (h *ContentHandler) GetPostBySlug(ctx context.Context, input *models.PostBy
 	if post.IsRemoved.Valid && post.IsRemoved.V {
 		log.Warn().Int64("post_id", post.PostID).Msg("Post is removed")
 		return nil, huma.Error404NotFound("post is removed")
+	}
+
+	// Check if post is deleted
+	if post.IsDeleted.Valid && post.IsDeleted.V {
+		log.Warn().Int64("post_id", post.PostID).Msg("Post is deleted")
+		return nil, huma.Error404NotFound("post is deleted")
 	}
 
 	// Get comments for the post

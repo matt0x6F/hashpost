@@ -2,179 +2,26 @@ package handlers
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 	"time"
 
-	"github.com/gofrs/uuid/v5"
 	"github.com/matt0x6f/hashpost/internal/config"
+	"github.com/matt0x6f/hashpost/internal/database/dao/mocks"
 	dbmodels "github.com/matt0x6f/hashpost/internal/database/models"
+	"github.com/matt0x6f/hashpost/internal/fixtures"
 	"github.com/matt0x6f/hashpost/internal/ibe"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-// MockRoleKeyDAO is a mock implementation of RoleKeyDAOInterface
-type MockRoleKeyDAO struct {
-	mock.Mock
-}
-
-func (m *MockRoleKeyDAO) CreateRoleKey(ctx context.Context, roleName, scope string, keyData []byte, capabilities []string, expiresAt time.Time, createdBy int64) (*dbmodels.RoleKey, error) {
-	args := m.Called(ctx, roleName, scope, keyData, capabilities, expiresAt, createdBy)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*dbmodels.RoleKey), args.Error(1)
-}
-
-func (m *MockRoleKeyDAO) GetRoleKey(ctx context.Context, roleName, scope string) (*dbmodels.RoleKey, error) {
-	args := m.Called(ctx, roleName, scope)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*dbmodels.RoleKey), args.Error(1)
-}
-
-func (m *MockRoleKeyDAO) GetPerUserRoleKey(ctx context.Context, roleName, scope string, createdBy int64) (*dbmodels.RoleKey, error) {
-	args := m.Called(ctx, roleName, scope, createdBy)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*dbmodels.RoleKey), args.Error(1)
-}
-
-func (m *MockRoleKeyDAO) GetRoleKeyByID(ctx context.Context, keyID string) (*dbmodels.RoleKey, error) {
-	args := m.Called(ctx, keyID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*dbmodels.RoleKey), args.Error(1)
-}
-
-func (m *MockRoleKeyDAO) ListRoleKeys(ctx context.Context) ([]*dbmodels.RoleKey, error) {
-	args := m.Called(ctx)
-	return args.Get(0).([]*dbmodels.RoleKey), args.Error(1)
-}
-
-func (m *MockRoleKeyDAO) ListRoleKeysByRole(ctx context.Context, roleName string) ([]*dbmodels.RoleKey, error) {
-	args := m.Called(ctx, roleName)
-	return args.Get(0).([]*dbmodels.RoleKey), args.Error(1)
-}
-
-func (m *MockRoleKeyDAO) DeactivateRoleKey(ctx context.Context, keyID string) error {
-	args := m.Called(ctx, keyID)
-	return args.Error(0)
-}
-
-func (m *MockRoleKeyDAO) ValidateKeyCapability(ctx context.Context, roleName, scope, requiredCapability string) (bool, error) {
-	args := m.Called(ctx, roleName, scope, requiredCapability)
-	return args.Bool(0), args.Error(1)
-}
-
-func (m *MockRoleKeyDAO) GetKeyData(ctx context.Context, roleName, scope string) ([]byte, error) {
-	args := m.Called(ctx, roleName, scope)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]byte), args.Error(1)
-}
-
-func (m *MockRoleKeyDAO) GetPerUserKeyData(ctx context.Context, roleName, scope string, createdBy int64) ([]byte, error) {
-	args := m.Called(ctx, roleName, scope, createdBy)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]byte), args.Error(1)
-}
-
-func (m *MockRoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interface{}, userID int64) error {
-	args := m.Called(ctx, ibeSystem, userID)
-	return args.Error(0)
-}
-
-// MockIdentityMappingDAO is a mock implementation of IdentityMappingDAOInterface
-type MockIdentityMappingDAO struct {
-	mock.Mock
-}
-
-func (m *MockIdentityMappingDAO) CreateIdentityMapping(ctx context.Context, mapping *dbmodels.IdentityMappingSetter) (*dbmodels.IdentityMapping, error) {
-	args := m.Called(ctx, mapping)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*dbmodels.IdentityMapping), args.Error(1)
-}
-
-func (m *MockIdentityMappingDAO) GetIdentityMappingByPseudonymID(ctx context.Context, pseudonymID string) (*dbmodels.IdentityMapping, error) {
-	args := m.Called(ctx, pseudonymID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*dbmodels.IdentityMapping), args.Error(1)
-}
-
-func (m *MockIdentityMappingDAO) GetIdentityMappingsByPseudonymID(ctx context.Context, pseudonymID string) (dbmodels.IdentityMappingSlice, error) {
-	args := m.Called(ctx, pseudonymID)
-	return args.Get(0).(dbmodels.IdentityMappingSlice), args.Error(1)
-}
-
-func (m *MockIdentityMappingDAO) GetIdentityMappingsByUserID(ctx context.Context, userID int64) (dbmodels.IdentityMappingSlice, error) {
-	args := m.Called(ctx, userID)
-	return args.Get(0).(dbmodels.IdentityMappingSlice), args.Error(1)
-}
-
-func (m *MockIdentityMappingDAO) GetIdentityMappingsByFingerprint(ctx context.Context, fingerprint string) (dbmodels.IdentityMappingSlice, error) {
-	args := m.Called(ctx, fingerprint)
-	return args.Get(0).(dbmodels.IdentityMappingSlice), args.Error(1)
-}
-
-func (m *MockIdentityMappingDAO) DeactivateIdentityMapping(ctx context.Context, mappingID string) error {
-	args := m.Called(ctx, mappingID)
-	return args.Error(0)
-}
-
-// MockSubforumDAO is a mock implementation of SubforumDAOInterface
-type MockSubforumDAO struct {
-	mock.Mock
-}
-
-func (m *MockSubforumDAO) CreateSubforum(ctx context.Context, name, displayName, description, sidebarText, rulesText string, isNSFW, isPrivate, isRestricted bool) (*dbmodels.Subforum, error) {
-	args := m.Called(ctx, name, displayName, description, sidebarText, rulesText, isNSFW, isPrivate, isRestricted)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*dbmodels.Subforum), args.Error(1)
-}
-
-func (m *MockSubforumDAO) GetSubforumByID(ctx context.Context, subforumID int32) (*dbmodels.Subforum, error) {
-	args := m.Called(ctx, subforumID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*dbmodels.Subforum), args.Error(1)
-}
-
-func (m *MockSubforumDAO) GetSubforumByName(ctx context.Context, name string) (*dbmodels.Subforum, error) {
-	args := m.Called(ctx, name)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*dbmodels.Subforum), args.Error(1)
-}
-
-func (m *MockSubforumDAO) ListSubforums(ctx context.Context) ([]*dbmodels.Subforum, error) {
-	args := m.Called(ctx)
-	return args.Get(0).([]*dbmodels.Subforum), args.Error(1)
-}
-
 // Helper functions for testing
-func createTestAuthHandler() (*AuthHandler, *MockUserDAO, *MockSecurePseudonymDAO, *MockIdentityMappingDAO, *MockRoleKeyDAO, *ibe.IBESystem) {
-	mockUserDAO := &MockUserDAO{}
-	mockSecurePseudonymDAO := &MockSecurePseudonymDAO{}
-	mockIdentityMappingDAO := &MockIdentityMappingDAO{}
-	mockRoleKeyDAO := &MockRoleKeyDAO{}
-	mockSubforumDAO := &MockSubforumDAO{}
+func createTestAuthHandler() (*AuthHandler, *mocks.MockUserDAO, *mocks.MockSecurePseudonymDAO, *mocks.MockIdentityMappingDAO, *mocks.MockRoleKeyDAO, *ibe.IBESystem) {
+	mockUserDAO := &mocks.MockUserDAO{}
+	mockSecurePseudonymDAO := mocks.NewMockSecurePseudonymDAO()
+	mockIdentityMappingDAO := &mocks.MockIdentityMappingDAO{}
+	mockRoleKeyDAO := &mocks.MockRoleKeyDAO{}
+	mockSubforumDAO := mocks.NewMockSubforumDAO()
 
 	ibeSystem := ibe.NewIBESystem()
 
@@ -209,35 +56,6 @@ func createTestAuthHandler() (*AuthHandler, *MockUserDAO, *MockSecurePseudonymDA
 	return handler, mockUserDAO, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockRoleKeyDAO, ibeSystem
 }
 
-func createTestUser(userID int64, email string, roles []string) *dbmodels.User {
-	return &dbmodels.User{
-		UserID:       userID,
-		Email:        email,
-		PasswordHash: "hashed_password",
-		IsActive:     sql.Null[bool]{V: true, Valid: true},
-	}
-}
-
-func createTestPseudonymSimple(pseudonymID, displayName string, userID int64) *dbmodels.Pseudonym {
-	return &dbmodels.Pseudonym{
-		PseudonymID: pseudonymID,
-		DisplayName: displayName,
-	}
-}
-
-func createTestRoleKey(keyID string, roleName, scope string, capabilities []string) *dbmodels.RoleKey {
-	// Create a UUID from the string keyID for testing
-	uuid, _ := uuid.FromString(keyID)
-	return &dbmodels.RoleKey{
-		KeyID:     uuid,
-		RoleName:  roleName,
-		Scope:     scope,
-		KeyData:   []byte("test_key_data"),
-		ExpiresAt: time.Now().AddDate(1, 0, 0),
-		CreatedBy: 1,
-	}
-}
-
 // TestRoleKeySecurity tests the role key security functionality
 func TestRoleKeySecurity(t *testing.T) {
 	t.Run("AuthenticationKeyScope", func(t *testing.T) {
@@ -245,7 +63,9 @@ func TestRoleKeySecurity(t *testing.T) {
 
 		// Test data
 		testUserID := int64(1)
-		testPseudonym := createTestPseudonymSimple("pseudonym-123", "AuthUser1", testUserID)
+		testPseudonym := fixtures.CreateTestPseudonym()
+		testPseudonym.PseudonymID = "pseudonym-123"
+		testPseudonym.DisplayName = "AuthUser1"
 
 		// Mock pseudonym retrieval
 		mockSecurePseudonymDAO.On("GetPseudonymsByUserID", mock.Anything, testUserID, "user", "authentication").Return([]*dbmodels.Pseudonym{testPseudonym}, nil)
@@ -290,7 +110,7 @@ func TestRoleKeySecurity(t *testing.T) {
 		capabilities := []string{"test_capability", "another_capability"}
 		expiresAt := time.Now().AddDate(0, 1, 0)
 		createdBy := int64(1)
-		testRoleKey := createTestRoleKey("key-123", "test_role", "test_scope", capabilities)
+		testRoleKey := fixtures.CreateTestRoleKey("key-123", "test_role", "test_scope", capabilities)
 
 		// Mock role key creation
 		mockRoleKeyDAO.On("CreateRoleKey", mock.Anything, "test_role", "test_scope", []byte("test_key_data"), capabilities, expiresAt, createdBy).Return(testRoleKey, nil)

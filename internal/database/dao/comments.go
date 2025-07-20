@@ -465,3 +465,28 @@ func (dao *CommentDAO) GetCommentsByPostWithDeleted(ctx context.Context, postID 
 
 	return comments, nil
 }
+
+// SetRemoved sets the is_removed field for a comment
+func (dao *CommentDAO) SetRemoved(ctx context.Context, commentID int64, removed bool) error {
+	comment, err := models.Comments.Query(
+		models.SelectWhere.Comments.CommentID.EQ(commentID),
+	).One(ctx, dao.db)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("comment not found")
+		}
+		return fmt.Errorf("failed to find comment: %w", err)
+	}
+
+	updates := &models.CommentSetter{
+		IsRemoved: &sql.Null[bool]{Valid: true, V: removed},
+		UpdatedAt: &sql.Null[time.Time]{Valid: true, V: time.Now()},
+	}
+
+	err = comment.Update(ctx, dao.db, updates)
+	if err != nil {
+		return fmt.Errorf("failed to set comment removed status: %w", err)
+	}
+
+	return nil
+}

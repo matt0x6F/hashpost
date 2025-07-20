@@ -5,11 +5,12 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/matt0x6f/hashpost/internal/api/handlers"
+	"github.com/matt0x6f/hashpost/internal/database/dao"
 )
 
 // RegisterModerationRoutes registers moderation-related routes
-func RegisterModerationRoutes(api huma.API) {
-	moderationHandler := handlers.NewModerationHandler()
+func RegisterModerationRoutes(api huma.API, reportDAO *dao.ReportDAO, moderationActionDAO *dao.ModerationActionDAO, userBanDAO *dao.UserBanDAO, securePseudonymDAO *dao.SecurePseudonymDAO, subforumDAO *dao.SubforumDAO, postDAO *dao.PostDAO, commentDAO *dao.CommentDAO) {
+	moderationHandler := handlers.NewModerationHandler(reportDAO, moderationActionDAO, userBanDAO, securePseudonymDAO, subforumDAO, postDAO, commentDAO)
 
 	// Report content
 	huma.Register(api, huma.Operation{
