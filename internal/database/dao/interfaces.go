@@ -30,8 +30,10 @@ type SecurePseudonymDAOInterface interface {
 	GetDefaultPseudonymByUserID(ctx context.Context, userID int64, roleName, scope string) (*models.Pseudonym, error)
 	UpdatePseudonym(ctx context.Context, pseudonymID string, updates *models.PseudonymSetter) error
 	DeletePseudonym(ctx context.Context, pseudonymID string) error
+	DeactivatePseudonym(ctx context.Context, pseudonymID string, userID int64, roleName, scope string) error
 	VerifyPseudonymOwnership(ctx context.Context, pseudonymID string, userID int64, roleName, scope string) (bool, error)
 	GetUserIDByPseudonym(ctx context.Context, pseudonymID, roleName, scope string) (int64, error)
+	UpdateLastActive(ctx context.Context, pseudonymID string) error
 }
 
 // IdentityMappingDAOInterface defines the interface for identity mapping data access operations
@@ -65,6 +67,7 @@ type SubforumDAOInterface interface {
 	GetSubforumByID(ctx context.Context, subforumID int32) (*models.Subforum, error)
 	GetSubforumByName(ctx context.Context, name string) (*models.Subforum, error)
 	ListSubforums(ctx context.Context) ([]*models.Subforum, error)
+	UpdatePostCount(ctx context.Context, subforumID int32, postCount int32) error
 }
 
 // PostDAOInterface defines the interface for post data access operations
@@ -84,6 +87,7 @@ type PostDAOInterface interface {
 	SetSticky(ctx context.Context, postID int64, sticky bool) error
 	SetRemoved(ctx context.Context, postID int64, removed bool) error
 	MarkPostAsDeletedByPseudonym(ctx context.Context, postID int64, pseudonymID string, reason string) error
+	UpdatePost(ctx context.Context, postID int64, title, content string) error
 }
 
 // CommentDAOInterface defines the interface for comment data access operations
@@ -100,6 +104,8 @@ type CommentDAOInterface interface {
 	MarkCommentAsDeletedByPseudonym(ctx context.Context, commentID int64, pseudonymID string, reason string) error
 	DeleteCommentByUser(ctx context.Context, commentID int64, reason string) error
 	SetRemoved(ctx context.Context, commentID int64, removed bool) error
+	SetCommentRemoved(ctx context.Context, commentID int64, removed bool, reason, removedByPseudonymID string) error
+	UpdateComment(ctx context.Context, commentID int64, content, editReason string) error
 }
 
 // VoteDAOInterface defines the interface for vote data access operations
@@ -199,8 +205,13 @@ type SubforumSubscriptionDAOInterface interface {
 // PermissionDAOInterface defines the interface for permission data access operations
 type PermissionDAOInterface interface {
 	CanAccessPrivateSubforum(ctx context.Context, userID int64, subforumID int32) (bool, error)
+	CanAccessPrivateSubforumWithActivePseudonym(ctx context.Context, userID int64, subforumID int32, activePseudonymID string) (bool, error)
 	HasSubforumCapability(ctx context.Context, userID int64, subforumID int32, capability string) (bool, error)
+	HasSubforumCapabilityWithActivePseudonym(ctx context.Context, userID int64, subforumID int32, capability string, activePseudonymID string) (bool, error)
 	CanModerateSubforum(ctx context.Context, userID int64, subforumID int32) (bool, error)
+	GetUserSubforumRoles(ctx context.Context, userID int64, subforumID int32) ([]string, error)
+	GetUserSubforumCapabilities(ctx context.Context, userID int64, subforumID int32) ([]string, error)
+	GetActivePseudonymRolesAndCapabilities(ctx context.Context, userID int64, activePseudonymID string) ([]string, []string, error)
 }
 
 // SubforumModeratorDAOInterface defines the interface for subforum moderator data access operations

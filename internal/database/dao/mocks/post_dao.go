@@ -149,9 +149,9 @@ func (m *MockPostDAO) GetPostByID(ctx context.Context, postID int64) (*models.Po
 
 	// Fallback to direct return values
 	if args.Get(0) == nil {
-		return nil, args.Error(0)
+		return nil, args.Error(1)
 	}
-	return args.Get(0).(*models.Post), args.Error(0)
+	return args.Get(0).(*models.Post), args.Error(1)
 }
 
 // GetPostsBySubforum retrieves posts by subforum
@@ -166,6 +166,13 @@ func (m *MockPostDAO) GetPostsBySubforum(ctx context.Context, subforumID int32, 
 // CountPostsBySubforum counts posts by subforum
 func (m *MockPostDAO) CountPostsBySubforum(ctx context.Context, subforumID int32) (int64, error) {
 	args := m.Called(ctx, subforumID)
+
+	// Check if the return value is a function
+	if fn, ok := args.Get(0).(func(context.Context, int32) (int64, error)); ok {
+		return fn(ctx, subforumID)
+	}
+
+	// Fallback to direct return values
 	return args.Get(0).(int64), args.Error(1)
 }
 
@@ -250,6 +257,12 @@ func (m *MockPostDAO) MarkPostAsDeletedByPseudonym(ctx context.Context, postID i
 	}
 
 	// Fallback to direct return values
+	return args.Error(0)
+}
+
+// UpdatePost updates a post's title and content
+func (m *MockPostDAO) UpdatePost(ctx context.Context, postID int64, title, content string) error {
+	args := m.Called(ctx, postID, title, content)
 	return args.Error(0)
 }
 

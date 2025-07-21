@@ -36,7 +36,6 @@ type User struct {
 	SuspensionReason    sql.Null[string]                      `db:"suspension_reason" scan:"suspension_reason" json:"suspension_reason"`
 	SuspensionExpiresAt sql.Null[time.Time]                   `db:"suspension_expires_at" scan:"suspension_expires_at" json:"suspension_expires_at"`
 	Roles               sql.Null[types.JSON[json.RawMessage]] `db:"roles" scan:"roles" json:"roles"`
-	Capabilities        sql.Null[types.JSON[json.RawMessage]] `db:"capabilities" scan:"capabilities" json:"capabilities"`
 	AdminUsername       sql.Null[string]                      `db:"admin_username" scan:"admin_username" json:"admin_username"`
 	AdminPasswordHash   sql.Null[string]                      `db:"admin_password_hash" scan:"admin_password_hash" json:"admin_password_hash"`
 	MfaEnabled          sql.Null[bool]                        `db:"mfa_enabled" scan:"mfa_enabled" json:"mfa_enabled"`
@@ -87,7 +86,6 @@ type userColumnNames struct {
 	SuspensionReason    string
 	SuspensionExpiresAt string
 	Roles               string
-	Capabilities        string
 	AdminUsername       string
 	AdminPasswordHash   string
 	MfaEnabled          string
@@ -111,7 +109,6 @@ type userColumns struct {
 	SuspensionReason    psql.Expression
 	SuspensionExpiresAt psql.Expression
 	Roles               psql.Expression
-	Capabilities        psql.Expression
 	AdminUsername       psql.Expression
 	AdminPasswordHash   psql.Expression
 	MfaEnabled          psql.Expression
@@ -142,7 +139,6 @@ func buildUserColumns(alias string) userColumns {
 		SuspensionReason:    psql.Quote(alias, "suspension_reason"),
 		SuspensionExpiresAt: psql.Quote(alias, "suspension_expires_at"),
 		Roles:               psql.Quote(alias, "roles"),
-		Capabilities:        psql.Quote(alias, "capabilities"),
 		AdminUsername:       psql.Quote(alias, "admin_username"),
 		AdminPasswordHash:   psql.Quote(alias, "admin_password_hash"),
 		MfaEnabled:          psql.Quote(alias, "mfa_enabled"),
@@ -164,7 +160,6 @@ type userWhere[Q psql.Filterable] struct {
 	SuspensionReason    psql.WhereNullMod[Q, string]
 	SuspensionExpiresAt psql.WhereNullMod[Q, time.Time]
 	Roles               psql.WhereNullMod[Q, types.JSON[json.RawMessage]]
-	Capabilities        psql.WhereNullMod[Q, types.JSON[json.RawMessage]]
 	AdminUsername       psql.WhereNullMod[Q, string]
 	AdminPasswordHash   psql.WhereNullMod[Q, string]
 	MfaEnabled          psql.WhereNullMod[Q, bool]
@@ -190,7 +185,6 @@ func buildUserWhere[Q psql.Filterable](cols userColumns) userWhere[Q] {
 		SuspensionReason:    psql.WhereNull[Q, string](cols.SuspensionReason),
 		SuspensionExpiresAt: psql.WhereNull[Q, time.Time](cols.SuspensionExpiresAt),
 		Roles:               psql.WhereNull[Q, types.JSON[json.RawMessage]](cols.Roles),
-		Capabilities:        psql.WhereNull[Q, types.JSON[json.RawMessage]](cols.Capabilities),
 		AdminUsername:       psql.WhereNull[Q, string](cols.AdminUsername),
 		AdminPasswordHash:   psql.WhereNull[Q, string](cols.AdminPasswordHash),
 		MfaEnabled:          psql.WhereNull[Q, bool](cols.MfaEnabled),
@@ -246,7 +240,6 @@ type UserSetter struct {
 	SuspensionReason    *sql.Null[string]                      `db:"suspension_reason" scan:"suspension_reason" json:"suspension_reason"`
 	SuspensionExpiresAt *sql.Null[time.Time]                   `db:"suspension_expires_at" scan:"suspension_expires_at" json:"suspension_expires_at"`
 	Roles               *sql.Null[types.JSON[json.RawMessage]] `db:"roles" scan:"roles" json:"roles"`
-	Capabilities        *sql.Null[types.JSON[json.RawMessage]] `db:"capabilities" scan:"capabilities" json:"capabilities"`
 	AdminUsername       *sql.Null[string]                      `db:"admin_username" scan:"admin_username" json:"admin_username"`
 	AdminPasswordHash   *sql.Null[string]                      `db:"admin_password_hash" scan:"admin_password_hash" json:"admin_password_hash"`
 	MfaEnabled          *sql.Null[bool]                        `db:"mfa_enabled" scan:"mfa_enabled" json:"mfa_enabled"`
@@ -257,7 +250,7 @@ type UserSetter struct {
 }
 
 func (s UserSetter) SetColumns() []string {
-	vals := make([]string, 0, 18)
+	vals := make([]string, 0, 17)
 	if s.UserID != nil {
 		vals = append(vals, "user_id")
 	}
@@ -296,10 +289,6 @@ func (s UserSetter) SetColumns() []string {
 
 	if s.Roles != nil {
 		vals = append(vals, "roles")
-	}
-
-	if s.Capabilities != nil {
-		vals = append(vals, "capabilities")
 	}
 
 	if s.AdminUsername != nil {
@@ -364,9 +353,6 @@ func (s UserSetter) Overwrite(t *User) {
 	if s.Roles != nil {
 		t.Roles = *s.Roles
 	}
-	if s.Capabilities != nil {
-		t.Capabilities = *s.Capabilities
-	}
 	if s.AdminUsername != nil {
 		t.AdminUsername = *s.AdminUsername
 	}
@@ -396,7 +382,7 @@ func (s *UserSetter) Apply(q *dialect.InsertQuery) {
 	})
 
 	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
-		vals := make([]bob.Expression, 18)
+		vals := make([]bob.Expression, 17)
 		if s.UserID != nil {
 			vals[0] = psql.Arg(*s.UserID)
 		} else {
@@ -457,52 +443,46 @@ func (s *UserSetter) Apply(q *dialect.InsertQuery) {
 			vals[9] = psql.Raw("DEFAULT")
 		}
 
-		if s.Capabilities != nil {
-			vals[10] = psql.Arg(*s.Capabilities)
+		if s.AdminUsername != nil {
+			vals[10] = psql.Arg(*s.AdminUsername)
 		} else {
 			vals[10] = psql.Raw("DEFAULT")
 		}
 
-		if s.AdminUsername != nil {
-			vals[11] = psql.Arg(*s.AdminUsername)
+		if s.AdminPasswordHash != nil {
+			vals[11] = psql.Arg(*s.AdminPasswordHash)
 		} else {
 			vals[11] = psql.Raw("DEFAULT")
 		}
 
-		if s.AdminPasswordHash != nil {
-			vals[12] = psql.Arg(*s.AdminPasswordHash)
+		if s.MfaEnabled != nil {
+			vals[12] = psql.Arg(*s.MfaEnabled)
 		} else {
 			vals[12] = psql.Raw("DEFAULT")
 		}
 
-		if s.MfaEnabled != nil {
-			vals[13] = psql.Arg(*s.MfaEnabled)
+		if s.MfaSecret != nil {
+			vals[13] = psql.Arg(*s.MfaSecret)
 		} else {
 			vals[13] = psql.Raw("DEFAULT")
 		}
 
-		if s.MfaSecret != nil {
-			vals[14] = psql.Arg(*s.MfaSecret)
+		if s.ModeratedSubforums != nil {
+			vals[14] = psql.Arg(*s.ModeratedSubforums)
 		} else {
 			vals[14] = psql.Raw("DEFAULT")
 		}
 
-		if s.ModeratedSubforums != nil {
-			vals[15] = psql.Arg(*s.ModeratedSubforums)
+		if s.AdminScope != nil {
+			vals[15] = psql.Arg(*s.AdminScope)
 		} else {
 			vals[15] = psql.Raw("DEFAULT")
 		}
 
-		if s.AdminScope != nil {
-			vals[16] = psql.Arg(*s.AdminScope)
+		if s.UpdatedAt != nil {
+			vals[16] = psql.Arg(*s.UpdatedAt)
 		} else {
 			vals[16] = psql.Raw("DEFAULT")
-		}
-
-		if s.UpdatedAt != nil {
-			vals[17] = psql.Arg(*s.UpdatedAt)
-		} else {
-			vals[17] = psql.Raw("DEFAULT")
 		}
 
 		return bob.ExpressSlice(ctx, w, d, start, vals, "", ", ", "")
@@ -514,7 +494,7 @@ func (s UserSetter) UpdateMod() bob.Mod[*dialect.UpdateQuery] {
 }
 
 func (s UserSetter) Expressions(prefix ...string) []bob.Expression {
-	exprs := make([]bob.Expression, 0, 18)
+	exprs := make([]bob.Expression, 0, 17)
 
 	if s.UserID != nil {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
@@ -583,13 +563,6 @@ func (s UserSetter) Expressions(prefix ...string) []bob.Expression {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "roles")...),
 			psql.Arg(s.Roles),
-		}})
-	}
-
-	if s.Capabilities != nil {
-		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
-			psql.Quote(append(prefix, "capabilities")...),
-			psql.Arg(s.Capabilities),
 		}})
 	}
 

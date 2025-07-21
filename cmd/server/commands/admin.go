@@ -138,7 +138,6 @@ func CreateAdminUser() error {
 		updates := &models.UserSetter{
 			PasswordHash:      &passwordHash,
 			Roles:             &rolesNull,
-			Capabilities:      &capabilitiesNull,
 			AdminUsername:     &adminUsernameNull,
 			AdminPasswordHash: &adminPasswordHashNull,
 			MfaEnabled:        &mfaEnabledNull,
@@ -208,7 +207,6 @@ func CreateAdminUser() error {
 
 		updates := &models.UserSetter{
 			Roles:             &rolesNull,
-			Capabilities:      &capabilitiesNull,
 			AdminUsername:     &adminUsernameNull,
 			AdminPasswordHash: &adminPasswordHashNull,
 			MfaEnabled:        &mfaEnabledNull,
@@ -255,7 +253,27 @@ func CreateAdminUser() error {
 		if err != nil {
 			return fmt.Errorf("failed to create pseudonym for admin user: %w", err)
 		}
-		log.Info().Str("pseudonym_id", pseudonym.PseudonymID).Msg("Created new pseudonym")
+
+		// Set admin capabilities on the pseudonym
+		capabilities := getCapabilitiesForRole(input.AdminRole)
+		capabilitiesJSON, err := json.Marshal(capabilities)
+		if err != nil {
+			return fmt.Errorf("failed to marshal capabilities: %w", err)
+		}
+
+		capabilitiesNull := sql.Null[types.JSON[json.RawMessage]]{}
+		capabilitiesNull.Scan(capabilitiesJSON)
+
+		// Update the pseudonym with admin capabilities
+		pseudonymUpdates := &models.PseudonymSetter{
+			Capabilities: &capabilitiesNull,
+		}
+
+		if err := securePseudonymDAO.UpdatePseudonym(ctx, pseudonym.PseudonymID, pseudonymUpdates); err != nil {
+			return fmt.Errorf("failed to update pseudonym with admin capabilities: %w", err)
+		}
+
+		log.Info().Str("pseudonym_id", pseudonym.PseudonymID).Msg("Created new pseudonym with admin capabilities")
 	}
 
 	log.Info().

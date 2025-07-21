@@ -56,7 +56,8 @@ type ContentHandler struct {
 	subforumDAO        dao.SubforumDAOInterface
 	securePseudonymDAO dao.SecurePseudonymDAOInterface
 	voteDAO            dao.VoteDAOInterface
-	permissionChecker  *middleware.PermissionChecker
+	permissionChecker  middleware.PermissionCheckerInterface
+	permissionDAO      dao.PermissionDAOInterface
 }
 
 // NewContentHandler creates a new content handler
@@ -64,6 +65,7 @@ func NewContentHandler(db bob.Executor, rawDB *sql.DB, ibeSystem *ibe.IBESystem,
 	roleKeyDAO := dao.NewRoleKeyDAO(db)
 	userBlocksDAO := dao.NewUserBlocksDAO(db)
 	securePseudonymDAO := dao.NewSecurePseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
+	permissionDAO := dao.NewPermissionDAO(db)
 
 	return &ContentHandler{
 		db:                 db,
@@ -77,6 +79,7 @@ func NewContentHandler(db bob.Executor, rawDB *sql.DB, ibeSystem *ibe.IBESystem,
 		securePseudonymDAO: securePseudonymDAO,
 		voteDAO:            dao.NewVoteDAO(db),
 		permissionChecker:  middleware.NewPermissionChecker(db),
+		permissionDAO:      permissionDAO,
 	}
 }
 
@@ -94,7 +97,8 @@ func NewContentHandlerWithDependencies(
 	voteDAO dao.VoteDAOInterface,
 	userBlocksDAO dao.UserBlocksDAOInterface,
 	roleKeyDAO dao.RoleKeyDAOInterface,
-	permissionChecker *middleware.PermissionChecker,
+	permissionChecker middleware.PermissionCheckerInterface,
+	permissionDAO dao.PermissionDAOInterface,
 ) *ContentHandler {
 	return &ContentHandler{
 		db:                 db,
@@ -108,6 +112,7 @@ func NewContentHandlerWithDependencies(
 		securePseudonymDAO: securePseudonymDAO,
 		voteDAO:            voteDAO,
 		permissionChecker:  permissionChecker,
+		permissionDAO:      permissionDAO,
 	}
 }
 
@@ -142,13 +147,13 @@ func (h *ContentHandler) GetPosts(ctx context.Context, input *models.PostListInp
 
 	// Check if subforum exists
 	subforum, err := h.subforumDAO.GetSubforumByName(ctx, subforumName)
-	if err != nil {
-		log.Error().Err(err).Str("subforum_name", subforumName).Msg("Failed to get subforum")
-		return nil, err
-	}
 	if subforum == nil {
 		log.Warn().Str("subforum_name", subforumName).Msg("Subforum not found")
-		return nil, huma.Error404NotFound("subforum not found")
+		return nil, fmt.Errorf("subforum not found: %s", subforumName)
+	}
+	if err != nil {
+		log.Error().Err(err).Str("subforum_name", subforumName).Msg("Failed to get subforum")
+		return nil, fmt.Errorf("failed to get subforum: %w", err)
 	}
 
 	// Check user permissions for private subforums
@@ -160,7 +165,8 @@ func (h *ContentHandler) GetPosts(ctx context.Context, input *models.PostListInp
 		}
 
 		// Check if user has access to this private subforum using RBAC
-		canAccess, err := h.permissionChecker.CheckPrivateSubforumAccess(ctx, userCtx.UserID, subforum.SubforumID)
+		// Use the secure method that checks only the active pseudonym
+		canAccess, err := h.permissionChecker.CheckPrivateSubforumAccessWithActivePseudonym(ctx, userCtx.UserID, subforum.SubforumID, userCtx.ActivePseudonymID)
 		if err != nil {
 			log.Error().Err(err).
 				Int64("user_id", userCtx.UserID).
@@ -291,13 +297,13 @@ func (h *ContentHandler) CreatePost(ctx context.Context, input *models.PostCreat
 
 	// Check if subforum exists
 	subforum, err := h.subforumDAO.GetSubforumByName(ctx, subforumName)
-	if err != nil {
-		log.Error().Err(err).Str("subforum_name", subforumName).Msg("Failed to get subforum")
-		return nil, err
-	}
 	if subforum == nil {
 		log.Warn().Str("subforum_name", subforumName).Msg("Subforum not found")
-		return nil, huma.Error404NotFound("subforum not found")
+		return nil, fmt.Errorf("subforum not found: %s", subforumName)
+	}
+	if err != nil {
+		log.Error().Err(err).Str("subforum_name", subforumName).Msg("Failed to get subforum")
+		return nil, fmt.Errorf("failed to get subforum: %w", err)
 	}
 
 	// Check moderator permissions for sticky/locked options
@@ -307,7 +313,7 @@ func (h *ContentHandler) CreatePost(ctx context.Context, input *models.PostCreat
 
 		// Only check permissions if permission checker is available
 		if h.permissionChecker != nil {
-			canModerate, err = h.permissionChecker.CheckSubforumCapability(ctx, userCtx.UserID, subforum.SubforumID, "moderate_content")
+			canModerate, err = h.permissionChecker.CheckSubforumCapabilityWithActivePseudonym(ctx, userCtx.UserID, subforum.SubforumID, "moderate_content", userCtx.ActivePseudonymID)
 			if err != nil {
 				log.Error().Err(err).
 					Int64("user_id", userCtx.UserID).
@@ -346,7 +352,7 @@ func (h *ContentHandler) CreatePost(ctx context.Context, input *models.PostCreat
 
 		// Only check permissions if permission checker is available
 		if h.permissionChecker != nil {
-			canAccess, err = h.permissionChecker.CheckPrivateSubforumAccess(ctx, userCtx.UserID, subforum.SubforumID)
+			canAccess, err = h.permissionChecker.CheckPrivateSubforumAccessWithActivePseudonym(ctx, userCtx.UserID, subforum.SubforumID, userCtx.ActivePseudonymID)
 			if err != nil {
 				log.Error().Err(err).
 					Int64("user_id", userCtx.UserID).
@@ -438,13 +444,13 @@ func (h *ContentHandler) GetPostDetails(ctx context.Context, input *models.PostD
 
 	// Get post by ID
 	post, err := h.postDAO.GetPostByID(ctx, postID)
-	if err != nil {
-		log.Error().Err(err).Int64("post_id", postID).Msg("Failed to get post")
-		return nil, err
-	}
 	if post == nil {
 		log.Warn().Int64("post_id", postID).Msg("Post not found")
 		return nil, fmt.Errorf("post not found: %d", postID)
+	}
+	if err != nil {
+		log.Error().Err(err).Int64("post_id", postID).Msg("Failed to get post")
+		return nil, fmt.Errorf("failed to get post: %w", err)
 	}
 
 	// Check if post is removed
@@ -516,24 +522,24 @@ func (h *ContentHandler) GetPostBySlug(ctx context.Context, input *models.PostBy
 
 	// Check if subforum exists
 	subforum, err := h.subforumDAO.GetSubforumByName(ctx, subforumName)
-	if err != nil {
-		log.Error().Err(err).Str("subforum_name", subforumName).Msg("Failed to get subforum")
-		return nil, err
-	}
 	if subforum == nil {
 		log.Warn().Str("subforum_name", subforumName).Msg("Subforum not found")
-		return nil, huma.Error404NotFound("subforum not found")
+		return nil, fmt.Errorf("subforum not found: %s", subforumName)
+	}
+	if err != nil {
+		log.Error().Err(err).Str("subforum_name", subforumName).Msg("Failed to get subforum")
+		return nil, fmt.Errorf("failed to get subforum: %w", err)
 	}
 
 	// Get post by subforum and slug
 	post, err := h.postDAO.GetPostBySubforumAndSlug(ctx, subforum.SubforumID, slug)
-	if err != nil {
-		log.Error().Err(err).Str("slug", slug).Int32("subforum_id", subforum.SubforumID).Msg("Failed to get post")
-		return nil, err
-	}
 	if post == nil {
 		log.Warn().Str("slug", slug).Str("subforum_name", subforumName).Msg("Post not found")
-		return nil, huma.Error404NotFound("post not found")
+		return nil, fmt.Errorf("post not found: %s", slug)
+	}
+	if err != nil {
+		log.Error().Err(err).Str("slug", slug).Int32("subforum_id", subforum.SubforumID).Msg("Failed to get post")
+		return nil, fmt.Errorf("failed to get post: %w", err)
 	}
 
 	// Check if post is removed
@@ -609,13 +615,13 @@ func (h *ContentHandler) VoteOnPost(ctx context.Context, input *models.PostVoteI
 
 	// Check if post exists
 	post, err := h.postDAO.GetPostByID(ctx, postID)
-	if err != nil {
-		log.Error().Err(err).Int64("post_id", postID).Msg("Failed to get post")
-		return nil, err
-	}
 	if post == nil {
 		log.Warn().Int64("post_id", postID).Msg("Post not found")
 		return nil, fmt.Errorf("post not found: %d", postID)
+	}
+	if err != nil {
+		log.Error().Err(err).Int64("post_id", postID).Msg("Failed to get post")
+		return nil, fmt.Errorf("failed to get post: %w", err)
 	}
 
 	// Check if post is removed
@@ -714,13 +720,13 @@ func (h *ContentHandler) CreateComment(ctx context.Context, input *models.Commen
 
 	// Check if post exists
 	post, err := h.postDAO.GetPostByID(ctx, postID)
-	if err != nil {
-		log.Error().Err(err).Int64("post_id", postID).Msg("Failed to get post")
-		return nil, err
-	}
 	if post == nil {
 		log.Warn().Int64("post_id", postID).Msg("Post not found")
 		return nil, fmt.Errorf("post not found: %d", postID)
+	}
+	if err != nil {
+		log.Error().Err(err).Int64("post_id", postID).Msg("Failed to get post")
+		return nil, fmt.Errorf("failed to get post: %w", err)
 	}
 
 	// Check if post is removed
@@ -888,7 +894,7 @@ func (h *ContentHandler) VoteOnComment(ctx context.Context, input *models.Commen
 	return response, nil
 }
 
-// Lock/Unlock Post
+// LockPost handles locking/unlocking a post
 func (h *ContentHandler) LockPost(ctx context.Context, input *models.PostLockInput) (*models.PostResponse, error) {
 	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
 	if err != nil {
@@ -898,7 +904,7 @@ func (h *ContentHandler) LockPost(ctx context.Context, input *models.PostLockInp
 	if err != nil || post == nil {
 		return nil, fmt.Errorf("failed to fetch post: %w", err)
 	}
-	canModerate, err := h.permissionChecker.CheckSubforumCapability(ctx, userCtx.UserID, post.SubforumID, "moderate_content")
+	canModerate, err := h.permissionDAO.HasSubforumCapabilityWithActivePseudonym(ctx, userCtx.UserID, post.SubforumID, "moderate_content", userCtx.ActivePseudonymID)
 	if err != nil || !canModerate {
 		return nil, huma.Error403Forbidden("Moderator permission required")
 	}
@@ -923,7 +929,7 @@ func (h *ContentHandler) StickyPost(ctx context.Context, input *models.PostStick
 	if err != nil || post == nil {
 		return nil, fmt.Errorf("failed to fetch post: %w", err)
 	}
-	canModerate, err := h.permissionChecker.CheckSubforumCapability(ctx, userCtx.UserID, post.SubforumID, "moderate_content")
+	canModerate, err := h.permissionDAO.HasSubforumCapabilityWithActivePseudonym(ctx, userCtx.UserID, post.SubforumID, "moderate_content", userCtx.ActivePseudonymID)
 	if err != nil || !canModerate {
 		return nil, huma.Error403Forbidden("Moderator permission required")
 	}
@@ -948,7 +954,7 @@ func (h *ContentHandler) RemovePost(ctx context.Context, input *models.PostRemov
 	if err != nil || post == nil {
 		return nil, fmt.Errorf("failed to fetch post: %w", err)
 	}
-	canModerate, err := h.permissionChecker.CheckSubforumCapability(ctx, userCtx.UserID, post.SubforumID, "moderate_content")
+	canModerate, err := h.permissionDAO.HasSubforumCapabilityWithActivePseudonym(ctx, userCtx.UserID, post.SubforumID, "moderate_content", userCtx.ActivePseudonymID)
 	if err != nil || !canModerate {
 		return nil, huma.Error403Forbidden("Moderator permission required")
 	}
@@ -1018,18 +1024,7 @@ func (h *ContentHandler) EditPost(ctx context.Context, input *models.PostEditInp
 		return nil, huma.Error403Forbidden("you can only edit your own posts")
 	}
 
-	now := sql.Null[time.Time]{}
-	now.Scan(time.Now())
-
-	contentNull := sql.Null[string]{Valid: true, V: content}
-
-	updates := &dbmodels.PostSetter{
-		Title:     &title,
-		Content:   &contentNull,
-		UpdatedAt: &now,
-	}
-
-	err = post.Update(ctx, h.db, updates)
+	err = h.postDAO.UpdatePost(ctx, postID, title, content)
 	if err != nil {
 		log.Error().Err(err).Int64("post_id", postID).Msg("Failed to update post")
 		return nil, err
@@ -1079,7 +1074,7 @@ func (h *ContentHandler) EditComment(ctx context.Context, input *models.CommentE
 	comment, err := h.commentDAO.GetCommentByID(ctx, commentID)
 	if err != nil {
 		log.Error().Err(err).Int64("comment_id", commentID).Msg("Failed to get comment")
-		return nil, err
+		return nil, huma.Error404NotFound("comment not found")
 	}
 	if comment == nil {
 		log.Warn().Int64("comment_id", commentID).Msg("Comment not found")
@@ -1099,23 +1094,7 @@ func (h *ContentHandler) EditComment(ctx context.Context, input *models.CommentE
 	}
 
 	// Update comment in database
-	now := sql.Null[time.Time]{}
-	now.Scan(time.Now())
-
-	editReasonNull := sql.Null[string]{Valid: false}
-	if editReason != "" {
-		editReasonNull.Scan(editReason)
-	}
-
-	updates := &dbmodels.CommentSetter{
-		Content:    &content,
-		IsEdited:   &sql.Null[bool]{Valid: true, V: true},
-		EditedAt:   &now,
-		EditReason: &editReasonNull,
-		UpdatedAt:  &now,
-	}
-
-	err = comment.Update(ctx, h.db, updates)
+	err = h.commentDAO.UpdateComment(ctx, commentID, content, editReason)
 	if err != nil {
 		log.Error().Err(err).Int64("comment_id", commentID).Msg("Failed to update comment")
 		return nil, err
@@ -1168,7 +1147,7 @@ func (h *ContentHandler) RemoveComment(ctx context.Context, input *models.Commen
 	comment, err := h.commentDAO.GetCommentByID(ctx, commentID)
 	if err != nil {
 		log.Error().Err(err).Int64("comment_id", commentID).Msg("Failed to get comment")
-		return nil, err
+		return nil, huma.Error404NotFound("comment not found")
 	}
 	if comment == nil {
 		log.Warn().Int64("comment_id", commentID).Msg("Comment not found")
@@ -1202,23 +1181,7 @@ func (h *ContentHandler) RemoveComment(ctx context.Context, input *models.Commen
 	}
 
 	// Update comment removal status
-	now := sql.Null[time.Time]{}
-	now.Scan(time.Now())
-
-	reasonNull := sql.Null[string]{Valid: false}
-	if reason != "" {
-		reasonNull.Scan(reason)
-	}
-
-	updates := &dbmodels.CommentSetter{
-		IsRemoved:            &sql.Null[bool]{Valid: true, V: removed},
-		RemovalReason:        &reasonNull,
-		RemovedAt:            &now,
-		RemovedByPseudonymID: &sql.Null[string]{Valid: true, V: pseudonymID},
-		UpdatedAt:            &now,
-	}
-
-	err = comment.Update(ctx, h.db, updates)
+	err = h.commentDAO.SetCommentRemoved(ctx, commentID, removed, reason, pseudonymID)
 	if err != nil {
 		log.Error().Err(err).Int64("comment_id", commentID).Msg("Failed to update comment removal status")
 		return nil, err

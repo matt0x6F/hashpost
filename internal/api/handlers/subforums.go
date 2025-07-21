@@ -23,6 +23,7 @@ type SubforumHandler struct {
 	permissionDAO           dao.PermissionDAOInterface
 	subforumModeratorDAO    dao.SubforumModeratorDAOInterface
 	identityMappingDAO      dao.IdentityMappingDAOInterface
+	postDAO                 dao.PostDAOInterface
 	db                      bob.Executor
 }
 
@@ -34,18 +35,20 @@ func NewSubforumHandler(db bob.Executor) *SubforumHandler {
 		permissionDAO:           dao.NewPermissionDAO(db),
 		subforumModeratorDAO:    dao.NewSubforumModeratorDAO(db),
 		identityMappingDAO:      dao.NewIdentityMappingDAO(db),
+		postDAO:                 dao.NewPostDAO(db),
 		db:                      db,
 	}
 }
 
 // NewSubforumHandlerWithMocks creates a new subforum handler with mock DAOs for testing
-func NewSubforumHandlerWithMocks(subforumDAO dao.SubforumDAOInterface, subforumSubscriptionDAO dao.SubforumSubscriptionDAOInterface, permissionDAO dao.PermissionDAOInterface, subforumModeratorDAO dao.SubforumModeratorDAOInterface, identityMappingDAO dao.IdentityMappingDAOInterface, db bob.Executor) *SubforumHandler {
+func NewSubforumHandlerWithMocks(subforumDAO dao.SubforumDAOInterface, subforumSubscriptionDAO dao.SubforumSubscriptionDAOInterface, permissionDAO dao.PermissionDAOInterface, subforumModeratorDAO dao.SubforumModeratorDAOInterface, identityMappingDAO dao.IdentityMappingDAOInterface, postDAO dao.PostDAOInterface, db bob.Executor) *SubforumHandler {
 	return &SubforumHandler{
 		subforumDAO:             subforumDAO,
 		subforumSubscriptionDAO: subforumSubscriptionDAO,
 		permissionDAO:           permissionDAO,
 		subforumModeratorDAO:    subforumModeratorDAO,
 		identityMappingDAO:      identityMappingDAO,
+		postDAO:                 postDAO,
 		db:                      db,
 	}
 }
@@ -83,7 +86,7 @@ func (h *SubforumHandler) GetSubforums(ctx context.Context, input *models.Subfor
 				continue
 			}
 
-			canAccess, err := h.permissionDAO.CanAccessPrivateSubforum(ctx, userCtx.UserID, subforum.SubforumID)
+			canAccess, err := h.permissionDAO.CanAccessPrivateSubforumWithActivePseudonym(ctx, userCtx.UserID, subforum.SubforumID, userCtx.ActivePseudonymID)
 			if err != nil {
 				log.Warn().Err(err).Int32("subforum_id", subforum.SubforumID).Msg("Failed to check private subforum access")
 				continue
@@ -225,10 +228,11 @@ func (h *SubforumHandler) convertSubforumToAPIModel(subforum *dbmodels.Subforum)
 		subscriberCount = 0
 	}
 
-	// Get post count - use the stored value for now since we don't have PostDAO access
-	postCount := 0
-	if subforum.PostCount.Valid {
-		postCount = int(subforum.PostCount.V)
+	// Get actual post count from database
+	postCount, err := h.postDAO.CountPostsBySubforum(context.Background(), subforum.SubforumID)
+	if err != nil {
+		log.Warn().Err(err).Int32("subforum_id", subforum.SubforumID).Msg("Failed to get post count")
+		postCount = 0
 	}
 
 	// Convert timestamps
@@ -252,7 +256,7 @@ func (h *SubforumHandler) convertSubforumToAPIModel(subforum *dbmodels.Subforum)
 		IsPrivate:       isPrivate,
 		IsRestricted:    isRestricted,
 		SubscriberCount: int(subscriberCount),
-		PostCount:       postCount,
+		PostCount:       int(postCount),
 		CreatedAt:       createdAt,
 		UpdatedAt:       updatedAt,
 	}
@@ -290,7 +294,7 @@ func (h *SubforumHandler) GetSubforumDetails(ctx context.Context, input *models.
 			return nil, huma.Error403Forbidden("access denied: private subforum requires authentication")
 		}
 
-		canAccess, err := h.permissionDAO.CanAccessPrivateSubforum(ctx, userCtx.UserID, subforum.SubforumID)
+		canAccess, err := h.permissionDAO.CanAccessPrivateSubforumWithActivePseudonym(ctx, userCtx.UserID, subforum.SubforumID, userCtx.ActivePseudonymID)
 		if err != nil {
 			log.Error().Err(err).Int32("subforum_id", subforum.SubforumID).Msg("Failed to check private subforum access")
 			return nil, fmt.Errorf("failed to check access permissions: %w", err)
@@ -687,9 +691,11 @@ func (h *SubforumHandler) GetPseudonymSubscriptions(ctx context.Context, input *
 			subscriberCount = int(subforum.SubscriberCount.V)
 		}
 
-		postCount := 0
-		if subforum.PostCount.Valid {
-			postCount = int(subforum.PostCount.V)
+		// Get actual post count from database
+		postCount, err := h.postDAO.CountPostsBySubforum(ctx, subforum.SubforumID)
+		if err != nil {
+			log.Warn().Err(err).Int32("subforum_id", subforum.SubforumID).Msg("Failed to get post count")
+			postCount = 0
 		}
 
 		createdAt := time.Now()
@@ -712,7 +718,7 @@ func (h *SubforumHandler) GetPseudonymSubscriptions(ctx context.Context, input *
 			IsPrivate:       isPrivate,
 			IsRestricted:    isRestricted,
 			SubscriberCount: subscriberCount,
-			PostCount:       postCount,
+			PostCount:       int(postCount),
 			CreatedAt:       createdAt,
 			UpdatedAt:       updatedAt,
 		})

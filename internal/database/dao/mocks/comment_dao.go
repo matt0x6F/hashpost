@@ -104,9 +104,6 @@ func (m *MockCommentDAO) CreateComment(ctx context.Context, postID int64, pseudo
 // GetCommentByID retrieves a comment by ID
 func (m *MockCommentDAO) GetCommentByID(ctx context.Context, commentID int64) (*models.Comment, error) {
 	args := m.Called(ctx, commentID)
-	if args.Get(0) == nil {
-		return nil, sql.ErrNoRows
-	}
 
 	// Check if the return value is a function
 	if fn, ok := args.Get(0).(func(context.Context, int64) (*models.Comment, error)); ok {
@@ -115,9 +112,9 @@ func (m *MockCommentDAO) GetCommentByID(ctx context.Context, commentID int64) (*
 
 	// Fallback to direct return values
 	if args.Get(0) == nil {
-		return nil, args.Error(0)
+		return nil, args.Error(1)
 	}
-	return args.Get(0).(*models.Comment), args.Error(0)
+	return args.Get(0).(*models.Comment), args.Error(1)
 }
 
 // GetCommentsByPost retrieves comments by post
@@ -193,5 +190,17 @@ func (m *MockCommentDAO) SetRemoved(ctx context.Context, commentID int64, remove
 	}
 
 	// Fallback to direct return values
+	return args.Error(0)
+}
+
+// UpdateComment updates a comment's content and edit metadata
+func (m *MockCommentDAO) UpdateComment(ctx context.Context, commentID int64, content, editReason string) error {
+	args := m.Called(ctx, commentID, content, editReason)
+	return args.Error(0)
+}
+
+// SetCommentRemoved sets the removal status and metadata for a comment
+func (m *MockCommentDAO) SetCommentRemoved(ctx context.Context, commentID int64, removed bool, reason, removedByPseudonymID string) error {
+	args := m.Called(ctx, commentID, removed, reason, removedByPseudonymID)
 	return args.Error(0)
 }

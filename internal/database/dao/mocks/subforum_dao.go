@@ -94,6 +94,13 @@ func (m *MockSubforumDAO) SetDefaultBehavior() {
 			return subforum, nil
 		},
 	)
+
+	// Default behavior for UpdatePostCount
+	m.On("UpdatePostCount", mock.Anything, mock.AnythingOfType("int32"), mock.AnythingOfType("int32")).Return(
+		func(ctx context.Context, subforumID int32, postCount int32) error {
+			return nil
+		},
+	)
 }
 
 // CreateSubforum creates a new subforum
@@ -131,9 +138,6 @@ func (m *MockSubforumDAO) GetSubforumByID(ctx context.Context, subforumID int32)
 // GetSubforumByName retrieves a subforum by name
 func (m *MockSubforumDAO) GetSubforumByName(ctx context.Context, name string) (*models.Subforum, error) {
 	args := m.Called(ctx, name)
-	if args.Get(0) == nil {
-		return nil, sql.ErrNoRows
-	}
 
 	// Check if the return value is a function
 	if fn, ok := args.Get(0).(func(context.Context, string) (*models.Subforum, error)); ok {
@@ -142,9 +146,9 @@ func (m *MockSubforumDAO) GetSubforumByName(ctx context.Context, name string) (*
 
 	// Fallback to direct return values
 	if args.Get(0) == nil {
-		return nil, args.Error(0)
+		return nil, args.Error(1)
 	}
-	return args.Get(0).(*models.Subforum), args.Error(0)
+	return args.Get(0).(*models.Subforum), args.Error(1)
 }
 
 // ListSubforums retrieves all subforums
@@ -161,4 +165,10 @@ func (m *MockSubforumDAO) ListSubforums(ctx context.Context) ([]*models.Subforum
 		return nil, args.Error(1)
 	}
 	return args.Get(0).([]*models.Subforum), args.Error(1)
+}
+
+// UpdatePostCount updates the post count for a subforum
+func (m *MockSubforumDAO) UpdatePostCount(ctx context.Context, subforumID int32, postCount int32) error {
+	args := m.Called(ctx, subforumID, postCount)
+	return args.Error(0)
 }

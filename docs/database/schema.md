@@ -6,10 +6,10 @@ This document defines the complete database schema for HashPost, a Reddit-like s
 
 ## Database Architecture
 
-The HashPost platform uses a **single-database architecture** with **role-based access control**:
+The HashPost platform uses a **single-database architecture** with **pseudonym-based access control**:
 
 1. **Single Database**: Contains all user data, content, and administrative information
-2. **Role-Based Access**: Different user roles have different capabilities and access levels
+2. **Pseudonym-Based Access**: Different pseudonyms have different capabilities and access levels
 3. **Privacy Protection**: Real identities are encrypted and only accessible to users with appropriate roles
 4. **Audit Trail**: All administrative activities are logged for compliance and oversight
 
@@ -32,39 +32,46 @@ CREATE TABLE users (
     suspension_reason TEXT,
     suspension_expires_at TIMESTAMP,
     
-    -- Role-based fields (encrypted in production)
-    roles JSON DEFAULT '["user"]',
-    capabilities JSON DEFAULT '["create_content", "vote", "message", "report"]',
+    -- Basic user roles (platform-wide)
+    roles JSONB DEFAULT '["user"]',
+    
+    -- Administrative fields
     admin_username VARCHAR(100) UNIQUE,
     admin_password_hash VARCHAR(255),
     mfa_enabled BOOLEAN DEFAULT FALSE,
     mfa_secret VARCHAR(255),
     
     -- Moderation fields
-    moderated_subforums JSON, -- [{"subforum_id": 1, "role": "moderator"}]
+    moderated_subforums JSONB,
     admin_scope VARCHAR(100), -- 'trust_safety', 'legal', 'platform_admin'
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     -- Indexes for performance
     INDEX idx_users_email (email),
     INDEX idx_users_admin_username (admin_username),
     INDEX idx_users_roles (roles),
     INDEX idx_users_active (is_active),
-    INDEX idx_users_last_active (last_active_at)
+    INDEX idx_users_last_active (last_active_at),
+    INDEX idx_users_created_at (created_at)
 );
 ```
 
 ### `pseudonyms`
-Stores pseudonym-specific information (multiple per user).
+Stores pseudonym-specific information (multiple per user) with their own roles and capabilities.
 
 ```sql
 CREATE TABLE pseudonyms (
     pseudonym_id VARCHAR(64) PRIMARY KEY,
-    user_id BIGINT NOT NULL,
     display_name VARCHAR(50) NOT NULL,
     karma_score INTEGER DEFAULT 0,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_active_at TIMESTAMP,
     is_active BOOLEAN DEFAULT TRUE,
+    is_default BOOLEAN NOT NULL DEFAULT FALSE,
+    
+    -- Pseudonym-specific roles and capabilities
+    roles JSONB DEFAULT '["user"]',
+    capabilities JSONB DEFAULT '["create_content", "vote", "message", "report"]',
     
     -- Profile metadata (optional)
     bio TEXT,
@@ -76,14 +83,11 @@ CREATE TABLE pseudonyms (
     allow_direct_messages BOOLEAN DEFAULT TRUE,
     
     -- Indexes for performance
-    INDEX idx_pseudonyms_user (user_id),
-    INDEX idx_pseudonyms_display_name (display_name),
-    INDEX idx_pseudonyms_karma_score (karma_score),
-    INDEX idx_pseudonyms_created_at (created_at),
-    INDEX idx_pseudonyms_last_active (last_active_at),
     INDEX idx_pseudonyms_active (is_active),
-    
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+    INDEX idx_pseudonyms_created_at (created_at),
+    INDEX idx_pseudonyms_karma_score (karma_score),
+    INDEX idx_pseudonyms_last_active (last_active_at),
+    UNIQUE CONSTRAINT unique_pseudonym_display_name (display_name)
 );
 ```
 
@@ -120,6 +124,7 @@ CREATE TABLE identity_mappings (
     pseudonym_id VARCHAR(64) NOT NULL, -- Specific pseudonym
     encrypted_real_identity BYTEA NOT NULL, -- Encrypted email/phone
     encrypted_pseudonym_mapping BYTEA NOT NULL, -- Encrypted mapping data
+    key_scope VARCHAR(100) NOT NULL, -- Scope for IBE key usage
     key_version INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -229,23 +234,19 @@ Tracks moderator relationships for subforums.
 CREATE TABLE subforum_moderators (
     moderator_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     subforum_id INTEGER NOT NULL,
-    user_id BIGINT NOT NULL, -- Real identity for administrative purposes
     pseudonym_id VARCHAR(64) NOT NULL, -- Pseudonym under which they moderate
     role VARCHAR(20) NOT NULL DEFAULT 'moderator', -- 'owner', 'moderator', 'junior_moderator'
     added_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    added_by_user_id BIGINT, -- Real identity of who added them
-    permissions JSON, -- Store specific permissions as JSON
+    permissions JSONB, -- Store specific permissions as JSONB
+    added_by_pseudonym_id VARCHAR(64), -- Pseudonym who added them
     
-    UNIQUE KEY unique_moderator_subforum (subforum_id, user_id),
-    UNIQUE KEY unique_moderator_pseudonym_subforum (subforum_id, pseudonym_id),
+    UNIQUE KEY unique_subforum_pseudonym (subforum_id, pseudonym_id),
     INDEX idx_moderators_subforum (subforum_id),
-    INDEX idx_moderators_user (user_id),
     INDEX idx_moderators_pseudonym (pseudonym_id),
     
     FOREIGN KEY (subforum_id) REFERENCES subforums(subforum_id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
     FOREIGN KEY (pseudonym_id) REFERENCES pseudonyms(pseudonym_id) ON DELETE CASCADE,
-    FOREIGN KEY (added_by_user_id) REFERENCES users(user_id)
+    FOREIGN KEY (added_by_pseudonym_id) REFERENCES pseudonyms(pseudonym_id)
 );
 ```
 
@@ -263,6 +264,7 @@ CREATE TABLE posts (
     content TEXT,
     post_type VARCHAR(20) NOT NULL DEFAULT 'text', -- 'text', 'link', 'image', 'video', 'poll'
     url VARCHAR(2048),
+    slug VARCHAR(255), -- URL-friendly slug
     is_self_post BOOLEAN DEFAULT FALSE,
     is_nsfw BOOLEAN DEFAULT FALSE,
     is_spoiler BOOLEAN DEFAULT FALSE,
@@ -283,6 +285,7 @@ CREATE TABLE posts (
     removed_by_pseudonym_id VARCHAR(64), -- Pseudonym under which removal was performed
     removal_reason VARCHAR(100),
     removed_at TIMESTAMP,
+    deleted_by_pseudonym_id VARCHAR(64), -- For soft deletes
     
     -- Indexes
     INDEX idx_posts_pseudonym (pseudonym_id),
@@ -295,7 +298,8 @@ CREATE TABLE posts (
     FOREIGN KEY (pseudonym_id) REFERENCES pseudonyms(pseudonym_id) ON DELETE CASCADE,
     FOREIGN KEY (subforum_id) REFERENCES subforums(subforum_id) ON DELETE CASCADE,
     FOREIGN KEY (removed_by_user_id) REFERENCES users(user_id),
-    FOREIGN KEY (removed_by_pseudonym_id) REFERENCES pseudonyms(pseudonym_id)
+    FOREIGN KEY (removed_by_pseudonym_id) REFERENCES pseudonyms(pseudonym_id),
+    FOREIGN KEY (deleted_by_pseudonym_id) REFERENCES pseudonyms(pseudonym_id)
 );
 ```
 
@@ -324,6 +328,7 @@ CREATE TABLE comments (
     removed_by_pseudonym_id VARCHAR(64), -- Pseudonym under which removal was performed
     removal_reason VARCHAR(100),
     removed_at TIMESTAMP,
+    deleted_by_pseudonym_id VARCHAR(64), -- For soft deletes
     
     -- Indexes
     INDEX idx_comments_post (post_id),
@@ -337,7 +342,8 @@ CREATE TABLE comments (
     FOREIGN KEY (parent_comment_id) REFERENCES comments(comment_id) ON DELETE CASCADE,
     FOREIGN KEY (pseudonym_id) REFERENCES pseudonyms(pseudonym_id) ON DELETE CASCADE,
     FOREIGN KEY (removed_by_user_id) REFERENCES users(user_id),
-    FOREIGN KEY (removed_by_pseudonym_id) REFERENCES pseudonyms(pseudonym_id)
+    FOREIGN KEY (removed_by_pseudonym_id) REFERENCES pseudonyms(pseudonym_id),
+    FOREIGN KEY (deleted_by_pseudonym_id) REFERENCES pseudonyms(pseudonym_id)
 );
 ```
 
@@ -455,8 +461,6 @@ CREATE TABLE user_blocks (
     FOREIGN KEY (blocked_user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 ```
-
--- Note: The API only exposes pseudonym_id for blocking. If a user requests to block all personas, the backend will correlate and create the appropriate block records, but the client never sees or submits a user_id.
 
 ### `direct_messages`
 Stores direct messages between pseudonyms.
@@ -708,6 +712,7 @@ CREATE TABLE api_keys (
     key_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     key_name VARCHAR(100) NOT NULL,
     key_hash VARCHAR(255) NOT NULL,
+    pseudonym_id VARCHAR(64) NOT NULL, -- Associated pseudonym
     permissions JSON,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     expires_at TIMESTAMP,
@@ -715,7 +720,9 @@ CREATE TABLE api_keys (
     last_used_at TIMESTAMP,
     
     INDEX idx_api_keys_hash (key_hash),
-    INDEX idx_api_keys_active (is_active)
+    INDEX idx_api_keys_active (is_active),
+    
+    FOREIGN KEY (pseudonym_id) REFERENCES pseudonyms(pseudonym_id) ON DELETE CASCADE
 );
 ```
 
@@ -757,153 +764,34 @@ CREATE TABLE performance_metrics (
 );
 ```
 
-## Role-Based Access Control
+## Key Schema Changes
 
-### Role Hierarchy
+### Recent Migrations Applied
 
-```sql
--- Role definitions and capabilities
-CREATE TABLE role_definitions (
-    role_id INTEGER AUTO_INCREMENT PRIMARY KEY,
-    role_name VARCHAR(50) UNIQUE NOT NULL,
-    display_name VARCHAR(100) NOT NULL,
-    description TEXT,
-    capabilities JSON NOT NULL,
-    correlation_access VARCHAR(20), -- 'none', 'fingerprint', 'identity'
-    scope VARCHAR(100), -- 'none', 'subforum_specific', 'platform_wide'
-    time_window VARCHAR(20), -- 'none', '30_days', '90_days', 'unlimited'
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
+1. **Migration 001**: Initial schema setup
+2. **Migration 20250622083429**: Added PostgreSQL functions
+3. **Migration 20250622092738**: Multiple pseudonyms support
+4. **Migration 20250622183725**: Added pseudonym to API keys
+5. **Migration 20250628160133**: Added create subforum capability
+6. **Migration 20250628160134**: Removed pseudonym user foreign key
+7. **Migration 20250630000212**: Added is_default to pseudonyms
+8. **Migration 20250630015219**: Added key_scope to identity mappings
+9. **Migration 20250630015701**: Dropped old unique fingerprint pseudonym constraint
+10. **Migration 20250630020708**: Fixed identity mappings unique constraint
+11. **Migration 20250703000100**: Migrate subforum moderators to IBE
+12. **Migration 20250703000200**: Add unique constraint to pseudonym display names
+13. **Migration 20250712202336**: Add user role to admin users
+14. **Migration 20250712205900**: Add post slug
+15. **Migration 20250713000000**: Add user deletion fields
+16. **Migration 20250721035243**: Add roles and capabilities to pseudonyms
 
--- Insert default roles
-INSERT INTO role_definitions (role_name, display_name, description, capabilities, correlation_access, scope, time_window) VALUES
-('user', 'Regular User', 'Standard platform user', '["create_content", "vote", "message", "report"]', 'none', 'none', 'none'),
-('moderator', 'Subforum Moderator', 'Moderator for specific subforums', '["moderate_content", "ban_users", "remove_content", "correlate_fingerprints"]', 'fingerprint', 'subforum_specific', '30_days'),
-('subforum_owner', 'Subforum Owner', 'Owner of a subforum', '["moderate_content", "ban_users", "remove_content", "correlate_fingerprints", "manage_moderators"]', 'fingerprint', 'subforum_specific', '90_days'),
-('trust_safety', 'Trust & Safety', 'Platform-wide safety and harassment investigation', '["correlate_identities", "cross_platform_access", "system_moderation"]', 'identity', 'platform_wide', 'unlimited'),
-('legal_team', 'Legal Team', 'Legal compliance and court order handling', '["correlate_identities", "legal_compliance", "court_orders"]', 'identity', 'platform_wide', 'unlimited'),
-('platform_admin', 'Platform Administrator', 'Full system administration', '["system_admin", "user_management", "correlate_identities"]', 'identity', 'platform_wide', 'unlimited');
-```
+### Important Schema Notes
 
-### Permission Checking Functions
+- **Users table**: No longer has capabilities field - capabilities moved to pseudonyms
+- **Pseudonyms table**: Now has both `roles` and `capabilities` JSONB fields
+- **Subforum moderators**: Uses pseudonym_id instead of user_id for moderator identification
+- **Posts and comments**: Include slug field for URL-friendly identifiers
+- **API keys**: Associated with specific pseudonyms
+- **Identity mappings**: Include key_scope field for IBE operations
 
-```sql
--- Check if user has specific capability
-CREATE OR REPLACE FUNCTION has_capability(
-    p_user_id BIGINT,
-    p_capability VARCHAR(50)
-) RETURNS BOOLEAN AS $$
-BEGIN
-    RETURN EXISTS (
-        SELECT 1 FROM users 
-        WHERE user_id = p_user_id 
-        AND is_active = TRUE
-        AND capabilities @> jsonb_build_array(p_capability)
-    );
-END;
-$$ LANGUAGE plpgsql;
-
--- Check if user can perform correlation
-CREATE OR REPLACE FUNCTION can_correlate(
-    p_user_id BIGINT,
-    p_correlation_type VARCHAR(20), -- 'fingerprint' or 'identity'
-    p_scope VARCHAR(100) DEFAULT NULL
-) RETURNS BOOLEAN AS $$
-BEGIN
-    RETURN EXISTS (
-        SELECT 1 FROM users u
-        JOIN role_definitions rd ON u.roles @> jsonb_build_array(rd.role_name)
-        WHERE u.user_id = p_user_id 
-        AND u.is_active = TRUE
-        AND rd.correlation_access = p_correlation_type
-        AND (p_scope IS NULL OR rd.scope = p_scope)
-    );
-END;
-$$ LANGUAGE plpgsql;
-
--- Require MFA for sensitive operations
-CREATE OR REPLACE FUNCTION require_mfa_for_action(
-    p_user_id BIGINT,
-    p_action VARCHAR(50)
-) RETURNS BOOLEAN AS $$
-BEGIN
-    RETURN EXISTS (
-        SELECT 1 FROM users 
-        WHERE user_id = p_user_id 
-        AND mfa_enabled = TRUE
-        AND (
-            p_action IN ('correlate_identities', 'system_admin', 'legal_compliance')
-            OR (p_action = 'correlate_fingerprints' AND admin_scope IS NOT NULL)
-        )
-    );
-END;
-$$ LANGUAGE plpgsql;
-```
-
-## Database Security Considerations
-
-### Encryption at Rest
-- All sensitive fields (like `encrypted_real_identity`) should be encrypted at rest using database-level encryption
-- Role-based fields should use application-level encryption in addition to database encryption
-- Key material should be stored in Hardware Security Modules (HSMs) where possible
-
-### Access Controls
-- Database access should require authentication and authorization
-- Role-based access control should be implemented at the database level
-- All access should be logged and monitored
-- Sensitive operations should require MFA
-
-### Backup and Recovery
-- Database backups should be encrypted
-- Backup access should be restricted to authorized personnel only
-- Regular backup integrity checks should be performed
-- Disaster recovery procedures should be tested regularly
-
-### Data Retention
-- Correlation audit logs should be retained for the minimum period required by law
-- Old identity mappings should be automatically deleted after a specified retention period
-- Deletion should be cryptographically secure (overwrite with random data)
-
-## Indexing Strategy
-
-### Performance Indexes
-- Primary indexes on all ID fields
-- Composite indexes for common query patterns (e.g., subforum + creation date)
-- Full-text indexes on post titles and content for search functionality
-- Partial indexes for active content (e.g., non-removed posts)
-
-### Administrative Indexes
-- Indexes on fingerprint and pseudonym fields for fast correlation lookups
-- Time-based indexes for audit trail queries
-- Role-based indexes for administrative access control
-- Composite indexes for complex correlation queries
-
-## Migration and Versioning
-
-### Schema Versioning
-- All schema changes should be versioned and tracked
-- Migration scripts should be tested in staging environments
-- Rollback procedures should be documented for each migration
-- Data integrity checks should be performed after migrations
-
-### Backward Compatibility
-- API changes should maintain backward compatibility where possible
-- Database schema changes should be additive when possible
-- Deprecated fields should be marked and documented
-- Migration windows should be planned to minimize downtime
-
-## Monitoring and Alerting
-
-### Performance Monitoring
-- Query performance should be monitored continuously
-- Slow queries should be identified and optimized
-- Database connection pools should be monitored
-- Storage usage should be tracked and alerts set
-
-### Security Monitoring
-- Failed authentication attempts should be logged and alerted
-- Unusual correlation patterns should be flagged
-- Administrative access outside business hours should be reviewed
-- Key usage patterns should be monitored for anomalies
-
-This database schema provides a solid foundation for a Reddit-like platform with IBE-based pseudonymous user profiles while maintaining the administrative capabilities necessary for moderation and compliance through a simplified single-user system with comprehensive RBAC. 
+This schema provides a solid foundation for a Reddit-like platform with IBE-based pseudonymous user profiles while maintaining the administrative capabilities necessary for moderation and compliance through a simplified single-user system with comprehensive RBAC. 

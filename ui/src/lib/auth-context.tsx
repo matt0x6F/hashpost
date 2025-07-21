@@ -37,6 +37,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (userData: UserLoginResponseBody | UserRegistrationResponseBody) => void;
   logout: () => void;
+  refreshUser: () => Promise<void>;
   isAuthenticated: boolean;
 }
 
@@ -140,11 +141,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Refresh user data from server
+  const refreshUser = async () => {
+    try {
+      const authResult = await authenticateUser();
+      if (authResult) {
+        login(authResult);
+      } else {
+        setUser(null);
+        localStorage.removeItem('hashpost_user');
+      }
+    } catch (error) {
+      console.error('Error refreshing user:', error);
+      if (error instanceof AuthRefreshFailedError) {
+        await logout();
+      }
+    }
+  };
+
   const value: AuthContextType = {
     user,
     isLoading,
     login,
     logout,
+    refreshUser,
     isAuthenticated: !!user,
   };
 

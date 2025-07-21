@@ -80,4 +80,26 @@ func RegisterAuthRoutes(api huma.API, cfg *config.Config, db bob.Executor, rawDB
 		Tags:        []string{"Authentication"},
 		Security:    []map[string][]string{{"jwt": {}}},
 	}, authHandler.GetCurrentUserSessionForSubforum)
+
+	// Switch active pseudonym
+	huma.Register(api, huma.Operation{
+		OperationID: "switch-pseudonym",
+		Method:      http.MethodPost,
+		Path:        "/auth/switch-pseudonym",
+		Summary:     "Switch active pseudonym",
+		Description: "Switches the user's active pseudonym and returns a new JWT token with updated pseudonym context.",
+		Tags:        []string{"Authentication"},
+		Security:    []map[string][]string{{"jwt": {}}},
+	}, authHandler.SwitchPseudonym)
+
+	// Deactivate pseudonym
+	huma.Register(api, huma.Operation{
+		OperationID: "deactivate-pseudonym",
+		Method:      http.MethodPost,
+		Path:        "/auth/deactivate-pseudonym",
+		Summary:     "Deactivate pseudonym",
+		Description: "Deactivates a pseudonym owned by the current user. Deactivated pseudonyms cannot be reactivated.",
+		Tags:        []string{"Authentication"},
+		Security:    []map[string][]string{{"jwt": {}}},
+	}, authHandler.DeactivatePseudonym)
 }

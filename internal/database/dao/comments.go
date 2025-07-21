@@ -490,3 +490,90 @@ func (dao *CommentDAO) SetRemoved(ctx context.Context, commentID int64, removed 
 
 	return nil
 }
+
+// SetCommentRemoved sets the removal status and metadata for a comment
+func (dao *CommentDAO) SetCommentRemoved(ctx context.Context, commentID int64, removed bool, reason, removedByPseudonymID string) error {
+	comment, err := models.Comments.Query(
+		models.SelectWhere.Comments.CommentID.EQ(commentID),
+	).One(ctx, dao.db)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("comment not found")
+		}
+		return fmt.Errorf("failed to find comment: %w", err)
+	}
+
+	now := sql.Null[time.Time]{}
+	now.Scan(time.Now())
+
+	reasonNull := sql.Null[string]{Valid: false}
+	if reason != "" {
+		reasonNull.Scan(reason)
+	}
+
+	removedByPseudonymIDNull := sql.Null[string]{Valid: false}
+	if removedByPseudonymID != "" {
+		removedByPseudonymIDNull.Scan(removedByPseudonymID)
+	}
+
+	updates := &models.CommentSetter{
+		IsRemoved:            &sql.Null[bool]{Valid: true, V: removed},
+		RemovalReason:        &reasonNull,
+		RemovedAt:            &now,
+		RemovedByPseudonymID: &removedByPseudonymIDNull,
+		UpdatedAt:            &now,
+	}
+
+	err = comment.Update(ctx, dao.db, updates)
+	if err != nil {
+		return fmt.Errorf("failed to set comment removal status: %w", err)
+	}
+
+	return nil
+}
+
+// UpdateComment updates a comment's content and edit metadata
+func (dao *CommentDAO) UpdateComment(ctx context.Context, commentID int64, content, editReason string) error {
+	comment, err := models.Comments.Query(
+		models.SelectWhere.Comments.CommentID.EQ(commentID),
+		sm.Where(psql.Group(psql.And(
+			psql.Group(psql.Or(
+				psql.Quote("comments", "is_removed").IsNull(),
+				psql.Quote("comments", "is_removed").EQ(psql.Arg(false)),
+			)),
+			psql.Group(psql.Or(
+				psql.Quote("comments", "is_deleted").IsNull(),
+				psql.Quote("comments", "is_deleted").EQ(psql.Arg(false)),
+			)),
+		))),
+	).One(ctx, dao.db)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("comment not found")
+		}
+		return fmt.Errorf("failed to find comment: %w", err)
+	}
+
+	now := sql.Null[time.Time]{}
+	now.Scan(time.Now())
+
+	editReasonNull := sql.Null[string]{Valid: false}
+	if editReason != "" {
+		editReasonNull.Scan(editReason)
+	}
+
+	updates := &models.CommentSetter{
+		Content:    &content,
+		IsEdited:   &sql.Null[bool]{Valid: true, V: true},
+		EditedAt:   &now,
+		EditReason: &editReasonNull,
+		UpdatedAt:  &now,
+	}
+
+	err = comment.Update(ctx, dao.db, updates)
+	if err != nil {
+		return fmt.Errorf("failed to update comment: %w", err)
+	}
+
+	return nil
+}

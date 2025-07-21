@@ -331,3 +331,82 @@ func NewUserLogoutResponse(isDevelopment bool) *UserLogoutResponse {
 		Cookies: []http.Cookie{accessCookie, refreshCookie},
 	}
 }
+
+// SwitchPseudonymBody represents the body of pseudonym switching request
+type SwitchPseudonymBody struct {
+	PseudonymID string `json:"pseudonym_id" required:"true" example:"abc123def456..."`
+}
+
+// SwitchPseudonymInput represents pseudonym switching request
+// For Huma schema definition only. Actual requests should send flat JSON, not nested under 'body'.
+type SwitchPseudonymInput struct {
+	Body SwitchPseudonymBody
+}
+
+// SwitchPseudonymResponseBody represents the body of pseudonym switching response
+type SwitchPseudonymResponseBody struct {
+	Message string `json:"message" example:"Pseudonym switched successfully"`
+}
+
+// SwitchPseudonymResponse represents pseudonym switching response
+type SwitchPseudonymResponse struct {
+	Status int                         `json:"-" example:"200"`
+	Body   SwitchPseudonymResponseBody `json:"body"`
+	// JWT cookie set automatically by Huma
+	Cookies []http.Cookie `header:"Set-Cookie"`
+}
+
+// NewSwitchPseudonymResponse creates a new pseudonym switching response
+func NewSwitchPseudonymResponse(accessToken string, expiresIn time.Duration, isDevelopment bool) *SwitchPseudonymResponse {
+	// Create cookie for the new access token
+	accessCookie := http.Cookie{
+		Name:     "access_token",
+		Value:    accessToken,
+		Path:     "/",
+		Domain:   "", // Empty domain means current domain
+		HttpOnly: true,
+		Secure:   !isDevelopment, // Secure only in production
+		SameSite: http.SameSiteStrictMode,
+		Expires:  time.Now().Add(expiresIn),
+	}
+
+	return &SwitchPseudonymResponse{
+		Status: 200,
+		Body: SwitchPseudonymResponseBody{
+			Message: "Pseudonym switched successfully",
+		},
+		Cookies: []http.Cookie{accessCookie},
+	}
+}
+
+// DeactivatePseudonymBody represents the body of pseudonym deactivation request
+type DeactivatePseudonymBody struct {
+	PseudonymID string `json:"pseudonym_id" required:"true" example:"abc123def456..."`
+}
+
+// DeactivatePseudonymInput represents pseudonym deactivation request
+// For Huma schema definition only. Actual requests should send flat JSON, not nested under 'body'.
+type DeactivatePseudonymInput struct {
+	Body DeactivatePseudonymBody
+}
+
+// DeactivatePseudonymResponseBody represents the body of pseudonym deactivation response
+type DeactivatePseudonymResponseBody struct {
+	Message string `json:"message" example:"Pseudonym deactivated successfully"`
+}
+
+// DeactivatePseudonymResponse represents pseudonym deactivation response
+type DeactivatePseudonymResponse struct {
+	Status int                             `json:"-" example:"200"`
+	Body   DeactivatePseudonymResponseBody `json:"body"`
+}
+
+// NewDeactivatePseudonymResponse creates a new pseudonym deactivation response
+func NewDeactivatePseudonymResponse() *DeactivatePseudonymResponse {
+	return &DeactivatePseudonymResponse{
+		Status: 200,
+		Body: DeactivatePseudonymResponseBody{
+			Message: "Pseudonym deactivated successfully",
+		},
+	}
+}

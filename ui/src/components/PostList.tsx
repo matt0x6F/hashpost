@@ -120,6 +120,7 @@ export function PostList({ subforumName }: PostListProps) {
             <PostCard
               key={post.postId}
               post={post}
+              subforumName={subforumName}
             />
           ))
         )}

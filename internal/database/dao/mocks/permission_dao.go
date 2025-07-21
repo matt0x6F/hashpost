@@ -77,6 +77,13 @@ func (m *MockPermissionDAO) SetDefaultBehavior() {
 			return false, nil
 		},
 	)
+
+	// Default behavior for GetUserSubforumCapabilities
+	m.On("GetUserSubforumCapabilities", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int32")).Return(
+		func(ctx context.Context, userID int64, subforumID int32) ([]string, error) {
+			return []string{}, nil
+		},
+	)
 }
 
 // CanAccessPrivateSubforum checks if a user can access a private subforum
@@ -105,6 +112,32 @@ func (m *MockPermissionDAO) HasSubforumCapability(ctx context.Context, userID in
 	return args.Get(0).(bool), args.Error(1)
 }
 
+// HasSubforumCapabilityWithActivePseudonym checks if a user has a specific capability for a subforum using only the active pseudonym
+func (m *MockPermissionDAO) HasSubforumCapabilityWithActivePseudonym(ctx context.Context, userID int64, subforumID int32, capability string, activePseudonymID string) (bool, error) {
+	args := m.Called(ctx, userID, subforumID, capability, activePseudonymID)
+
+	// Check if the return value is a function
+	if fn, ok := args.Get(0).(func(context.Context, int64, int32, string, string) (bool, error)); ok {
+		return fn(ctx, userID, subforumID, capability, activePseudonymID)
+	}
+
+	// Fallback to direct return values
+	return args.Get(0).(bool), args.Error(1)
+}
+
+// CanAccessPrivateSubforumWithActivePseudonym checks if a user can access a private subforum using only the active pseudonym
+func (m *MockPermissionDAO) CanAccessPrivateSubforumWithActivePseudonym(ctx context.Context, userID int64, subforumID int32, activePseudonymID string) (bool, error) {
+	args := m.Called(ctx, userID, subforumID, activePseudonymID)
+
+	// Check if the return value is a function
+	if fn, ok := args.Get(0).(func(context.Context, int64, int32, string) (bool, error)); ok {
+		return fn(ctx, userID, subforumID, activePseudonymID)
+	}
+
+	// Fallback to direct return values
+	return args.Get(0).(bool), args.Error(1)
+}
+
 // CanModerateSubforum checks if a user can moderate a subforum
 func (m *MockPermissionDAO) CanModerateSubforum(ctx context.Context, userID int64, subforumID int32) (bool, error) {
 	args := m.Called(ctx, userID, subforumID)
@@ -116,4 +149,52 @@ func (m *MockPermissionDAO) CanModerateSubforum(ctx context.Context, userID int6
 
 	// Fallback to direct return values
 	return args.Get(0).(bool), args.Error(1)
+}
+
+// GetUserSubforumRoles gets the roles a user has for a specific subforum
+func (m *MockPermissionDAO) GetUserSubforumRoles(ctx context.Context, userID int64, subforumID int32) ([]string, error) {
+	args := m.Called(ctx, userID, subforumID)
+
+	// Check if the return value is a function
+	if fn, ok := args.Get(0).(func(context.Context, int64, int32) ([]string, error)); ok {
+		return fn(ctx, userID, subforumID)
+	}
+
+	// Fallback to direct return values
+	if args.Get(0) == nil {
+		return []string{}, args.Error(1)
+	}
+	return args.Get(0).([]string), args.Error(1)
+}
+
+// GetUserSubforumCapabilities gets the capabilities a user has for a specific subforum
+func (m *MockPermissionDAO) GetUserSubforumCapabilities(ctx context.Context, userID int64, subforumID int32) ([]string, error) {
+	args := m.Called(ctx, userID, subforumID)
+
+	// Check if the return value is a function
+	if fn, ok := args.Get(0).(func(context.Context, int64, int32) ([]string, error)); ok {
+		return fn(ctx, userID, subforumID)
+	}
+
+	// Fallback to direct return values
+	if args.Get(0) == nil {
+		return []string{}, args.Error(1)
+	}
+	return args.Get(0).([]string), args.Error(1)
+}
+
+// GetActivePseudonymRolesAndCapabilities gets the roles and capabilities for a specific active pseudonym
+func (m *MockPermissionDAO) GetActivePseudonymRolesAndCapabilities(ctx context.Context, userID int64, activePseudonymID string) ([]string, []string, error) {
+	args := m.Called(ctx, userID, activePseudonymID)
+
+	// Check if the return value is a function
+	if fn, ok := args.Get(0).(func(context.Context, int64, string) ([]string, []string, error)); ok {
+		return fn(ctx, userID, activePseudonymID)
+	}
+
+	// Fallback to direct return values
+	if args.Get(0) == nil {
+		return []string{}, []string{}, args.Error(2)
+	}
+	return args.Get(0).([]string), args.Get(1).([]string), args.Error(2)
 }

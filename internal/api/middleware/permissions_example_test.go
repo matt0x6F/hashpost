@@ -7,6 +7,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/matt0x6f/hashpost/internal/database/dao/mocks"
+	"github.com/stretchr/testify/mock"
 )
 
 // ExamplePermissionMiddleware demonstrates how to use the permission middleware
@@ -15,22 +18,28 @@ func ExamplePermissionMiddleware() {
 	// in a real application
 
 	// 1. Create a mock permission DAO (in real app, use real DAO with database)
-	mockDAO := &MockPermissionDAO{
-		hasSubforumCapabilityFunc: func(ctx context.Context, userID int64, subforumID int32, capability string) (bool, error) {
+	mockDAO := mocks.NewMockPermissionDAO()
+
+	// Set up mock expectations
+	mockDAO.On("HasSubforumCapability", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int32"), mock.AnythingOfType("string")).Return(
+		func(ctx context.Context, userID int64, subforumID int32, capability string) (bool, error) {
 			// Mock logic: user 123 has moderation capability for subforum 456
 			if userID == 123 && subforumID == 456 && capability == "moderate_content" {
 				return true, nil
 			}
 			return false, nil
 		},
-		canAccessPrivateSubforumFunc: func(ctx context.Context, userID int64, subforumID int32) (bool, error) {
+	)
+
+	mockDAO.On("CanAccessPrivateSubforum", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int32")).Return(
+		func(ctx context.Context, userID int64, subforumID int32) (bool, error) {
 			// Mock logic: user 123 can access private subforum 789
 			if userID == 123 && subforumID == 789 {
 				return true, nil
 			}
 			return false, nil
 		},
-	}
+	)
 
 	// 2. Create permission middleware with the DAO
 	permissionMiddleware := NewPermissionMiddlewareWithDAO(mockDAO)
@@ -73,29 +82,38 @@ func ExamplePermissionChecker() {
 	// This is an example of how to use the permission checker in handlers
 
 	// 1. Create a mock permission DAO
-	mockDAO := &MockPermissionDAO{
-		hasSubforumCapabilityFunc: func(ctx context.Context, userID int64, subforumID int32, capability string) (bool, error) {
+	mockDAO := mocks.NewMockPermissionDAO()
+
+	// Set up mock expectations
+	mockDAO.On("HasSubforumCapability", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int32"), mock.AnythingOfType("string")).Return(
+		func(ctx context.Context, userID int64, subforumID int32, capability string) (bool, error) {
 			// Mock logic: user 123 has all capabilities for subforum 456
 			if userID == 123 && subforumID == 456 {
 				return true, nil
 			}
 			return false, nil
 		},
-		getUserSubforumRolesFunc: func(ctx context.Context, userID int64, subforumID int32) ([]string, error) {
+	)
+
+	mockDAO.On("GetUserSubforumRoles", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int32")).Return(
+		func(ctx context.Context, userID int64, subforumID int32) ([]string, error) {
 			// Mock logic: user 123 is a moderator for subforum 456
 			if userID == 123 && subforumID == 456 {
 				return []string{"moderator", "admin"}, nil
 			}
 			return []string{}, nil
 		},
-		getUserSubforumCapabilitiesFunc: func(ctx context.Context, userID int64, subforumID int32) ([]string, error) {
+	)
+
+	mockDAO.On("GetUserSubforumCapabilities", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int32")).Return(
+		func(ctx context.Context, userID int64, subforumID int32) ([]string, error) {
 			// Mock logic: user 123 has all capabilities for subforum 456
 			if userID == 123 && subforumID == 456 {
 				return []string{"moderate_content", "ban_users", "remove_content", "manage_moderators"}, nil
 			}
 			return []string{}, nil
 		},
-	}
+	)
 
 	// 2. Create permission checker with the DAO
 	checker := NewPermissionCheckerWithDAO(mockDAO)
@@ -167,8 +185,11 @@ func ExamplePermissionChecker() {
 // TestPermissionMiddlewareIntegration tests the middleware in a more realistic scenario
 func TestPermissionMiddlewareIntegration(t *testing.T) {
 	// Create a mock DAO with realistic behavior
-	mockDAO := &MockPermissionDAO{
-		hasSubforumCapabilityFunc: func(ctx context.Context, userID int64, subforumID int32, capability string) (bool, error) {
+	mockDAO := mocks.NewMockPermissionDAO()
+
+	// Set up mock expectations
+	mockDAO.On("HasSubforumCapability", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int32"), mock.AnythingOfType("string")).Return(
+		func(ctx context.Context, userID int64, subforumID int32, capability string) (bool, error) {
 			// Mock logic: user 123 is a moderator for subforum 456
 			if userID == 123 && subforumID == 456 {
 				switch capability {
@@ -180,14 +201,17 @@ func TestPermissionMiddlewareIntegration(t *testing.T) {
 			}
 			return false, nil
 		},
-		canAccessPrivateSubforumFunc: func(ctx context.Context, userID int64, subforumID int32) (bool, error) {
+	)
+
+	mockDAO.On("CanAccessPrivateSubforum", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int32")).Return(
+		func(ctx context.Context, userID int64, subforumID int32) (bool, error) {
 			// Mock logic: user 123 can access private subforum 789
 			if userID == 123 && subforumID == 789 {
 				return true, nil
 			}
 			return false, nil
 		},
-	}
+	)
 
 	// Create middleware
 	permissionMiddleware := NewPermissionMiddlewareWithDAO(mockDAO)
