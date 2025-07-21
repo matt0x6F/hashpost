@@ -15,9 +15,6 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
   const { isAuthenticated, isLoading } = useAuth();
   const { theme, setTheme } = useTheme();
 
-  // Debug logging
-  console.log('[TopBar] Auth state:', { isAuthenticated, isLoading });
-
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
@@ -25,12 +22,10 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
 
   const handleLoginSuccess = () => {
     // TODO: Handle successful login (e.g., update user state, redirect, etc.)
-    console.log("Login successful!");
   };
 
   const handleSignupSuccess = () => {
     // TODO: Handle successful signup (e.g., update user state, redirect, etc.)
-    console.log("Signup successful!");
   };
 
   const toggleTheme = () => {

@@ -70,10 +70,8 @@ export function PostCard({ post, subforumName }: PostCardProps) {
   const loadSubforumUserContext = async () => {
     try {
       const userData = await authenticateUserForSubforum(subforumName!);
-      console.log('[PostCard] Subforum user data:', userData);
       if (userData) {
         login(userData);
-        console.log('[PostCard] User context updated with subforum capabilities');
       }
     } catch (error) {
       console.error('Error loading subforum user context:', error);
@@ -84,11 +82,6 @@ export function PostCard({ post, subforumName }: PostCardProps) {
   const isModerator = user?.roles?.includes('moderator') || user?.capabilities?.includes('moderate_content');
 
   const isAuthor = user?.activePseudonymId === localPost.author.pseudonymId;
-
-  // Debug logging
-  console.log('[PostCard] User roles:', user?.roles);
-  console.log('[PostCard] User capabilities:', user?.capabilities);
-  console.log('[PostCard] Is moderator:', isModerator);
 
   const handleVote = async (voteValue: number) => {
     if (!isAuthenticated) {
@@ -206,10 +199,6 @@ export function PostCard({ post, subforumName }: PostCardProps) {
   };
 
   // Debug: Check author match for edit button
-  console.log('user.activePseudonymId', user?.activePseudonymId);
-  console.log('post.author.pseudonymId', localPost.author.pseudonymId);
-  console.log('isAuthor', isAuthor);
-
   // If post is removed and user is not a moderator, don't show it
   if (localPost.isRemoved && !isModerator) {
     return null;

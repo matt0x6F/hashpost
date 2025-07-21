@@ -55,16 +55,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        console.log('Checking authentication...');
         // Try to authenticate using tokens in cookies
         const authResult = await authenticateUser();
-        console.log('Authentication result:', authResult);
         
         if (authResult) {
-          console.log('User authenticated successfully:', authResult);
           login(authResult);
         } else {
-          console.log('Authentication failed - user is not authenticated');
           // Clear any stale localStorage data when server says user is not authenticated
           localStorage.removeItem('hashpost_user');
           setUser(null);
@@ -167,9 +163,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshUser,
     isAuthenticated: !!user,
   };
-
-  // Debug logging
-  console.log('[auth-context] State update:', { user: !!user, isLoading, isAuthenticated: !!user });
 
   return (
     <AuthContext.Provider value={value}>

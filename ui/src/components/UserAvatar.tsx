@@ -14,7 +14,6 @@ export function UserAvatar() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [showPseudonymManager, setShowPseudonymManager] = useState(false);
   const [showCreatePseudonym, setShowCreatePseudonym] = useState(false);
-  
 
 
   const handleLogout = async () => {

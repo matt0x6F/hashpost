@@ -51,7 +51,6 @@ function EmojiPopover({ filteredEmojis, emojiSearch, insertEmojiShortcode }: {
       // Load more emojis
       setVisibleCount((c) => {
         const next = Math.min(filteredEmojis.length, c + 32);
-        console.log('Loading more emojis:', c, '->', next, 'of', filteredEmojis.length, 'isNearBottom:', isNearBottom);
         return next;
       });
     }

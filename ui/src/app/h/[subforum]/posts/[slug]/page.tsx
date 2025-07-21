@@ -53,10 +53,8 @@ export default function PostPage() {
   const loadSubforumUserContext = async () => {
     try {
       const userData = await authenticateUserForSubforum(subforum);
-      console.log('[PostPage] Subforum user data:', userData);
       if (userData) {
         login(userData);
-        console.log('[PostPage] User context updated with subforum capabilities');
       }
     } catch (error) {
       console.error('Error loading subforum user context:', error);
@@ -264,9 +262,7 @@ export default function PostPage() {
 
   // Debug logs for author check
   if (postDetails) {
-    console.log('user.activePseudonymId', user?.activePseudonymId);
-    console.log('postDetails.author.pseudonymId', postDetails.author.pseudonymId);
-    console.log('isPostAuthor', isPostAuthor);
+    // Debug information removed for production
   }
 
 

@@ -20,7 +20,7 @@ export default function NewPostPage() {
   const router = useRouter();
   const params = useParams();
   const subforumName = params.subforum as string;
-  const { user, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,12 +39,10 @@ export default function NewPostPage() {
   const loadSubforumUserContext = async () => {
     try {
       const userData = await authenticateUserForSubforum(subforumName);
-      console.log('[NewPostPage] Subforum user data:', userData);
       if (userData) {
         const hasModeratorRole = userData.roles?.includes('moderator');
         const hasModerateContentCapability = userData.capabilities?.includes('moderate_content');
         setIsModerator(hasModeratorRole || hasModerateContentCapability);
-        console.log('[NewPostPage] Is moderator:', hasModeratorRole || hasModerateContentCapability);
       }
     } catch (error) {
       console.error('Error loading subforum user context:', error);
