@@ -59,19 +59,37 @@ canBan, err := permissionDAO.HasSubforumCapability(
 
 ## Database Setup
 
-### 1. User Roles and Capabilities
+### 1. Pseudonym Roles and Capabilities
 
-Users can have platform-wide roles and capabilities stored in JSON fields:
+Pseudonyms store their own roles and capabilities in JSONB fields:
 
 ```sql
--- Example user with platform admin role
+-- Example pseudonym with user role and basic capabilities
+UPDATE pseudonyms 
+SET roles = '["user"]'::jsonb,
+    capabilities = '["create_content", "vote", "message", "report"]'::jsonb
+WHERE pseudonym_id = 'pseudonym_123';
+
+-- Example pseudonym with moderator capabilities for a specific subforum
+UPDATE pseudonyms 
+SET roles = '["user", "moderator"]'::jsonb,
+    capabilities = '["create_content", "vote", "message", "report", "moderate_content", "ban_users"]'::jsonb
+WHERE pseudonym_id = 'moderator_pseudonym_456';
+```
+
+### 2. User Accounts
+
+Users only have basic account management - no roles or capabilities:
+
+```sql
+-- Example user account (no roles or capabilities)
 UPDATE users 
-SET roles = '["platform_admin"]'::jsonb,
-    capabilities = '["access_private_subforums", "system_admin"]'::jsonb
+SET email = 'user@example.com',
+    is_active = TRUE
 WHERE user_id = 1;
 ```
 
-### 2. Subforum Moderators
+### 3. Subforum Moderators
 
 Subforum-specific permissions are managed through the `subforum_moderators` table:
 
@@ -99,249 +117,233 @@ INSERT INTO subforum_moderators (
 ### 1. Using PermissionDAO with Constants
 
 ```go
-package main
+// Check if user can moderate content in a subforum
+canModerate, err := permissionDAO.HasSubforumCapabilityWithActivePseudonym(
+    ctx, userID, subforumID, constants.CapabilityModerateContent, activePseudonymID)
+if err != nil {
+    return err
+}
 
-import (
-    "context"
-    "github.com/matt0x6f/hashpost/internal/api/constants"
-    "github.com/matt0x6f/hashpost/internal/database/dao"
-)
-
-func checkUserAccess(db bob.Executor, userID int64, subforumID int32) {
-    permissionDAO := dao.NewPermissionDAO(db)
-    
-    // Check if user can access private subforum
-    canAccess, err := permissionDAO.CanAccessPrivateSubforum(ctx, userID, subforumID)
-    if err != nil {
-        log.Error().Err(err).Msg("Failed to check access")
-        return
-    }
-    
-    if !canAccess {
-        log.Warn().Msg("Access denied to private subforum")
-        return
-    }
-    
-    // Check specific capabilities using constants
-    canModerate, err := permissionDAO.HasSubforumCapability(
-        ctx, userID, subforumID, constants.CapabilityModerateContent)
-    if err != nil {
-        log.Error().Err(err).Msg("Failed to check moderation capability")
-        return
-    }
-    
-    if canModerate {
-        log.Info().Msg("User can moderate this subforum")
-    }
+if !canModerate {
+    return huma.Error403Forbidden("Insufficient permissions")
 }
 ```
 
-### 2. Using PermissionMiddleware with Constants
+### 2. Subforum-Specific Session Endpoint
 
 ```go
-package main
+// Get user session with subforum-specific capabilities
+func (h *AuthHandler) GetCurrentUserSessionForSubforum(ctx context.Context, input *struct {
+    middleware.AuthInput
+    SubforumName string `path:"subforum_name"`
+}) (*models.CurrentUserSessionResponse, error) {
+    // Extract user context
+    userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+    if err != nil {
+        return nil, huma.Error401Unauthorized("Authentication required")
+    }
 
-import (
-    "github.com/matt0x6f/hashpost/internal/api/constants"
-    "github.com/matt0x6f/hashpost/internal/api/middleware"
-)
+    // Get subforum-specific capabilities
+    subforumCapabilities := []string{}
+    hasModerateContent, err := h.permissionDAO.HasSubforumCapabilityWithActivePseudonym(
+        ctx, userCtx.UserID, subforumID, "moderate_content", userCtx.ActivePseudonymID)
+    
+    if err == nil && hasModerateContent {
+        // Add moderator role dynamically
+        if !contains(userCtx.Roles, "moderator") {
+            userCtx.Roles = append(userCtx.Roles, "moderator")
+        }
+        subforumCapabilities = append(subforumCapabilities, "moderate_content")
+    }
 
-func setupRoutes(db bob.Executor) {
-    permissionMiddleware := middleware.NewPermissionMiddleware(db)
-    
-    // Protect routes that require private subforum access
-    http.HandleFunc("/subforums/private", 
-        permissionMiddleware.RequirePrivateSubforumAccess()(
-            http.HandlerFunc(handlePrivateSubforum),
-        ),
-    )
-    
-    // Protect moderation routes using constants
-    http.HandleFunc("/subforums/moderate", 
-        permissionMiddleware.RequireSubforumCapability(constants.CapabilityModerateContent)(
-            http.HandlerFunc(handleModeration),
-        ),
-    )
-    
-    // Protect ban routes using constants
-    http.HandleFunc("/subforums/ban", 
-        permissionMiddleware.RequireSubforumCapability(constants.CapabilityBanUsers)(
-            http.HandlerFunc(handleBanUser),
-        ),
-    )
+    // Return combined permissions
+    return models.NewCurrentUserSessionResponse(
+        userID,
+        userCtx.Email,
+        userCtx.Roles,        // Includes dynamically assigned roles
+        append(userCtx.Capabilities, subforumCapabilities...), // Combined capabilities
+        userCtx.ActivePseudonymID,
+        userCtx.DisplayName,
+        pseudonymInfos,
+    ), nil
 }
 ```
 
-### 3. Using PermissionChecker in Handlers with Constants
+### 3. Pseudonym Management
 
 ```go
-package handlers
-
-import (
-    "github.com/matt0x6f/hashpost/internal/api/constants"
-    "github.com/matt0x6f/hashpost/internal/api/middleware"
-)
-
-type ContentHandler struct {
-    permissionChecker *middleware.PermissionChecker
-    // ... other fields
-}
-
-func (h *ContentHandler) GetPosts(ctx context.Context, input *models.PostListInput) (*models.PostListResponse, error) {
-    // Get user context
-    userCtx, err := middleware.ExtractUserFromContext(ctx)
+// Switch active pseudonym
+func (h *AuthHandler) SwitchPseudonym(ctx context.Context, input *struct {
+    middleware.AuthInput
+    models.SwitchPseudonymInput
+}) (*models.SwitchPseudonymResponse, error) {
+    userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
     if err != nil {
-        return nil, fmt.Errorf("authentication required")
+        return nil, huma.Error401Unauthorized("Authentication required")
     }
+
+    // Verify pseudonym ownership
+    ownsPseudonym, err := h.securePseudonymDAO.VerifyPseudonymOwnership(
+        ctx, input.Body.PseudonymID, userCtx.UserID, "user", constants.ScopeAuthentication)
     
-    // Get subforum
-    subforum, err := h.subforumDAO.GetSubforumByName(ctx, input.SubforumName)
+    if !ownsPseudonym {
+        return nil, huma.Error403Forbidden("You do not own this pseudonym")
+    }
+
+    // Generate new JWT with updated pseudonym context
+    newUserCtx := &middleware.UserContext{
+        UserID:            userCtx.UserID,
+        Email:             userCtx.Email,
+        Roles:             userCtx.Roles,
+        Capabilities:      userCtx.Capabilities,
+        ActivePseudonymID: input.Body.PseudonymID,
+        DisplayName:       targetPseudonym.DisplayName,
+    }
+
+    accessToken, err := middleware.GenerateJWT(newUserCtx, h.config.JWT.Secret, h.config.JWT.Expiration)
     if err != nil {
-        return nil, err
+        return nil, huma.Error500InternalServerError("Failed to generate new token")
     }
-    
-    // Check private subforum access
-    if subforum.IsPrivate.Valid && subforum.IsPrivate.V {
-        canAccess, err := h.permissionChecker.CheckPrivateSubforumAccess(
-            ctx, userCtx.UserID, subforum.SubforumID,
-        )
-        if err != nil {
-            return nil, fmt.Errorf("failed to verify access")
-        }
-        
-        if !canAccess {
-            return nil, fmt.Errorf("access denied to private subforum")
-        }
-    }
-    
-    // Continue with normal post retrieval...
-    return h.getPostsFromSubforum(ctx, subforum.SubforumID)
+
+    return models.NewSwitchPseudonymResponse(accessToken, h.config.JWT.Expiration, h.config.JWT.Development), nil
 }
 ```
 
-### 4. Creating Role Keys with Constants
+### 4. Content Creation with Pseudonym Context
 
 ```go
-package commands
+// Create a post with pseudonym-based permissions
+func (h *ContentHandler) CreatePost(ctx context.Context, input *models.CreatePostInput) (*models.CreatePostResponse, error) {
+    userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+    if err != nil {
+        return nil, huma.Error401Unauthorized("Authentication required")
+    }
 
-import (
-    "github.com/matt0x6f/hashpost/internal/api/constants"
-)
-
-func createRoleKeys() error {
-    // Get all role definitions using constants
-    roleDefinitions := constants.GetRoleDefinitions()
-    
-    for _, roleDef := range roleDefinitions {
-        log.Info().Str("role", roleDef.RoleName).Msg("Creating role keys")
-        
-        for _, scope := range roleDef.Scopes {
-            capabilities := roleDef.Capabilities[scope]
-            
-            // Create role key with proper scope and capabilities
-            keyData := ibeSystem.GenerateTestRoleKey(roleDef.RoleName, scope)
-            
-            _, err := roleKeyDAO.CreateRoleKey(
-                ctx, 
-                roleDef.RoleName, 
-                scope, 
-                keyData, 
-                capabilities, 
-                expiresAt, 
-                creatorUserID,
-            )
-            if err != nil {
-                log.Error().Err(err).Msg("Failed to create role key")
-                continue
-            }
-            
-            log.Info().
-                Str("role", roleDef.RoleName).
-                Str("scope", scope).
-                Strs("capabilities", capabilities).
-                Msg("Role key created successfully")
+    // Check if user can create content with their active pseudonym
+    canCreateContent := false
+    for _, capability := range userCtx.Capabilities {
+        if capability == constants.CapabilityCreateContent {
+            canCreateContent = true
+            break
         }
     }
-    
-    return nil
+
+    if !canCreateContent {
+        return nil, huma.Error403Forbidden("Insufficient permissions to create content")
+    }
+
+    // Create post with pseudonym context
+    post, err := h.postDAO.CreatePost(ctx, &dao.CreatePostParams{
+        SubforumID:   input.Body.SubforumID,
+        PseudonymID:  userCtx.ActivePseudonymID, // Use active pseudonym
+        Title:        input.Body.Title,
+        Content:      input.Body.Content,
+        Slug:         input.Body.Slug,
+    })
+
+    if err != nil {
+        return nil, fmt.Errorf("failed to create post: %w", err)
+    }
+
+    return models.NewCreatePostResponse(post), nil
 }
 ```
 
-## Role Hierarchy
+### 5. Moderation with Subforum Context
 
-### Platform-Wide Roles (using constants)
-- `constants.RolePlatformAdmin`: Full system access
-- `constants.RoleTrustSafety`: Trust and safety operations
-- `constants.RoleLegalTeam`: Legal compliance operations
+```go
+// Moderate content with subforum-specific permissions
+func (h *ModerationHandler) ModerateContent(ctx context.Context, input *models.ModerateContentInput) (*models.ModerateContentResponse, error) {
+    userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+    if err != nil {
+        return nil, huma.Error401Unauthorized("Authentication required")
+    }
 
-### Subforum-Specific Roles
-- `constants.RoleSubforumOwner`: Full subforum control
-  - Capabilities: `moderate_content`, `ban_users`, `remove_content`, `correlate_fingerprints`, `manage_moderators`, `access_private_subforums`
-  
-- `constants.RoleModerator`: Standard moderation
-  - Capabilities: `moderate_content`, `ban_users`, `remove_content`, `correlate_fingerprints`
-  
-- `constants.RoleUser`: Basic user
-  - Capabilities: `create_content`, `vote`, `message`, `report`
+    // Check subforum-specific moderation capability
+    canModerate, err := h.permissionDAO.HasSubforumCapabilityWithActivePseudonym(
+        ctx, userCtx.UserID, input.Body.SubforumID, constants.CapabilityModerateContent, userCtx.ActivePseudonymID)
+    
+    if err != nil || !canModerate {
+        return nil, huma.Error403Forbidden("Insufficient moderation permissions")
+    }
 
-## Capabilities by Category
+    // Perform moderation action
+    action, err := h.moderationDAO.CreateModerationAction(ctx, &dao.CreateModerationActionParams{
+        SubforumID:        input.Body.SubforumID,
+        ModeratorPseudonymID: userCtx.ActivePseudonymID,
+        TargetPseudonymID:    input.Body.TargetPseudonymID,
+        ActionType:           input.Body.ActionType,
+        Reason:               input.Body.Reason,
+    })
 
-### Content Moderation
-- `constants.CapabilityModerateContent`: Can approve/remove posts and comments
-- `constants.CapabilityRemoveContent`: Can remove posts and comments
-- `constants.CapabilityBanUsers`: Can ban users from subforum
+    if err != nil {
+        return nil, fmt.Errorf("failed to create moderation action: %w", err)
+    }
 
-### Administrative
-- `constants.CapabilityManageModerators`: Can add/remove moderators
-- `constants.CapabilityCorrelateFingerprints`: Can perform identity correlation
-- `constants.CapabilityAccessSubforumPseudonyms`: Can access pseudonyms within subforum
+    return models.NewModerateContentResponse(action), nil
+}
+```
 
-### System
-- `constants.CapabilitySystemAdmin`: Full system access
-- `constants.CapabilityUserManagement`: Manage user accounts
-- `constants.CapabilityCompliance`: Compliance-related operations
+## Migration from User-Level to Pseudonym-Level Permissions
+
+### Database Migration
+
+```sql
+-- Add roles and capabilities to pseudonyms
+ALTER TABLE pseudonyms ADD COLUMN roles JSONB DEFAULT '["user"]';
+ALTER TABLE pseudonyms ADD COLUMN capabilities JSONB DEFAULT '["create_content", "vote", "message", "report"]';
+
+-- Remove capabilities from users table
+ALTER TABLE users DROP COLUMN capabilities;
+```
+
+### Code Migration
+
+```go
+// Old way (user-level capabilities)
+userCapabilities := user.Capabilities
+
+// New way (pseudonym-level capabilities)
+pseudonymCapabilities := pseudonym.Capabilities
+activePseudonymCapabilities := userCtx.Capabilities // From JWT context
+```
 
 ## Best Practices
 
-### 1. Always Use Constants
+### 1. Always Check Active Pseudonym Context
 ```go
-// ✅ Good - Using constants
-canModerate, err := permissionDAO.HasSubforumCapability(
-    ctx, userID, subforumID, constants.CapabilityModerateContent)
+// Good: Check capabilities with active pseudonym
+canModerate, err := permissionDAO.HasSubforumCapabilityWithActivePseudonym(
+    ctx, userID, subforumID, capability, userCtx.ActivePseudonymID)
 
-// ❌ Bad - Using string literals
-canModerate, err := permissionDAO.HasSubforumCapability(
-    ctx, userID, subforumID, "moderate_content")
+// Avoid: Checking without pseudonym context
+canModerate, err := permissionDAO.HasSubforumCapability(ctx, userID, subforumID, capability)
 ```
 
-### 2. Validate Roles and Capabilities
+### 2. Use Dynamic Role Assignment
 ```go
-// Check if role is valid before using
-if !constants.IsValidRole(roleName) {
-    return fmt.Errorf("invalid role: %s", roleName)
-}
-
-// Check if capability is valid for scope
-if !constants.IsValidCapability(capability, scope) {
-    return fmt.Errorf("invalid capability %s for scope %s", capability, scope)
+// Good: Dynamically assign moderator role when appropriate
+if hasModerateContent && !contains(userCtx.Roles, "moderator") {
+    userCtx.Roles = append(userCtx.Roles, "moderator")
 }
 ```
 
-### 3. Use Role Definitions
+### 3. Combine Permissions Properly
 ```go
-// Get role definition for comprehensive information
-roleDef := constants.GetRoleDefinition(constants.RoleModerator)
-if roleDef != nil {
-    // Use roleDef.Scopes and roleDef.Capabilities
-    for _, scope := range roleDef.Scopes {
-        capabilities := roleDef.Capabilities[scope]
-        // Process capabilities for this scope
-    }
-}
+// Good: Combine pseudonym and subforum capabilities
+allCapabilities := append(pseudonymCapabilities, subforumCapabilities...)
+allRoles := append(pseudonymRoles, subforumRoles...)
+```
+
+### 4. Validate Pseudonym Ownership
+```go
+// Always verify pseudonym ownership before operations
+ownsPseudonym, err := securePseudonymDAO.VerifyPseudonymOwnership(
+    ctx, pseudonymID, userID, role, constants.ScopeAuthentication)
 ```
 
 ## Related Documentation
 
-- [RBAC Overview](rbac-overview.md) - Complete RBAC system documentation
-- [Role Keys and Site Roles](role-keys-and-site-roles.md) - Role key management
-- [User Roles](user-roles.md) - Role definitions and permissions 
+- [RBAC Overview](rbac-overview.md)
+- [User Roles](user-roles.md)
+- [Role Keys and Site Roles](role-keys-and-site-roles.md) 

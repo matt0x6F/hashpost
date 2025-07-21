@@ -311,6 +311,8 @@ var ColumnNames = struct {
 		ShowKarma:           "show_karma",
 		AllowDirectMessages: "allow_direct_messages",
 		IsDefault:           "is_default",
+		Roles:               "roles",
+		Capabilities:        "capabilities",
 	},
 	Reports: reportColumnNames{
 		ReportID:              "report_id",
@@ -452,7 +454,6 @@ var ColumnNames = struct {
 		SuspensionReason:    "suspension_reason",
 		SuspensionExpiresAt: "suspension_expires_at",
 		Roles:               "roles",
-		Capabilities:        "capabilities",
 		AdminUsername:       "admin_username",
 		AdminPasswordHash:   "admin_password_hash",
 		MfaEnabled:          "mfa_enabled",

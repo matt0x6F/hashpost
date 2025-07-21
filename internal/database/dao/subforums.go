@@ -175,3 +175,35 @@ func (dao *SubforumDAO) CreateSubforum(ctx context.Context, name, displayName, d
 
 	return subforum, nil
 }
+
+// UpdatePostCount updates the post count for a subforum
+func (dao *SubforumDAO) UpdatePostCount(ctx context.Context, subforumID int32, postCount int32) error {
+	// Get the current subforum
+	subforum, err := dao.GetSubforumByID(ctx, subforumID)
+	if err != nil {
+		return fmt.Errorf("failed to get subforum for post count update: %w", err)
+	}
+	if subforum == nil {
+		return fmt.Errorf("subforum not found")
+	}
+
+	// Create the update setter
+	postCountNull := sql.Null[int32]{}
+	postCountNull.Scan(postCount)
+
+	updatedAtNull := sql.Null[time.Time]{}
+	updatedAtNull.Scan(time.Now())
+
+	updateSetter := &models.SubforumSetter{
+		PostCount: &postCountNull,
+		UpdatedAt: &updatedAtNull,
+	}
+
+	// Update the subforum
+	err = subforum.Update(ctx, dao.db, updateSetter)
+	if err != nil {
+		return fmt.Errorf("failed to update subforum post count: %w", err)
+	}
+
+	return nil
+}

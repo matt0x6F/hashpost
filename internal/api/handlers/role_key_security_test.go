@@ -16,12 +16,13 @@ import (
 )
 
 // Helper functions for testing
-func createTestAuthHandler() (*AuthHandler, *mocks.MockUserDAO, *mocks.MockSecurePseudonymDAO, *mocks.MockIdentityMappingDAO, *mocks.MockRoleKeyDAO, *ibe.IBESystem) {
+func createTestAuthHandler() (*AuthHandler, *mocks.MockUserDAO, *mocks.MockSecurePseudonymDAO, *mocks.MockIdentityMappingDAO, *mocks.MockRoleKeyDAO, *mocks.MockSubforumDAO, *mocks.MockPermissionDAO) {
 	mockUserDAO := &mocks.MockUserDAO{}
 	mockSecurePseudonymDAO := mocks.NewMockSecurePseudonymDAO()
 	mockIdentityMappingDAO := &mocks.MockIdentityMappingDAO{}
 	mockRoleKeyDAO := &mocks.MockRoleKeyDAO{}
 	mockSubforumDAO := mocks.NewMockSubforumDAO()
+	mockPermissionDAO := mocks.NewMockPermissionDAO()
 
 	ibeSystem := ibe.NewIBESystem()
 
@@ -51,15 +52,16 @@ func createTestAuthHandler() (*AuthHandler, *mocks.MockUserDAO, *mocks.MockSecur
 		mockRoleKeyDAO,
 		ibeSystem,
 		mockSubforumDAO,
+		mockPermissionDAO,
 	)
 
-	return handler, mockUserDAO, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockRoleKeyDAO, ibeSystem
+	return handler, mockUserDAO, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockRoleKeyDAO, mockSubforumDAO, mockPermissionDAO
 }
 
 // TestRoleKeySecurity tests the role key security functionality
 func TestRoleKeySecurity(t *testing.T) {
 	t.Run("AuthenticationKeyScope", func(t *testing.T) {
-		_, _, mockSecurePseudonymDAO, _, _, _ := createTestAuthHandler()
+		_, _, mockSecurePseudonymDAO, _, _, _, _ := createTestAuthHandler()
 
 		// Test data
 		testUserID := int64(1)
@@ -83,7 +85,7 @@ func TestRoleKeySecurity(t *testing.T) {
 	})
 
 	t.Run("SelfCorrelationKeyScope", func(t *testing.T) {
-		_, _, mockSecurePseudonymDAO, _, _, _ := createTestAuthHandler()
+		_, _, mockSecurePseudonymDAO, _, _, _, _ := createTestAuthHandler()
 
 		// Test data
 		testUserID := int64(1)
@@ -104,7 +106,7 @@ func TestRoleKeySecurity(t *testing.T) {
 	})
 
 	t.Run("RoleKeyDatabaseOperations", func(t *testing.T) {
-		_, _, _, _, mockRoleKeyDAO, _ := createTestAuthHandler()
+		_, _, _, _, mockRoleKeyDAO, _, _ := createTestAuthHandler()
 
 		// Test data
 		capabilities := []string{"test_capability", "another_capability"}

@@ -123,3 +123,13 @@ func (m *MockSecurePseudonymDAO) GetUserIDByPseudonym(ctx context.Context, pseud
 	// Fallback to direct return values
 	return args.Get(0).(int64), args.Error(1)
 }
+
+func (m *MockSecurePseudonymDAO) UpdateLastActive(ctx context.Context, pseudonymID string) error {
+	args := m.Called(ctx, pseudonymID)
+	return args.Error(0)
+}
+
+func (m *MockSecurePseudonymDAO) DeactivatePseudonym(ctx context.Context, pseudonymID string, userID int64, roleName, scope string) error {
+	args := m.Called(ctx, pseudonymID, userID, roleName, scope)
+	return args.Error(0)
+}

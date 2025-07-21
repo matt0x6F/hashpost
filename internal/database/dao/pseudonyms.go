@@ -619,3 +619,87 @@ func (dao *SecurePseudonymDAO) GetUserIDByPseudonym(ctx context.Context, pseudon
 	// Get the user ID from the mapping
 	return mapping.UserID, nil
 }
+
+// DeactivatePseudonym deactivates a pseudonym, preventing it from being used for new content
+// Users cannot reactivate deactivated pseudonyms
+func (dao *SecurePseudonymDAO) DeactivatePseudonym(ctx context.Context, pseudonymID string, userID int64, roleName, scope string) error {
+	// Validate that the key has the required capability
+	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, constants.CapabilityManageOwnPseudonyms)
+	if err != nil {
+		return fmt.Errorf("failed to validate key capability: %w", err)
+	}
+
+	if !hasCapability {
+		return fmt.Errorf("role key does not have permission to manage own pseudonyms")
+	}
+
+	// Verify that the user owns this pseudonym
+	ownsPseudonym, err := dao.VerifyPseudonymOwnership(ctx, pseudonymID, userID, roleName, scope)
+	if err != nil {
+		return fmt.Errorf("failed to verify pseudonym ownership: %w", err)
+	}
+
+	if !ownsPseudonym {
+		return fmt.Errorf("user does not own this pseudonym")
+	}
+
+	// Get the pseudonym to check if it's already deactivated
+	pseudonym, err := dao.GetPseudonymByID(ctx, pseudonymID)
+	if err != nil {
+		return fmt.Errorf("failed to get pseudonym: %w", err)
+	}
+
+	if pseudonym == nil {
+		return fmt.Errorf("pseudonym not found")
+	}
+
+	// Check if pseudonym is already deactivated
+	if !pseudonym.IsActive.Valid || !pseudonym.IsActive.V {
+		return fmt.Errorf("pseudonym is already deactivated")
+	}
+
+	// Check if this is the user's default pseudonym
+	if pseudonym.IsDefault {
+		return fmt.Errorf("cannot deactivate default pseudonym")
+	}
+
+	// Get the role key for this operation
+	keyData, err := dao.roleKeyDAO.GetKeyData(ctx, roleName, scope)
+	if err != nil {
+		return fmt.Errorf("failed to get role key: %w", err)
+	}
+
+	// Deactivate the pseudonym
+	return dao.deactivatePseudonymWithKey(ctx, pseudonymID, keyData)
+}
+
+// deactivatePseudonymWithKey deactivates a pseudonym using the provided key
+func (dao *SecurePseudonymDAO) deactivatePseudonymWithKey(ctx context.Context, pseudonymID string, keyData []byte) error {
+	// Update the pseudonym to set is_active to false
+	updates := &models.PseudonymSetter{
+		IsActive: &sql.Null[bool]{V: false, Valid: true},
+	}
+
+	// Use the existing UpdatePseudonym method which doesn't require role-based access
+	// since we've already validated ownership and permissions
+	pseudonym, err := models.FindPseudonym(ctx, dao.db, pseudonymID)
+	if err != nil {
+		return fmt.Errorf("failed to find pseudonym: %w", err)
+	}
+
+	if pseudonym == nil {
+		return fmt.Errorf("pseudonym not found")
+	}
+
+	err = pseudonym.Update(ctx, dao.db, updates)
+	if err != nil {
+		return fmt.Errorf("failed to deactivate pseudonym: %w", err)
+	}
+
+	log.Info().
+		Str("pseudonym_id", pseudonymID).
+		Str("display_name", pseudonym.DisplayName).
+		Msg("Pseudonym deactivated successfully")
+
+	return nil
+}

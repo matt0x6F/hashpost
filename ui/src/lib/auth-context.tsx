@@ -37,6 +37,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (userData: UserLoginResponseBody | UserRegistrationResponseBody) => void;
   logout: () => void;
+  refreshUser: () => Promise<void>;
   isAuthenticated: boolean;
 }
 
@@ -54,16 +55,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        console.log('Checking authentication...');
         // Try to authenticate using tokens in cookies
         const authResult = await authenticateUser();
-        console.log('Authentication result:', authResult);
         
         if (authResult) {
-          console.log('User authenticated successfully:', authResult);
           login(authResult);
         } else {
-          console.log('Authentication failed - user is not authenticated');
           // Clear any stale localStorage data when server says user is not authenticated
           localStorage.removeItem('hashpost_user');
           setUser(null);
@@ -140,16 +137,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Refresh user data from server
+  const refreshUser = async () => {
+    try {
+      const authResult = await authenticateUser();
+      if (authResult) {
+        login(authResult);
+      } else {
+        setUser(null);
+        localStorage.removeItem('hashpost_user');
+      }
+    } catch (error) {
+      console.error('Error refreshing user:', error);
+      if (error instanceof AuthRefreshFailedError) {
+        await logout();
+      }
+    }
+  };
+
   const value: AuthContextType = {
     user,
     isLoading,
     login,
     logout,
+    refreshUser,
     isAuthenticated: !!user,
   };
-
-  // Debug logging
-  console.log('[auth-context] State update:', { user: !!user, isLoading, isAuthenticated: !!user });
 
   return (
     <AuthContext.Provider value={value}>

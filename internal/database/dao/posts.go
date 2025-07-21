@@ -579,3 +579,44 @@ func (dao *PostDAO) MarkPostAsDeletedByPseudonym(ctx context.Context, postID int
 
 	return nil
 }
+
+// UpdatePost updates a post's title and content
+func (dao *PostDAO) UpdatePost(ctx context.Context, postID int64, title, content string) error {
+	post, err := models.Posts.Query(
+		models.SelectWhere.Posts.PostID.EQ(postID),
+		sm.Where(psql.Group(psql.And(
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_removed").IsNull(),
+				psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
+			)),
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_deleted").IsNull(),
+				psql.Quote("posts", "is_deleted").EQ(psql.Arg(false)),
+			)),
+		))),
+	).One(ctx, dao.db)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("post not found")
+		}
+		return fmt.Errorf("failed to find post: %w", err)
+	}
+
+	now := sql.Null[time.Time]{}
+	now.Scan(time.Now())
+
+	contentNull := sql.Null[string]{Valid: true, V: content}
+
+	updates := &models.PostSetter{
+		Title:     &title,
+		Content:   &contentNull,
+		UpdatedAt: &now,
+	}
+
+	err = post.Update(ctx, dao.db, updates)
+	if err != nil {
+		return fmt.Errorf("failed to update post: %w", err)
+	}
+
+	return nil
+}

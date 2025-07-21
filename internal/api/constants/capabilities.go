@@ -22,6 +22,9 @@ const (
 
 	// ManageOwnProfile allows users to manage their own profile information
 	CapabilityManageOwnProfile = "manage_own_profile"
+
+	// ManageOwnPseudonyms allows users to manage their own pseudonyms (create, deactivate)
+	CapabilityManageOwnPseudonyms = "manage_own_pseudonyms"
 )
 
 // Correlation capabilities - used for administrative identity correlation
@@ -103,6 +106,7 @@ func GetCapabilitiesByScope(scope string) []string {
 		return []string{
 			CapabilityVerifyOwnPseudonymOwnership,
 			CapabilityManageOwnProfile,
+			CapabilityManageOwnPseudonyms,
 		}
 	case ScopeCorrelation:
 		return []string{
@@ -147,6 +151,7 @@ func GetAllCapabilities() []string {
 		// Self-correlation capabilities
 		CapabilityVerifyOwnPseudonymOwnership,
 		CapabilityManageOwnProfile,
+		CapabilityManageOwnPseudonyms,
 
 		// Correlation capabilities
 		CapabilityAccessAllPseudonyms,

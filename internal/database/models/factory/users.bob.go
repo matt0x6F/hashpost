@@ -47,7 +47,6 @@ type UserTemplate struct {
 	SuspensionReason    func() sql.Null[string]
 	SuspensionExpiresAt func() sql.Null[time.Time]
 	Roles               func() sql.Null[types.JSON[json.RawMessage]]
-	Capabilities        func() sql.Null[types.JSON[json.RawMessage]]
 	AdminUsername       func() sql.Null[string]
 	AdminPasswordHash   func() sql.Null[string]
 	MfaEnabled          func() sql.Null[bool]
@@ -365,10 +364,6 @@ func (o UserTemplate) BuildSetter() *models.UserSetter {
 		val := o.Roles()
 		m.Roles = &val
 	}
-	if o.Capabilities != nil {
-		val := o.Capabilities()
-		m.Capabilities = &val
-	}
 	if o.AdminUsername != nil {
 		val := o.AdminUsername()
 		m.AdminUsername = &val
@@ -448,9 +443,6 @@ func (o UserTemplate) Build() *models.User {
 	}
 	if o.Roles != nil {
 		m.Roles = o.Roles()
-	}
-	if o.Capabilities != nil {
-		m.Capabilities = o.Capabilities()
 	}
 	if o.AdminUsername != nil {
 		m.AdminUsername = o.AdminUsername()
@@ -862,7 +854,6 @@ func (m userMods) RandomizeAllColumns(f *faker.Faker) UserMod {
 		UserMods.RandomSuspensionReason(f),
 		UserMods.RandomSuspensionExpiresAt(f),
 		UserMods.RandomRoles(f),
-		UserMods.RandomCapabilities(f),
 		UserMods.RandomAdminUsername(f),
 		UserMods.RandomAdminPasswordHash(f),
 		UserMods.RandomMfaEnabled(f),
@@ -1327,59 +1318,6 @@ func (m userMods) RandomRoles(f *faker.Faker) UserMod {
 func (m userMods) RandomRolesNotNull(f *faker.Faker) UserMod {
 	return UserModFunc(func(_ context.Context, o *UserTemplate) {
 		o.Roles = func() sql.Null[types.JSON[json.RawMessage]] {
-			if f == nil {
-				f = &defaultFaker
-			}
-
-			val := random_types_JSON_json_RawMessage_(f)
-			return sql.Null[types.JSON[json.RawMessage]]{V: val, Valid: true}
-		}
-	})
-}
-
-// Set the model columns to this value
-func (m userMods) Capabilities(val sql.Null[types.JSON[json.RawMessage]]) UserMod {
-	return UserModFunc(func(_ context.Context, o *UserTemplate) {
-		o.Capabilities = func() sql.Null[types.JSON[json.RawMessage]] { return val }
-	})
-}
-
-// Set the Column from the function
-func (m userMods) CapabilitiesFunc(f func() sql.Null[types.JSON[json.RawMessage]]) UserMod {
-	return UserModFunc(func(_ context.Context, o *UserTemplate) {
-		o.Capabilities = f
-	})
-}
-
-// Clear any values for the column
-func (m userMods) UnsetCapabilities() UserMod {
-	return UserModFunc(func(_ context.Context, o *UserTemplate) {
-		o.Capabilities = nil
-	})
-}
-
-// Generates a random value for the column using the given faker
-// if faker is nil, a default faker is used
-// The generated value is sometimes null
-func (m userMods) RandomCapabilities(f *faker.Faker) UserMod {
-	return UserModFunc(func(_ context.Context, o *UserTemplate) {
-		o.Capabilities = func() sql.Null[types.JSON[json.RawMessage]] {
-			if f == nil {
-				f = &defaultFaker
-			}
-
-			val := random_types_JSON_json_RawMessage_(f)
-			return sql.Null[types.JSON[json.RawMessage]]{V: val, Valid: f.Bool()}
-		}
-	})
-}
-
-// Generates a random value for the column using the given faker
-// if faker is nil, a default faker is used
-// The generated value is never null
-func (m userMods) RandomCapabilitiesNotNull(f *faker.Faker) UserMod {
-	return UserModFunc(func(_ context.Context, o *UserTemplate) {
-		o.Capabilities = func() sql.Null[types.JSON[json.RawMessage]] {
 			if f == nil {
 				f = &defaultFaker
 			}

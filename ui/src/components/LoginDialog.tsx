@@ -45,7 +45,6 @@ export function LoginDialog({ children, onLoginSuccess, onSignupSuccess }: Login
       if (mode === "login") {
         const authApi = getApi(AuthenticationApi);
         const response = await authApi.loginUser({ email, password });
-        console.log("Login successful:", response);
         
         // Store user data in global state
         login(response);
@@ -59,7 +58,6 @@ export function LoginDialog({ children, onLoginSuccess, onSignupSuccess }: Login
           password,
           displayName,
         });
-        console.log("Signup successful:", signupResponse);
         
         // Store user data in global state
         login(signupResponse);

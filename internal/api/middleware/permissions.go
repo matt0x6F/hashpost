@@ -10,17 +10,19 @@ import (
 	"github.com/stephenafamo/bob"
 )
 
-// PermissionDAOInterface defines the interface for permission checking operations
-type PermissionDAOInterface interface {
-	HasSubforumCapability(ctx context.Context, userID int64, subforumID int32, capability string) (bool, error)
-	CanAccessPrivateSubforum(ctx context.Context, userID int64, subforumID int32) (bool, error)
+// PermissionCheckerInterface defines the interface for permission checking operations
+type PermissionCheckerInterface interface {
+	CheckSubforumCapability(ctx context.Context, userID int64, subforumID int32, capability string) (bool, error)
+	CheckPrivateSubforumAccess(ctx context.Context, userID int64, subforumID int32) (bool, error)
+	CheckPrivateSubforumAccessWithActivePseudonym(ctx context.Context, userID int64, subforumID int32, activePseudonymID string) (bool, error)
+	CheckSubforumCapabilityWithActivePseudonym(ctx context.Context, userID int64, subforumID int32, capability string, activePseudonymID string) (bool, error)
 	GetUserSubforumRoles(ctx context.Context, userID int64, subforumID int32) ([]string, error)
 	GetUserSubforumCapabilities(ctx context.Context, userID int64, subforumID int32) ([]string, error)
 }
 
 // PermissionMiddleware provides subforum-specific permission checking
 type PermissionMiddleware struct {
-	permissionDAO PermissionDAOInterface
+	permissionDAO dao.PermissionDAOInterface
 }
 
 // NewPermissionMiddleware creates a new PermissionMiddleware
@@ -31,7 +33,7 @@ func NewPermissionMiddleware(db bob.Executor) *PermissionMiddleware {
 }
 
 // NewPermissionMiddlewareWithDAO creates a new PermissionMiddleware with a custom DAO
-func NewPermissionMiddlewareWithDAO(dao PermissionDAOInterface) *PermissionMiddleware {
+func NewPermissionMiddlewareWithDAO(dao dao.PermissionDAOInterface) *PermissionMiddleware {
 	return &PermissionMiddleware{
 		permissionDAO: dao,
 	}
@@ -171,7 +173,7 @@ func GetSubforumIDFromContext(r *http.Request) (int32, bool) {
 
 // PermissionChecker provides a convenient interface for checking permissions in handlers
 type PermissionChecker struct {
-	permissionDAO PermissionDAOInterface
+	permissionDAO dao.PermissionDAOInterface
 }
 
 // NewPermissionChecker creates a new PermissionChecker
@@ -182,7 +184,7 @@ func NewPermissionChecker(db bob.Executor) *PermissionChecker {
 }
 
 // NewPermissionCheckerWithDAO creates a new PermissionChecker with a custom DAO
-func NewPermissionCheckerWithDAO(dao PermissionDAOInterface) *PermissionChecker {
+func NewPermissionCheckerWithDAO(dao dao.PermissionDAOInterface) *PermissionChecker {
 	return &PermissionChecker{
 		permissionDAO: dao,
 	}
@@ -196,6 +198,16 @@ func (pc *PermissionChecker) CheckSubforumCapability(ctx context.Context, userID
 // CheckPrivateSubforumAccess checks if a user can access a private subforum
 func (pc *PermissionChecker) CheckPrivateSubforumAccess(ctx context.Context, userID int64, subforumID int32) (bool, error) {
 	return pc.permissionDAO.CanAccessPrivateSubforum(ctx, userID, subforumID)
+}
+
+// CheckPrivateSubforumAccessWithActivePseudonym checks if a user can access a private subforum using only the active pseudonym
+func (pc *PermissionChecker) CheckPrivateSubforumAccessWithActivePseudonym(ctx context.Context, userID int64, subforumID int32, activePseudonymID string) (bool, error) {
+	return pc.permissionDAO.CanAccessPrivateSubforumWithActivePseudonym(ctx, userID, subforumID, activePseudonymID)
+}
+
+// CheckSubforumCapabilityWithActivePseudonym checks if a user has a specific capability for a subforum using only the active pseudonym
+func (pc *PermissionChecker) CheckSubforumCapabilityWithActivePseudonym(ctx context.Context, userID int64, subforumID int32, capability string, activePseudonymID string) (bool, error) {
+	return pc.permissionDAO.HasSubforumCapabilityWithActivePseudonym(ctx, userID, subforumID, capability, activePseudonymID)
 }
 
 // GetUserSubforumRoles gets all roles a user has for a specific subforum

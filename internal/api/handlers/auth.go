@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -33,6 +32,7 @@ type AuthHandler struct {
 	roleKeyDAO         dao.RoleKeyDAOInterface
 	ibeSystem          *ibe.IBESystem
 	subforumDAO        dao.SubforumDAOInterface
+	permissionDAO      dao.PermissionDAOInterface
 }
 
 // NewAuthHandler creates a new authentication handler
@@ -44,6 +44,7 @@ func NewAuthHandler(cfg *config.Config, db bob.Executor, rawDB *sql.DB) *AuthHan
 	userBlocksDAO := dao.NewUserBlocksDAO(db)
 	securePseudonymDAO := dao.NewSecurePseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
 	subforumDAO := dao.NewSubforumDAO(db)
+	permissionDAO := dao.NewPermissionDAO(db)
 
 	return &AuthHandler{
 		config:             cfg,
@@ -53,6 +54,7 @@ func NewAuthHandler(cfg *config.Config, db bob.Executor, rawDB *sql.DB) *AuthHan
 		identityMappingDAO: identityMappingDAO,
 		ibeSystem:          ibeSystem,
 		subforumDAO:        subforumDAO,
+		permissionDAO:      permissionDAO,
 	}
 }
 
@@ -64,6 +66,7 @@ func NewAuthHandlerWithIBE(cfg *config.Config, db bob.Executor, rawDB *sql.DB, i
 	userBlocksDAO := dao.NewUserBlocksDAO(db)
 	securePseudonymDAO := dao.NewSecurePseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
 	subforumDAO := dao.NewSubforumDAO(db)
+	permissionDAO := dao.NewPermissionDAO(db)
 
 	return &AuthHandler{
 		config:             cfg,
@@ -73,19 +76,22 @@ func NewAuthHandlerWithIBE(cfg *config.Config, db bob.Executor, rawDB *sql.DB, i
 		identityMappingDAO: identityMappingDAO,
 		ibeSystem:          ibeSystem,
 		subforumDAO:        subforumDAO,
+		permissionDAO:      permissionDAO,
 	}
 }
 
 // NewAuthHandlerWithDependencies creates a new authentication handler with injected dependencies
-func NewAuthHandlerWithDependencies(cfg *config.Config, userDAO dao.UserDAOInterface, securePseudonymDAO dao.SecurePseudonymDAOInterface, identityMappingDAO dao.IdentityMappingDAOInterface, roleKeyDAO dao.RoleKeyDAOInterface, ibeSystem *ibe.IBESystem, subforumDAO dao.SubforumDAOInterface) *AuthHandler {
+func NewAuthHandlerWithDependencies(cfg *config.Config, userDAO dao.UserDAOInterface, securePseudonymDAO dao.SecurePseudonymDAOInterface, identityMappingDAO dao.IdentityMappingDAOInterface, roleKeyDAO dao.RoleKeyDAOInterface, ibeSystem *ibe.IBESystem, subforumDAO dao.SubforumDAOInterface, permissionDAO dao.PermissionDAOInterface) *AuthHandler {
 	return &AuthHandler{
 		config:             cfg,
+		db:                 nil, // Will be set by individual constructors
 		userDAO:            userDAO,
 		securePseudonymDAO: securePseudonymDAO,
 		identityMappingDAO: identityMappingDAO,
 		roleKeyDAO:         roleKeyDAO,
 		ibeSystem:          ibeSystem,
 		subforumDAO:        subforumDAO,
+		permissionDAO:      permissionDAO,
 	}
 }
 
@@ -166,12 +172,13 @@ func (h *AuthHandler) RegisterUser(ctx context.Context, input *models.UserRegist
 		}
 	}
 
-	if user.Capabilities.Valid {
-		rawValue, err := user.Capabilities.V.Value()
+	// Get pseudonym capabilities
+	if pseudonym.Capabilities.Valid {
+		rawValue, err := pseudonym.Capabilities.V.Value()
 		if err == nil {
-			var userCapabilities []string
-			if err := json.Unmarshal(rawValue.([]byte), &userCapabilities); err == nil && len(userCapabilities) > 0 {
-				capabilities = userCapabilities
+			var pseudonymCapabilities []string
+			if err := json.Unmarshal(rawValue.([]byte), &pseudonymCapabilities); err == nil && len(pseudonymCapabilities) > 0 {
+				capabilities = pseudonymCapabilities
 			}
 		}
 	}
@@ -315,15 +322,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *models.UserLoginInpu
 		}
 	}
 
-	if user.Capabilities.Valid {
-		rawValue, err := user.Capabilities.V.Value()
-		if err == nil {
-			var userCapabilities []string
-			if err := json.Unmarshal(rawValue.([]byte), &userCapabilities); err == nil && len(userCapabilities) > 0 {
-				capabilities = userCapabilities
-			}
-		}
-	}
+	// Note: Capabilities will be set from the default pseudonym later in the method
 
 	// Get user's pseudonyms for the response
 	// Use IBE-based correlation to get user's pseudonyms
@@ -579,15 +578,6 @@ func (h *AuthHandler) verifyPassword(password, hash string) bool {
 	return passwordHash == hash
 }
 
-// generateSessionToken generates a random session token
-func (h *AuthHandler) generateSessionToken() (string, error) {
-	bytes := make([]byte, 32)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(bytes), nil
-}
-
 // GetCurrentUserSession handles getting the current user's session data
 func (h *AuthHandler) GetCurrentUserSession(ctx context.Context, input *middleware.AuthInput) (*models.CurrentUserSessionResponse, error) {
 	log.Info().
@@ -632,7 +622,7 @@ func (h *AuthHandler) GetCurrentUserSession(ctx context.Context, input *middlewa
 		return nil, huma.Error403Forbidden("Account suspended")
 	}
 
-	// Get user roles and capabilities from database
+	// Get user roles from database
 	roles := []string{"user"} // Default role
 
 	// If user has roles stored in database, use those
@@ -645,6 +635,8 @@ func (h *AuthHandler) GetCurrentUserSession(ctx context.Context, input *middlewa
 			}
 		}
 	}
+
+	// Note: Capabilities will be set from the active pseudonym later in the method
 
 	// Get user's pseudonyms for the response
 	// Use IBE-based correlation to get user's pseudonyms
@@ -712,6 +704,13 @@ func (h *AuthHandler) GetCurrentUserSession(ctx context.Context, input *middlewa
 		displayName = pseudonyms[0].DisplayName
 	}
 
+	// Get active pseudonym's roles and capabilities
+	activeRoles, activeCapabilities, err := h.permissionDAO.GetActivePseudonymRolesAndCapabilities(ctx, int64(userID), activePseudonymID)
+	if err != nil {
+		log.Error().Err(err).Int64("user_id", int64(userID)).Str("active_pseudonym_id", activePseudonymID).Msg("Failed to get active pseudonym roles and capabilities")
+		return nil, fmt.Errorf("failed to get active pseudonym roles and capabilities: %w", err)
+	}
+
 	// Update last active timestamp
 	err = h.userDAO.UpdateLastActive(ctx, int64(userID))
 	if err != nil {
@@ -728,8 +727,8 @@ func (h *AuthHandler) GetCurrentUserSession(ctx context.Context, input *middlewa
 	return models.NewCurrentUserSessionResponse(
 		userID,
 		userCtx.Email,
-		userCtx.Roles,
-		userCtx.Capabilities,
+		activeRoles,
+		activeCapabilities,
 		activePseudonymID,
 		displayName,
 		pseudonymInfos,
@@ -788,33 +787,73 @@ func (h *AuthHandler) GetCurrentUserSessionForSubforum(ctx context.Context, inpu
 	// Get user roles and capabilities from database
 	roles := []string{"user"} // Default role
 
-	// If user has roles stored in database, use those
-	if user.Roles.Valid {
-		rawValue, err := user.Roles.V.Value()
-		if err == nil {
-			var userRoles []string
-			if err := json.Unmarshal(rawValue.([]byte), &userRoles); err == nil && len(userRoles) > 0 {
-				roles = userRoles
-			}
-		}
-	}
-
 	// Get subforum-specific capabilities
 	subforumCapabilities := []string{}
 
 	// Get subforum by name
 	subforum, err := h.subforumDAO.GetSubforumByName(ctx, input.SubforumName)
 	if err == nil && subforum != nil {
-		// Check if user has moderator capabilities for this subforum
-		permissionDAO := dao.NewPermissionDAO(h.db)
-		subforumCaps, err := permissionDAO.GetUserSubforumCapabilities(ctx, int64(userID), subforum.SubforumID)
-		if err == nil {
-			subforumCapabilities = subforumCaps
+		// Check if the active pseudonym has moderator capabilities for this subforum
+		activePseudonymID := userCtx.ActivePseudonymID
+		if activePseudonymID != "" {
+			log.Debug().
+				Int64("user_id", int64(userID)).
+				Int32("subforum_id", subforum.SubforumID).
+				Str("active_pseudonym_id", activePseudonymID).
+				Msg("Checking moderator capabilities for active pseudonym")
+
+			// Check if the active pseudonym is a moderator for this subforum
+			// Use the permission DAO to check moderator status
+			hasModerateContent, err := h.permissionDAO.HasSubforumCapabilityWithActivePseudonym(ctx, int64(userID), subforum.SubforumID, "moderate_content", activePseudonymID)
+			if err == nil && hasModerateContent {
+				log.Debug().
+					Int64("user_id", int64(userID)).
+					Int32("subforum_id", subforum.SubforumID).
+					Str("active_pseudonym_id", activePseudonymID).
+					Msg("Found moderator record")
+
+				// Only add moderator role if the user is not a platform admin
+				// Platform admins have moderator capabilities but shouldn't get the moderator role
+				if !contains(userCtx.Roles, "platform_admin") {
+					// Add moderator role to roles array
+					if !contains(roles, "moderator") {
+						roles = append(roles, "moderator")
+					}
+				}
+
+				// Add moderator capabilities
+				subforumCapabilities = append(subforumCapabilities, "moderate_content")
+
+				// Check for additional moderator capabilities
+				hasBanUsers, _ := h.permissionDAO.HasSubforumCapabilityWithActivePseudonym(ctx, int64(userID), subforum.SubforumID, "ban_users", activePseudonymID)
+				if hasBanUsers {
+					subforumCapabilities = append(subforumCapabilities, "ban_users")
+				}
+
+				hasManageModerators, _ := h.permissionDAO.HasSubforumCapabilityWithActivePseudonym(ctx, int64(userID), subforum.SubforumID, "manage_moderators", activePseudonymID)
+				if hasManageModerators {
+					subforumCapabilities = append(subforumCapabilities, "manage_moderators")
+				}
+			} else {
+				log.Debug().
+					Int64("user_id", int64(userID)).
+					Int32("subforum_id", subforum.SubforumID).
+					Str("active_pseudonym_id", activePseudonymID).
+					Msg("No moderator record found")
+			}
 		}
 	}
 
-	// Combine platform-wide capabilities with subforum-specific capabilities
-	allCapabilities := append(userCtx.Capabilities, subforumCapabilities...)
+	// Use roles and capabilities from the user context (JWT token)
+	pseudonymRoles := userCtx.Roles
+	pseudonymCapabilities := userCtx.Capabilities
+
+	// Combine pseudonym roles with subforum-specific roles
+	allRoles := append(pseudonymRoles, roles...)
+	allRoles = removeDuplicates(allRoles)
+
+	// Combine pseudonym capabilities with subforum-specific capabilities
+	allCapabilities := append(pseudonymCapabilities, subforumCapabilities...)
 
 	// Get user's pseudonyms for the response
 	// Use IBE-based correlation to get user's pseudonyms
@@ -900,10 +939,184 @@ func (h *AuthHandler) GetCurrentUserSessionForSubforum(ctx context.Context, inpu
 	return models.NewCurrentUserSessionResponse(
 		userID,
 		userCtx.Email,
-		userCtx.Roles,
+		allRoles,        // Use the updated roles array that includes subforum-specific roles
 		allCapabilities, // Include subforum-specific capabilities
 		activePseudonymID,
 		displayName,
 		pseudonymInfos,
 	), nil
+}
+
+// SwitchPseudonym handles switching the user's active pseudonym
+func (h *AuthHandler) SwitchPseudonym(ctx context.Context, input *struct {
+	middleware.AuthInput
+	models.SwitchPseudonymInput
+}) (*models.SwitchPseudonymResponse, error) {
+	log.Info().
+		Str("endpoint", "auth/switch-pseudonym").
+		Str("component", "auth_handler").
+		Msg("Processing pseudonym switch request")
+
+	// Extract user context from JWT token
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+	if err != nil {
+		return nil, huma.Error401Unauthorized("Authentication required")
+	}
+
+	// Validate input
+	if input.Body.PseudonymID == "" {
+		return nil, huma.Error400BadRequest("Pseudonym ID is required")
+	}
+
+	// Check if user is trying to switch to the same pseudonym
+	if userCtx.ActivePseudonymID == input.Body.PseudonymID {
+		return nil, huma.Error400BadRequest("Already using this pseudonym")
+	}
+
+	// Get the target pseudonym
+	targetPseudonym, err := h.securePseudonymDAO.GetPseudonymByID(ctx, input.Body.PseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", input.Body.PseudonymID).Msg("Failed to get target pseudonym")
+		return nil, huma.Error404NotFound("Target pseudonym not found")
+	}
+	if targetPseudonym == nil {
+		return nil, huma.Error404NotFound("Target pseudonym not found")
+	}
+
+	// Verify ownership using multi-scope fallback strategy
+	// Try authentication scope first (most secure), then self-correlation scope
+	ownsPseudonym := false
+	var ownershipErr error
+
+	// Try each role with authentication scope first
+	for _, role := range userCtx.Roles {
+		ownsPseudonym, ownershipErr = h.securePseudonymDAO.VerifyPseudonymOwnership(ctx, input.Body.PseudonymID, userCtx.UserID, role, constants.ScopeAuthentication)
+		if ownershipErr == nil && ownsPseudonym {
+			break
+		}
+	}
+
+	// If authentication scope fails, try self-correlation scope
+	if !ownsPseudonym {
+		for _, role := range userCtx.Roles {
+			ownsPseudonym, ownershipErr = h.securePseudonymDAO.VerifyPseudonymOwnership(ctx, input.Body.PseudonymID, userCtx.UserID, role, constants.ScopeSelfCorrelation)
+			if ownershipErr == nil && ownsPseudonym {
+				break
+			}
+		}
+	}
+
+	if !ownsPseudonym {
+		log.Warn().
+			Int64("user_id", userCtx.UserID).
+			Str("target_pseudonym_id", input.Body.PseudonymID).
+			Msg("User attempted to switch to pseudonym they don't own")
+		return nil, huma.Error403Forbidden("You do not own this pseudonym")
+	}
+
+	// Update last active timestamp for the target pseudonym
+	err = h.securePseudonymDAO.UpdateLastActive(ctx, input.Body.PseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", input.Body.PseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
+	}
+
+	// Generate new JWT token with updated pseudonym context
+	newUserCtx := &middleware.UserContext{
+		UserID:            userCtx.UserID,
+		Email:             userCtx.Email,
+		Roles:             userCtx.Roles,
+		Capabilities:      userCtx.Capabilities,
+		ActivePseudonymID: input.Body.PseudonymID,
+		DisplayName:       targetPseudonym.DisplayName,
+	}
+
+	accessToken, err := middleware.GenerateJWT(newUserCtx, h.config.JWT.Secret, h.config.JWT.Expiration)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to generate new JWT token")
+		return nil, huma.Error500InternalServerError("Failed to generate new token")
+	}
+
+	log.Info().
+		Int64("user_id", userCtx.UserID).
+		Str("old_pseudonym_id", userCtx.ActivePseudonymID).
+		Str("new_pseudonym_id", input.Body.PseudonymID).
+		Msg("Pseudonym switched successfully")
+
+	return models.NewSwitchPseudonymResponse(accessToken, h.config.JWT.Expiration, h.config.JWT.Development), nil
+}
+
+// DeactivatePseudonym handles deactivating a pseudonym owned by the current user
+func (h *AuthHandler) DeactivatePseudonym(ctx context.Context, input *struct {
+	middleware.AuthInput
+	models.DeactivatePseudonymInput
+}) (*models.DeactivatePseudonymResponse, error) {
+	log.Info().
+		Str("endpoint", "auth/deactivate-pseudonym").
+		Str("component", "auth_handler").
+		Msg("Processing pseudonym deactivation request")
+
+	// Extract user context from JWT token
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+	if err != nil {
+		return nil, huma.Error401Unauthorized("Authentication required")
+	}
+
+	// Validate input
+	if input.Body.PseudonymID == "" {
+		return nil, huma.Error400BadRequest("Pseudonym ID is required")
+	}
+
+	// Check if user is trying to deactivate their active pseudonym
+	if userCtx.ActivePseudonymID == input.Body.PseudonymID {
+		return nil, huma.Error400BadRequest("Cannot deactivate your active pseudonym. Please switch to a different pseudonym first.")
+	}
+
+	// Deactivate the pseudonym using self-correlation scope (user can only deactivate their own pseudonyms)
+	err = h.securePseudonymDAO.DeactivatePseudonym(ctx, input.Body.PseudonymID, userCtx.UserID, "user", constants.ScopeSelfCorrelation)
+	if err != nil {
+		log.Error().Err(err).
+			Int64("user_id", userCtx.UserID).
+			Str("pseudonym_id", input.Body.PseudonymID).
+			Msg("Failed to deactivate pseudonym")
+
+		// Return appropriate error based on the failure reason
+		if err.Error() == "not found" {
+			return nil, huma.Error404NotFound("Pseudonym not found")
+		}
+		if err.Error() == "does not own" {
+			return nil, huma.Error403Forbidden("You do not own this pseudonym")
+		}
+		return nil, huma.Error500InternalServerError("Failed to deactivate pseudonym")
+	}
+
+	log.Info().
+		Int64("user_id", userCtx.UserID).
+		Str("pseudonym_id", input.Body.PseudonymID).
+		Msg("Pseudonym deactivated successfully")
+
+	return models.NewDeactivatePseudonymResponse(), nil
+}
+
+// contains checks if a slice contains a string
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
+}
+
+// removeDuplicates removes duplicate strings from a slice
+func removeDuplicates(slice []string) []string {
+	seen := make(map[string]struct{})
+	var result []string
+	for _, item := range slice {
+		if _, ok := seen[item]; !ok {
+			result = append(result, item)
+			seen[item] = struct{}{}
+		}
+	}
+	return result
 }

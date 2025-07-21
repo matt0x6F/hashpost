@@ -27,12 +27,6 @@ func createTestSubforumUserContext() *middleware.UserContext {
 	}
 }
 
-// createTestSubforumContextWithUser creates a context with user information
-func createTestSubforumContextWithUser(userCtx *middleware.UserContext) context.Context {
-	ctx := context.Background()
-	return context.WithValue(ctx, middleware.UserContextKeyValue, userCtx)
-}
-
 func TestSubforumHandler_GetSubforums(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -91,7 +85,8 @@ func TestSubforumHandler_GetSubforums(t *testing.T) {
 			mockSubforumSubscriptionDAO.InjectCount("subforum_1", 100)
 			mockSubforumSubscriptionDAO.SetDefaultBehavior()
 
-			mockPermissionDAO.InjectAccessPermission(1, 1, true) // Allow access to private subforum
+			// Set up mock expectations for CanAccessPrivateSubforumWithActivePseudonym
+			mockPermissionDAO.On("CanAccessPrivateSubforumWithActivePseudonym", mock.Anything, int64(1), int32(1), "moderator-pseudonym-123").Return(true, nil)
 			mockPermissionDAO.SetDefaultBehavior()
 
 			mockSubforumModeratorDAO.SetDefaultBehavior()
@@ -99,8 +94,14 @@ func TestSubforumHandler_GetSubforums(t *testing.T) {
 			// Create mock identity mapping DAO
 			mockIdentityMappingDAO := mocks.NewMockIdentityMappingDAO()
 
+			// Create mock post DAO
+			mockPostDAO := mocks.NewMockPostDAO()
+
+			// Set up default behavior for post DAO
+			mockPostDAO.SetDefaultBehavior()
+
 			// Create handler with mocks
-			handler := NewSubforumHandlerWithMocks(mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, nil)
+			handler := NewSubforumHandlerWithMocks(mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPostDAO, nil)
 
 			// Create context
 			ctx := context.Background()
@@ -189,7 +190,8 @@ func TestSubforumHandler_GetSubforumDetails(t *testing.T) {
 			mockSubforumSubscriptionDAO.InjectFavoriteStatus("moderator-pseudonym-123", 1, false)
 			mockSubforumSubscriptionDAO.SetDefaultBehavior()
 
-			mockPermissionDAO.InjectAccessPermission(1, 1, true)
+			// Set up mock expectations for CanAccessPrivateSubforumWithActivePseudonym
+			mockPermissionDAO.On("CanAccessPrivateSubforumWithActivePseudonym", mock.Anything, int64(1), int32(1), "moderator-pseudonym-123").Return(true, nil)
 			mockPermissionDAO.SetDefaultBehavior()
 
 			mockSubforumModeratorDAO.SetDefaultBehavior()
@@ -197,8 +199,14 @@ func TestSubforumHandler_GetSubforumDetails(t *testing.T) {
 			// Create mock identity mapping DAO
 			mockIdentityMappingDAO := mocks.NewMockIdentityMappingDAO()
 
+			// Create mock post DAO
+			mockPostDAO := mocks.NewMockPostDAO()
+
+			// Set up default behavior for post DAO
+			mockPostDAO.SetDefaultBehavior()
+
 			// Create handler with mocks
-			handler := NewSubforumHandlerWithMocks(mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, nil)
+			handler := NewSubforumHandlerWithMocks(mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPostDAO, nil)
 
 			// Create context
 			ctx := context.Background()
@@ -282,8 +290,14 @@ func TestSubforumHandler_SubscribeToSubforum(t *testing.T) {
 			// Create mock identity mapping DAO
 			mockIdentityMappingDAO := mocks.NewMockIdentityMappingDAO()
 
+			// Create mock post DAO
+			mockPostDAO := mocks.NewMockPostDAO()
+
+			// Set up default behavior for post DAO
+			mockPostDAO.SetDefaultBehavior()
+
 			// Create handler with mocks
-			handler := NewSubforumHandlerWithMocks(mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, nil)
+			handler := NewSubforumHandlerWithMocks(mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPostDAO, nil)
 
 			// Create context
 			ctx := context.Background()
@@ -376,8 +390,14 @@ func TestSubforumHandler_UnsubscribeFromSubforum(t *testing.T) {
 			// Create mock identity mapping DAO
 			mockIdentityMappingDAO := mocks.NewMockIdentityMappingDAO()
 
+			// Create mock post DAO
+			mockPostDAO := mocks.NewMockPostDAO()
+
+			// Set up default behavior for post DAO
+			mockPostDAO.SetDefaultBehavior()
+
 			// Create handler with mocks
-			handler := NewSubforumHandlerWithMocks(mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, nil)
+			handler := NewSubforumHandlerWithMocks(mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPostDAO, nil)
 
 			// Create context
 			ctx := context.Background()
@@ -484,8 +504,14 @@ func TestSubforumHandler_CreateSubforum(t *testing.T) {
 			// Create mock identity mapping DAO
 			mockIdentityMappingDAO := mocks.NewMockIdentityMappingDAO()
 
+			// Create mock post DAO
+			mockPostDAO := mocks.NewMockPostDAO()
+
+			// Set up default behavior for post DAO
+			mockPostDAO.SetDefaultBehavior()
+
 			// Create handler with mocks
-			handler := NewSubforumHandlerWithMocks(mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, nil)
+			handler := NewSubforumHandlerWithMocks(mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPostDAO, nil)
 
 			// Create context
 			ctx := context.Background()
@@ -598,8 +624,14 @@ func TestSubforumHandler_GetPseudonymSubscriptions(t *testing.T) {
 					},
 				}, nil)
 
+			// Create mock post DAO
+			mockPostDAO := mocks.NewMockPostDAO()
+
+			// Set up default behavior for post DAO
+			mockPostDAO.SetDefaultBehavior()
+
 			// Create handler with mocks
-			handler := NewSubforumHandlerWithMocks(mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, nil)
+			handler := NewSubforumHandlerWithMocks(mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPostDAO, nil)
 
 			// Create context
 			ctx := context.Background()

@@ -6,53 +6,19 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/matt0x6f/hashpost/internal/database/dao/mocks"
 	"github.com/stephenafamo/bob"
+	"github.com/stretchr/testify/mock"
 )
-
-// MockPermissionDAO is a mock implementation for testing
-type MockPermissionDAO struct {
-	hasSubforumCapabilityFunc       func(ctx context.Context, userID int64, subforumID int32, capability string) (bool, error)
-	canAccessPrivateSubforumFunc    func(ctx context.Context, userID int64, subforumID int32) (bool, error)
-	getUserSubforumRolesFunc        func(ctx context.Context, userID int64, subforumID int32) ([]string, error)
-	getUserSubforumCapabilitiesFunc func(ctx context.Context, userID int64, subforumID int32) ([]string, error)
-}
-
-func (m *MockPermissionDAO) HasSubforumCapability(ctx context.Context, userID int64, subforumID int32, capability string) (bool, error) {
-	if m.hasSubforumCapabilityFunc != nil {
-		return m.hasSubforumCapabilityFunc(ctx, userID, subforumID, capability)
-	}
-	return false, nil
-}
-
-func (m *MockPermissionDAO) CanAccessPrivateSubforum(ctx context.Context, userID int64, subforumID int32) (bool, error) {
-	if m.canAccessPrivateSubforumFunc != nil {
-		return m.canAccessPrivateSubforumFunc(ctx, userID, subforumID)
-	}
-	return false, nil
-}
-
-func (m *MockPermissionDAO) GetUserSubforumRoles(ctx context.Context, userID int64, subforumID int32) ([]string, error) {
-	if m.getUserSubforumRolesFunc != nil {
-		return m.getUserSubforumRolesFunc(ctx, userID, subforumID)
-	}
-	return []string{}, nil
-}
-
-func (m *MockPermissionDAO) GetUserSubforumCapabilities(ctx context.Context, userID int64, subforumID int32) ([]string, error) {
-	if m.getUserSubforumCapabilitiesFunc != nil {
-		return m.getUserSubforumCapabilitiesFunc(ctx, userID, subforumID)
-	}
-	return []string{}, nil
-}
 
 // MockPermissionMiddleware wraps PermissionMiddleware with mock DAO
 type MockPermissionMiddleware struct {
 	*PermissionMiddleware
-	mockDAO *MockPermissionDAO
+	mockDAO *mocks.MockPermissionDAO
 }
 
 func NewMockPermissionMiddleware() *MockPermissionMiddleware {
-	mockDAO := &MockPermissionDAO{}
+	mockDAO := mocks.NewMockPermissionDAO()
 	return &MockPermissionMiddleware{
 		PermissionMiddleware: NewPermissionMiddlewareWithDAO(mockDAO),
 		mockDAO:              mockDAO,
@@ -63,9 +29,7 @@ func TestRequireSubforumCapability_Success(t *testing.T) {
 	mockMiddleware := NewMockPermissionMiddleware()
 
 	// Mock successful capability check
-	mockMiddleware.mockDAO.hasSubforumCapabilityFunc = func(ctx context.Context, userID int64, subforumID int32, capability string) (bool, error) {
-		return true, nil
-	}
+	mockMiddleware.mockDAO.On("HasSubforumCapability", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int32"), mock.AnythingOfType("string")).Return(true, nil)
 
 	// Create test handler
 	handlerCalled := false
@@ -210,9 +174,7 @@ func TestRequireSubforumCapability_Forbidden(t *testing.T) {
 	mockMiddleware := NewMockPermissionMiddleware()
 
 	// Mock failed capability check
-	mockMiddleware.mockDAO.hasSubforumCapabilityFunc = func(ctx context.Context, userID int64, subforumID int32, capability string) (bool, error) {
-		return false, nil
-	}
+	mockMiddleware.mockDAO.On("HasSubforumCapability", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int32"), mock.AnythingOfType("string")).Return(false, nil)
 
 	// Create test handler
 	handlerCalled := false
@@ -250,9 +212,7 @@ func TestRequireSubforumCapability_DatabaseError(t *testing.T) {
 	mockMiddleware := NewMockPermissionMiddleware()
 
 	// Mock database error
-	mockMiddleware.mockDAO.hasSubforumCapabilityFunc = func(ctx context.Context, userID int64, subforumID int32, capability string) (bool, error) {
-		return false, context.DeadlineExceeded
-	}
+	mockMiddleware.mockDAO.On("HasSubforumCapability", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int32"), mock.AnythingOfType("string")).Return(false, context.DeadlineExceeded)
 
 	// Create test handler
 	handlerCalled := false
@@ -290,9 +250,7 @@ func TestRequirePrivateSubforumAccess_Success(t *testing.T) {
 	mockMiddleware := NewMockPermissionMiddleware()
 
 	// Mock successful access check
-	mockMiddleware.mockDAO.canAccessPrivateSubforumFunc = func(ctx context.Context, userID int64, subforumID int32) (bool, error) {
-		return true, nil
-	}
+	mockMiddleware.mockDAO.On("CanAccessPrivateSubforum", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int32")).Return(true, nil)
 
 	// Create test handler
 	handlerCalled := false
@@ -339,9 +297,7 @@ func TestRequirePrivateSubforumAccess_Forbidden(t *testing.T) {
 	mockMiddleware := NewMockPermissionMiddleware()
 
 	// Mock failed access check
-	mockMiddleware.mockDAO.canAccessPrivateSubforumFunc = func(ctx context.Context, userID int64, subforumID int32) (bool, error) {
-		return false, nil
-	}
+	mockMiddleware.mockDAO.On("CanAccessPrivateSubforum", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int32")).Return(false, nil)
 
 	// Create test handler
 	handlerCalled := false
@@ -379,12 +335,7 @@ func TestRequireModerationCapability(t *testing.T) {
 	mockMiddleware := NewMockPermissionMiddleware()
 
 	// Mock successful capability check
-	mockMiddleware.mockDAO.hasSubforumCapabilityFunc = func(ctx context.Context, userID int64, subforumID int32, capability string) (bool, error) {
-		if capability == "moderate_content" {
-			return true, nil
-		}
-		return false, nil
-	}
+	mockMiddleware.mockDAO.On("HasSubforumCapability", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int32"), mock.AnythingOfType("string")).Return(true, nil)
 
 	// Create test handler
 	handlerCalled := false
@@ -423,12 +374,7 @@ func TestRequireBanCapability(t *testing.T) {
 	mockMiddleware := NewMockPermissionMiddleware()
 
 	// Mock successful capability check
-	mockMiddleware.mockDAO.hasSubforumCapabilityFunc = func(ctx context.Context, userID int64, subforumID int32, capability string) (bool, error) {
-		if capability == "ban_users" {
-			return true, nil
-		}
-		return false, nil
-	}
+	mockMiddleware.mockDAO.On("HasSubforumCapability", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int32"), mock.AnythingOfType("string")).Return(true, nil)
 
 	// Create test handler
 	handlerCalled := false
@@ -467,12 +413,7 @@ func TestRequireRemoveContentCapability(t *testing.T) {
 	mockMiddleware := NewMockPermissionMiddleware()
 
 	// Mock successful capability check
-	mockMiddleware.mockDAO.hasSubforumCapabilityFunc = func(ctx context.Context, userID int64, subforumID int32, capability string) (bool, error) {
-		if capability == "remove_content" {
-			return true, nil
-		}
-		return false, nil
-	}
+	mockMiddleware.mockDAO.On("HasSubforumCapability", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int32"), mock.AnythingOfType("string")).Return(true, nil)
 
 	// Create test handler
 	handlerCalled := false
@@ -511,12 +452,7 @@ func TestRequireManageModeratorsCapability(t *testing.T) {
 	mockMiddleware := NewMockPermissionMiddleware()
 
 	// Mock successful capability check
-	mockMiddleware.mockDAO.hasSubforumCapabilityFunc = func(ctx context.Context, userID int64, subforumID int32, capability string) (bool, error) {
-		if capability == "manage_moderators" {
-			return true, nil
-		}
-		return false, nil
-	}
+	mockMiddleware.mockDAO.On("HasSubforumCapability", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int32"), mock.AnythingOfType("string")).Return(true, nil)
 
 	// Create test handler
 	handlerCalled := false
@@ -579,11 +515,11 @@ func TestGetSubforumIDFromContext(t *testing.T) {
 // MockPermissionChecker wraps PermissionChecker with mock DAO
 type MockPermissionChecker struct {
 	*PermissionChecker
-	mockDAO *MockPermissionDAO
+	mockDAO *mocks.MockPermissionDAO
 }
 
 func NewMockPermissionChecker() *MockPermissionChecker {
-	mockDAO := &MockPermissionDAO{}
+	mockDAO := mocks.NewMockPermissionDAO()
 	return &MockPermissionChecker{
 		PermissionChecker: NewPermissionCheckerWithDAO(mockDAO),
 		mockDAO:           mockDAO,
@@ -594,9 +530,7 @@ func TestPermissionChecker_CheckSubforumCapability(t *testing.T) {
 	mockChecker := NewMockPermissionChecker()
 
 	// Mock successful capability check
-	mockChecker.mockDAO.hasSubforumCapabilityFunc = func(ctx context.Context, userID int64, subforumID int32, capability string) (bool, error) {
-		return true, nil
-	}
+	mockChecker.mockDAO.On("HasSubforumCapability", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int32"), mock.AnythingOfType("string")).Return(true, nil)
 
 	ctx := context.Background()
 	hasCapability, err := mockChecker.CheckSubforumCapability(ctx, 123, 456, "moderate_content")
@@ -613,9 +547,7 @@ func TestPermissionChecker_CheckPrivateSubforumAccess(t *testing.T) {
 	mockChecker := NewMockPermissionChecker()
 
 	// Mock successful access check
-	mockChecker.mockDAO.canAccessPrivateSubforumFunc = func(ctx context.Context, userID int64, subforumID int32) (bool, error) {
-		return true, nil
-	}
+	mockChecker.mockDAO.On("CanAccessPrivateSubforum", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int32")).Return(true, nil)
 
 	ctx := context.Background()
 	canAccess, err := mockChecker.CheckPrivateSubforumAccess(ctx, 123, 456)
@@ -632,9 +564,7 @@ func TestPermissionChecker_GetUserSubforumRoles(t *testing.T) {
 	mockChecker := NewMockPermissionChecker()
 
 	expectedRoles := []string{"moderator", "admin"}
-	mockChecker.mockDAO.getUserSubforumRolesFunc = func(ctx context.Context, userID int64, subforumID int32) ([]string, error) {
-		return expectedRoles, nil
-	}
+	mockChecker.mockDAO.On("GetUserSubforumRoles", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int32")).Return(expectedRoles, nil)
 
 	ctx := context.Background()
 	roles, err := mockChecker.GetUserSubforumRoles(ctx, 123, 456)
@@ -656,9 +586,7 @@ func TestPermissionChecker_GetUserSubforumCapabilities(t *testing.T) {
 	mockChecker := NewMockPermissionChecker()
 
 	expectedCapabilities := []string{"moderate_content", "ban_users", "remove_content"}
-	mockChecker.mockDAO.getUserSubforumCapabilitiesFunc = func(ctx context.Context, userID int64, subforumID int32) ([]string, error) {
-		return expectedCapabilities, nil
-	}
+	mockChecker.mockDAO.On("GetUserSubforumCapabilities", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int32")).Return(expectedCapabilities, nil)
 
 	ctx := context.Background()
 	capabilities, err := mockChecker.GetUserSubforumCapabilities(ctx, 123, 456)

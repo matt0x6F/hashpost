@@ -33,10 +33,8 @@ export default function ForumPage() {
   const loadSubforumUserContext = async () => {
     try {
       const userData = await authenticateUserForSubforum(forumName);
-      console.log('[ForumPage] Subforum user data:', userData);
       if (userData) {
         login(userData);
-        console.log('[ForumPage] User context updated with subforum capabilities');
       }
     } catch (error) {
       console.error('Error loading subforum user context:', error);

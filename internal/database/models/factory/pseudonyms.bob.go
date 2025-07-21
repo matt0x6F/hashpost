@@ -6,12 +6,14 @@ package factory
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/jaswdr/faker/v2"
 	models "github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/stephenafamo/bob"
+	"github.com/stephenafamo/bob/types"
 )
 
 type PseudonymMod interface {
@@ -47,6 +49,8 @@ type PseudonymTemplate struct {
 	ShowKarma           func() sql.Null[bool]
 	AllowDirectMessages func() sql.Null[bool]
 	IsDefault           func() bool
+	Roles               func() sql.Null[types.JSON[json.RawMessage]]
+	Capabilities        func() sql.Null[types.JSON[json.RawMessage]]
 
 	r pseudonymR
 	f *Factory
@@ -516,6 +520,14 @@ func (o PseudonymTemplate) BuildSetter() *models.PseudonymSetter {
 		val := o.IsDefault()
 		m.IsDefault = &val
 	}
+	if o.Roles != nil {
+		val := o.Roles()
+		m.Roles = &val
+	}
+	if o.Capabilities != nil {
+		val := o.Capabilities()
+		m.Capabilities = &val
+	}
 
 	return m
 }
@@ -573,6 +585,12 @@ func (o PseudonymTemplate) Build() *models.Pseudonym {
 	}
 	if o.IsDefault != nil {
 		m.IsDefault = o.IsDefault()
+	}
+	if o.Roles != nil {
+		m.Roles = o.Roles()
+	}
+	if o.Capabilities != nil {
+		m.Capabilities = o.Capabilities()
 	}
 
 	o.setModelRels(m)
@@ -1103,6 +1121,8 @@ func (m pseudonymMods) RandomizeAllColumns(f *faker.Faker) PseudonymMod {
 		PseudonymMods.RandomShowKarma(f),
 		PseudonymMods.RandomAllowDirectMessages(f),
 		PseudonymMods.RandomIsDefault(f),
+		PseudonymMods.RandomRoles(f),
+		PseudonymMods.RandomCapabilities(f),
 	}
 }
 
@@ -1672,6 +1692,112 @@ func (m pseudonymMods) RandomIsDefault(f *faker.Faker) PseudonymMod {
 	return PseudonymModFunc(func(_ context.Context, o *PseudonymTemplate) {
 		o.IsDefault = func() bool {
 			return random_bool(f)
+		}
+	})
+}
+
+// Set the model columns to this value
+func (m pseudonymMods) Roles(val sql.Null[types.JSON[json.RawMessage]]) PseudonymMod {
+	return PseudonymModFunc(func(_ context.Context, o *PseudonymTemplate) {
+		o.Roles = func() sql.Null[types.JSON[json.RawMessage]] { return val }
+	})
+}
+
+// Set the Column from the function
+func (m pseudonymMods) RolesFunc(f func() sql.Null[types.JSON[json.RawMessage]]) PseudonymMod {
+	return PseudonymModFunc(func(_ context.Context, o *PseudonymTemplate) {
+		o.Roles = f
+	})
+}
+
+// Clear any values for the column
+func (m pseudonymMods) UnsetRoles() PseudonymMod {
+	return PseudonymModFunc(func(_ context.Context, o *PseudonymTemplate) {
+		o.Roles = nil
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+// The generated value is sometimes null
+func (m pseudonymMods) RandomRoles(f *faker.Faker) PseudonymMod {
+	return PseudonymModFunc(func(_ context.Context, o *PseudonymTemplate) {
+		o.Roles = func() sql.Null[types.JSON[json.RawMessage]] {
+			if f == nil {
+				f = &defaultFaker
+			}
+
+			val := random_types_JSON_json_RawMessage_(f)
+			return sql.Null[types.JSON[json.RawMessage]]{V: val, Valid: f.Bool()}
+		}
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+// The generated value is never null
+func (m pseudonymMods) RandomRolesNotNull(f *faker.Faker) PseudonymMod {
+	return PseudonymModFunc(func(_ context.Context, o *PseudonymTemplate) {
+		o.Roles = func() sql.Null[types.JSON[json.RawMessage]] {
+			if f == nil {
+				f = &defaultFaker
+			}
+
+			val := random_types_JSON_json_RawMessage_(f)
+			return sql.Null[types.JSON[json.RawMessage]]{V: val, Valid: true}
+		}
+	})
+}
+
+// Set the model columns to this value
+func (m pseudonymMods) Capabilities(val sql.Null[types.JSON[json.RawMessage]]) PseudonymMod {
+	return PseudonymModFunc(func(_ context.Context, o *PseudonymTemplate) {
+		o.Capabilities = func() sql.Null[types.JSON[json.RawMessage]] { return val }
+	})
+}
+
+// Set the Column from the function
+func (m pseudonymMods) CapabilitiesFunc(f func() sql.Null[types.JSON[json.RawMessage]]) PseudonymMod {
+	return PseudonymModFunc(func(_ context.Context, o *PseudonymTemplate) {
+		o.Capabilities = f
+	})
+}
+
+// Clear any values for the column
+func (m pseudonymMods) UnsetCapabilities() PseudonymMod {
+	return PseudonymModFunc(func(_ context.Context, o *PseudonymTemplate) {
+		o.Capabilities = nil
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+// The generated value is sometimes null
+func (m pseudonymMods) RandomCapabilities(f *faker.Faker) PseudonymMod {
+	return PseudonymModFunc(func(_ context.Context, o *PseudonymTemplate) {
+		o.Capabilities = func() sql.Null[types.JSON[json.RawMessage]] {
+			if f == nil {
+				f = &defaultFaker
+			}
+
+			val := random_types_JSON_json_RawMessage_(f)
+			return sql.Null[types.JSON[json.RawMessage]]{V: val, Valid: f.Bool()}
+		}
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+// The generated value is never null
+func (m pseudonymMods) RandomCapabilitiesNotNull(f *faker.Faker) PseudonymMod {
+	return PseudonymModFunc(func(_ context.Context, o *PseudonymTemplate) {
+		o.Capabilities = func() sql.Null[types.JSON[json.RawMessage]] {
+			if f == nil {
+				f = &defaultFaker
+			}
+
+			val := random_types_JSON_json_RawMessage_(f)
+			return sql.Null[types.JSON[json.RawMessage]]{V: val, Valid: true}
 		}
 	})
 }

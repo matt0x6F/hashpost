@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from './shadcn/button';
 import Link from 'next/link';
 import { 
@@ -21,6 +21,7 @@ import { ContentApi } from '@/generated/api/src/apis/ContentApi';
 import { toast } from 'sonner';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { PostBadges } from './PostBadges';
+import { authenticateUserForSubforum } from '@/lib/auth-utils';
 
 interface PostCardProps {
   post: {
@@ -45,12 +46,13 @@ interface PostCardProps {
     };
     userVote?: number; // Add userVote field
   };
+  subforumName?: string; // Optional subforum name for subforum-specific authentication
 }
 
-export function PostCard({ post }: PostCardProps) {
+export function PostCard({ post, subforumName }: PostCardProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [localPost, setLocalPost] = useState(post);
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, login } = useAuth();
   const [showModeratorControls, setShowModeratorControls] = useState(false);
 
   // Update local post when prop changes
@@ -58,19 +60,28 @@ export function PostCard({ post }: PostCardProps) {
     setLocalPost(post);
   }, [post]);
 
-  const isModerator = user?.roles?.includes('moderator') || 
-                     user?.roles?.includes('subforum_owner') || 
-                     user?.roles?.includes('platform_admin') || 
-                     user?.roles?.includes('trust_safety') || 
-                     user?.roles?.includes('legal_team') ||
-                     user?.capabilities?.includes('moderate_content');
+  // Load subforum-specific user context if subforumName is provided
+  useEffect(() => {
+    if (subforumName && isAuthenticated) {
+      loadSubforumUserContext();
+    }
+  }, [subforumName, isAuthenticated]);
+
+  const loadSubforumUserContext = async () => {
+    try {
+      const userData = await authenticateUserForSubforum(subforumName!);
+      if (userData) {
+        login(userData);
+      }
+    } catch (error) {
+      console.error('Error loading subforum user context:', error);
+      // Don't show error toast for this - it's not critical
+    }
+  };
+
+  const isModerator = user?.roles?.includes('moderator') || user?.capabilities?.includes('moderate_content');
 
   const isAuthor = user?.activePseudonymId === localPost.author.pseudonymId;
-
-  // Debug logging
-  console.log('[PostCard] User roles:', user?.roles);
-  console.log('[PostCard] User capabilities:', user?.capabilities);
-  console.log('[PostCard] Is moderator:', isModerator);
 
   const handleVote = async (voteValue: number) => {
     if (!isAuthenticated) {
@@ -188,10 +199,6 @@ export function PostCard({ post }: PostCardProps) {
   };
 
   // Debug: Check author match for edit button
-  console.log('user.activePseudonymId', user?.activePseudonymId);
-  console.log('post.author.pseudonymId', localPost.author.pseudonymId);
-  console.log('isAuthor', isAuthor);
-
   // If post is removed and user is not a moderator, don't show it
   if (localPost.isRemoved && !isModerator) {
     return null;

@@ -10,7 +10,7 @@ HashPost is a Reddit-like social media platform that uses Identity-Based Encrypt
 
 1. **Privacy by Design**: Users interact through pseudonymous profiles, with real identities encrypted and only accessible to authorized personnel
 2. **Single-User System**: All users exist in a unified system with role-based capabilities rather than separate administrative accounts
-3. **Role-Based Access Control**: Different user roles have different capabilities and access levels for correlation and administrative functions
+3. **Pseudonym-Based Access Control**: Permissions are managed at multiple levels: user, pseudonym, subforum, and platform
 4. **Cryptographic Privacy**: Real identities are encrypted and only accessible through role-based keys
 5. **Comprehensive Audit Trail**: All administrative activities are logged for compliance and oversight
 
@@ -40,6 +40,17 @@ HashPost is a Reddit-like social media platform that uses Identity-Based Encrypt
 └─────────────────────────────────────────────────────────────┘
 ```
 
+### Permission Hierarchy
+
+The permission system operates at multiple levels:
+
+| Level | Description | Examples |
+|-------|-------------|----------|
+| **User Level** | Basic account management and authentication | Login, profile updates, session management |
+| **Pseudonym Level** | Content creation and personal pseudonym management | `create_content`, `vote`, `message`, `report`, `manage_own_pseudonyms` |
+| **Subforum Level** | Moderation capabilities specific to subforums | `moderate_content`, `ban_users`, `manage_moderators` (dynamically assigned) |
+| **Platform Level** | Administrative capabilities across all subforums | `correlate_identities`, `access_all_pseudonyms`, `system_admin` |
+
 ### User Roles and Capabilities
 
 | Role | Capabilities | Correlation Access | Scope | Time Window |
@@ -55,7 +66,8 @@ HashPost is a Reddit-like social media platform that uses Identity-Based Encrypt
 
 ### For Regular Users
 - **Pseudonymous Profiles**: Users interact through display names without revealing real identities
-- **Multiple Pseudonyms**: Users can have multiple distinct personas under a single account
+- **Multiple Pseudonyms**: Users can have multiple distinct personas under a single account, each with their own roles and capabilities
+- **Pseudonym Management**: Create, switch, and deactivate pseudonyms as needed
 - **Content Creation**: Create posts, comments, and engage with community content
 - **Voting System**: Upvote/downvote content to influence visibility
 - **Direct Messaging**: Private communication between users
@@ -68,6 +80,7 @@ HashPost is a Reddit-like social media platform that uses Identity-Based Encrypt
 - **Report Management**: Review and resolve user reports
 - **Community Management**: Manage subforum rules and settings
 - **Pseudonymous Moderation**: Moderate under pseudonymous identities
+- **Dynamic Role Assignment**: Moderator role is automatically assigned when accessing subforums with moderation capabilities
 
 ### For Administrators
 - **Identity Correlation**: Full identity correlation for platform-wide investigations
@@ -80,15 +93,11 @@ HashPost is a Reddit-like social media platform that uses Identity-Based Encrypt
 This documentation is organized into logical categories:
 
 ### 🔐 **Security & Access Control**
-- **[RBAC Documentation](rbac/)**: Complete Role-Based Access Control system
+- **[RBAC Documentation](rbac/)**: Complete Role-Based Access Control system with pseudonym-based permissions
 - **[Security Documentation](security/)**: IBE, cryptography, and security analysis
 
-### 📡 **API & Integration**
-- **[API Documentation](api/)**: Complete API reference and authentication
-- **[API Keys](api/keys.md)**: API key management and usage
-
 ### 🗄️ **Database & Data**
-- **[Database Schema](database/schema.md)**: Complete database schema with role-based access control
+- **[Database Schema](database/schema.md)**: Complete database schema with pseudonym-based role and capability management
 - **[Database Operations](database/operations.md)**: Common operations, maintenance, and best practices
 - **[Database ERD](database/erd.puml)**: Entity Relationship Diagram
 
@@ -97,119 +106,4 @@ This documentation is organized into logical categories:
 - **[CORS Configuration](development/cors.md)**: Cross-Origin Resource Sharing setup
 
 ### 🎯 **Features & Functionality**
-- **[Comment Workflow](features/comments.md)**: Comment system implementation
-
-## Getting Started
-
-### Prerequisites
-- PostgreSQL 14+ with JSON support
-- Go 1.21+ for backend services
-- Node.js 18+ for frontend applications
-- Redis for caching and session management
-
-### Quick Start
-1. **Development Environment**: Run `make dev` to start the Docker development environment
-2. **Database Setup**: Database migrations run automatically on container startup
-3. **API Access**: API is available at `http://localhost:8888`
-4. **Documentation**: Review the authentication and API documentation
-
-### Development Environment
-```bash
-# Clone the repository
-git clone https://github.com/hashpost/hashpost.git
-cd hashpost
-
-# Start development environment
-make dev
-
-# Access the API
-curl http://localhost:8888/health
-```
-
-## API Integration
-
-### Authentication Flow
-1. **User Registration**: Users register with email/password and receive pseudonym
-2. **JWT Authentication**: Standard JWT authentication for user operations
-3. **API Key Authentication**: Static API keys for programmatic access
-4. **Role-Based Access**: Different roles have different capabilities
-
-### Example API Usage
-```javascript
-// User authentication
-const response = await fetch('/auth/login', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    email: 'user@example.com',
-    password: 'password'
-  })
-});
-
-// API key authentication
-const apiResponse = await fetch('/api/v1/posts', {
-  headers: { 'Authorization': 'Bearer your-api-key-here' }
-});
-```
-
-## Deployment
-
-### Production Considerations
-- **Database Security**: Use encrypted connections and secure key management
-- **Network Security**: Implement proper firewall rules and access controls
-- **Monitoring**: Set up comprehensive logging and monitoring for correlation activities
-- **Backup Strategy**: Regular encrypted backups with disaster recovery procedures
-- **Compliance**: Ensure GDPR, CCPA, and other privacy regulation compliance
-
-### Environment Variables
-```bash
-# Database Configuration
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=hashpost
-DB_USER=hashpost_user
-DB_PASSWORD=secure_password
-
-# Security Configuration
-JWT_SECRET=your_jwt_secret
-IBE_MASTER_KEY=your_ibe_master_key
-ENCRYPTION_KEY=your_encryption_key
-
-# API Configuration
-API_PORT=8080
-API_HOST=0.0.0.0
-CORS_ORIGINS=https://hashpost.com,https://www.hashpost.com
-```
-
-## Contributing
-
-### Development Guidelines
-1. **Privacy First**: Always consider privacy implications of new features
-2. **Role-Based Design**: Implement features with appropriate role-based access
-3. **Audit Trail**: Ensure all administrative actions are properly logged
-4. **Security Review**: All changes must pass security review before deployment
-
-### Code Standards
-- Follow Go best practices for backend development
-- Use TypeScript for frontend development
-- Implement comprehensive testing for all correlation features
-- Document all API changes and database modifications
-
-## Support and Community
-
-### Getting Help
-- **Documentation**: Start with this README and linked documentation
-- **API Reference**: Use the comprehensive API documentation
-- **Issues**: Report bugs and feature requests through GitHub issues
-- **Discussions**: Join community discussions for questions and ideas
-
-### Security Reporting
-For security vulnerabilities, please report them privately to security@hashpost.com. Do not create public issues for security concerns.
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
----
-
-This documentation provides a comprehensive overview of the HashPost platform, its architecture, and how to get started with development and deployment. The single-user system with role-based access control provides a balance between simplicity and security while maintaining the privacy protections that make HashPost unique. 
+- **[Comment Workflow](features/comments.md)**: Comment system implementation 

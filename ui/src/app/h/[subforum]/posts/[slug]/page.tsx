@@ -28,6 +28,7 @@ import { Comment as CommentType } from '@/generated/api/src/models';
 import { useAuth } from '@/lib/auth-context';
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 import { PostBadges } from '@/components/PostBadges';
+import { authenticateUserForSubforum } from '@/lib/auth-utils';
 
 export default function PostPage() {
   const params = useParams();
@@ -38,14 +39,28 @@ export default function PostPage() {
   const [error, setError] = useState<string | null>(null);
   // Add post voting handler
   const [isVoting, setIsVoting] = useState(false);
-  const { user } = useAuth();
+  const { user, login } = useAuth();
   const [showDropdown, setShowDropdown] = useState(false);
 
   useEffect(() => {
     if (subforum && slug) {
       loadPostDetails();
+      // Load subforum-specific user context
+      loadSubforumUserContext();
     }
   }, [subforum, slug]);
+
+  const loadSubforumUserContext = async () => {
+    try {
+      const userData = await authenticateUserForSubforum(subforum);
+      if (userData) {
+        login(userData);
+      }
+    } catch (error) {
+      console.error('Error loading subforum user context:', error);
+      // Don't show error toast for this - it's not critical
+    }
+  };
 
   const loadPostDetails = async () => {
     setIsLoading(true);
@@ -210,12 +225,7 @@ export default function PostPage() {
 
   // Helper to check if current user is the post author
   const isPostAuthor = user?.activePseudonymId && postDetails?.author?.pseudonymId && (user.activePseudonymId === postDetails.author.pseudonymId);
-  const isModerator = user?.roles?.includes('moderator') || 
-                     user?.roles?.includes('subforum_owner') || 
-                     user?.roles?.includes('platform_admin') || 
-                     user?.roles?.includes('trust_safety') || 
-                     user?.roles?.includes('legal_team') ||
-                     user?.capabilities?.includes('moderate_content');
+  const isModerator = user?.roles?.includes('moderator') || user?.capabilities?.includes('moderate_content');
   const handleModeratorAction = async (action: string, value: boolean) => {
     if (!isModerator || !postDetails) {
       toast.error('You do not have permission to perform this action');
@@ -252,9 +262,7 @@ export default function PostPage() {
 
   // Debug logs for author check
   if (postDetails) {
-    console.log('user.activePseudonymId', user?.activePseudonymId);
-    console.log('postDetails.author.pseudonymId', postDetails.author.pseudonymId);
-    console.log('isPostAuthor', isPostAuthor);
+    // Debug information removed for production
   }
 
 

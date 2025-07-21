@@ -85,7 +85,6 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
       const subforumsApi = getApi(SubforumsApi);
       const response = await subforumsApi.createSubforum(formData);
       
-      console.log('Forum created successfully:', response);
       setOpen(false);
       setFormData({
         name: '',
@@ -105,7 +104,6 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
           label: "View Forum",
           onClick: () => {
             // TODO: Navigate to the forum page
-            console.log(`Navigate to /r/${response.name}`);
           },
         },
       });

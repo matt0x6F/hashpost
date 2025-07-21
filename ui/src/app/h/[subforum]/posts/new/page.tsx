@@ -1,26 +1,54 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
 import { Label } from "@/components/shadcn/label";
+import { Checkbox } from "@/components/shadcn/checkbox";
 import { getApi } from "@/lib/api-client";
 import { ContentApi } from "@/generated/api/src/apis/ContentApi";
 import { toast } from "sonner";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Lock, Pin } from "lucide-react";
 import MarkdownHelp from "@/components/MarkdownHelp";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
 import { MarkdownTextarea } from "@/components/MarkdownTextarea";
+import { useAuth } from "@/lib/auth-context";
+import { authenticateUserForSubforum } from "@/lib/auth-utils";
 
 export default function NewPostPage() {
   const router = useRouter();
   const params = useParams();
   const subforumName = params.subforum as string;
+  const { isAuthenticated } = useAuth();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [isSticky, setIsSticky] = useState(false);
+  const [isLocked, setIsLocked] = useState(false);
+  const [isModerator, setIsModerator] = useState(false);
+
+  // Load subforum-specific user context to check moderator status
+  useEffect(() => {
+    if (subforumName && isAuthenticated) {
+      loadSubforumUserContext();
+    }
+  }, [subforumName, isAuthenticated]);
+
+  const loadSubforumUserContext = async () => {
+    try {
+      const userData = await authenticateUserForSubforum(subforumName);
+      if (userData) {
+        const hasModeratorRole = userData.roles?.includes('moderator');
+        const hasModerateContentCapability = userData.capabilities?.includes('moderate_content');
+        setIsModerator(hasModeratorRole || hasModerateContentCapability);
+      }
+    } catch (error) {
+      console.error('Error loading subforum user context:', error);
+      // Don't show error toast for this - it's not critical
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,8 +65,8 @@ export default function NewPostPage() {
         postType: "text",
         isNsfw: false,
         isSpoiler: false,
-        isLocked: false,
-        isSticky: false,
+        isLocked: isLocked,
+        isSticky: isSticky,
       });
       toast.success("Post created successfully!");
       router.push(`/h/${subforumName}/posts/${response.slug}`);
@@ -97,6 +125,40 @@ export default function NewPostPage() {
           />
           <MarkdownHelp />
         </div>
+
+        {/* Moderator Controls */}
+        {isModerator && (
+          <div className="space-y-3 p-4 bg-muted/20 border border-border rounded-lg">
+            <Label className="text-sm font-medium">Moderator Options</Label>
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="isSticky"
+                  checked={isSticky}
+                  onCheckedChange={(checked) => setIsSticky(checked as boolean)}
+                  disabled={isSubmitting}
+                />
+                <Label htmlFor="isSticky" className="text-sm flex items-center gap-2">
+                  <Pin className="w-4 h-4" />
+                  Make this post sticky
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="isLocked"
+                  checked={isLocked}
+                  onCheckedChange={(checked) => setIsLocked(checked as boolean)}
+                  disabled={isSubmitting}
+                />
+                <Label htmlFor="isLocked" className="text-sm flex items-center gap-2">
+                  <Lock className="w-4 h-4" />
+                  Lock this post (prevent new comments)
+                </Label>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="flex justify-end">
           <Button type="submit" disabled={isSubmitting || !title.trim() || !content.trim()}>
             {isSubmitting ? "Posting..." : "Create Post"}
