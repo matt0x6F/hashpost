@@ -1,3 +1,6 @@
+# Project specific files
+reports/
+
 # Binaries for programs and plugins
 *.exe
 *.exe~
