@@ -1083,7 +1083,50 @@ func TestContentHandler_CreateComment_ValidationErrors(t *testing.T) {
 
 // TestContentHandler_EditPost_Success tests successful post editing
 func TestContentHandler_EditPost_Success(t *testing.T) {
-	t.Skip("Skipping EditPost test - requires real database connection for post.Update()")
+	handler, mockPostDAO, _, _, _, _, _ := createTestContentHandler()
+
+	// Create test post owned by the user
+	testPost := fixtures.CreateTestPost()
+
+	// Set up expectations
+	mockPostDAO.On("GetPostByID", mock.Anything, int64(123)).Return(
+		func(ctx context.Context, postID int64) (*dbmodels.Post, error) {
+			return testPost, nil
+		},
+	)
+	mockPostDAO.On("UpdatePost", mock.Anything, int64(123), "Updated Post Title", "Updated post content").Return(nil)
+
+	// Create test input
+	input := &apimodels.PostEditInput{
+		PostID: 123,
+		Body: apimodels.PostEditInputBody{
+			Title:   "Updated Post Title",
+			Content: "Updated post content",
+		},
+		AuthInput: middleware.AuthInput{
+			Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "test-pseudonym-id"),
+		},
+	}
+
+	// Set up user context
+	userCtx := fixtures.CreateTestUserContext()
+	ctx := context.WithValue(context.Background(), middleware.UserContextKeyValue, userCtx)
+
+	// Call handler
+	response, err := handler.EditPost(ctx, input)
+
+	// Verify response
+	require.NoError(t, err)
+	require.NotNil(t, response)
+	assert.Equal(t, 200, response.Status)
+	assert.Equal(t, "Updated Post Title", response.Body.Title)
+	assert.Equal(t, "Updated post content", response.Body.Content)
+	assert.Equal(t, "test-pseudonym-id", response.Body.Author.PseudonymID)
+	assert.Equal(t, "TestUser", response.Body.Author.DisplayName)
+	assert.True(t, response.Body.IsEdited)
+
+	// Verify DAO calls
+	mockPostDAO.AssertExpectations(t)
 }
 
 // TestContentHandler_EditPost_NotOwner tests editing a post the user doesn't own
@@ -2084,20 +2127,49 @@ func TestContentHandler_GetPostDetails_NotFound(t *testing.T) {
 
 // TestContentHandler_NewContentHandler tests the main constructor function
 func TestContentHandler_NewContentHandler(t *testing.T) {
-	t.Run("NewContentHandlerSuccess", func(t *testing.T) {
-		// This test would require a real database connection
-		// For now, we'll test that the function doesn't panic
-		// In a real test environment, you'd use a test database
-		assert.NotPanics(t, func() {
-			// Note: This would need a real bob.Executor and sql.DB
-			// db := getTestDB()
-			// rawDB := getTestRawDB()
-			// ibeSystem := ibe.NewIBESystem()
-			// identityMappingDAO := dao.NewIdentityMappingDAO(db)
-			// userDAO := dao.NewUserDAO(db)
-			// handler := NewContentHandler(db, rawDB, ibeSystem, identityMappingDAO, userDAO)
-			// assert.NotNil(t, handler)
-		})
+	t.Run("NewContentHandlerWithMocks", func(t *testing.T) {
+		// Test constructor with mocked dependencies
+		mockPostDAO := mocks.NewMockPostDAO()
+		mockCommentDAO := mocks.NewMockCommentDAO()
+		mockVoteDAO := mocks.NewMockVoteDAO()
+		mockSubforumDAO := mocks.NewMockSubforumDAO()
+		mockSecurePseudonymDAO := mocks.NewMockSecurePseudonymDAO()
+		mockUserDAO := &mocks.MockUserDAO{}
+		mockIdentityMappingDAO := &mocks.MockIdentityMappingDAO{}
+		mockUserBlocksDAO := &mocks.MockUserBlocksDAO{}
+		mockRoleKeyDAO := &mocks.MockRoleKeyDAO{}
+		mockPermissionDAO := &mocks.MockPermissionDAO{}
+
+		ibeSystem := ibe.NewIBESystem()
+		permissionChecker := middleware.NewPermissionCheckerWithDAO(mockPermissionDAO)
+
+		// Create handler with mocked dependencies
+		handler := NewContentHandler(
+			nil, // Mock DB
+			nil, // Mock raw DB
+			ibeSystem,
+			mockIdentityMappingDAO,
+			mockUserDAO,
+			mockPostDAO,
+			mockCommentDAO,
+			mockSubforumDAO,
+			mockSecurePseudonymDAO,
+			mockVoteDAO,
+			mockUserBlocksDAO,
+			mockRoleKeyDAO,
+			permissionChecker,
+			mockPermissionDAO,
+		)
+
+		// Verify handler was created successfully
+		assert.NotNil(t, handler)
+		assert.Equal(t, ibeSystem, handler.ibeSystem)
+		assert.Equal(t, mockPostDAO, handler.postDAO)
+		assert.Equal(t, mockCommentDAO, handler.commentDAO)
+		assert.Equal(t, mockVoteDAO, handler.voteDAO)
+		assert.Equal(t, mockSubforumDAO, handler.subforumDAO)
+		assert.Equal(t, mockSecurePseudonymDAO, handler.securePseudonymDAO)
+		assert.Equal(t, mockPermissionDAO, handler.permissionDAO)
 	})
 }
 

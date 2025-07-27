@@ -474,13 +474,25 @@ func TestSearchHandler_SearchUsers(t *testing.T) {
 
 // TestSearchHandler_NewSearchHandler tests the constructor
 func TestSearchHandler_NewSearchHandler(t *testing.T) {
-	t.Run("NewSearchHandlerSuccess", func(t *testing.T) {
-		// This test would require a real database connection
-		// For now, we'll test that the function doesn't panic
-		assert.NotPanics(t, func() {
-			// Note: This would need a real bob.Executor
-			// handler := handlers.NewSearchHandler(db)
-			// assert.NotNil(t, handler)
-		})
+	t.Run("NewSearchHandlerWithMocks", func(t *testing.T) {
+		// Test constructor with mocked dependencies
+		mockPostDAO := mocks.NewMockPostDAO()
+		mockUserDAO := &mocks.MockUserDAO{}
+		mockSubforumDAO := mocks.NewMockSubforumDAO()
+		mockSecurePseudonymDAO := mocks.NewMockSecurePseudonymDAO()
+
+		// Create handler with mocked dependencies
+		handler := handlers.NewSearchHandler(
+			nil, // Mock DB
+			mockPostDAO,
+			mockUserDAO,
+			mockSubforumDAO,
+			mockSecurePseudonymDAO,
+		)
+
+		// Verify handler was created successfully
+		assert.NotNil(t, handler)
+		// Note: We can't access private fields directly, but we can verify the handler was created
+		// The actual field assignments are tested through the handler's behavior in other tests
 	})
 }
