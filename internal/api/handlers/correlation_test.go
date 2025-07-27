@@ -31,7 +31,7 @@ func createTestCorrelationHandler() (*CorrelationHandler, *mocks.MockSecurePseud
 	mockSubforumDAO := &mocks.MockSubforumDAO{}
 	mockCorrelationAuditDAO := &mocks.MockCorrelationAuditDAO{}
 
-	ibeSystem := ibe.NewIBESystem()
+	ibeSystem := ibe.NewIBESystemWithOptions(ibe.IBEOptions{})
 
 	handler := NewCorrelationHandler(
 		nil, // No direct DB needed since we use DAOs

@@ -53,11 +53,16 @@ type IdentityMappingTemplate struct {
 }
 
 type identityMappingR struct {
-	User *identityMappingRUserR
+	User                       *identityMappingRUserR
+	MappingMigrationProgresses []*identityMappingRMappingMigrationProgressesR
 }
 
 type identityMappingRUserR struct {
 	o *UserTemplate
+}
+type identityMappingRMappingMigrationProgressesR struct {
+	number int
+	o      *MigrationProgressTemplate
 }
 
 // Apply mods to the IdentityMappingTemplate
@@ -75,6 +80,19 @@ func (t IdentityMappingTemplate) setModelRels(o *models.IdentityMapping) {
 		rel.R.IdentityMappings = append(rel.R.IdentityMappings, o)
 		o.UserID = rel.UserID // h2
 		o.R.User = rel
+	}
+
+	if t.r.MappingMigrationProgresses != nil {
+		rel := models.MigrationProgressSlice{}
+		for _, r := range t.r.MappingMigrationProgresses {
+			related := r.o.BuildMany(r.number)
+			for _, rel := range related {
+				rel.MappingID = o.MappingID // h2
+				rel.R.MappingIdentityMapping = o
+			}
+			rel = append(rel, related...)
+		}
+		o.R.MappingMigrationProgresses = rel
 	}
 }
 
@@ -229,6 +247,23 @@ func ensureCreatableIdentityMapping(m *models.IdentityMappingSetter) {
 // any required relationship should have already exist on the model
 func (o *IdentityMappingTemplate) insertOptRels(ctx context.Context, exec bob.Executor, m *models.IdentityMapping) (context.Context, error) {
 	var err error
+
+	isMappingMigrationProgressesDone, _ := identityMappingRelMappingMigrationProgressesCtx.Value(ctx)
+	if !isMappingMigrationProgressesDone && o.r.MappingMigrationProgresses != nil {
+		ctx = identityMappingRelMappingMigrationProgressesCtx.WithValue(ctx, true)
+		for _, r := range o.r.MappingMigrationProgresses {
+			var rel1 models.MigrationProgressSlice
+			ctx, rel1, err = r.o.createMany(ctx, exec, r.number)
+			if err != nil {
+				return ctx, err
+			}
+
+			err = m.AttachMappingMigrationProgresses(ctx, exec, rel1...)
+			if err != nil {
+				return ctx, err
+			}
+		}
+	}
 
 	return ctx, err
 }
@@ -807,5 +842,43 @@ func (m identityMappingMods) WithNewUser(mods ...UserMod) IdentityMappingMod {
 func (m identityMappingMods) WithoutUser() IdentityMappingMod {
 	return IdentityMappingModFunc(func(ctx context.Context, o *IdentityMappingTemplate) {
 		o.r.User = nil
+	})
+}
+
+func (m identityMappingMods) WithMappingMigrationProgresses(number int, related *MigrationProgressTemplate) IdentityMappingMod {
+	return IdentityMappingModFunc(func(ctx context.Context, o *IdentityMappingTemplate) {
+		o.r.MappingMigrationProgresses = []*identityMappingRMappingMigrationProgressesR{{
+			number: number,
+			o:      related,
+		}}
+	})
+}
+
+func (m identityMappingMods) WithNewMappingMigrationProgresses(number int, mods ...MigrationProgressMod) IdentityMappingMod {
+	return IdentityMappingModFunc(func(ctx context.Context, o *IdentityMappingTemplate) {
+		related := o.f.NewMigrationProgress(ctx, mods...)
+		m.WithMappingMigrationProgresses(number, related).Apply(ctx, o)
+	})
+}
+
+func (m identityMappingMods) AddMappingMigrationProgresses(number int, related *MigrationProgressTemplate) IdentityMappingMod {
+	return IdentityMappingModFunc(func(ctx context.Context, o *IdentityMappingTemplate) {
+		o.r.MappingMigrationProgresses = append(o.r.MappingMigrationProgresses, &identityMappingRMappingMigrationProgressesR{
+			number: number,
+			o:      related,
+		})
+	})
+}
+
+func (m identityMappingMods) AddNewMappingMigrationProgresses(number int, mods ...MigrationProgressMod) IdentityMappingMod {
+	return IdentityMappingModFunc(func(ctx context.Context, o *IdentityMappingTemplate) {
+		related := o.f.NewMigrationProgress(ctx, mods...)
+		m.AddMappingMigrationProgresses(number, related).Apply(ctx, o)
+	})
+}
+
+func (m identityMappingMods) WithoutMappingMigrationProgresses() IdentityMappingMod {
+	return IdentityMappingModFunc(func(ctx context.Context, o *IdentityMappingTemplate) {
+		o.r.MappingMigrationProgresses = nil
 	})
 }

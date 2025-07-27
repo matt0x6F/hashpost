@@ -12,7 +12,7 @@ func main() {
 	fmt.Println("Demonstrating pseudonymous social platform with administrative correlation")
 
 	// Initialize the IBE system
-	ibeSystem := ibe.NewIBESystem()
+	ibeSystem := ibe.NewTestIBESystem()
 
 	// Initialize storage
 	db := poc.NewMemoryDB()

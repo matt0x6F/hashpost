@@ -52,7 +52,8 @@ type IdentityMappingsQuery = *psql.ViewQuery[*IdentityMapping, IdentityMappingSl
 
 // identityMappingR is where relationships are stored.
 type identityMappingR struct {
-	User *User `scan:"User" json:"User"` // identity_mappings.identity_mappings_user_id_fkey
+	User                       *User                  `scan:"User" json:"User"`                                             // identity_mappings.identity_mappings_user_id_fkey
+	MappingMigrationProgresses MigrationProgressSlice `scan:"MappingMigrationProgresses" json:"MappingMigrationProgresses"` // migration_progress.migration_progress_mapping_id_fkey
 }
 
 type identityMappingColumnNames struct {
@@ -666,8 +667,9 @@ func (o IdentityMappingSlice) ReloadAll(ctx context.Context, exec bob.Executor) 
 }
 
 type identityMappingJoins[Q dialect.Joinable] struct {
-	typ  string
-	User modAs[Q, userColumns]
+	typ                        string
+	User                       modAs[Q, userColumns]
+	MappingMigrationProgresses modAs[Q, migrationProgressColumns]
 }
 
 func (j identityMappingJoins[Q]) aliasedAs(alias string) identityMappingJoins[Q] {
@@ -685,6 +687,20 @@ func buildIdentityMappingJoins[Q dialect.Joinable](cols identityMappingColumns, 
 				{
 					mods = append(mods, dialect.Join[Q](typ, Users.Name().As(to.Alias())).On(
 						to.UserID.EQ(cols.UserID),
+					))
+				}
+
+				return mods
+			},
+		},
+		MappingMigrationProgresses: modAs[Q, migrationProgressColumns]{
+			c: MigrationProgressColumns,
+			f: func(to migrationProgressColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, MigrationProgresses.Name().As(to.Alias())).On(
+						to.MappingID.EQ(cols.MappingID),
 					))
 				}
 
@@ -715,6 +731,27 @@ func (os IdentityMappingSlice) User(mods ...bob.Mod[*dialect.SelectQuery]) Users
 	)...)
 }
 
+// MappingMigrationProgresses starts a query for related objects on migration_progress
+func (o *IdentityMapping) MappingMigrationProgresses(mods ...bob.Mod[*dialect.SelectQuery]) MigrationProgressesQuery {
+	return MigrationProgresses.Query(append(mods,
+		sm.Where(MigrationProgressColumns.MappingID.EQ(psql.Arg(o.MappingID))),
+	)...)
+}
+
+func (os IdentityMappingSlice) MappingMigrationProgresses(mods ...bob.Mod[*dialect.SelectQuery]) MigrationProgressesQuery {
+	pkMappingID := make(pgtypes.Array[uuid.UUID], len(os))
+	for i, o := range os {
+		pkMappingID[i] = o.MappingID
+	}
+	PKArgExpr := psql.Select(sm.Columns(
+		psql.F("unnest", psql.Cast(psql.Arg(pkMappingID), "uuid[]")),
+	))
+
+	return MigrationProgresses.Query(append(mods,
+		sm.Where(psql.Group(MigrationProgressColumns.MappingID).OP("IN", PKArgExpr)),
+	)...)
+}
+
 func (o *IdentityMapping) Preload(name string, retrieved any) error {
 	if o == nil {
 		return nil
@@ -731,6 +768,20 @@ func (o *IdentityMapping) Preload(name string, retrieved any) error {
 
 		if rel != nil {
 			rel.R.IdentityMappings = IdentityMappingSlice{o}
+		}
+		return nil
+	case "MappingMigrationProgresses":
+		rels, ok := retrieved.(MigrationProgressSlice)
+		if !ok {
+			return fmt.Errorf("identityMapping cannot load %T as %q", retrieved, name)
+		}
+
+		o.R.MappingMigrationProgresses = rels
+
+		for _, rel := range rels {
+			if rel != nil {
+				rel.R.MappingIdentityMapping = o
+			}
 		}
 		return nil
 	default:
@@ -765,12 +816,16 @@ func buildIdentityMappingPreloader() identityMappingPreloader {
 }
 
 type identityMappingThenLoader[Q orm.Loadable] struct {
-	User func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	User                       func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	MappingMigrationProgresses func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 }
 
 func buildIdentityMappingThenLoader[Q orm.Loadable]() identityMappingThenLoader[Q] {
 	type UserLoadInterface interface {
 		LoadUser(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	}
+	type MappingMigrationProgressesLoadInterface interface {
+		LoadMappingMigrationProgresses(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 
 	return identityMappingThenLoader[Q]{
@@ -778,6 +833,12 @@ func buildIdentityMappingThenLoader[Q orm.Loadable]() identityMappingThenLoader[
 			"User",
 			func(ctx context.Context, exec bob.Executor, retrieved UserLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
 				return retrieved.LoadUser(ctx, exec, mods...)
+			},
+		),
+		MappingMigrationProgresses: thenLoadBuilder[Q](
+			"MappingMigrationProgresses",
+			func(ctx context.Context, exec bob.Executor, retrieved MappingMigrationProgressesLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadMappingMigrationProgresses(ctx, exec, mods...)
 			},
 		),
 	}
@@ -830,6 +891,58 @@ func (os IdentityMappingSlice) LoadUser(ctx context.Context, exec bob.Executor, 
 	return nil
 }
 
+// LoadMappingMigrationProgresses loads the identityMapping's MappingMigrationProgresses into the .R struct
+func (o *IdentityMapping) LoadMappingMigrationProgresses(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if o == nil {
+		return nil
+	}
+
+	// Reset the relationship
+	o.R.MappingMigrationProgresses = nil
+
+	related, err := o.MappingMigrationProgresses(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, rel := range related {
+		rel.R.MappingIdentityMapping = o
+	}
+
+	o.R.MappingMigrationProgresses = related
+	return nil
+}
+
+// LoadMappingMigrationProgresses loads the identityMapping's MappingMigrationProgresses into the .R struct
+func (os IdentityMappingSlice) LoadMappingMigrationProgresses(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if len(os) == 0 {
+		return nil
+	}
+
+	migrationProgresses, err := os.MappingMigrationProgresses(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range os {
+		o.R.MappingMigrationProgresses = nil
+	}
+
+	for _, o := range os {
+		for _, rel := range migrationProgresses {
+			if o.MappingID != rel.MappingID {
+				continue
+			}
+
+			rel.R.MappingIdentityMapping = o
+
+			o.R.MappingMigrationProgresses = append(o.R.MappingMigrationProgresses, rel)
+		}
+	}
+
+	return nil
+}
+
 func attachIdentityMappingUser0(ctx context.Context, exec bob.Executor, count int, identityMapping0 *IdentityMapping, user1 *User) (*IdentityMapping, error) {
 	setter := &IdentityMappingSetter{
 		UserID: &user1.UserID,
@@ -872,6 +985,74 @@ func (identityMapping0 *IdentityMapping) AttachUser(ctx context.Context, exec bo
 	identityMapping0.R.User = user1
 
 	user1.R.IdentityMappings = append(user1.R.IdentityMappings, identityMapping0)
+
+	return nil
+}
+
+func insertIdentityMappingMappingMigrationProgresses0(ctx context.Context, exec bob.Executor, migrationProgresses1 []*MigrationProgressSetter, identityMapping0 *IdentityMapping) (MigrationProgressSlice, error) {
+	for i := range migrationProgresses1 {
+		migrationProgresses1[i].MappingID = &identityMapping0.MappingID
+	}
+
+	ret, err := MigrationProgresses.Insert(bob.ToMods(migrationProgresses1...)).All(ctx, exec)
+	if err != nil {
+		return ret, fmt.Errorf("insertIdentityMappingMappingMigrationProgresses0: %w", err)
+	}
+
+	return ret, nil
+}
+
+func attachIdentityMappingMappingMigrationProgresses0(ctx context.Context, exec bob.Executor, count int, migrationProgresses1 MigrationProgressSlice, identityMapping0 *IdentityMapping) (MigrationProgressSlice, error) {
+	setter := &MigrationProgressSetter{
+		MappingID: &identityMapping0.MappingID,
+	}
+
+	err := migrationProgresses1.UpdateAll(ctx, exec, *setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachIdentityMappingMappingMigrationProgresses0: %w", err)
+	}
+
+	return migrationProgresses1, nil
+}
+
+func (identityMapping0 *IdentityMapping) InsertMappingMigrationProgresses(ctx context.Context, exec bob.Executor, related ...*MigrationProgressSetter) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+
+	migrationProgresses1, err := insertIdentityMappingMappingMigrationProgresses0(ctx, exec, related, identityMapping0)
+	if err != nil {
+		return err
+	}
+
+	identityMapping0.R.MappingMigrationProgresses = append(identityMapping0.R.MappingMigrationProgresses, migrationProgresses1...)
+
+	for _, rel := range migrationProgresses1 {
+		rel.R.MappingIdentityMapping = identityMapping0
+	}
+	return nil
+}
+
+func (identityMapping0 *IdentityMapping) AttachMappingMigrationProgresses(ctx context.Context, exec bob.Executor, related ...*MigrationProgress) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+	migrationProgresses1 := MigrationProgressSlice(related)
+
+	_, err = attachIdentityMappingMappingMigrationProgresses0(ctx, exec, len(related), migrationProgresses1, identityMapping0)
+	if err != nil {
+		return err
+	}
+
+	identityMapping0.R.MappingMigrationProgresses = append(identityMapping0.R.MappingMigrationProgresses, migrationProgresses1...)
+
+	for _, rel := range related {
+		rel.R.MappingIdentityMapping = identityMapping0
+	}
 
 	return nil
 }

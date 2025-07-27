@@ -4,7 +4,7 @@
 
 | Feature | Priority | Dependencies | Description |
 |---------|----------|--------------|-------------|
-| **Key Rotation** | Critical | IBE system | Automated IBE key rotation with backward compatibility |
+| **Key Rotation Migration System** | Critical | IBE system | ✅ **Implemented** - Resumable, fault-tolerant IBE key rotation with progress tracking |
 | **MFA (OTP)** | High | Auth system | TOTP-based multi-factor authentication |
 | **Email Verification** | High | Email service | Email verification for account security |
 | **Audit System** | High | Database system | Comprehensive audit logging and compliance |
@@ -15,8 +15,8 @@
 | Feature | Priority | Dependencies | Description |
 |---------|----------|--------------|-------------|
 | **Search & Discovery** | Medium | Content system | Find posts, users, and communities |
-| **Direct Messaging** | Medium | User system | Private messaging between users |
-| **User Blocking** | Medium | User system | Block users for privacy and safety |
+| **Direct Messaging** | Medium | User system | ✅ **Implemented** - Private messaging with blocking controls |
+| **User Blocking** | Medium | User system | ✅ **Implemented** - Pseudonym and fingerprint-level blocking |
 | **Comment Enhancements** | Low | Content system | Advanced comment features and tools |
 | **Notifications** | Medium | User system, Email | Real-time notification system |
 | **Moderator Dashboard** | Medium | Moderation system | Comprehensive moderation tools |
@@ -39,15 +39,15 @@
 ## 📊 **Implementation Order**
 
 ### Foundation First
-1. **Key Rotation** (independent)
+1. **Key Rotation Migration System** ✅ **Implemented**
 2. **Email Verification** + **MFA** (auth foundation)
 3. **Audit System** (compliance and security foundation)
 4. **ID Proofing** (crypto foundation)
 
 ### User Experience
 4. **Search & Discovery** (requires content system)
-5. **Direct Messaging** (requires user system)
-6. **User Blocking** (requires user system)
+5. **Direct Messaging System** ✅ **Implemented**
+6. **User Blocking System** ✅ **Implemented**
 7. **Comment Enhancements** (requires content system)
 8. **Notifications** (requires email service)
 9. **Moderator Dashboard** (requires moderation system)

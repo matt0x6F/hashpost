@@ -50,7 +50,7 @@ func createTestAuthHandler() (*handlers.AuthHandler, *mocks.MockUserDAO, *mocks.
 	mockRoleKeyDAO := &mocks.MockRoleKeyDAO{}
 	mockSubforumDAO := mocks.NewMockSubforumDAO()
 	mockPermissionDAO := mocks.NewMockPermissionDAO()
-	ibeSystem := ibe.NewIBESystem()
+	ibeSystem := ibe.NewIBESystemWithOptions(ibe.IBEOptions{})
 
 	// Create handler with the SAME mock instances that we return
 	handler := handlers.NewAuthHandler(cfg, nil, mockUserDAO, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockRoleKeyDAO, ibeSystem, mockSubforumDAO, mockPermissionDAO)

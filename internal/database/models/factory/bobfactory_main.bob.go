@@ -13,8 +13,10 @@ type Factory struct {
 	baseCorrelationAuditMods      CorrelationAuditModSlice
 	baseDirectMessageMods         DirectMessageModSlice
 	baseIdentityMappingMods       IdentityMappingModSlice
+	baseKeyRotationMigrationMods  KeyRotationMigrationModSlice
 	baseKeyUsageAuditMods         KeyUsageAuditModSlice
 	baseMediaAttachmentMods       MediaAttachmentModSlice
+	baseMigrationProgressMods     MigrationProgressModSlice
 	baseModerationActionMods      ModerationActionModSlice
 	basePerformanceMetricMods     PerformanceMetricModSlice
 	basePollVoteMods              PollVoteModSlice
@@ -125,6 +127,18 @@ func (f *Factory) NewIdentityMapping(ctx context.Context, mods ...IdentityMappin
 	return o
 }
 
+func (f *Factory) NewKeyRotationMigration(ctx context.Context, mods ...KeyRotationMigrationMod) *KeyRotationMigrationTemplate {
+	o := &KeyRotationMigrationTemplate{f: f}
+
+	if f != nil {
+		f.baseKeyRotationMigrationMods.Apply(ctx, o)
+	}
+
+	KeyRotationMigrationModSlice(mods).Apply(ctx, o)
+
+	return o
+}
+
 func (f *Factory) NewKeyUsageAudit(ctx context.Context, mods ...KeyUsageAuditMod) *KeyUsageAuditTemplate {
 	o := &KeyUsageAuditTemplate{f: f}
 
@@ -145,6 +159,18 @@ func (f *Factory) NewMediaAttachment(ctx context.Context, mods ...MediaAttachmen
 	}
 
 	MediaAttachmentModSlice(mods).Apply(ctx, o)
+
+	return o
+}
+
+func (f *Factory) NewMigrationProgress(ctx context.Context, mods ...MigrationProgressMod) *MigrationProgressTemplate {
+	o := &MigrationProgressTemplate{f: f}
+
+	if f != nil {
+		f.baseMigrationProgressMods.Apply(ctx, o)
+	}
+
+	MigrationProgressModSlice(mods).Apply(ctx, o)
 
 	return o
 }
@@ -445,6 +471,14 @@ func (f *Factory) AddBaseIdentityMappingMod(mods ...IdentityMappingMod) {
 	f.baseIdentityMappingMods = append(f.baseIdentityMappingMods, mods...)
 }
 
+func (f *Factory) ClearBaseKeyRotationMigrationMods() {
+	f.baseKeyRotationMigrationMods = nil
+}
+
+func (f *Factory) AddBaseKeyRotationMigrationMod(mods ...KeyRotationMigrationMod) {
+	f.baseKeyRotationMigrationMods = append(f.baseKeyRotationMigrationMods, mods...)
+}
+
 func (f *Factory) ClearBaseKeyUsageAuditMods() {
 	f.baseKeyUsageAuditMods = nil
 }
@@ -459,6 +493,14 @@ func (f *Factory) ClearBaseMediaAttachmentMods() {
 
 func (f *Factory) AddBaseMediaAttachmentMod(mods ...MediaAttachmentMod) {
 	f.baseMediaAttachmentMods = append(f.baseMediaAttachmentMods, mods...)
+}
+
+func (f *Factory) ClearBaseMigrationProgressMods() {
+	f.baseMigrationProgressMods = nil
+}
+
+func (f *Factory) AddBaseMigrationProgressMod(mods ...MigrationProgressMod) {
+	f.baseMigrationProgressMods = append(f.baseMigrationProgressMods, mods...)
 }
 
 func (f *Factory) ClearBaseModerationActionMods() {
