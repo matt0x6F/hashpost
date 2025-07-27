@@ -122,7 +122,7 @@ func (demo *Demo) registerUsers() map[string][]*poc.User {
 			rand.Read(userSecret)
 
 			// Generate pseudonym using IBE
-			pseudonymID := demo.ibeSystem.GeneratePseudonymFromSecret(userSecret)
+			pseudonymID := demo.ibeSystem.GeneratePseudonymFromUserSecret(userSecret)
 
 			// Create user profile
 			user := &poc.User{

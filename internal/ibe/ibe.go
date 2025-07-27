@@ -127,7 +127,23 @@ func (r *KeyVersionRegistry) DisableMigrationMode() {
 	r.MigrationMode = false
 }
 
-// IBESystem represents the enhanced IBE system with true domain separation
+// IBESystem represents the enhanced Identity-Based Encryption (IBE) system with true domain separation.
+//
+// Purpose:
+// The IBESystem struct is designed to provide cryptographic domain separation and multi-version key management
+// for secure and flexible encryption. It ensures that each domain operates independently with its own master key.
+//
+// Key Management Approach:
+//   - `domainMasters`: A map where each domain is associated with a unique master key. This enables strict separation
+//     of cryptographic operations across domains.
+//   - `keyVersion`: Indicates the current version of the keys being used. This allows for key rotation and versioning.
+//   - `keyRegistry`: A registry that supports multiple key versions, enabling seamless migration between key versions
+//     and ensuring backward compatibility.
+//
+// Relationship Between Domain Masters and Key Versions:
+// Each domain has its own master key stored in `domainMasters`. The `keyVersion` field specifies which version of
+// the keys is currently active. The `keyRegistry` provides additional support for managing multiple versions of keys,
+// allowing the system to operate in migration mode where both old and new keys are available.
 type IBESystem struct {
 	domainMasters map[string][]byte // Separate master key for each domain
 	keyVersion    int
@@ -520,8 +536,8 @@ func (ibe *IBESystem) DeprecateKeyVersion(version int) error {
 	return fmt.Errorf("key registry not available")
 }
 
-// GeneratePseudonymFromSecret creates a pseudonym ID for a user (backward compatible)
-func (ibe *IBESystem) GeneratePseudonymFromSecret(userSecret []byte) string {
+// GeneratePseudonymFromUserSecret creates a pseudonym ID for a user from a user secret (backward compatible)
+func (ibe *IBESystem) GeneratePseudonymFromUserSecret(userSecret []byte) string {
 	// Extract user ID from user secret for backward compatibility
 	// This maintains exact existing behavior for current users
 	userID := extractUserID(userSecret)
@@ -741,9 +757,9 @@ func NewIBESystemFromEnv() *IBESystem {
 	return ibeSystem
 }
 
-// NewTestIBESystem creates a new IBE system with test configuration
-func NewTestIBESystem() *IBESystem {
-	return NewIBESystemWithOptions(IBEOptions{
+// createDefaultIBEOptions creates default IBE options for testing
+func createDefaultIBEOptions() IBEOptions {
+	return IBEOptions{
 		DomainMasters: map[string][]byte{
 			DOMAIN_USER_PSEUDONYMS:   []byte("0123456789abcdef0123456789abcdef"),
 			DOMAIN_USER_CORRELATION:  []byte("0123456789abcdef0123456789abcdef"),
@@ -753,7 +769,12 @@ func NewTestIBESystem() *IBESystem {
 		},
 		KeyVersion: 1,
 		Salt:       "test_fingerprint_salt_v1",
-	})
+	}
+}
+
+// NewTestIBESystem creates a new IBE system with test configuration
+func NewTestIBESystem() *IBESystem {
+	return NewIBESystemWithOptions(createDefaultIBEOptions())
 }
 
 // EncryptFingerprintMapping encrypts a fingerprint-to-pseudonym mapping directly

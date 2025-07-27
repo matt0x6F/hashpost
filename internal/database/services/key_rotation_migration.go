@@ -13,6 +13,11 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// Domain constants for key rotation migration
+const (
+	DOMAIN_USER_CORRELATION = "user_correlation"
+)
+
 // ResumableMigrationService handles key rotation migrations with fault tolerance
 type ResumableMigrationService struct {
 	migrationDAO *dao.KeyRotationMigrationDAO
@@ -215,14 +220,15 @@ func (s *ResumableMigrationService) attemptRecordMigration(ctx context.Context, 
 	// 2. Re-encrypt with new key version
 	reEncrypted, err := s.encryptWithNewKey(decrypted, mapping.KeyScope)
 	if err != nil {
-		return fmt.Errorf("failed to re-encrypt with new key: %w", err)
+		return fmt.Errorf("failed to re-encrypt mapping %s with new key: %w", mapping.MappingID.String(), err)
 	}
 
 	// 3. Update the record with new key version
+	newVersion := int32(s.ibeSystem.GetKeyVersion())
 	setter := &models.IdentityMappingSetter{
 		EncryptedRealIdentity:     &reEncrypted,
 		EncryptedPseudonymMapping: &reEncrypted,
-		KeyVersion:                &[]int32{int32(s.ibeSystem.GetKeyVersion())}[0],
+		KeyVersion:                &newVersion,
 	}
 
 	// Get the database connection from the DAO
@@ -238,7 +244,7 @@ func (s *ResumableMigrationService) attemptRecordMigration(ctx context.Context, 
 func (s *ResumableMigrationService) decryptWithOldKey(encryptedData []byte, keyVersion int) ([]byte, error) {
 	// Use the multi-version IBE system to decrypt with the old key version
 	// Parse the encrypted data to extract fingerprint and pseudonym ID
-	fingerprint, pseudonymID, err := s.ibeSystem.DecryptIdentityWithVersion(encryptedData, "user_correlation", keyVersion)
+	fingerprint, pseudonymID, err := s.ibeSystem.DecryptIdentityWithVersion(encryptedData, DOMAIN_USER_CORRELATION, keyVersion)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt with version %d: %w", keyVersion, err)
 	}

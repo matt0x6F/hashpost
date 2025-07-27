@@ -190,7 +190,7 @@ func TestIBESystem_EnhancedArchitecture(t *testing.T) {
 
 		// Test backward compatibility with legacy methods
 		userSecret := []byte("test_user_secret")
-		legacyPseudonym := ibeSystem.GeneratePseudonymFromSecret(userSecret)
+		legacyPseudonym := ibeSystem.GeneratePseudonymFromUserSecret(userSecret)
 
 		// Legacy pseudonym should still work
 		assert.NotEmpty(t, legacyPseudonym, "Legacy pseudonym generation should work")
@@ -248,11 +248,11 @@ func TestIBESystem_IntegrationWithDatabase(t *testing.T) {
 
 func TestIBESystem_Configuration(t *testing.T) {
 	t.Run("Default Configuration", func(t *testing.T) {
-		ibeSystem := NewIBESystemWithOptions(IBEOptions{})
+		ibeSystem := NewIBESystemWithOptions(createDefaultIBEOptions())
 
 		// Test default values
 		assert.Equal(t, 1, ibeSystem.GetKeyVersion(), "Default key version should be 1")
-		assert.Equal(t, "fingerprint_salt_v1", ibeSystem.GetSalt(), "Default salt should be fingerprint_salt_v1")
+		assert.Equal(t, "test_fingerprint_salt_v1", ibeSystem.GetSalt(), "Default salt should be test_fingerprint_salt_v1")
 
 		// Test that we can generate keys with default config
 		key := ibeSystem.GenerateTimeBoundedKey("user", "test", time.Hour)
