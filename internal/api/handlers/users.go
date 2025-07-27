@@ -44,9 +44,25 @@ func NewUserHandler(
 	// If db is provided, create real DAOs (production mode)
 	if db != nil {
 		userDAO = dao.NewUserDAO(db)
-		securePseudonymDAO = dao.NewPseudonymDAO(db, ibeSystem, dao.NewIdentityMappingDAO(db), userDAO.(*dao.UserDAO), dao.NewRoleKeyDAO(db), dao.NewUserBlocksDAO(db))
-		userPreferencesDAO = dao.NewUserPreferencesDAO(db)
+
+		// Safe type assertions with error handling
+		identityMappingDAO := dao.NewIdentityMappingDAO(db)
+		roleKeyDAO := dao.NewRoleKeyDAO(db)
 		userBlocksDAO = dao.NewUserBlocksDAO(db)
+
+		userDAOImpl, ok := userDAO.(*dao.UserDAO)
+		if !ok {
+			log.Error().Msg("userDAO is not of type *dao.UserDAO")
+			return nil
+		}
+		userBlocksDAOImpl, ok := userBlocksDAO.(*dao.UserBlocksDAO)
+		if !ok {
+			log.Error().Msg("userBlocksDAO is not of type *dao.UserBlocksDAO")
+			return nil
+		}
+
+		securePseudonymDAO = dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO, userDAOImpl, roleKeyDAO, userBlocksDAOImpl)
+		userPreferencesDAO = dao.NewUserPreferencesDAO(db)
 		postDAO = dao.NewPostDAO(db)
 		commentDAO = dao.NewCommentDAO(db)
 	}

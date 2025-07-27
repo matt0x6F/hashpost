@@ -44,6 +44,33 @@ func generateSlug(title string, postID int64) string {
 	return fmt.Sprintf("%s-%d", slug, postID)
 }
 
+// ContentHandlerConfig holds configuration for creating a ContentHandler
+type ContentHandlerConfig struct {
+	DB                 bob.Executor
+	RawDB              *sql.DB
+	IBESystem          *ibe.IBESystem
+	IdentityMappingDAO dao.IdentityMappingDAOInterface
+	UserDAO            dao.UserDAOInterface
+	PostDAO            dao.PostDAOInterface
+	CommentDAO         dao.CommentDAOInterface
+	SubforumDAO        dao.SubforumDAOInterface
+	SecurePseudonymDAO dao.SecurePseudonymDAOInterface
+	VoteDAO            dao.VoteDAOInterface
+	UserBlocksDAO      dao.UserBlocksDAOInterface
+	RoleKeyDAO         dao.RoleKeyDAOInterface
+	PermissionChecker  middleware.PermissionCheckerInterface
+	PermissionDAO      dao.PermissionDAOInterface
+}
+
+// NewContentHandlerConfig creates a new configuration for ContentHandler
+func NewContentHandlerConfig(db bob.Executor, rawDB *sql.DB, ibeSystem *ibe.IBESystem) *ContentHandlerConfig {
+	return &ContentHandlerConfig{
+		DB:        db,
+		RawDB:     rawDB,
+		IBESystem: ibeSystem,
+	}
+}
+
 // ContentHandler handles content-related requests
 type ContentHandler struct {
 	db                 bob.Executor
@@ -82,7 +109,30 @@ func NewContentHandler(
 	if db != nil {
 		roleKeyDAO = dao.NewRoleKeyDAO(db)
 		userBlocksDAO = dao.NewUserBlocksDAO(db)
-		securePseudonymDAO = dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO.(*dao.IdentityMappingDAO), userDAO.(*dao.UserDAO), roleKeyDAO.(*dao.RoleKeyDAO), userBlocksDAO.(*dao.UserBlocksDAO))
+
+		// Safe type assertions with error handling
+		identityMappingDAOImpl, ok := identityMappingDAO.(*dao.IdentityMappingDAO)
+		if !ok {
+			log.Error().Msg("identityMappingDAO is not of type *dao.IdentityMappingDAO")
+			return nil
+		}
+		userDAOImpl, ok := userDAO.(*dao.UserDAO)
+		if !ok {
+			log.Error().Msg("userDAO is not of type *dao.UserDAO")
+			return nil
+		}
+		roleKeyDAOImpl, ok := roleKeyDAO.(*dao.RoleKeyDAO)
+		if !ok {
+			log.Error().Msg("roleKeyDAO is not of type *dao.RoleKeyDAO")
+			return nil
+		}
+		userBlocksDAOImpl, ok := userBlocksDAO.(*dao.UserBlocksDAO)
+		if !ok {
+			log.Error().Msg("userBlocksDAO is not of type *dao.UserBlocksDAO")
+			return nil
+		}
+
+		securePseudonymDAO = dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAOImpl, userDAOImpl, roleKeyDAOImpl, userBlocksDAOImpl)
 		permissionDAO = dao.NewPermissionDAO(db)
 		postDAO = dao.NewPostDAO(db)
 		commentDAO = dao.NewCommentDAO(db)
@@ -105,6 +155,26 @@ func NewContentHandler(
 		permissionChecker:  permissionChecker,
 		permissionDAO:      permissionDAO,
 	}
+}
+
+// NewContentHandlerFromConfig creates a new content handler from a configuration struct
+func NewContentHandlerFromConfig(cfg *ContentHandlerConfig) *ContentHandler {
+	return NewContentHandler(
+		cfg.DB,
+		cfg.RawDB,
+		cfg.IBESystem,
+		cfg.IdentityMappingDAO,
+		cfg.UserDAO,
+		cfg.PostDAO,
+		cfg.CommentDAO,
+		cfg.SubforumDAO,
+		cfg.SecurePseudonymDAO,
+		cfg.VoteDAO,
+		cfg.UserBlocksDAO,
+		cfg.RoleKeyDAO,
+		cfg.PermissionChecker,
+		cfg.PermissionDAO,
+	)
 }
 
 // GetPosts handles getting posts from a subforum

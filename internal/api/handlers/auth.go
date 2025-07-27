@@ -53,7 +53,25 @@ func NewAuthHandler(
 		identityMappingDAO = dao.NewIdentityMappingDAO(db)
 		roleKeyDAO = dao.NewRoleKeyDAO(db)
 		userBlocksDAO := dao.NewUserBlocksDAO(db)
-		securePseudonymDAO = dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO.(*dao.IdentityMappingDAO), userDAO.(*dao.UserDAO), roleKeyDAO.(*dao.RoleKeyDAO), userBlocksDAO)
+
+		// Safe type assertions with error handling
+		identityMappingDAOImpl, ok := identityMappingDAO.(*dao.IdentityMappingDAO)
+		if !ok {
+			log.Error().Msg("identityMappingDAO is not of type *dao.IdentityMappingDAO")
+			return nil
+		}
+		userDAOImpl, ok := userDAO.(*dao.UserDAO)
+		if !ok {
+			log.Error().Msg("userDAO is not of type *dao.UserDAO")
+			return nil
+		}
+		roleKeyDAOImpl, ok := roleKeyDAO.(*dao.RoleKeyDAO)
+		if !ok {
+			log.Error().Msg("roleKeyDAO is not of type *dao.RoleKeyDAO")
+			return nil
+		}
+
+		securePseudonymDAO = dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAOImpl, userDAOImpl, roleKeyDAOImpl, userBlocksDAO)
 		subforumDAO = dao.NewSubforumDAO(db)
 		permissionDAO = dao.NewPermissionDAO(db)
 	}
