@@ -63,11 +63,14 @@ type RoleKeyDAOInterface interface {
 
 // SubforumDAOInterface defines the interface for subforum data access operations
 type SubforumDAOInterface interface {
-	CreateSubforum(ctx context.Context, name, displayName, description, sidebarText, rulesText string, isNSFW, isPrivate, isRestricted bool) (*models.Subforum, error)
+	CreateSubforum(ctx context.Context, name, displayName, description, sidebarText, rulesText, communityType, governanceStyle string, isNSFW, isPrivate, isRestricted bool, ownerPseudonymID string) (*models.Subforum, error)
 	GetSubforumByID(ctx context.Context, subforumID int32) (*models.Subforum, error)
 	GetSubforumByName(ctx context.Context, name string) (*models.Subforum, error)
+	GetSubforumByCommunityTypeAndName(ctx context.Context, communityType, name string) (*models.Subforum, error)
 	ListSubforums(ctx context.Context) ([]*models.Subforum, error)
+	ListSubforumsByCommunityType(ctx context.Context, communityType string) ([]*models.Subforum, error)
 	UpdatePostCount(ctx context.Context, subforumID int32, postCount int32) error
+	UpdateSubscriberCount(ctx context.Context, subforumID int32, subscriberCount int32) error
 }
 
 // PostDAOInterface defines the interface for post data access operations

@@ -197,9 +197,10 @@ func (dao *VoteDAO) GetVoteSummaryByContent(ctx context.Context, contentType str
 	// Calculate summary
 	for _, vote := range votes {
 		total++
-		if vote.VoteValue == 1 {
+		switch vote.VoteValue {
+		case 1:
 			upvotes++
-		} else if vote.VoteValue == -1 {
+		case -1:
 			downvotes++
 		}
 	}

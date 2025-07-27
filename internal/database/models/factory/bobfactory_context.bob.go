@@ -154,6 +154,7 @@ var (
 	pseudonymRelAddedByPseudonymSubforumModeratorsCtx  = newContextual[bool]("pseudonyms.subforum_moderators.subforum_moderators.fk_added_by_pseudonym")
 	pseudonymRelSubforumModeratorsCtx                  = newContextual[bool]("pseudonyms.subforum_moderators.subforum_moderators.subforum_moderators_pseudonym_id_fkey")
 	pseudonymRelSubforumSubscriptionsCtx               = newContextual[bool]("pseudonyms.subforum_subscriptions.subforum_subscriptions.subforum_subscriptions_pseudonym_id_fkey")
+	pseudonymRelOwnerPseudonymSubforumsCtx             = newContextual[bool]("pseudonyms.subforums.subforums.fk_subforums_owner_pseudonym")
 	pseudonymRelBannedByPseudonymUserBansCtx           = newContextual[bool]("pseudonyms.user_bans.user_bans.user_bans_banned_by_pseudonym_id_fkey")
 	pseudonymRelBlockedPseudonymUserBlocksCtx          = newContextual[bool]("pseudonyms.user_blocks.user_blocks.user_blocks_blocked_pseudonym_id_fkey")
 	pseudonymRelBlockerPseudonymUserBlocksCtx          = newContextual[bool]("pseudonyms.user_blocks.user_blocks.user_blocks_blocker_pseudonym_id_fkey")
@@ -189,13 +190,14 @@ var (
 	subforumSubscriptionRelSubforumCtx          = newContextual[bool]("subforum_subscriptions.subforums.subforum_subscriptions.subforum_subscriptions_subforum_id_fkey")
 
 	// Relationship Contexts for subforums
-	subforumWithParentsCascadingCtx     = newContextual[bool]("subforumWithParentsCascading")
-	subforumRelModerationActionsCtx     = newContextual[bool]("moderation_actions.subforums.moderation_actions.moderation_actions_subforum_id_fkey")
-	subforumRelPostsCtx                 = newContextual[bool]("posts.subforums.posts.posts_subforum_id_fkey")
-	subforumRelSubforumModeratorsCtx    = newContextual[bool]("subforum_moderators.subforums.subforum_moderators.subforum_moderators_subforum_id_fkey")
-	subforumRelSubforumSubscriptionsCtx = newContextual[bool]("subforum_subscriptions.subforums.subforum_subscriptions.subforum_subscriptions_subforum_id_fkey")
-	subforumRelCreatedByUserUserCtx     = newContextual[bool]("subforums.users.subforums.subforums_created_by_user_id_fkey")
-	subforumRelUserBansCtx              = newContextual[bool]("subforums.user_bans.user_bans.user_bans_subforum_id_fkey")
+	subforumWithParentsCascadingCtx       = newContextual[bool]("subforumWithParentsCascading")
+	subforumRelModerationActionsCtx       = newContextual[bool]("moderation_actions.subforums.moderation_actions.moderation_actions_subforum_id_fkey")
+	subforumRelPostsCtx                   = newContextual[bool]("posts.subforums.posts.posts_subforum_id_fkey")
+	subforumRelSubforumModeratorsCtx      = newContextual[bool]("subforum_moderators.subforums.subforum_moderators.subforum_moderators_subforum_id_fkey")
+	subforumRelSubforumSubscriptionsCtx   = newContextual[bool]("subforum_subscriptions.subforums.subforum_subscriptions.subforum_subscriptions_subforum_id_fkey")
+	subforumRelOwnerPseudonymPseudonymCtx = newContextual[bool]("pseudonyms.subforums.subforums.fk_subforums_owner_pseudonym")
+	subforumRelCreatedByUserUserCtx       = newContextual[bool]("subforums.users.subforums.subforums_created_by_user_id_fkey")
+	subforumRelUserBansCtx                = newContextual[bool]("subforums.user_bans.user_bans.user_bans_subforum_id_fkey")
 
 	// Relationship Contexts for system_events
 	systemEventWithParentsCascadingCtx = newContextual[bool]("systemEventWithParentsCascading")

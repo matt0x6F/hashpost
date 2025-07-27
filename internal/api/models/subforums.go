@@ -18,6 +18,10 @@ type Subforum struct {
 	PostCount       int       `json:"post_count" example:"5678"`
 	CreatedAt       time.Time `json:"created_at" example:"2023-01-01T00:00:00Z"`
 	UpdatedAt       time.Time `json:"updated_at" example:"2023-01-01T00:00:00Z"`
+	// Community type system fields
+	CommunityType    string `json:"community_type" example:"t"`
+	GovernanceStyle  string `json:"governance_style" example:"democratic"`
+	OwnerPseudonymID string `json:"owner_pseudonym_id,omitempty" example:"abc123"`
 }
 
 // SubforumModerator represents a subforum moderator
@@ -45,53 +49,42 @@ type SubforumListInput struct {
 
 // SubforumSubscriptionInput represents subforum subscription request
 type SubforumSubscriptionInput struct {
-	// Empty for now, but could include subscription preferences
-	SubforumName string `path:"name" example:"golang"`
-}
-
-// SubforumsListResponseBody represents the body of subforums list response
-type SubforumsListResponseBody struct {
-	Subforums  []Subforum `json:"subforums"`
-	Pagination Pagination `json:"pagination"`
-}
-
-// SubforumSubscriptionResponseBody represents the body of subforum subscription response
-type SubforumSubscriptionResponseBody struct {
-	SubforumID      int    `json:"subforum_id" example:"1"`
-	Name            string `json:"name" example:"golang"`
-	Subscribed      bool   `json:"subscribed" example:"true"`
-	SubscriberCount int    `json:"subscriber_count" example:"125001"`
-}
-
-// SubforumsListResponse represents subforums list response
-type SubforumsListResponse struct {
-	Status int                       `json:"-" example:"200"`
-	Body   SubforumsListResponseBody `json:"body"`
-}
-
-// SubforumDetailsResponseBody represents the body of subforum details response
-type SubforumDetailsResponseBody struct {
-	Subforum
-	Moderators   []SubforumModerator `json:"moderators"`
-	IsSubscribed bool                `json:"is_subscribed"`
-	IsFavorite   bool                `json:"is_favorite"`
-}
-
-// SubforumDetailsResponse represents the response for subforum details
-type SubforumDetailsResponse struct {
-	Status int                         `json:"-" example:"200"`
-	Body   SubforumDetailsResponseBody `json:"body"`
+	CommunityType string `path:"type" example:"t"`
+	SubforumName  string `path:"name" example:"programming"`
 }
 
 // SubforumSubscriptionResponse represents subforum subscription response
 type SubforumSubscriptionResponse struct {
-	Status int                              `json:"-" example:"200"`
-	Body   SubforumSubscriptionResponseBody `json:"body"`
+	Status int `json:"status" example:"200"`
+	Body   struct {
+		SubforumID      int    `json:"subforum_id" example:"1"`
+		SubforumName    string `json:"subforum_name" example:"golang"`
+		IsSubscribed    bool   `json:"is_subscribed" example:"true"`
+		SubscriberCount int    `json:"subscriber_count" example:"1234"`
+	} `json:"body"`
 }
 
-// SubforumCreateBody represents the JSON body for creating a new subforum
-// slug, name, and description are required; others are optional
-// slug is the unique identifier (e.g., "golang")
+// SubforumsListResponse represents a list of subforums
+type SubforumsListResponse struct {
+	Status int `json:"status" example:"200"`
+	Body   struct {
+		Subforums  []Subforum `json:"subforums"`
+		Pagination Pagination `json:"pagination"`
+	} `json:"body"`
+}
+
+// SubforumDetailsResponse represents detailed subforum information
+type SubforumDetailsResponse struct {
+	Status int `json:"status" example:"200"`
+	Body   struct {
+		Subforum     Subforum            `json:"subforum"`
+		Moderators   []SubforumModerator `json:"moderators"`
+		IsSubscribed bool                `json:"is_subscribed"`
+		IsFavorite   bool                `json:"is_favorite"`
+	} `json:"body"`
+}
+
+// SubforumCreateBody represents the body for creating a new subforum
 type SubforumCreateBody struct {
 	Slug         string `json:"slug" example:"golang" required:"true"`
 	Name         string `json:"name" example:"Golang" required:"true"`
@@ -101,6 +94,11 @@ type SubforumCreateBody struct {
 	IsNSFW       bool   `json:"is_nsfw,omitempty" example:"false"`
 	IsPrivate    bool   `json:"is_private,omitempty" example:"false"`
 	IsRestricted bool   `json:"is_restricted,omitempty" example:"false"`
+	// Community type system fields
+	CommunityType string `json:"community_type" example:"t" required:"true"`
+	// Governance style is automatically determined based on community type:
+	// - t/ and g/ communities use "democratic" governance
+	// - b/ and c/ communities use "owned" governance
 }
 
 // SubforumCreateInput represents the input for creating a new subforum
@@ -117,7 +115,10 @@ func NewSubforumListResponse(subforums []Subforum, page, limit, total int) *Subf
 
 	return &SubforumsListResponse{
 		Status: 200,
-		Body: SubforumsListResponseBody{
+		Body: struct {
+			Subforums  []Subforum `json:"subforums"`
+			Pagination Pagination `json:"pagination"`
+		}{
 			Subforums: subforums,
 			Pagination: Pagination{
 				Page:  page,
@@ -133,7 +134,12 @@ func NewSubforumListResponse(subforums []Subforum, page, limit, total int) *Subf
 func NewSubforumDetailsResponse(subforum Subforum, moderators []SubforumModerator, isSubscribed, isFavorite bool) *SubforumDetailsResponse {
 	return &SubforumDetailsResponse{
 		Status: 200,
-		Body: SubforumDetailsResponseBody{
+		Body: struct {
+			Subforum     Subforum            `json:"subforum"`
+			Moderators   []SubforumModerator `json:"moderators"`
+			IsSubscribed bool                `json:"is_subscribed"`
+			IsFavorite   bool                `json:"is_favorite"`
+		}{
 			Subforum:     subforum,
 			Moderators:   moderators,
 			IsSubscribed: isSubscribed,
@@ -143,13 +149,18 @@ func NewSubforumDetailsResponse(subforum Subforum, moderators []SubforumModerato
 }
 
 // NewSubforumSubscriptionResponse creates a new subforum subscription response
-func NewSubforumSubscriptionResponse(subforumID int, name string, subscribed bool, subscriberCount int) *SubforumSubscriptionResponse {
+func NewSubforumSubscriptionResponse(subforumID int, subforumName string, isSubscribed bool, subscriberCount int) *SubforumSubscriptionResponse {
 	return &SubforumSubscriptionResponse{
 		Status: 200,
-		Body: SubforumSubscriptionResponseBody{
+		Body: struct {
+			SubforumID      int    `json:"subforum_id" example:"1"`
+			SubforumName    string `json:"subforum_name" example:"golang"`
+			IsSubscribed    bool   `json:"is_subscribed" example:"true"`
+			SubscriberCount int    `json:"subscriber_count" example:"1234"`
+		}{
 			SubforumID:      subforumID,
-			Name:            name,
-			Subscribed:      subscribed,
+			SubforumName:    subforumName,
+			IsSubscribed:    isSubscribed,
 			SubscriberCount: subscriberCount,
 		},
 	}

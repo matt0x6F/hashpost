@@ -429,6 +429,9 @@ var ColumnNames = struct {
 		MinimumAccountAgeHours: "minimum_account_age_hours",
 		MinimumKarmaRequired:   "minimum_karma_required",
 		UpdatedAt:              "updated_at",
+		CommunityType:          "community_type",
+		GovernanceStyle:        "governance_style",
+		OwnerPseudonymID:       "owner_pseudonym_id",
 	},
 	SystemEvents: systemEventColumnNames{
 		EventID:         "event_id",

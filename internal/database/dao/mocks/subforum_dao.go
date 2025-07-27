@@ -37,6 +37,12 @@ func (m *MockSubforumDAO) InjectSubforumByName(name string, subforum *models.Sub
 	m.subforumsByName[name] = subforum
 }
 
+// InjectSubforumByCommunityTypeAndName injects a subforum that should be returned when querying by community type and name
+func (m *MockSubforumDAO) InjectSubforumByCommunityTypeAndName(communityType, name string, subforum *models.Subforum) {
+	key := communityType + "/" + name
+	m.subforumsByName[key] = subforum
+}
+
 // InjectAllSubforums injects all subforums that should be returned when listing
 func (m *MockSubforumDAO) InjectAllSubforums(subforums []*models.Subforum) {
 	m.allSubforums = subforums
@@ -64,6 +70,17 @@ func (m *MockSubforumDAO) SetDefaultBehavior() {
 		},
 	)
 
+	// Default behavior for GetSubforumByCommunityTypeAndName
+	m.On("GetSubforumByCommunityTypeAndName", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(
+		func(ctx context.Context, communityType, name string) (*models.Subforum, error) {
+			key := communityType + "/" + name
+			if subforum, exists := m.subforumsByName[key]; exists {
+				return subforum, nil
+			}
+			return nil, sql.ErrNoRows
+		},
+	)
+
 	// Default behavior for ListSubforums
 	m.On("ListSubforums", mock.Anything).Return(
 		func(ctx context.Context) ([]*models.Subforum, error) {
@@ -72,19 +89,22 @@ func (m *MockSubforumDAO) SetDefaultBehavior() {
 	)
 
 	// Default behavior for CreateSubforum
-	m.On("CreateSubforum", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("bool"), mock.AnythingOfType("bool"), mock.AnythingOfType("bool")).Return(
-		func(ctx context.Context, name, displayName, description, sidebarText, rulesText string, isNSFW, isPrivate, isRestricted bool) (*models.Subforum, error) {
+	m.On("CreateSubforum", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("bool"), mock.AnythingOfType("bool"), mock.AnythingOfType("bool"), mock.AnythingOfType("string")).Return(
+		func(ctx context.Context, name, displayName, description, sidebarText, rulesText, communityType, governanceStyle string, isNSFW, isPrivate, isRestricted bool, ownerPseudonymID string) (*models.Subforum, error) {
 			// Create a mock subforum with the provided data
 			subforum := &models.Subforum{
-				SubforumID:   123, // Mock ID
-				Name:         name,
-				DisplayName:  displayName,
-				Description:  sql.Null[string]{V: description, Valid: true},
-				SidebarText:  sql.Null[string]{V: sidebarText, Valid: true},
-				RulesText:    sql.Null[string]{V: rulesText, Valid: true},
-				IsNSFW:       sql.Null[bool]{V: isNSFW, Valid: true},
-				IsPrivate:    sql.Null[bool]{V: isPrivate, Valid: true},
-				IsRestricted: sql.Null[bool]{V: isRestricted, Valid: true},
+				SubforumID:       123, // Mock ID
+				Name:             name,
+				DisplayName:      displayName,
+				Description:      sql.Null[string]{V: description, Valid: true},
+				SidebarText:      sql.Null[string]{V: sidebarText, Valid: true},
+				RulesText:        sql.Null[string]{V: rulesText, Valid: true},
+				CommunityType:    communityType,
+				GovernanceStyle:  governanceStyle,
+				IsNSFW:           sql.Null[bool]{V: isNSFW, Valid: true},
+				IsPrivate:        sql.Null[bool]{V: isPrivate, Valid: true},
+				IsRestricted:     sql.Null[bool]{V: isRestricted, Valid: true},
+				OwnerPseudonymID: sql.Null[string]{V: ownerPseudonymID, Valid: ownerPseudonymID != ""},
 			}
 
 			// Store the subforum
@@ -104,12 +124,12 @@ func (m *MockSubforumDAO) SetDefaultBehavior() {
 }
 
 // CreateSubforum creates a new subforum
-func (m *MockSubforumDAO) CreateSubforum(ctx context.Context, name, displayName, description, sidebarText, rulesText string, isNSFW, isPrivate, isRestricted bool) (*models.Subforum, error) {
-	args := m.Called(ctx, name, displayName, description, sidebarText, rulesText, isNSFW, isPrivate, isRestricted)
+func (m *MockSubforumDAO) CreateSubforum(ctx context.Context, name, displayName, description, sidebarText, rulesText, communityType, governanceStyle string, isNSFW, isPrivate, isRestricted bool, ownerPseudonymID string) (*models.Subforum, error) {
+	args := m.Called(ctx, name, displayName, description, sidebarText, rulesText, communityType, governanceStyle, isNSFW, isPrivate, isRestricted, ownerPseudonymID)
 
 	// Check if the return value is a function
-	if fn, ok := args.Get(0).(func(context.Context, string, string, string, string, string, bool, bool, bool) (*models.Subforum, error)); ok {
-		return fn(ctx, name, displayName, description, sidebarText, rulesText, isNSFW, isPrivate, isRestricted)
+	if fn, ok := args.Get(0).(func(context.Context, string, string, string, string, string, string, string, bool, bool, bool, string) (*models.Subforum, error)); ok {
+		return fn(ctx, name, displayName, description, sidebarText, rulesText, communityType, governanceStyle, isNSFW, isPrivate, isRestricted, ownerPseudonymID)
 	}
 
 	// Fallback to direct return values
@@ -170,5 +190,43 @@ func (m *MockSubforumDAO) ListSubforums(ctx context.Context) ([]*models.Subforum
 // UpdatePostCount updates the post count for a subforum
 func (m *MockSubforumDAO) UpdatePostCount(ctx context.Context, subforumID int32, postCount int32) error {
 	args := m.Called(ctx, subforumID, postCount)
+	return args.Error(0)
+}
+
+// GetSubforumByCommunityTypeAndName retrieves a subforum by community type and name
+func (m *MockSubforumDAO) GetSubforumByCommunityTypeAndName(ctx context.Context, communityType, name string) (*models.Subforum, error) {
+	args := m.Called(ctx, communityType, name)
+
+	// Check if the return value is a function
+	if fn, ok := args.Get(0).(func(context.Context, string, string) (*models.Subforum, error)); ok {
+		return fn(ctx, communityType, name)
+	}
+
+	// Fallback to direct return values
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Subforum), args.Error(1)
+}
+
+// ListSubforumsByCommunityType retrieves subforums by community type
+func (m *MockSubforumDAO) ListSubforumsByCommunityType(ctx context.Context, communityType string) ([]*models.Subforum, error) {
+	args := m.Called(ctx, communityType)
+
+	// Check if the return value is a function
+	if fn, ok := args.Get(0).(func(context.Context, string) ([]*models.Subforum, error)); ok {
+		return fn(ctx, communityType)
+	}
+
+	// Fallback to direct return values
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.Subforum), args.Error(1)
+}
+
+// UpdateSubscriberCount updates the subscriber count for a subforum
+func (m *MockSubforumDAO) UpdateSubscriberCount(ctx context.Context, subforumID int32, subscriberCount int32) error {
+	args := m.Called(ctx, subforumID, subscriberCount)
 	return args.Error(0)
 }

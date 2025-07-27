@@ -135,7 +135,8 @@ func TestSubforumHandler_GetSubforumDetails(t *testing.T) {
 		{
 			name: "GetPublicSubforumDetails",
 			input: &models.SubforumSubscriptionInput{
-				SubforumName: "test-subforum",
+				CommunityType: "t",
+				SubforumName:  "test-subforum",
 			},
 			userCtx:        createTestUserContext(),
 			wantErr:        false,
@@ -144,7 +145,8 @@ func TestSubforumHandler_GetSubforumDetails(t *testing.T) {
 		{
 			name: "GetPrivateSubforumDetailsWithAccess",
 			input: &models.SubforumSubscriptionInput{
-				SubforumName: "private-test-subforum",
+				CommunityType: "t",
+				SubforumName:  "private-test-subforum",
 			},
 			userCtx:        createTestUserContext(),
 			wantErr:        false,
@@ -153,7 +155,8 @@ func TestSubforumHandler_GetSubforumDetails(t *testing.T) {
 		{
 			name: "GetPrivateSubforumDetailsWithoutAccess",
 			input: &models.SubforumSubscriptionInput{
-				SubforumName: "private-test-subforum",
+				CommunityType: "t",
+				SubforumName:  "private-test-subforum",
 			},
 			userCtx:        nil,
 			wantErr:        true,
@@ -162,7 +165,8 @@ func TestSubforumHandler_GetSubforumDetails(t *testing.T) {
 		{
 			name: "GetNonExistentSubforum",
 			input: &models.SubforumSubscriptionInput{
-				SubforumName: "non-existent",
+				CommunityType: "t",
+				SubforumName:  "non-existent",
 			},
 			userCtx:        createTestUserContext(),
 			wantErr:        true,
@@ -179,11 +183,13 @@ func TestSubforumHandler_GetSubforumDetails(t *testing.T) {
 			mockSubforumModeratorDAO := mocks.NewMockSubforumModeratorDAO()
 
 			// Set up mock data
-			if tt.input.SubforumName == "test-subforum" {
-				mockSubforumDAO.InjectSubforumByName("test-subforum", fixtures.CreateTestSubforum())
-			} else if tt.input.SubforumName == "private-test-subforum" {
-				mockSubforumDAO.InjectSubforumByName("private-test-subforum", fixtures.CreateTestPrivateSubforum())
+			switch tt.input.SubforumName {
+			case "test-subforum":
+				mockSubforumDAO.InjectSubforumByCommunityTypeAndName("t", "test-subforum", fixtures.CreateTestSubforum())
+			case "private-test-subforum":
+				mockSubforumDAO.InjectSubforumByCommunityTypeAndName("t", "private-test-subforum", fixtures.CreateTestPrivateSubforum())
 			}
+
 			mockSubforumDAO.SetDefaultBehavior()
 
 			mockSubforumSubscriptionDAO.InjectSubscribedStatus("moderator-pseudonym-123", 1, true)
@@ -240,7 +246,8 @@ func TestSubforumHandler_SubscribeToSubforum(t *testing.T) {
 		{
 			name: "SubscribeToSubforum",
 			input: &models.SubforumSubscriptionInput{
-				SubforumName: "test-subforum",
+				CommunityType: "t",
+				SubforumName:  "test-subforum",
 			},
 			userCtx:        createTestUserContext(),
 			wantErr:        false,
@@ -249,7 +256,8 @@ func TestSubforumHandler_SubscribeToSubforum(t *testing.T) {
 		{
 			name: "SubscribeToNonExistentSubforum",
 			input: &models.SubforumSubscriptionInput{
-				SubforumName: "non-existent",
+				CommunityType: "t",
+				SubforumName:  "non-existent",
 			},
 			userCtx:        createTestUserContext(),
 			wantErr:        true,
@@ -258,7 +266,8 @@ func TestSubforumHandler_SubscribeToSubforum(t *testing.T) {
 		{
 			name: "SubscribeWithoutAuthentication",
 			input: &models.SubforumSubscriptionInput{
-				SubforumName: "test-subforum",
+				CommunityType: "t",
+				SubforumName:  "test-subforum",
 			},
 			userCtx:        nil,
 			wantErr:        true,
@@ -276,7 +285,7 @@ func TestSubforumHandler_SubscribeToSubforum(t *testing.T) {
 
 			// Set up mock data
 			if tt.input.SubforumName == "test-subforum" {
-				mockSubforumDAO.InjectSubforumByName("test-subforum", fixtures.CreateTestSubforum())
+				mockSubforumDAO.InjectSubforumByCommunityTypeAndName("t", "test-subforum", fixtures.CreateTestSubforum())
 			}
 			mockSubforumDAO.SetDefaultBehavior()
 
@@ -314,7 +323,7 @@ func TestSubforumHandler_SubscribeToSubforum(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, response)
-				assert.True(t, response.Body.Subscribed)
+				assert.True(t, response.Body.IsSubscribed)
 			}
 		})
 	}
@@ -331,7 +340,8 @@ func TestSubforumHandler_UnsubscribeFromSubforum(t *testing.T) {
 		{
 			name: "UnsubscribeFromSubforum",
 			input: &models.SubforumSubscriptionInput{
-				SubforumName: "test-subforum",
+				CommunityType: "t",
+				SubforumName:  "test-subforum",
 			},
 			userCtx:        createTestUserContext(),
 			wantErr:        false,
@@ -340,7 +350,8 @@ func TestSubforumHandler_UnsubscribeFromSubforum(t *testing.T) {
 		{
 			name: "UnsubscribeFromNonExistentSubforum",
 			input: &models.SubforumSubscriptionInput{
-				SubforumName: "non-existent",
+				CommunityType: "t",
+				SubforumName:  "non-existent",
 			},
 			userCtx:        createTestUserContext(),
 			wantErr:        true,
@@ -349,7 +360,8 @@ func TestSubforumHandler_UnsubscribeFromSubforum(t *testing.T) {
 		{
 			name: "UnsubscribeWithoutAuthentication",
 			input: &models.SubforumSubscriptionInput{
-				SubforumName: "test-subforum",
+				CommunityType: "t",
+				SubforumName:  "test-subforum",
 			},
 			userCtx:        nil,
 			wantErr:        true,
@@ -367,7 +379,7 @@ func TestSubforumHandler_UnsubscribeFromSubforum(t *testing.T) {
 
 			// Set up mock data
 			if tt.input.SubforumName == "test-subforum" {
-				mockSubforumDAO.InjectSubforumByName("test-subforum", fixtures.CreateTestSubforum())
+				mockSubforumDAO.InjectSubforumByCommunityTypeAndName("t", "test-subforum", fixtures.CreateTestSubforum())
 			}
 			mockSubforumDAO.SetDefaultBehavior()
 
@@ -414,7 +426,7 @@ func TestSubforumHandler_UnsubscribeFromSubforum(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, response)
-				assert.False(t, response.Body.Subscribed)
+				assert.False(t, response.Body.IsSubscribed)
 			}
 		})
 	}
@@ -422,40 +434,119 @@ func TestSubforumHandler_UnsubscribeFromSubforum(t *testing.T) {
 
 func TestSubforumHandler_CreateSubforum(t *testing.T) {
 	tests := []struct {
-		name           string
-		input          *models.SubforumCreateInput
-		userCtx        *middleware.UserContext
-		wantErr        bool
-		expectedStatus int
+		name               string
+		input              *models.SubforumCreateInput
+		userCtx            *middleware.UserContext
+		wantErr            bool
+		expectedStatus     int
+		expectedGovernance string
 	}{
 		{
-			name: "CreateSubforumWithPermission",
+			name: "CreateTopicalCommunity",
 			input: &models.SubforumCreateInput{
 				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "moderator-pseudonym-123"),
 				Body: models.SubforumCreateBody{
-					Slug:         "new-subforum",
-					Name:         "New Subforum",
-					Description:  "A new test subforum",
-					IsNSFW:       false,
-					IsPrivate:    false,
-					IsRestricted: false,
+					Slug:          "programming",
+					Name:          "Programming",
+					Description:   "Programming discussions",
+					CommunityType: "t",
+					IsNSFW:        false,
+					IsPrivate:     false,
+					IsRestricted:  false,
+				},
+			},
+			userCtx:            createTestUserContext(),
+			wantErr:            false,
+			expectedStatus:     200,
+			expectedGovernance: "democratic",
+		},
+		{
+			name: "CreateGeographicCommunity",
+			input: &models.SubforumCreateInput{
+				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "moderator-pseudonym-123"),
+				Body: models.SubforumCreateBody{
+					Slug:          "seattle",
+					Name:          "Seattle",
+					Description:   "Seattle area discussions",
+					CommunityType: "g",
+					IsNSFW:        false,
+					IsPrivate:     false,
+					IsRestricted:  false,
+				},
+			},
+			userCtx:            createTestUserContext(),
+			wantErr:            false,
+			expectedStatus:     200,
+			expectedGovernance: "democratic",
+		},
+		{
+			name: "CreateBrandedCommunity",
+			input: &models.SubforumCreateInput{
+				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "moderator-pseudonym-123"),
+				Body: models.SubforumCreateBody{
+					Slug:          "apple",
+					Name:          "Apple",
+					Description:   "Apple company discussions",
+					CommunityType: "b",
+					IsNSFW:        false,
+					IsPrivate:     false,
+					IsRestricted:  false,
+				},
+			},
+			userCtx:            createTestUserContext(),
+			wantErr:            false,
+			expectedStatus:     200,
+			expectedGovernance: "owned",
+		},
+		{
+			name: "CreateCreatorCommunity",
+			input: &models.SubforumCreateInput{
+				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "moderator-pseudonym-123"),
+				Body: models.SubforumCreateBody{
+					Slug:          "joerogan",
+					Name:          "Joe Rogan",
+					Description:   "Joe Rogan discussions",
+					CommunityType: "c",
+					IsNSFW:        false,
+					IsPrivate:     false,
+					IsRestricted:  false,
+				},
+			},
+			userCtx:            createTestUserContext(),
+			wantErr:            false,
+			expectedStatus:     200,
+			expectedGovernance: "owned",
+		},
+		{
+			name: "CreateSubforumWithInvalidCommunityType",
+			input: &models.SubforumCreateInput{
+				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "moderator-pseudonym-123"),
+				Body: models.SubforumCreateBody{
+					Slug:          "invalid",
+					Name:          "Invalid",
+					Description:   "Invalid community type",
+					CommunityType: "x", // Invalid type
+					IsNSFW:        false,
+					IsPrivate:     false,
+					IsRestricted:  false,
 				},
 			},
 			userCtx:        createTestUserContext(),
-			wantErr:        false,
-			expectedStatus: 200,
+			wantErr:        true,
+			expectedStatus: 400,
 		},
 		{
 			name: "CreateSubforumWithoutPermission",
 			input: &models.SubforumCreateInput{
 				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "moderator-pseudonym-123"),
 				Body: models.SubforumCreateBody{
-					Slug:         "new-subforum",
-					Name:         "New Subforum",
-					Description:  "A new test subforum",
-					IsNSFW:       false,
-					IsPrivate:    false,
-					IsRestricted: false,
+					Slug:          "new-subforum",
+					Name:          "New Subforum",
+					Description:   "A new test subforum",
+					CommunityType: "t",
+					IsNSFW:        false,
+					IsPrivate:     false,
+					IsRestricted:  false,
 				},
 			},
 			userCtx: &middleware.UserContext{
@@ -473,17 +564,36 @@ func TestSubforumHandler_CreateSubforum(t *testing.T) {
 			name: "CreateSubforumWithoutAuthentication",
 			input: &models.SubforumCreateInput{
 				Body: models.SubforumCreateBody{
-					Slug:         "new-subforum",
-					Name:         "New Subforum",
-					Description:  "A new test subforum",
-					IsNSFW:       false,
-					IsPrivate:    false,
-					IsRestricted: false,
+					Slug:          "new-subforum",
+					Name:          "New Subforum",
+					Description:   "A new test subforum",
+					CommunityType: "t",
+					IsNSFW:        false,
+					IsPrivate:     false,
+					IsRestricted:  false,
 				},
 			},
 			userCtx:        nil,
 			wantErr:        true,
 			expectedStatus: 401,
+		},
+		{
+			name: "CreateSubforumWithoutRequiredFields",
+			input: &models.SubforumCreateInput{
+				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "moderator-pseudonym-123"),
+				Body: models.SubforumCreateBody{
+					Slug:          "", // Missing slug
+					Name:          "", // Missing name
+					Description:   "", // Missing description
+					CommunityType: "t",
+					IsNSFW:        false,
+					IsPrivate:     false,
+					IsRestricted:  false,
+				},
+			},
+			userCtx:        createTestUserContext(),
+			wantErr:        true,
+			expectedStatus: 400,
 		},
 	}
 
@@ -529,7 +639,210 @@ func TestSubforumHandler_CreateSubforum(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, response)
 				assert.Equal(t, tt.input.Body.Name, response.Body.Subforum.DisplayName)
+				assert.Equal(t, tt.input.Body.CommunityType, response.Body.Subforum.CommunityType)
+				assert.Equal(t, tt.expectedGovernance, response.Body.Subforum.GovernanceStyle)
+				assert.Equal(t, "moderator-pseudonym-123", response.Body.Subforum.OwnerPseudonymID)
 			}
+		})
+	}
+}
+
+// TestGovernanceStyleEnforcement tests that governance styles are correctly enforced based on community type
+func TestGovernanceStyleEnforcement(t *testing.T) {
+	tests := []struct {
+		name               string
+		communityType      string
+		expectedGovernance string
+	}{
+		{"TopicalCommunity", "t", "democratic"},
+		{"GeographicCommunity", "g", "democratic"},
+		{"BrandedCommunity", "b", "owned"},
+		{"CreatorCommunity", "c", "owned"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create mock DAOs
+			mockSubforumDAO := mocks.NewMockSubforumDAO()
+			mockSubforumSubscriptionDAO := mocks.NewMockSubforumSubscriptionDAO()
+			mockPermissionDAO := mocks.NewMockPermissionDAO()
+			mockSubforumModeratorDAO := mocks.NewMockSubforumModeratorDAO()
+
+			// Set up mock data
+			mockSubforumDAO.SetDefaultBehavior()
+			mockSubforumSubscriptionDAO.SetDefaultBehavior()
+			mockPermissionDAO.SetDefaultBehavior()
+			mockSubforumModeratorDAO.SetDefaultBehavior()
+
+			// Create mock identity mapping DAO
+			mockIdentityMappingDAO := mocks.NewMockIdentityMappingDAO()
+
+			// Create mock post DAO
+			mockPostDAO := mocks.NewMockPostDAO()
+
+			// Set up default behavior for post DAO
+			mockPostDAO.SetDefaultBehavior()
+
+			// Create handler with mocks
+			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPostDAO)
+
+			// Create test input
+			input := &models.SubforumCreateInput{
+				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "moderator-pseudonym-123"),
+				Body: models.SubforumCreateBody{
+					Slug:          "test-" + tt.communityType,
+					Name:          "Test " + tt.communityType,
+					Description:   "Test community",
+					CommunityType: tt.communityType,
+					IsNSFW:        false,
+					IsPrivate:     false,
+					IsRestricted:  false,
+				},
+			}
+
+			// Create context
+			ctx := createTestContextWithUser(createTestUserContext())
+
+			// Call method
+			response, err := handler.CreateSubforum(ctx, input)
+
+			// Assertions
+			assert.NoError(t, err)
+			assert.NotNil(t, response)
+			assert.Equal(t, tt.expectedGovernance, response.Body.Subforum.GovernanceStyle,
+				"Community type %s should have governance style %s", tt.communityType, tt.expectedGovernance)
+		})
+	}
+}
+
+// TestCommunityTypeValidation tests that invalid community types are rejected
+func TestCommunityTypeValidation(t *testing.T) {
+	invalidTypes := []string{"x", "h", "z", "invalid", ""}
+
+	for _, invalidType := range invalidTypes {
+		t.Run("InvalidType_"+invalidType, func(t *testing.T) {
+			// Create mock DAOs
+			mockSubforumDAO := mocks.NewMockSubforumDAO()
+			mockSubforumSubscriptionDAO := mocks.NewMockSubforumSubscriptionDAO()
+			mockPermissionDAO := mocks.NewMockPermissionDAO()
+			mockSubforumModeratorDAO := mocks.NewMockSubforumModeratorDAO()
+
+			// Set up mock data
+			mockSubforumDAO.SetDefaultBehavior()
+			mockSubforumSubscriptionDAO.SetDefaultBehavior()
+			mockPermissionDAO.SetDefaultBehavior()
+			mockSubforumModeratorDAO.SetDefaultBehavior()
+
+			// Create mock identity mapping DAO
+			mockIdentityMappingDAO := mocks.NewMockIdentityMappingDAO()
+
+			// Create mock post DAO
+			mockPostDAO := mocks.NewMockPostDAO()
+
+			// Set up default behavior for post DAO
+			mockPostDAO.SetDefaultBehavior()
+
+			// Create handler with mocks
+			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPostDAO)
+
+			// Create test input with invalid community type
+			input := &models.SubforumCreateInput{
+				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "moderator-pseudonym-123"),
+				Body: models.SubforumCreateBody{
+					Slug:          "test-invalid",
+					Name:          "Test Invalid",
+					Description:   "Test invalid community type",
+					CommunityType: invalidType,
+					IsNSFW:        false,
+					IsPrivate:     false,
+					IsRestricted:  false,
+				},
+			}
+
+			// Create context
+			ctx := createTestContextWithUser(createTestUserContext())
+
+			// Call method
+			response, err := handler.CreateSubforum(ctx, input)
+
+			// Assertions
+			assert.Error(t, err)
+			assert.Nil(t, response)
+		})
+	}
+}
+
+// TestOwnerAssignment tests that the creating user's active pseudonym becomes the owner
+func TestOwnerAssignment(t *testing.T) {
+	tests := []struct {
+		name              string
+		activePseudonymID string
+		expectedOwner     string
+	}{
+		{"OwnerAssignment", "owner-pseudonym-456", "owner-pseudonym-456"},
+		{"DifferentPseudonym", "different-pseudonym-789", "different-pseudonym-789"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create mock DAOs
+			mockSubforumDAO := mocks.NewMockSubforumDAO()
+			mockSubforumSubscriptionDAO := mocks.NewMockSubforumSubscriptionDAO()
+			mockPermissionDAO := mocks.NewMockPermissionDAO()
+			mockSubforumModeratorDAO := mocks.NewMockSubforumModeratorDAO()
+
+			// Set up mock data
+			mockSubforumDAO.SetDefaultBehavior()
+			mockSubforumSubscriptionDAO.SetDefaultBehavior()
+			mockPermissionDAO.SetDefaultBehavior()
+			mockSubforumModeratorDAO.SetDefaultBehavior()
+
+			// Create mock identity mapping DAO
+			mockIdentityMappingDAO := mocks.NewMockIdentityMappingDAO()
+
+			// Create mock post DAO
+			mockPostDAO := mocks.NewMockPostDAO()
+
+			// Set up default behavior for post DAO
+			mockPostDAO.SetDefaultBehavior()
+
+			// Create handler with mocks
+			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPostDAO)
+
+			// Create user context with specific active pseudonym
+			userCtx := &middleware.UserContext{
+				UserID:            1,
+				Email:             "user@example.com",
+				ActivePseudonymID: tt.activePseudonymID,
+				DisplayName:       "TestUser",
+				Roles:             []string{"user"},
+				Capabilities:      []string{"create_content", "create_subforum"},
+			}
+
+			// Create test input
+			input := &models.SubforumCreateInput{
+				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, tt.activePseudonymID),
+				Body: models.SubforumCreateBody{
+					Slug:          "test-owner",
+					Name:          "Test Owner",
+					Description:   "Test owner assignment",
+					CommunityType: "t",
+					IsNSFW:        false,
+					IsPrivate:     false,
+					IsRestricted:  false,
+				},
+			}
+
+			// Create context
+			ctx := createTestContextWithUser(userCtx)
+
+			// Call method
+			response, err := handler.CreateSubforum(ctx, input)
+
+			// Assertions
+			assert.NoError(t, err)
+			assert.NotNil(t, response)
+			assert.Equal(t, tt.expectedOwner, response.Body.Subforum.OwnerPseudonymID)
 		})
 	}
 }

@@ -43,11 +43,11 @@ func TestSubforumUniqueConstraintErrors(t *testing.T) {
 			},
 		},
 		{
-			name:        "ErrUniqueSubforumsNameKey",
-			expectedErr: models.SubforumErrors.ErrUniqueSubforumsNameKey,
+			name:        "ErrUniqueUniqueSubforumNamePerType",
+			expectedErr: models.SubforumErrors.ErrUniqueUniqueSubforumNamePerType,
 			conflictMods: func(ctx context.Context, exec bob.Executor, obj *models.Subforum) factory.SubforumModSlice {
 				shouldUpdate := false
-				updateMods := make(factory.SubforumModSlice, 0, 1)
+				updateMods := make(factory.SubforumModSlice, 0, 2)
 
 				if shouldUpdate {
 					if err := obj.Update(ctx, exec, f.NewSubforum(ctx, updateMods...).BuildSetter()); err != nil {
@@ -56,6 +56,7 @@ func TestSubforumUniqueConstraintErrors(t *testing.T) {
 				}
 
 				return factory.SubforumModSlice{
+					factory.SubforumMods.CommunityType(obj.CommunityType),
 					factory.SubforumMods.Name(obj.Name),
 				}
 			},

@@ -48,7 +48,7 @@ func createTestCorrelationHandler() (*CorrelationHandler, *mocks.MockSecurePseud
 }
 
 // Helper function to create test identity mapping
-func createTestIdentityMapping(pseudonymID, fingerprint string, encryptedIdentity []byte) *dbmodels.IdentityMapping {
+func createTestIdentityMapping(pseudonymID string, encryptedIdentity []byte) *dbmodels.IdentityMapping {
 	mappingID := uuid.Must(uuid.NewV4())
 	return &dbmodels.IdentityMapping{
 		MappingID:             mappingID,
@@ -96,7 +96,7 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 		plaintext := fingerprint + ":" + requestedPseudonymID
 		encryptedBytes, err := ibeSystem.EncryptIdentity(plaintext, requestedPseudonymID, adminKey)
 		require.NoError(t, err)
-		testMapping := createTestIdentityMapping(requestedPseudonymID, fingerprint, encryptedBytes)
+		testMapping := createTestIdentityMapping(requestedPseudonymID, encryptedBytes)
 		mockIdentityMappingDAO.On("GetIdentityMappingByPseudonymID", mock.Anything, requestedPseudonymID).Return(testMapping, nil)
 
 		// Mock related identity mappings (same fingerprint)
@@ -104,7 +104,7 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 		relatedPlaintext := fingerprint + ":" + relatedPseudonymID
 		relatedEncryptedBytes, err := ibeSystem.EncryptIdentity(relatedPlaintext, relatedPseudonymID, adminKey)
 		require.NoError(t, err)
-		relatedMapping := createTestIdentityMapping(relatedPseudonymID, fingerprint, relatedEncryptedBytes)
+		relatedMapping := createTestIdentityMapping(relatedPseudonymID, relatedEncryptedBytes)
 		relatedMappings := dbmodels.IdentityMappingSlice{testMapping, relatedMapping}
 
 		// The handler will call GenerateFingerprint on the decrypted mapping
@@ -287,7 +287,7 @@ func TestCorrelationHandler_RequestIdentityCorrelation(t *testing.T) {
 		plaintext := fingerprint + ":" + requestedPseudonymID
 		encryptedBytes, err := ibeSystem.EncryptIdentity(plaintext, requestedPseudonymID, adminKey)
 		require.NoError(t, err)
-		testMapping := createTestIdentityMapping(requestedPseudonymID, fingerprint, encryptedBytes)
+		testMapping := createTestIdentityMapping(requestedPseudonymID, encryptedBytes)
 		mockIdentityMappingDAO.On("GetIdentityMappingByPseudonymID", mock.Anything, requestedPseudonymID).Return(testMapping, nil)
 
 		// Mock related identity mappings (same fingerprint)
@@ -295,7 +295,7 @@ func TestCorrelationHandler_RequestIdentityCorrelation(t *testing.T) {
 		relatedPlaintext := fingerprint + ":" + relatedPseudonymID
 		relatedEncryptedBytes, err := ibeSystem.EncryptIdentity(relatedPlaintext, relatedPseudonymID, adminKey)
 		require.NoError(t, err)
-		relatedMapping := createTestIdentityMapping(relatedPseudonymID, fingerprint, relatedEncryptedBytes)
+		relatedMapping := createTestIdentityMapping(relatedPseudonymID, relatedEncryptedBytes)
 		relatedMappings := dbmodels.IdentityMappingSlice{testMapping, relatedMapping}
 
 		// The handler will call GenerateFingerprint on the decrypted mapping
@@ -493,10 +493,9 @@ func TestCorrelationHandler_GetCorrelationHistory(t *testing.T) {
 func TestCorrelationFixtures(t *testing.T) {
 	t.Run("CreateTestIdentityMapping", func(t *testing.T) {
 		pseudonymID := "test-pseudonym-123"
-		fingerprint := "test-fingerprint-456"
 		encryptedIdentity := []byte("encrypted-data")
 
-		mapping := createTestIdentityMapping(pseudonymID, fingerprint, encryptedIdentity)
+		mapping := createTestIdentityMapping(pseudonymID, encryptedIdentity)
 
 		// Assertions
 		assert.NotNil(t, mapping)

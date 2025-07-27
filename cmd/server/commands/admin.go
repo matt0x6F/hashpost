@@ -366,7 +366,7 @@ func SetModerator() error {
 	}
 
 	// Add the pseudonym as a moderator
-	err = subforumDAO.AddSubforumModerator(ctx, subforum.SubforumID, input.PseudonymID)
+	err = subforumDAO.AddSubforumModerator(ctx, subforum.SubforumID, input.PseudonymID, "admin", "system")
 	if err != nil {
 		return fmt.Errorf("failed to add moderator: %w", err)
 	}

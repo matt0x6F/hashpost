@@ -154,15 +154,16 @@ func (dao *KeyRotationMigrationDAO) UpdateMigrationStatus(ctx context.Context, m
 		Status: &status,
 	}
 
-	if status == "paused" {
+	switch status {
+	case "paused":
 		now := time.Now()
 		setter.PausedAt = &sql.Null[time.Time]{}
 		setter.PausedAt.Scan(now)
-	} else if status == "in_progress" {
+	case "in_progress":
 		now := time.Now()
 		setter.ResumedAt = &sql.Null[time.Time]{}
 		setter.ResumedAt.Scan(now)
-	} else if status == "completed" {
+	case "completed":
 		now := time.Now()
 		setter.CompletedAt = &sql.Null[time.Time]{}
 		setter.CompletedAt.Scan(now)

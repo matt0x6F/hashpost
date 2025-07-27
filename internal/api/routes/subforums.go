@@ -22,34 +22,34 @@ func RegisterSubforumRoutes(api huma.API, db bob.Executor) {
 		Tags:        []string{"Subforums"},
 	}, subforumHandler.GetSubforums)
 
-	// Get subforum details
+	// Get subforum details - support community type prefixes (t/, g/, b/, c/)
 	huma.Register(api, huma.Operation{
 		OperationID: "get-subforum-details",
 		Method:      http.MethodGet,
-		Path:        "/subforums/{name}",
+		Path:        "/subforums/{type}/{name}",
 		Summary:     "Get detailed information about a specific subforum",
-		Description: "Retrieves detailed information about a subforum including moderators and subscription status. Requires authentication for private subforums.",
+		Description: "Retrieves detailed information about a subforum including moderators and subscription status. Supports community type prefixes (t/, g/, b/, c/).",
 		Tags:        []string{"Subforums"},
 	}, subforumHandler.GetSubforumDetails)
 
-	// Subscribe to subforum
+	// Subscribe to subforum - support community type prefixes
 	huma.Register(api, huma.Operation{
 		OperationID: "subscribe-to-subforum",
 		Method:      http.MethodPost,
-		Path:        "/subforums/{name}/subscribe",
+		Path:        "/subforums/{type}/{name}/subscribe",
 		Summary:     "Subscribe to a subforum",
-		Description: "Subscribes the authenticated user to a subforum. Requires authentication.",
+		Description: "Subscribes the authenticated user to a subforum. Supports community type prefixes (t/, g/, b/, c/). Requires authentication.",
 		Tags:        []string{"Subforums"},
 		Security:    []map[string][]string{{"jwt": {}}},
 	}, subforumHandler.SubscribeToSubforum)
 
-	// Unsubscribe from subforum
+	// Unsubscribe from subforum - support community type prefixes
 	huma.Register(api, huma.Operation{
 		OperationID: "unsubscribe-from-subforum",
 		Method:      http.MethodDelete,
-		Path:        "/subforums/{name}/subscribe",
+		Path:        "/subforums/{type}/{name}/subscribe",
 		Summary:     "Unsubscribe from a subforum",
-		Description: "Unsubscribes the authenticated user from a subforum. Requires authentication.",
+		Description: "Unsubscribes the authenticated user from a subforum. Supports community type prefixes (t/, g/, b/, c/). Requires authentication.",
 		Tags:        []string{"Subforums"},
 		Security:    []map[string][]string{{"jwt": {}}},
 	}, subforumHandler.UnsubscribeFromSubforum)
@@ -60,7 +60,7 @@ func RegisterSubforumRoutes(api huma.API, db bob.Executor) {
 		Method:      http.MethodPost,
 		Path:        "/subforums",
 		Summary:     "Create a new subforum",
-		Description: "Creates a new subforum. Requires authentication and the create_subforum capability.",
+		Description: "Creates a new subforum with community type and governance style. Requires authentication and the create_subforum capability.",
 		Tags:        []string{"Subforums"},
 		Security:    []map[string][]string{{"jwt": {}}},
 	}, subforumHandler.CreateSubforum)

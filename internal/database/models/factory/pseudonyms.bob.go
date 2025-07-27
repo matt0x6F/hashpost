@@ -75,6 +75,7 @@ type pseudonymR struct {
 	AddedByPseudonymSubforumModerators  []*pseudonymRAddedByPseudonymSubforumModeratorsR
 	SubforumModerators                  []*pseudonymRSubforumModeratorsR
 	SubforumSubscriptions               []*pseudonymRSubforumSubscriptionsR
+	OwnerPseudonymSubforums             []*pseudonymROwnerPseudonymSubforumsR
 	BannedByPseudonymUserBans           []*pseudonymRBannedByPseudonymUserBansR
 	BlockedPseudonymUserBlocks          []*pseudonymRBlockedPseudonymUserBlocksR
 	BlockerPseudonymUserBlocks          []*pseudonymRBlockerPseudonymUserBlocksR
@@ -152,6 +153,10 @@ type pseudonymRSubforumModeratorsR struct {
 type pseudonymRSubforumSubscriptionsR struct {
 	number int
 	o      *SubforumSubscriptionTemplate
+}
+type pseudonymROwnerPseudonymSubforumsR struct {
+	number int
+	o      *SubforumTemplate
 }
 type pseudonymRBannedByPseudonymUserBansR struct {
 	number int
@@ -412,6 +417,19 @@ func (t PseudonymTemplate) setModelRels(o *models.Pseudonym) {
 			rel = append(rel, related...)
 		}
 		o.R.SubforumSubscriptions = rel
+	}
+
+	if t.r.OwnerPseudonymSubforums != nil {
+		rel := models.SubforumSlice{}
+		for _, r := range t.r.OwnerPseudonymSubforums {
+			related := r.o.BuildMany(r.number)
+			for _, rel := range related {
+				rel.OwnerPseudonymID = sql.Null[string]{V: o.PseudonymID, Valid: true} // h2
+				rel.R.OwnerPseudonymPseudonym = o
+			}
+			rel = append(rel, related...)
+		}
+		o.R.OwnerPseudonymSubforums = rel
 	}
 
 	if t.r.BannedByPseudonymUserBans != nil {
@@ -934,17 +952,34 @@ func (o *PseudonymTemplate) insertOptRels(ctx context.Context, exec bob.Executor
 		}
 	}
 
-	isBannedByPseudonymUserBansDone, _ := pseudonymRelBannedByPseudonymUserBansCtx.Value(ctx)
-	if !isBannedByPseudonymUserBansDone && o.r.BannedByPseudonymUserBans != nil {
-		ctx = pseudonymRelBannedByPseudonymUserBansCtx.WithValue(ctx, true)
-		for _, r := range o.r.BannedByPseudonymUserBans {
-			var rel18 models.UserBanSlice
+	isOwnerPseudonymSubforumsDone, _ := pseudonymRelOwnerPseudonymSubforumsCtx.Value(ctx)
+	if !isOwnerPseudonymSubforumsDone && o.r.OwnerPseudonymSubforums != nil {
+		ctx = pseudonymRelOwnerPseudonymSubforumsCtx.WithValue(ctx, true)
+		for _, r := range o.r.OwnerPseudonymSubforums {
+			var rel18 models.SubforumSlice
 			ctx, rel18, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachBannedByPseudonymUserBans(ctx, exec, rel18...)
+			err = m.AttachOwnerPseudonymSubforums(ctx, exec, rel18...)
+			if err != nil {
+				return ctx, err
+			}
+		}
+	}
+
+	isBannedByPseudonymUserBansDone, _ := pseudonymRelBannedByPseudonymUserBansCtx.Value(ctx)
+	if !isBannedByPseudonymUserBansDone && o.r.BannedByPseudonymUserBans != nil {
+		ctx = pseudonymRelBannedByPseudonymUserBansCtx.WithValue(ctx, true)
+		for _, r := range o.r.BannedByPseudonymUserBans {
+			var rel19 models.UserBanSlice
+			ctx, rel19, err = r.o.createMany(ctx, exec, r.number)
+			if err != nil {
+				return ctx, err
+			}
+
+			err = m.AttachBannedByPseudonymUserBans(ctx, exec, rel19...)
 			if err != nil {
 				return ctx, err
 			}
@@ -955,13 +990,13 @@ func (o *PseudonymTemplate) insertOptRels(ctx context.Context, exec bob.Executor
 	if !isBlockedPseudonymUserBlocksDone && o.r.BlockedPseudonymUserBlocks != nil {
 		ctx = pseudonymRelBlockedPseudonymUserBlocksCtx.WithValue(ctx, true)
 		for _, r := range o.r.BlockedPseudonymUserBlocks {
-			var rel19 models.UserBlockSlice
-			ctx, rel19, err = r.o.createMany(ctx, exec, r.number)
+			var rel20 models.UserBlockSlice
+			ctx, rel20, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachBlockedPseudonymUserBlocks(ctx, exec, rel19...)
+			err = m.AttachBlockedPseudonymUserBlocks(ctx, exec, rel20...)
 			if err != nil {
 				return ctx, err
 			}
@@ -972,13 +1007,13 @@ func (o *PseudonymTemplate) insertOptRels(ctx context.Context, exec bob.Executor
 	if !isBlockerPseudonymUserBlocksDone && o.r.BlockerPseudonymUserBlocks != nil {
 		ctx = pseudonymRelBlockerPseudonymUserBlocksCtx.WithValue(ctx, true)
 		for _, r := range o.r.BlockerPseudonymUserBlocks {
-			var rel20 models.UserBlockSlice
-			ctx, rel20, err = r.o.createMany(ctx, exec, r.number)
+			var rel21 models.UserBlockSlice
+			ctx, rel21, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachBlockerPseudonymUserBlocks(ctx, exec, rel20...)
+			err = m.AttachBlockerPseudonymUserBlocks(ctx, exec, rel21...)
 			if err != nil {
 				return ctx, err
 			}
@@ -989,13 +1024,13 @@ func (o *PseudonymTemplate) insertOptRels(ctx context.Context, exec bob.Executor
 	if !isVotesDone && o.r.Votes != nil {
 		ctx = pseudonymRelVotesCtx.WithValue(ctx, true)
 		for _, r := range o.r.Votes {
-			var rel21 models.VoteSlice
-			ctx, rel21, err = r.o.createMany(ctx, exec, r.number)
+			var rel22 models.VoteSlice
+			ctx, rel22, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachVotes(ctx, exec, rel21...)
+			err = m.AttachVotes(ctx, exec, rel22...)
 			if err != nil {
 				return ctx, err
 			}
@@ -2492,6 +2527,44 @@ func (m pseudonymMods) AddNewSubforumSubscriptions(number int, mods ...SubforumS
 func (m pseudonymMods) WithoutSubforumSubscriptions() PseudonymMod {
 	return PseudonymModFunc(func(ctx context.Context, o *PseudonymTemplate) {
 		o.r.SubforumSubscriptions = nil
+	})
+}
+
+func (m pseudonymMods) WithOwnerPseudonymSubforums(number int, related *SubforumTemplate) PseudonymMod {
+	return PseudonymModFunc(func(ctx context.Context, o *PseudonymTemplate) {
+		o.r.OwnerPseudonymSubforums = []*pseudonymROwnerPseudonymSubforumsR{{
+			number: number,
+			o:      related,
+		}}
+	})
+}
+
+func (m pseudonymMods) WithNewOwnerPseudonymSubforums(number int, mods ...SubforumMod) PseudonymMod {
+	return PseudonymModFunc(func(ctx context.Context, o *PseudonymTemplate) {
+		related := o.f.NewSubforum(ctx, mods...)
+		m.WithOwnerPseudonymSubforums(number, related).Apply(ctx, o)
+	})
+}
+
+func (m pseudonymMods) AddOwnerPseudonymSubforums(number int, related *SubforumTemplate) PseudonymMod {
+	return PseudonymModFunc(func(ctx context.Context, o *PseudonymTemplate) {
+		o.r.OwnerPseudonymSubforums = append(o.r.OwnerPseudonymSubforums, &pseudonymROwnerPseudonymSubforumsR{
+			number: number,
+			o:      related,
+		})
+	})
+}
+
+func (m pseudonymMods) AddNewOwnerPseudonymSubforums(number int, mods ...SubforumMod) PseudonymMod {
+	return PseudonymModFunc(func(ctx context.Context, o *PseudonymTemplate) {
+		related := o.f.NewSubforum(ctx, mods...)
+		m.AddOwnerPseudonymSubforums(number, related).Apply(ctx, o)
+	})
+}
+
+func (m pseudonymMods) WithoutOwnerPseudonymSubforums() PseudonymMod {
+	return PseudonymModFunc(func(ctx context.Context, o *PseudonymTemplate) {
+		o.r.OwnerPseudonymSubforums = nil
 	})
 }
 

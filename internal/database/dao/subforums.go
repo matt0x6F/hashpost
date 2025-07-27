@@ -3,11 +3,13 @@ package dao
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/stephenafamo/bob"
+	"github.com/stephenafamo/bob/types"
 )
 
 // SubforumDAO provides data access operations for subforums
@@ -29,6 +31,23 @@ func (dao *SubforumDAO) GetSubforumByName(ctx context.Context, name string) (*mo
 	).All(ctx, dao.db)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get subforum by name: %w", err)
+	}
+
+	if len(subforums) == 0 {
+		return nil, nil
+	}
+
+	return subforums[0], nil
+}
+
+// GetSubforumByCommunityTypeAndName retrieves a subforum by community type and name
+func (dao *SubforumDAO) GetSubforumByCommunityTypeAndName(ctx context.Context, communityType, name string) (*models.Subforum, error) {
+	subforums, err := models.Subforums.Query(
+		models.SelectWhere.Subforums.CommunityType.EQ(communityType),
+		models.SelectWhere.Subforums.Name.EQ(name),
+	).All(ctx, dao.db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get subforum by community type and name: %w", err)
 	}
 
 	if len(subforums) == 0 {
@@ -61,6 +80,18 @@ func (dao *SubforumDAO) ListSubforums(ctx context.Context) ([]*models.Subforum, 
 	return subforums, nil
 }
 
+// ListSubforumsByCommunityType retrieves subforums by community type
+func (dao *SubforumDAO) ListSubforumsByCommunityType(ctx context.Context, communityType string) ([]*models.Subforum, error) {
+	subforums, err := models.Subforums.Query(
+		models.SelectWhere.Subforums.CommunityType.EQ(communityType),
+	).All(ctx, dao.db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list subforums by community type: %w", err)
+	}
+
+	return subforums, nil
+}
+
 // GetSubforumModerators retrieves moderators for a subforum
 func (dao *SubforumDAO) GetSubforumModerators(ctx context.Context, subforumID int32) ([]*models.SubforumModerator, error) {
 	moderators, err := models.SubforumModerators.Query(
@@ -70,41 +101,44 @@ func (dao *SubforumDAO) GetSubforumModerators(ctx context.Context, subforumID in
 		return nil, fmt.Errorf("failed to get subforum moderators: %w", err)
 	}
 
-	// Load pseudonym relationships for all moderators
-	if len(moderators) > 0 {
-		err = models.SubforumModeratorSlice(moderators).LoadPseudonym(ctx, dao.db)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load moderator pseudonyms: %w", err)
-		}
-	}
-
 	return moderators, nil
 }
 
-// AddSubforumModerator adds a pseudonym as a moderator to a subforum
-func (dao *SubforumDAO) AddSubforumModerator(ctx context.Context, subforumID int32, pseudonymID string) error {
+// AddSubforumModerator adds a moderator to a subforum
+func (dao *SubforumDAO) AddSubforumModerator(ctx context.Context, subforumID int32, pseudonymID, role string, addedByPseudonymID string) error {
 	// Check if moderator already exists
 	existing, err := models.SubforumModerators.Query(
 		models.SelectWhere.SubforumModerators.SubforumID.EQ(subforumID),
 		models.SelectWhere.SubforumModerators.PseudonymID.EQ(pseudonymID),
-	).One(ctx, dao.db)
-	if err == nil && existing != nil {
-		return fmt.Errorf("moderator already exists")
+	).All(ctx, dao.db)
+	if err != nil {
+		return fmt.Errorf("failed to check existing moderator: %w", err)
+	}
+	if len(existing) > 0 {
+		return fmt.Errorf("moderator already exists for this subforum")
 	}
 
-	// Create the moderator
-	now := sql.Null[time.Time]{}
-	now.Scan(time.Now())
+	// Create null types for optional fields
+	addedByPseudonymIDNull := sql.Null[string]{}
+	addedByPseudonymIDNull.Scan(addedByPseudonymID)
 
-	role := "moderator" // Default role
+	permissionsNull := sql.Null[types.JSON[json.RawMessage]]{}
+	permissionsNull.Scan(types.NewJSON[json.RawMessage]([]byte("{}")))
 
+	addedAtNull := sql.Null[time.Time]{}
+	addedAtNull.Scan(time.Now())
+
+	// Create the moderator using the setter pattern
 	moderatorSetter := &models.SubforumModeratorSetter{
-		SubforumID:  &subforumID,
-		PseudonymID: &pseudonymID,
-		Role:        &role,
-		AddedAt:     &now,
+		SubforumID:         &subforumID,
+		PseudonymID:        &pseudonymID,
+		Role:               &role,
+		AddedByPseudonymID: &addedByPseudonymIDNull,
+		Permissions:        &permissionsNull,
+		AddedAt:            &addedAtNull,
 	}
 
+	// Insert into database using the generated table helper
 	_, err = models.SubforumModerators.Insert(moderatorSetter).One(ctx, dao.db)
 	if err != nil {
 		return fmt.Errorf("failed to add moderator: %w", err)
@@ -113,15 +147,29 @@ func (dao *SubforumDAO) AddSubforumModerator(ctx context.Context, subforumID int
 	return nil
 }
 
-// CreateSubforum creates a new subforum
-func (dao *SubforumDAO) CreateSubforum(ctx context.Context, name, displayName, description, sidebarText, rulesText string, isNSFW, isPrivate, isRestricted bool) (*models.Subforum, error) {
-	// Check if subforum with this name already exists
-	existing, err := dao.GetSubforumByName(ctx, name)
+// RemoveSubforumModerator removes a moderator from a subforum
+func (dao *SubforumDAO) RemoveSubforumModerator(ctx context.Context, subforumID int32, pseudonymID string) error {
+	// Delete the moderator
+	_, err := models.SubforumModerators.Delete(
+		models.DeleteWhere.SubforumModerators.SubforumID.EQ(subforumID),
+		models.DeleteWhere.SubforumModerators.PseudonymID.EQ(pseudonymID),
+	).Exec(ctx, dao.db)
+	if err != nil {
+		return fmt.Errorf("failed to remove moderator: %w", err)
+	}
+
+	return nil
+}
+
+// CreateSubforum creates a new subforum with community type support
+func (dao *SubforumDAO) CreateSubforum(ctx context.Context, name, displayName, description, sidebarText, rulesText, communityType, governanceStyle string, isNSFW, isPrivate, isRestricted bool, ownerPseudonymID string) (*models.Subforum, error) {
+	// Check if subforum with this name and community type already exists
+	existing, err := dao.GetSubforumByCommunityTypeAndName(ctx, communityType, name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing subforum: %w", err)
 	}
 	if existing != nil {
-		return nil, fmt.Errorf("subforum with name '%s' already exists", name)
+		return nil, fmt.Errorf("subforum with name '%s' already exists in community type '%s'", name, communityType)
 	}
 
 	// Create null types for optional fields
@@ -152,19 +200,27 @@ func (dao *SubforumDAO) CreateSubforum(ctx context.Context, name, displayName, d
 	createdAtNull := sql.Null[time.Time]{}
 	createdAtNull.Scan(time.Now())
 
+	ownerPseudonymIDNull := sql.Null[string]{}
+	if ownerPseudonymID != "" {
+		ownerPseudonymIDNull.Scan(ownerPseudonymID)
+	}
+
 	// Create the subforum using the setter pattern
 	subforumSetter := &models.SubforumSetter{
-		Name:            &name,
-		DisplayName:     &displayName,
-		Description:     &descriptionNull,
-		SidebarText:     &sidebarTextNull,
-		RulesText:       &rulesTextNull,
-		IsNSFW:          &isNSFWNull,
-		IsPrivate:       &isPrivateNull,
-		IsRestricted:    &isRestrictedNull,
-		SubscriberCount: &subscriberCountNull,
-		PostCount:       &postCountNull,
-		CreatedAt:       &createdAtNull,
+		Name:             &name,
+		DisplayName:      &displayName,
+		Description:      &descriptionNull,
+		SidebarText:      &sidebarTextNull,
+		RulesText:        &rulesTextNull,
+		CommunityType:    &communityType,
+		GovernanceStyle:  &governanceStyle,
+		IsNSFW:           &isNSFWNull,
+		IsPrivate:        &isPrivateNull,
+		IsRestricted:     &isRestrictedNull,
+		SubscriberCount:  &subscriberCountNull,
+		PostCount:        &postCountNull,
+		CreatedAt:        &createdAtNull,
+		OwnerPseudonymID: &ownerPseudonymIDNull,
 	}
 
 	// Insert into database using the generated table helper
@@ -203,6 +259,38 @@ func (dao *SubforumDAO) UpdatePostCount(ctx context.Context, subforumID int32, p
 	err = subforum.Update(ctx, dao.db, updateSetter)
 	if err != nil {
 		return fmt.Errorf("failed to update subforum post count: %w", err)
+	}
+
+	return nil
+}
+
+// UpdateSubscriberCount updates the subscriber count for a subforum
+func (dao *SubforumDAO) UpdateSubscriberCount(ctx context.Context, subforumID int32, subscriberCount int32) error {
+	// Get the current subforum
+	subforum, err := dao.GetSubforumByID(ctx, subforumID)
+	if err != nil {
+		return fmt.Errorf("failed to get subforum for subscriber count update: %w", err)
+	}
+	if subforum == nil {
+		return fmt.Errorf("subforum not found")
+	}
+
+	// Create the update setter
+	subscriberCountNull := sql.Null[int32]{}
+	subscriberCountNull.Scan(subscriberCount)
+
+	updatedAtNull := sql.Null[time.Time]{}
+	updatedAtNull.Scan(time.Now())
+
+	updateSetter := &models.SubforumSetter{
+		SubscriberCount: &subscriberCountNull,
+		UpdatedAt:       &updatedAtNull,
+	}
+
+	// Update the subforum
+	err = subforum.Update(ctx, dao.db, updateSetter)
+	if err != nil {
+		return fmt.Errorf("failed to update subforum subscriber count: %w", err)
 	}
 
 	return nil

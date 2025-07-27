@@ -56,18 +56,22 @@ type SubforumTemplate struct {
 	MinimumAccountAgeHours func() sql.Null[int32]
 	MinimumKarmaRequired   func() sql.Null[int32]
 	UpdatedAt              func() sql.Null[time.Time]
+	CommunityType          func() string
+	GovernanceStyle        func() string
+	OwnerPseudonymID       func() sql.Null[string]
 
 	r subforumR
 	f *Factory
 }
 
 type subforumR struct {
-	ModerationActions     []*subforumRModerationActionsR
-	Posts                 []*subforumRPostsR
-	SubforumModerators    []*subforumRSubforumModeratorsR
-	SubforumSubscriptions []*subforumRSubforumSubscriptionsR
-	CreatedByUserUser     *subforumRCreatedByUserUserR
-	UserBans              []*subforumRUserBansR
+	ModerationActions       []*subforumRModerationActionsR
+	Posts                   []*subforumRPostsR
+	SubforumModerators      []*subforumRSubforumModeratorsR
+	SubforumSubscriptions   []*subforumRSubforumSubscriptionsR
+	OwnerPseudonymPseudonym *subforumROwnerPseudonymPseudonymR
+	CreatedByUserUser       *subforumRCreatedByUserUserR
+	UserBans                []*subforumRUserBansR
 }
 
 type subforumRModerationActionsR struct {
@@ -85,6 +89,9 @@ type subforumRSubforumModeratorsR struct {
 type subforumRSubforumSubscriptionsR struct {
 	number int
 	o      *SubforumSubscriptionTemplate
+}
+type subforumROwnerPseudonymPseudonymR struct {
+	o *PseudonymTemplate
 }
 type subforumRCreatedByUserUserR struct {
 	o *UserTemplate
@@ -154,6 +161,13 @@ func (t SubforumTemplate) setModelRels(o *models.Subforum) {
 			rel = append(rel, related...)
 		}
 		o.R.SubforumSubscriptions = rel
+	}
+
+	if t.r.OwnerPseudonymPseudonym != nil {
+		rel := t.r.OwnerPseudonymPseudonym.o.Build()
+		rel.R.OwnerPseudonymSubforums = append(rel.R.OwnerPseudonymSubforums, o)
+		o.OwnerPseudonymID = sql.Null[string]{V: rel.PseudonymID, Valid: true} // h2
+		o.R.OwnerPseudonymPseudonym = rel
 	}
 
 	if t.r.CreatedByUserUser != nil {
@@ -266,6 +280,18 @@ func (o SubforumTemplate) BuildSetter() *models.SubforumSetter {
 		val := o.UpdatedAt()
 		m.UpdatedAt = &val
 	}
+	if o.CommunityType != nil {
+		val := o.CommunityType()
+		m.CommunityType = &val
+	}
+	if o.GovernanceStyle != nil {
+		val := o.GovernanceStyle()
+		m.GovernanceStyle = &val
+	}
+	if o.OwnerPseudonymID != nil {
+		val := o.OwnerPseudonymID()
+		m.OwnerPseudonymID = &val
+	}
 
 	return m
 }
@@ -350,6 +376,15 @@ func (o SubforumTemplate) Build() *models.Subforum {
 	}
 	if o.UpdatedAt != nil {
 		m.UpdatedAt = o.UpdatedAt()
+	}
+	if o.CommunityType != nil {
+		m.CommunityType = o.CommunityType()
+	}
+	if o.GovernanceStyle != nil {
+		m.GovernanceStyle = o.GovernanceStyle()
+	}
+	if o.OwnerPseudonymID != nil {
+		m.OwnerPseudonymID = o.OwnerPseudonymID()
 	}
 
 	o.setModelRels(m)
@@ -455,15 +490,30 @@ func (o *SubforumTemplate) insertOptRels(ctx context.Context, exec bob.Executor,
 		}
 	}
 
-	isCreatedByUserUserDone, _ := subforumRelCreatedByUserUserCtx.Value(ctx)
-	if !isCreatedByUserUserDone && o.r.CreatedByUserUser != nil {
-		ctx = subforumRelCreatedByUserUserCtx.WithValue(ctx, true)
-		var rel4 *models.User
-		ctx, rel4, err = o.r.CreatedByUserUser.o.create(ctx, exec)
+	isOwnerPseudonymPseudonymDone, _ := subforumRelOwnerPseudonymPseudonymCtx.Value(ctx)
+	if !isOwnerPseudonymPseudonymDone && o.r.OwnerPseudonymPseudonym != nil {
+		ctx = subforumRelOwnerPseudonymPseudonymCtx.WithValue(ctx, true)
+		var rel4 *models.Pseudonym
+		ctx, rel4, err = o.r.OwnerPseudonymPseudonym.o.create(ctx, exec)
 		if err != nil {
 			return ctx, err
 		}
-		err = m.AttachCreatedByUserUser(ctx, exec, rel4)
+		err = m.AttachOwnerPseudonymPseudonym(ctx, exec, rel4)
+		if err != nil {
+			return ctx, err
+		}
+
+	}
+
+	isCreatedByUserUserDone, _ := subforumRelCreatedByUserUserCtx.Value(ctx)
+	if !isCreatedByUserUserDone && o.r.CreatedByUserUser != nil {
+		ctx = subforumRelCreatedByUserUserCtx.WithValue(ctx, true)
+		var rel5 *models.User
+		ctx, rel5, err = o.r.CreatedByUserUser.o.create(ctx, exec)
+		if err != nil {
+			return ctx, err
+		}
+		err = m.AttachCreatedByUserUser(ctx, exec, rel5)
 		if err != nil {
 			return ctx, err
 		}
@@ -474,13 +524,13 @@ func (o *SubforumTemplate) insertOptRels(ctx context.Context, exec bob.Executor,
 	if !isUserBansDone && o.r.UserBans != nil {
 		ctx = subforumRelUserBansCtx.WithValue(ctx, true)
 		for _, r := range o.r.UserBans {
-			var rel5 models.UserBanSlice
-			ctx, rel5, err = r.o.createMany(ctx, exec, r.number)
+			var rel6 models.UserBanSlice
+			ctx, rel6, err = r.o.createMany(ctx, exec, r.number)
 			if err != nil {
 				return ctx, err
 			}
 
-			err = m.AttachUserBans(ctx, exec, rel5...)
+			err = m.AttachUserBans(ctx, exec, rel6...)
 			if err != nil {
 				return ctx, err
 			}
@@ -615,6 +665,9 @@ func (m subforumMods) RandomizeAllColumns(f *faker.Faker) SubforumMod {
 		SubforumMods.RandomMinimumAccountAgeHours(f),
 		SubforumMods.RandomMinimumKarmaRequired(f),
 		SubforumMods.RandomUpdatedAt(f),
+		SubforumMods.RandomCommunityType(f),
+		SubforumMods.RandomGovernanceStyle(f),
+		SubforumMods.RandomOwnerPseudonymID(f),
 	}
 }
 
@@ -1665,6 +1718,121 @@ func (m subforumMods) RandomUpdatedAtNotNull(f *faker.Faker) SubforumMod {
 	})
 }
 
+// Set the model columns to this value
+func (m subforumMods) CommunityType(val string) SubforumMod {
+	return SubforumModFunc(func(_ context.Context, o *SubforumTemplate) {
+		o.CommunityType = func() string { return val }
+	})
+}
+
+// Set the Column from the function
+func (m subforumMods) CommunityTypeFunc(f func() string) SubforumMod {
+	return SubforumModFunc(func(_ context.Context, o *SubforumTemplate) {
+		o.CommunityType = f
+	})
+}
+
+// Clear any values for the column
+func (m subforumMods) UnsetCommunityType() SubforumMod {
+	return SubforumModFunc(func(_ context.Context, o *SubforumTemplate) {
+		o.CommunityType = nil
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+func (m subforumMods) RandomCommunityType(f *faker.Faker) SubforumMod {
+	return SubforumModFunc(func(_ context.Context, o *SubforumTemplate) {
+		o.CommunityType = func() string {
+			return random_string(f, "1")
+		}
+	})
+}
+
+// Set the model columns to this value
+func (m subforumMods) GovernanceStyle(val string) SubforumMod {
+	return SubforumModFunc(func(_ context.Context, o *SubforumTemplate) {
+		o.GovernanceStyle = func() string { return val }
+	})
+}
+
+// Set the Column from the function
+func (m subforumMods) GovernanceStyleFunc(f func() string) SubforumMod {
+	return SubforumModFunc(func(_ context.Context, o *SubforumTemplate) {
+		o.GovernanceStyle = f
+	})
+}
+
+// Clear any values for the column
+func (m subforumMods) UnsetGovernanceStyle() SubforumMod {
+	return SubforumModFunc(func(_ context.Context, o *SubforumTemplate) {
+		o.GovernanceStyle = nil
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+func (m subforumMods) RandomGovernanceStyle(f *faker.Faker) SubforumMod {
+	return SubforumModFunc(func(_ context.Context, o *SubforumTemplate) {
+		o.GovernanceStyle = func() string {
+			return random_string(f, "20")
+		}
+	})
+}
+
+// Set the model columns to this value
+func (m subforumMods) OwnerPseudonymID(val sql.Null[string]) SubforumMod {
+	return SubforumModFunc(func(_ context.Context, o *SubforumTemplate) {
+		o.OwnerPseudonymID = func() sql.Null[string] { return val }
+	})
+}
+
+// Set the Column from the function
+func (m subforumMods) OwnerPseudonymIDFunc(f func() sql.Null[string]) SubforumMod {
+	return SubforumModFunc(func(_ context.Context, o *SubforumTemplate) {
+		o.OwnerPseudonymID = f
+	})
+}
+
+// Clear any values for the column
+func (m subforumMods) UnsetOwnerPseudonymID() SubforumMod {
+	return SubforumModFunc(func(_ context.Context, o *SubforumTemplate) {
+		o.OwnerPseudonymID = nil
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+// The generated value is sometimes null
+func (m subforumMods) RandomOwnerPseudonymID(f *faker.Faker) SubforumMod {
+	return SubforumModFunc(func(_ context.Context, o *SubforumTemplate) {
+		o.OwnerPseudonymID = func() sql.Null[string] {
+			if f == nil {
+				f = &defaultFaker
+			}
+
+			val := random_string(f, "64")
+			return sql.Null[string]{V: val, Valid: f.Bool()}
+		}
+	})
+}
+
+// Generates a random value for the column using the given faker
+// if faker is nil, a default faker is used
+// The generated value is never null
+func (m subforumMods) RandomOwnerPseudonymIDNotNull(f *faker.Faker) SubforumMod {
+	return SubforumModFunc(func(_ context.Context, o *SubforumTemplate) {
+		o.OwnerPseudonymID = func() sql.Null[string] {
+			if f == nil {
+				f = &defaultFaker
+			}
+
+			val := random_string(f, "64")
+			return sql.Null[string]{V: val, Valid: true}
+		}
+	})
+}
+
 func (m subforumMods) WithParentsCascading() SubforumMod {
 	return SubforumModFunc(func(ctx context.Context, o *SubforumTemplate) {
 		if isDone, _ := subforumWithParentsCascadingCtx.Value(ctx); isDone {
@@ -1673,9 +1841,36 @@ func (m subforumMods) WithParentsCascading() SubforumMod {
 		ctx = subforumWithParentsCascadingCtx.WithValue(ctx, true)
 		{
 
+			related := o.f.NewPseudonym(ctx, PseudonymMods.WithParentsCascading())
+			m.WithOwnerPseudonymPseudonym(related).Apply(ctx, o)
+		}
+		{
+
 			related := o.f.NewUser(ctx, UserMods.WithParentsCascading())
 			m.WithCreatedByUserUser(related).Apply(ctx, o)
 		}
+	})
+}
+
+func (m subforumMods) WithOwnerPseudonymPseudonym(rel *PseudonymTemplate) SubforumMod {
+	return SubforumModFunc(func(ctx context.Context, o *SubforumTemplate) {
+		o.r.OwnerPseudonymPseudonym = &subforumROwnerPseudonymPseudonymR{
+			o: rel,
+		}
+	})
+}
+
+func (m subforumMods) WithNewOwnerPseudonymPseudonym(mods ...PseudonymMod) SubforumMod {
+	return SubforumModFunc(func(ctx context.Context, o *SubforumTemplate) {
+		related := o.f.NewPseudonym(ctx, mods...)
+
+		m.WithOwnerPseudonymPseudonym(related).Apply(ctx, o)
+	})
+}
+
+func (m subforumMods) WithoutOwnerPseudonymPseudonym() SubforumMod {
+	return SubforumModFunc(func(ctx context.Context, o *SubforumTemplate) {
+		o.r.OwnerPseudonymPseudonym = nil
 	})
 }
 
