@@ -228,7 +228,7 @@ func CreateAdminUser() error {
 
 	// Create a pseudonym for the admin user with identity mapping
 	userBlocksDAO := dao.NewUserBlocksDAO(db)
-	securePseudonymDAO := dao.NewSecurePseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
+	securePseudonymDAO := dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
 
 	// Use display name for pseudonym (it's required)
 	displayName := input.DisplayName
@@ -330,7 +330,7 @@ func SetModerator() error {
 
 	// Create DAOs
 	subforumDAO := dao.NewSubforumDAO(db)
-	pseudonymDAO := dao.NewSecurePseudonymDAO(db, ibe.NewIBESystemFromEnv(), dao.NewIdentityMappingDAO(db), dao.NewUserDAO(db), dao.NewRoleKeyDAO(db), dao.NewUserBlocksDAO(db))
+	pseudonymDAO := dao.NewPseudonymDAO(db, ibe.NewIBESystemFromEnv(), dao.NewIdentityMappingDAO(db), dao.NewUserDAO(db), dao.NewRoleKeyDAO(db), dao.NewUserBlocksDAO(db))
 
 	ctx := context.Background()
 

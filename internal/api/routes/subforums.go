@@ -10,7 +10,7 @@ import (
 
 // RegisterSubforumRoutes registers subforum-related routes
 func RegisterSubforumRoutes(api huma.API, db bob.Executor) {
-	subforumHandler := handlers.NewSubforumHandler(db)
+	subforumHandler := handlers.NewSubforumHandler(db, nil, nil, nil, nil, nil, nil)
 
 	// Get subforums
 	huma.Register(api, huma.Operation{

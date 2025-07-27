@@ -33,7 +33,7 @@ func TestPseudonymSwitchingScopeValidation(t *testing.T) {
 		}
 
 		mockSecurePseudonymDAO := mocks.NewMockSecurePseudonymDAO()
-		handler := handlers.NewAuthHandlerWithDependencies(cfg, nil, mockSecurePseudonymDAO, nil, nil, ibe.NewIBESystem(), nil, nil)
+		handler := handlers.NewAuthHandler(cfg, nil, nil, mockSecurePseudonymDAO, nil, nil, ibe.NewIBESystem(), nil, nil)
 
 		ctx := context.Background()
 		userCtx := fixtures.CreateTestUserContext()
@@ -91,7 +91,7 @@ func TestPseudonymSwitchingScopeValidation(t *testing.T) {
 		}
 
 		mockSecurePseudonymDAO := mocks.NewMockSecurePseudonymDAO()
-		handler := handlers.NewAuthHandlerWithDependencies(cfg, nil, mockSecurePseudonymDAO, nil, nil, ibe.NewIBESystem(), nil, nil)
+		handler := handlers.NewAuthHandler(cfg, nil, nil, mockSecurePseudonymDAO, nil, nil, ibe.NewIBESystem(), nil, nil)
 
 		ctx := context.Background()
 		userCtx := fixtures.CreateTestUserContext()
@@ -149,7 +149,7 @@ func TestPseudonymSwitchingScopeValidation(t *testing.T) {
 		}
 
 		mockSecurePseudonymDAO := mocks.NewMockSecurePseudonymDAO()
-		handler := handlers.NewAuthHandlerWithDependencies(cfg, nil, mockSecurePseudonymDAO, nil, nil, ibe.NewIBESystem(), nil, nil)
+		handler := handlers.NewAuthHandler(cfg, nil, nil, mockSecurePseudonymDAO, nil, nil, ibe.NewIBESystem(), nil, nil)
 
 		ctx := context.Background()
 		userCtx := fixtures.CreateTestUserContext()
@@ -207,7 +207,7 @@ func TestPseudonymSwitchingScopeValidation(t *testing.T) {
 		}
 
 		mockSecurePseudonymDAO := mocks.NewMockSecurePseudonymDAO()
-		handler := handlers.NewAuthHandlerWithDependencies(cfg, nil, mockSecurePseudonymDAO, nil, nil, ibe.NewIBESystem(), nil, nil)
+		handler := handlers.NewAuthHandler(cfg, nil, nil, mockSecurePseudonymDAO, nil, nil, ibe.NewIBESystem(), nil, nil)
 
 		ctx := context.Background()
 		userCtx := fixtures.CreateTestUserContext()

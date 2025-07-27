@@ -12,6 +12,7 @@ import (
 	"github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/matt0x6f/hashpost/internal/fixtures"
 	"github.com/matt0x6f/hashpost/internal/ibe"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
@@ -27,7 +28,8 @@ func createTestUserHandler() (*UserHandler, *mocks.MockUserDAO, *mocks.MockSecur
 
 	ibeSystem := ibe.NewIBESystem()
 
-	handler := NewUserHandlerWithDependencies(
+	handler := NewUserHandler(
+		nil, // nil db for testing
 		mockUserDAO,
 		mockSecurePseudonymDAO,
 		mockUserPreferencesDAO,
@@ -281,7 +283,8 @@ func TestUserHandler_GetUserProfile(t *testing.T) {
 		mockCommentDAO.On("CountCommentsByPseudonym", mock.Anything, "test-pseudonym-id").Return(int64(10), nil)
 
 		// Create handler with mocked dependencies
-		handler := NewUserHandlerWithDependencies(
+		handler := NewUserHandler(
+			nil, // nil db for testing
 			mockUserDAO,
 			mockSecurePseudonymDAO,
 			nil, // Mock UserPreferencesDAO
@@ -318,5 +321,364 @@ func TestUserHandler_GetUserProfile(t *testing.T) {
 		// Verify mock expectations
 		mockUserDAO.AssertExpectations(t)
 		mockSecurePseudonymDAO.AssertExpectations(t)
+	})
+}
+
+// TestNewUserHandler tests the main constructor function
+func TestNewUserHandler(t *testing.T) {
+	t.Run("NewUserHandlerSuccess", func(t *testing.T) {
+		// Create mock dependencies
+		mockUserDAO := &mocks.MockUserDAO{}
+		mockSecurePseudonymDAO := &mocks.MockSecurePseudonymDAO{}
+		mockUserPreferencesDAO := &mocks.MockUserPreferencesDAO{}
+		mockUserBlocksDAO := &mocks.MockUserBlocksDAO{}
+		mockPostDAO := &mocks.MockPostDAO{}
+		mockCommentDAO := &mocks.MockCommentDAO{}
+		mockIBESystem := &ibe.IBESystem{}
+
+		// Create handler with dependencies
+		handler := NewUserHandler(
+			nil, // nil db for testing
+			mockUserDAO,
+			mockSecurePseudonymDAO,
+			mockUserPreferencesDAO,
+			mockUserBlocksDAO,
+			mockPostDAO,
+			mockCommentDAO,
+			mockIBESystem,
+		)
+
+		// Verify handler is created
+		assert.NotNil(t, handler)
+	})
+}
+
+// TestUserHandler_GetUserPreferences tests the get user preferences functionality
+func TestUserHandler_GetUserPreferences(t *testing.T) {
+	t.Run("GetUserPreferencesSuccess", func(t *testing.T) {
+		handler, _, _, mockUserPreferencesDAO, _, _, _ := createTestUserHandler()
+
+		// Test data
+		userID := int64(1)
+		testPreferences := &models.UserPreference{
+			UserID:             userID,
+			Timezone:           sql.Null[string]{V: "America/New_York", Valid: true},
+			Language:           sql.Null[string]{V: "es", Valid: true},
+			Theme:              sql.Null[string]{V: "dark", Valid: true},
+			EmailNotifications: sql.Null[bool]{V: false, Valid: true},
+			PushNotifications:  sql.Null[bool]{V: true, Valid: true},
+			AutoHideNSFW:       sql.Null[bool]{V: false, Valid: true},
+			AutoHideSpoilers:   sql.Null[bool]{V: true, Valid: true},
+		}
+
+		// Mock preferences retrieval
+		mockUserPreferencesDAO.On("GetUserPreferences", mock.Anything, userID).Return(testPreferences, nil)
+
+		// Create input
+		input := &struct {
+			middleware.AuthInput
+			apimodels.UserPreferencesInput
+		}{
+			AuthInput: middleware.AuthInput{
+				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(userID, "test-pseudonym-id"),
+			},
+		}
+
+		// Set up user context
+		userCtx := fixtures.CreateTestUserContext()
+		ctx := context.WithValue(context.Background(), middleware.UserContextKeyValue, userCtx)
+
+		// Call handler
+		response, err := handler.GetUserPreferences(ctx, input)
+
+		// Verify response
+		require.NoError(t, err)
+		require.NotNil(t, response)
+		assert.Equal(t, "America/New_York", response.Body.Timezone)
+		assert.Equal(t, "es", response.Body.Language)
+		assert.Equal(t, "dark", response.Body.Theme)
+		assert.False(t, response.Body.EmailNotifications)
+		assert.True(t, response.Body.PushNotifications)
+		assert.False(t, response.Body.AutoHideNSFW)
+		assert.True(t, response.Body.AutoHideSpoilers)
+
+		// Verify DAO calls
+		mockUserPreferencesDAO.AssertExpectations(t)
+	})
+
+	t.Run("GetUserPreferencesNoPreferences", func(t *testing.T) {
+		handler, _, _, mockUserPreferencesDAO, _, _, _ := createTestUserHandler()
+
+		// Test data
+		userID := int64(1)
+
+		// Mock preferences retrieval - no preferences found
+		mockUserPreferencesDAO.On("GetUserPreferences", mock.Anything, userID).Return(nil, nil)
+
+		// Create input
+		input := &struct {
+			middleware.AuthInput
+			apimodels.UserPreferencesInput
+		}{
+			AuthInput: middleware.AuthInput{
+				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(userID, "test-pseudonym-id"),
+			},
+		}
+
+		// Set up user context
+		userCtx := fixtures.CreateTestUserContext()
+		ctx := context.WithValue(context.Background(), middleware.UserContextKeyValue, userCtx)
+
+		// Call handler
+		response, err := handler.GetUserPreferences(ctx, input)
+
+		// Verify response - should return defaults
+		require.NoError(t, err)
+		require.NotNil(t, response)
+		assert.Equal(t, "UTC", response.Body.Timezone)
+		assert.Equal(t, "en", response.Body.Language)
+		assert.Equal(t, "light", response.Body.Theme)
+		assert.True(t, response.Body.EmailNotifications)
+		assert.True(t, response.Body.PushNotifications)
+		assert.True(t, response.Body.AutoHideNSFW)
+		assert.True(t, response.Body.AutoHideSpoilers)
+
+		// Verify DAO calls
+		mockUserPreferencesDAO.AssertExpectations(t)
+	})
+
+	t.Run("GetUserPreferencesDatabaseError", func(t *testing.T) {
+		handler, _, _, mockUserPreferencesDAO, _, _, _ := createTestUserHandler()
+
+		// Test data
+		userID := int64(1)
+
+		// Mock database error
+		mockUserPreferencesDAO.On("GetUserPreferences", mock.Anything, userID).Return(nil, assert.AnError)
+
+		// Create input
+		input := &struct {
+			middleware.AuthInput
+			apimodels.UserPreferencesInput
+		}{
+			AuthInput: middleware.AuthInput{
+				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(userID, "test-pseudonym-id"),
+			},
+		}
+
+		// Set up user context
+		userCtx := fixtures.CreateTestUserContext()
+		ctx := context.WithValue(context.Background(), middleware.UserContextKeyValue, userCtx)
+
+		// Call handler
+		response, err := handler.GetUserPreferences(ctx, input)
+
+		// Verify error
+		require.Error(t, err)
+		assert.Nil(t, response)
+		assert.Contains(t, err.Error(), "failed to get user preferences")
+
+		// Verify DAO calls
+		mockUserPreferencesDAO.AssertExpectations(t)
+	})
+
+	t.Run("GetUserPreferencesNoAuthentication", func(t *testing.T) {
+		handler, _, _, _, _, _, _ := createTestUserHandler()
+
+		// Create input without authentication
+		input := &struct {
+			middleware.AuthInput
+			apimodels.UserPreferencesInput
+		}{}
+
+		// Call handler
+		response, err := handler.GetUserPreferences(context.Background(), input)
+
+		// Verify error
+		require.Error(t, err)
+		assert.Nil(t, response)
+		assert.Contains(t, err.Error(), "Authentication required")
+	})
+}
+
+// TestUserHandler_UpdateUserPreferences tests the update user preferences functionality
+func TestUserHandler_UpdateUserPreferences(t *testing.T) {
+	t.Run("UpdateUserPreferencesSuccess", func(t *testing.T) {
+		handler, _, _, mockUserPreferencesDAO, _, _, _ := createTestUserHandler()
+
+		// Test data
+		userID := int64(1)
+		timezone := "Europe/London"
+		language := "fr"
+		theme := "dark"
+		emailNotifications := false
+		pushNotifications := true
+		autoHideNSFW := false
+		autoHideSpoilers := true
+
+		updatedPreferences := &models.UserPreference{
+			UserID:             userID,
+			Timezone:           sql.Null[string]{V: timezone, Valid: true},
+			Language:           sql.Null[string]{V: language, Valid: true},
+			Theme:              sql.Null[string]{V: theme, Valid: true},
+			EmailNotifications: sql.Null[bool]{V: emailNotifications, Valid: true},
+			PushNotifications:  sql.Null[bool]{V: pushNotifications, Valid: true},
+			AutoHideNSFW:       sql.Null[bool]{V: autoHideNSFW, Valid: true},
+			AutoHideSpoilers:   sql.Null[bool]{V: autoHideSpoilers, Valid: true},
+		}
+
+		// Mock preferences update
+		mockUserPreferencesDAO.On("UpsertUserPreferences", mock.Anything, userID, mock.AnythingOfType("*models.UserPreferenceSetter")).Return(updatedPreferences, nil)
+
+		// Create input
+		input := &struct {
+			middleware.AuthInput
+			apimodels.UserPreferencesInput
+		}{
+			AuthInput: middleware.AuthInput{
+				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(userID, "test-pseudonym-id"),
+			},
+			UserPreferencesInput: apimodels.UserPreferencesInput{
+				Body: apimodels.UserPreferencesBody{
+					Timezone:           timezone,
+					Language:           language,
+					Theme:              theme,
+					EmailNotifications: &emailNotifications,
+					PushNotifications:  &pushNotifications,
+					AutoHideNSFW:       &autoHideNSFW,
+					AutoHideSpoilers:   &autoHideSpoilers,
+				},
+			},
+		}
+
+		// Set up user context
+		userCtx := fixtures.CreateTestUserContext()
+		ctx := context.WithValue(context.Background(), middleware.UserContextKeyValue, userCtx)
+
+		// Call handler
+		response, err := handler.UpdateUserPreferences(ctx, input)
+
+		// Verify response
+		require.NoError(t, err)
+		require.NotNil(t, response)
+		assert.Equal(t, timezone, response.Body.Timezone)
+		assert.Equal(t, language, response.Body.Language)
+		assert.Equal(t, theme, response.Body.Theme)
+		assert.Equal(t, emailNotifications, response.Body.EmailNotifications)
+		assert.Equal(t, pushNotifications, response.Body.PushNotifications)
+		assert.Equal(t, autoHideNSFW, response.Body.AutoHideNSFW)
+		assert.Equal(t, autoHideSpoilers, response.Body.AutoHideSpoilers)
+
+		// Verify DAO calls
+		mockUserPreferencesDAO.AssertExpectations(t)
+	})
+
+	t.Run("UpdateUserPreferencesPartialUpdate", func(t *testing.T) {
+		handler, _, _, mockUserPreferencesDAO, _, _, _ := createTestUserHandler()
+
+		// Test data
+		userID := int64(1)
+		timezone := "Asia/Tokyo"
+		theme := "light"
+
+		updatedPreferences := &models.UserPreference{
+			UserID:   userID,
+			Timezone: sql.Null[string]{V: timezone, Valid: true},
+			Theme:    sql.Null[string]{V: theme, Valid: true},
+		}
+
+		// Mock preferences update
+		mockUserPreferencesDAO.On("UpsertUserPreferences", mock.Anything, userID, mock.AnythingOfType("*models.UserPreferenceSetter")).Return(updatedPreferences, nil)
+
+		// Create input with only some fields
+		input := &struct {
+			middleware.AuthInput
+			apimodels.UserPreferencesInput
+		}{
+			AuthInput: middleware.AuthInput{
+				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(userID, "test-pseudonym-id"),
+			},
+			UserPreferencesInput: apimodels.UserPreferencesInput{
+				Body: apimodels.UserPreferencesBody{
+					Timezone: timezone,
+					Theme:    theme,
+				},
+			},
+		}
+
+		// Set up user context
+		userCtx := fixtures.CreateTestUserContext()
+		ctx := context.WithValue(context.Background(), middleware.UserContextKeyValue, userCtx)
+
+		// Call handler
+		response, err := handler.UpdateUserPreferences(ctx, input)
+
+		// Verify response
+		require.NoError(t, err)
+		require.NotNil(t, response)
+		assert.Equal(t, timezone, response.Body.Timezone)
+		assert.Equal(t, theme, response.Body.Theme)
+
+		// Verify DAO calls
+		mockUserPreferencesDAO.AssertExpectations(t)
+	})
+
+	t.Run("UpdateUserPreferencesDatabaseError", func(t *testing.T) {
+		handler, _, _, mockUserPreferencesDAO, _, _, _ := createTestUserHandler()
+
+		// Test data
+		userID := int64(1)
+		timezone := "UTC"
+
+		// Mock database error
+		mockUserPreferencesDAO.On("UpsertUserPreferences", mock.Anything, userID, mock.AnythingOfType("*models.UserPreferenceSetter")).Return(nil, assert.AnError)
+
+		// Create input
+		input := &struct {
+			middleware.AuthInput
+			apimodels.UserPreferencesInput
+		}{
+			AuthInput: middleware.AuthInput{
+				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(userID, "test-pseudonym-id"),
+			},
+			UserPreferencesInput: apimodels.UserPreferencesInput{
+				Body: apimodels.UserPreferencesBody{
+					Timezone: timezone,
+				},
+			},
+		}
+
+		// Set up user context
+		userCtx := fixtures.CreateTestUserContext()
+		ctx := context.WithValue(context.Background(), middleware.UserContextKeyValue, userCtx)
+
+		// Call handler
+		response, err := handler.UpdateUserPreferences(ctx, input)
+
+		// Verify error
+		require.Error(t, err)
+		assert.Nil(t, response)
+		assert.Contains(t, err.Error(), "failed to update user preferences")
+
+		// Verify DAO calls
+		mockUserPreferencesDAO.AssertExpectations(t)
+	})
+
+	t.Run("UpdateUserPreferencesNoAuthentication", func(t *testing.T) {
+		handler, _, _, _, _, _, _ := createTestUserHandler()
+
+		// Create input without authentication
+		input := &struct {
+			middleware.AuthInput
+			apimodels.UserPreferencesInput
+		}{}
+
+		// Call handler
+		response, err := handler.UpdateUserPreferences(context.Background(), input)
+
+		// Verify error
+		require.Error(t, err)
+		assert.Nil(t, response)
+		assert.Contains(t, err.Error(), "Authentication required")
 	})
 }
