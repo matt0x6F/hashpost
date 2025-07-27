@@ -11,7 +11,7 @@ import (
 )
 
 // RegisterCorrelationRoutes registers administrative correlation routes
-func RegisterCorrelationRoutes(api huma.API, db bob.Executor, ibeSystem *ibe.IBESystem, securePseudonymDAO *dao.SecurePseudonymDAO, identityMappingDAO *dao.IdentityMappingDAO, postDAO *dao.PostDAO, commentDAO *dao.CommentDAO, subforumDAO *dao.SubforumDAO) {
+func RegisterCorrelationRoutes(api huma.API, db bob.Executor, ibeSystem *ibe.IBESystem, securePseudonymDAO *dao.PseudonymDAO, identityMappingDAO *dao.IdentityMappingDAO, postDAO *dao.PostDAO, commentDAO *dao.CommentDAO, subforumDAO *dao.SubforumDAO) {
 	correlationAuditDAO := dao.NewCorrelationAuditDAO(db)
 	correlationHandler := handlers.NewCorrelationHandler(db, ibeSystem, securePseudonymDAO, identityMappingDAO, postDAO, commentDAO, subforumDAO, correlationAuditDAO)
 

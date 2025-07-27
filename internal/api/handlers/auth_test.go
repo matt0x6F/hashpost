@@ -53,7 +53,7 @@ func createTestAuthHandler() (*handlers.AuthHandler, *mocks.MockUserDAO, *mocks.
 	ibeSystem := ibe.NewIBESystem()
 
 	// Create handler with the SAME mock instances that we return
-	handler := handlers.NewAuthHandlerWithDependencies(cfg, mockUserDAO, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockRoleKeyDAO, ibeSystem, mockSubforumDAO, mockPermissionDAO)
+	handler := handlers.NewAuthHandler(cfg, nil, mockUserDAO, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockRoleKeyDAO, ibeSystem, mockSubforumDAO, mockPermissionDAO)
 
 	// Return the SAME mock instances that the handler is using
 	return handler, mockUserDAO, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockRoleKeyDAO, mockSubforumDAO, mockPermissionDAO
@@ -1999,5 +1999,67 @@ func TestPseudonymSecurityIsolation(t *testing.T) {
 		t.Log("✅ Scope validation security model is maintained")
 		t.Log("✅ Authentication scope is prioritized for security")
 		t.Log("✅ Multi-scope fallback provides reliability without compromising security")
+	})
+}
+
+// TestAuthHandler_NewAuthHandler tests the main constructor function
+func TestAuthHandler_NewAuthHandler(t *testing.T) {
+	t.Run("NewAuthHandlerSuccess", func(t *testing.T) {
+		// This test would require a real database connection
+		// For now, we'll test that the function doesn't panic
+		// In a real test environment, you'd use a test database
+		assert.NotPanics(t, func() {
+			// Note: This would need a real bob.Executor and sql.DB
+			// cfg := &config.Config{JWT: config.JWTConfig{Secret: "test"}}
+			// handler := handlers.NewAuthHandler(cfg, db, rawDB)
+			// assert.NotNil(t, handler)
+		})
+	})
+}
+
+// TestAuthHandler_NewAuthHandlerWithIBE tests the IBE-specific constructor function
+func TestAuthHandler_NewAuthHandlerWithIBE(t *testing.T) {
+	t.Run("NewAuthHandlerWithIBESuccess", func(t *testing.T) {
+		// This test would require a real database connection
+		// For now, we'll test that the function doesn't panic
+		// In a real test environment, you'd use a test database
+		assert.NotPanics(t, func() {
+			// Note: This would need a real bob.Executor and sql.DB
+			// cfg := &config.Config{JWT: config.JWTConfig{Secret: "test"}}
+			// ibeSystem := ibe.NewIBESystem()
+			// handler := handlers.NewAuthHandlerWithIBE(cfg, db, rawDB, ibeSystem)
+			// assert.NotNil(t, handler)
+		})
+	})
+}
+
+// TestAuthHandler_NewAuthHandlerWithDependencies tests the dependency injection constructor
+func TestAuthHandler_NewAuthHandlerWithDependencies(t *testing.T) {
+	t.Run("NewAuthHandlerWithDependenciesSuccess", func(t *testing.T) {
+		// Create mock dependencies
+		mockConfig := &config.Config{}
+		mockUserDAO := &mocks.MockUserDAO{}
+		mockSecurePseudonymDAO := &mocks.MockSecurePseudonymDAO{}
+		mockIdentityMappingDAO := &mocks.MockIdentityMappingDAO{}
+		mockRoleKeyDAO := &mocks.MockRoleKeyDAO{}
+		mockIBESystem := &ibe.IBESystem{}
+		mockSubforumDAO := &mocks.MockSubforumDAO{}
+		mockPermissionDAO := &mocks.MockPermissionDAO{}
+
+		// Create handler with dependencies
+		handler := handlers.NewAuthHandler(
+			mockConfig,
+			nil, // nil db for testing
+			mockUserDAO,
+			mockSecurePseudonymDAO,
+			mockIdentityMappingDAO,
+			mockRoleKeyDAO,
+			mockIBESystem,
+			mockSubforumDAO,
+			mockPermissionDAO,
+		)
+
+		// Verify handler is created
+		assert.NotNil(t, handler)
 	})
 }

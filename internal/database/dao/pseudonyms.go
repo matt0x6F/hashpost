@@ -17,8 +17,8 @@ import (
 	"github.com/stephenafamo/bob"
 )
 
-// SecurePseudonymDAO handles pseudonym operations with role-based access control
-type SecurePseudonymDAO struct {
+// PseudonymDAO handles pseudonym operations with role-based access control
+type PseudonymDAO struct {
 	db                 bob.Executor
 	ibeSystem          *ibe.IBESystem
 	identityMappingDAO *IdentityMappingDAO
@@ -27,9 +27,9 @@ type SecurePseudonymDAO struct {
 	userBlocksDAO      *UserBlocksDAO
 }
 
-// NewSecurePseudonymDAO creates a new SecurePseudonymDAO
-func NewSecurePseudonymDAO(db bob.Executor, ibeSystem *ibe.IBESystem, identityMappingDAO *IdentityMappingDAO, userDAO *UserDAO, roleKeyDAO *RoleKeyDAO, userBlocksDAO *UserBlocksDAO) *SecurePseudonymDAO {
-	return &SecurePseudonymDAO{
+// NewPseudonymDAO creates a new SecurePseudonymDAO
+func NewPseudonymDAO(db bob.Executor, ibeSystem *ibe.IBESystem, identityMappingDAO *IdentityMappingDAO, userDAO *UserDAO, roleKeyDAO *RoleKeyDAO, userBlocksDAO *UserBlocksDAO) *PseudonymDAO {
+	return &PseudonymDAO{
 		db:                 db,
 		ibeSystem:          ibeSystem,
 		identityMappingDAO: identityMappingDAO,
@@ -40,7 +40,7 @@ func NewSecurePseudonymDAO(db bob.Executor, ibeSystem *ibe.IBESystem, identityMa
 }
 
 // GetPseudonymsByUserID retrieves all pseudonyms for a user using role-based access control
-func (dao *SecurePseudonymDAO) GetPseudonymsByUserID(ctx context.Context, userID int64, roleName, scope string) ([]*models.Pseudonym, error) {
+func (dao *PseudonymDAO) GetPseudonymsByUserID(ctx context.Context, userID int64, roleName, scope string) ([]*models.Pseudonym, error) {
 	// Validate that the key has the required capability
 	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, constants.CapabilityAccessOwnPseudonyms)
 	if err != nil {
@@ -62,7 +62,7 @@ func (dao *SecurePseudonymDAO) GetPseudonymsByUserID(ctx context.Context, userID
 }
 
 // GetPseudonymsByRealIdentity retrieves all pseudonyms for a real identity using role-based access control
-func (dao *SecurePseudonymDAO) GetPseudonymsByRealIdentity(ctx context.Context, realIdentity string, roleName, scope string) ([]*models.Pseudonym, error) {
+func (dao *PseudonymDAO) GetPseudonymsByRealIdentity(ctx context.Context, realIdentity string, roleName, scope string) ([]*models.Pseudonym, error) {
 	// Validate that the operation is allowed for this role/scope
 	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, constants.CapabilityAccessAllPseudonyms)
 	if err != nil {
@@ -84,7 +84,7 @@ func (dao *SecurePseudonymDAO) GetPseudonymsByRealIdentity(ctx context.Context, 
 }
 
 // VerifyPseudonymOwnership verifies if a user owns a pseudonym using role-based access control
-func (dao *SecurePseudonymDAO) VerifyPseudonymOwnership(ctx context.Context, pseudonymID string, userID int64, roleName, scope string) (bool, error) {
+func (dao *PseudonymDAO) VerifyPseudonymOwnership(ctx context.Context, pseudonymID string, userID int64, roleName, scope string) (bool, error) {
 	// Validate that the key has the required capability
 	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, constants.CapabilityVerifyOwnPseudonymOwnership)
 	if err != nil {
@@ -106,7 +106,7 @@ func (dao *SecurePseudonymDAO) VerifyPseudonymOwnership(ctx context.Context, pse
 }
 
 // GetRealIdentityByPseudonym retrieves the real identity fingerprint for a pseudonym using role-based access control
-func (dao *SecurePseudonymDAO) GetRealIdentityByPseudonym(ctx context.Context, pseudonymID string, roleName, scope string) (string, error) {
+func (dao *PseudonymDAO) GetRealIdentityByPseudonym(ctx context.Context, pseudonymID string, roleName, scope string) (string, error) {
 	// Validate that the operation is allowed for this role/scope
 	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, constants.CapabilityCrossUserCorrelation)
 	if err != nil {
@@ -129,7 +129,7 @@ func (dao *SecurePseudonymDAO) GetRealIdentityByPseudonym(ctx context.Context, p
 
 // Internal methods that use the actual IBE keys
 
-func (dao *SecurePseudonymDAO) getPseudonymsByUserIDWithKey(ctx context.Context, userID int64, keyData []byte) ([]*models.Pseudonym, error) {
+func (dao *PseudonymDAO) getPseudonymsByUserIDWithKey(ctx context.Context, userID int64, keyData []byte) ([]*models.Pseudonym, error) {
 	// 1. Get user's real identity (email)
 	user, err := dao.userDAO.GetUserByID(ctx, userID)
 	if err != nil {
@@ -143,7 +143,7 @@ func (dao *SecurePseudonymDAO) getPseudonymsByUserIDWithKey(ctx context.Context,
 	return dao.getPseudonymsByRealIdentityWithKey(ctx, user.Email, keyData)
 }
 
-func (dao *SecurePseudonymDAO) getPseudonymsByRealIdentityWithKey(ctx context.Context, realIdentity string, keyData []byte) ([]*models.Pseudonym, error) {
+func (dao *PseudonymDAO) getPseudonymsByRealIdentityWithKey(ctx context.Context, realIdentity string, keyData []byte) ([]*models.Pseudonym, error) {
 	// 1. Generate fingerprint from real identity
 	fingerprint := dao.ibeSystem.GenerateFingerprint(realIdentity)
 	log.Info().
@@ -205,7 +205,7 @@ func (dao *SecurePseudonymDAO) getPseudonymsByRealIdentityWithKey(ctx context.Co
 	return pseudonyms, nil
 }
 
-func (dao *SecurePseudonymDAO) verifyPseudonymOwnershipWithKey(ctx context.Context, pseudonymID string, userID int64, keyData []byte) (bool, error) {
+func (dao *PseudonymDAO) verifyPseudonymOwnershipWithKey(ctx context.Context, pseudonymID string, userID int64, keyData []byte) (bool, error) {
 	// 1. Get user's real identity
 	user, err := dao.userDAO.GetUserByID(ctx, userID)
 	if err != nil {
@@ -226,7 +226,7 @@ func (dao *SecurePseudonymDAO) verifyPseudonymOwnershipWithKey(ctx context.Conte
 	return pseudonymFingerprint == userFingerprint, nil
 }
 
-func (dao *SecurePseudonymDAO) getRealIdentityByPseudonymWithKey(ctx context.Context, pseudonymID string, keyData []byte) (string, error) {
+func (dao *PseudonymDAO) getRealIdentityByPseudonymWithKey(ctx context.Context, pseudonymID string, keyData []byte) (string, error) {
 	// 1. Get identity mapping for pseudonym with the correct key scope
 	// For admin correlation, we need to get the correlation mapping
 	// For self-correlation, we need to get the self_correlation mapping
@@ -267,7 +267,7 @@ func (dao *SecurePseudonymDAO) getRealIdentityByPseudonymWithKey(ctx context.Con
 }
 
 // Helper method to get pseudonym by ID (reused from original DAO)
-func (dao *SecurePseudonymDAO) GetPseudonymByID(ctx context.Context, pseudonymID string) (*models.Pseudonym, error) {
+func (dao *PseudonymDAO) GetPseudonymByID(ctx context.Context, pseudonymID string) (*models.Pseudonym, error) {
 	// Use the generated FindPseudonym function
 	pseudonym, err := models.FindPseudonym(ctx, dao.db, pseudonymID)
 	if err != nil {
@@ -281,12 +281,12 @@ func (dao *SecurePseudonymDAO) GetPseudonymByID(ctx context.Context, pseudonymID
 }
 
 // ValidateKeyCapability is a helper method to validate key capabilities
-func (dao *SecurePseudonymDAO) ValidateKeyCapability(ctx context.Context, roleName, scope, capability string) (bool, error) {
+func (dao *PseudonymDAO) ValidateKeyCapability(ctx context.Context, roleName, scope, capability string) (bool, error) {
 	return dao.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, capability)
 }
 
 // GetPseudonymByDisplayName retrieves a pseudonym by display name
-func (dao *SecurePseudonymDAO) GetPseudonymByDisplayName(ctx context.Context, displayName string) (*models.Pseudonym, error) {
+func (dao *PseudonymDAO) GetPseudonymByDisplayName(ctx context.Context, displayName string) (*models.Pseudonym, error) {
 	pseudonyms, err := models.Pseudonyms.Query(
 		models.SelectWhere.Pseudonyms.DisplayName.EQ(displayName),
 	).All(ctx, dao.db)
@@ -300,7 +300,7 @@ func (dao *SecurePseudonymDAO) GetPseudonymByDisplayName(ctx context.Context, di
 }
 
 // UpdatePseudonym updates a pseudonym
-func (dao *SecurePseudonymDAO) UpdatePseudonym(ctx context.Context, pseudonymID string, updates *models.PseudonymSetter) error {
+func (dao *PseudonymDAO) UpdatePseudonym(ctx context.Context, pseudonymID string, updates *models.PseudonymSetter) error {
 	// First get the pseudonym
 	pseudonym, err := dao.GetPseudonymByID(ctx, pseudonymID)
 	if err != nil {
@@ -320,7 +320,7 @@ func (dao *SecurePseudonymDAO) UpdatePseudonym(ctx context.Context, pseudonymID 
 }
 
 // DeletePseudonym deletes a pseudonym
-func (dao *SecurePseudonymDAO) DeletePseudonym(ctx context.Context, pseudonymID string) error {
+func (dao *PseudonymDAO) DeletePseudonym(ctx context.Context, pseudonymID string) error {
 	// First get the pseudonym
 	pseudonym, err := dao.GetPseudonymByID(ctx, pseudonymID)
 	if err != nil {
@@ -340,7 +340,7 @@ func (dao *SecurePseudonymDAO) DeletePseudonym(ctx context.Context, pseudonymID 
 }
 
 // UpdateLastActive updates the pseudonym's last active timestamp
-func (dao *SecurePseudonymDAO) UpdateLastActive(ctx context.Context, pseudonymID string) error {
+func (dao *PseudonymDAO) UpdateLastActive(ctx context.Context, pseudonymID string) error {
 	now := sql.Null[time.Time]{}
 	now.Scan(time.Now())
 
@@ -352,7 +352,7 @@ func (dao *SecurePseudonymDAO) UpdateLastActive(ctx context.Context, pseudonymID
 }
 
 // GetDefaultPseudonymByUserID retrieves the default pseudonym for a user using role-based access control
-func (dao *SecurePseudonymDAO) GetDefaultPseudonymByUserID(ctx context.Context, userID int64, roleName, scope string) (*models.Pseudonym, error) {
+func (dao *PseudonymDAO) GetDefaultPseudonymByUserID(ctx context.Context, userID int64, roleName, scope string) (*models.Pseudonym, error) {
 	// Validate that the key has the required capability
 	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, constants.CapabilityAccessOwnPseudonyms)
 	if err != nil {
@@ -374,7 +374,7 @@ func (dao *SecurePseudonymDAO) GetDefaultPseudonymByUserID(ctx context.Context, 
 }
 
 // getDefaultPseudonymByUserIDWithKey retrieves the default pseudonym for a user using the provided key
-func (dao *SecurePseudonymDAO) getDefaultPseudonymByUserIDWithKey(ctx context.Context, userID int64, keyData []byte) (*models.Pseudonym, error) {
+func (dao *PseudonymDAO) getDefaultPseudonymByUserIDWithKey(ctx context.Context, userID int64, keyData []byte) (*models.Pseudonym, error) {
 	// 1. Get user's real identity (email)
 	user, err := dao.userDAO.GetUserByID(ctx, userID)
 	if err != nil {
@@ -409,7 +409,7 @@ func (dao *SecurePseudonymDAO) getDefaultPseudonymByUserIDWithKey(ctx context.Co
 }
 
 // CreatePseudonymWithIdentityMapping creates a pseudonym and its identity mapping using role-based access control
-func (dao *SecurePseudonymDAO) CreatePseudonymWithIdentityMapping(ctx context.Context, userID int64, displayName string) (*models.Pseudonym, error) {
+func (dao *PseudonymDAO) CreatePseudonymWithIdentityMapping(ctx context.Context, userID int64, displayName string) (*models.Pseudonym, error) {
 	// 1. Create the pseudonym (set is_default if needed)
 	pseudonym, err := dao.createPseudonym(ctx, displayName, &userID)
 	if err != nil {
@@ -549,7 +549,7 @@ func (dao *SecurePseudonymDAO) CreatePseudonymWithIdentityMapping(ctx context.Co
 }
 
 // createPseudonym creates a new pseudonym (internal method)
-func (dao *SecurePseudonymDAO) createPseudonym(ctx context.Context, displayName string, userID *int64) (*models.Pseudonym, error) {
+func (dao *PseudonymDAO) createPseudonym(ctx context.Context, displayName string, userID *int64) (*models.Pseudonym, error) {
 	log.Debug().
 		Str("display_name", displayName).
 		Msg("Creating pseudonym")
@@ -600,7 +600,7 @@ func generatePseudonymID() string {
 }
 
 // GetUserIDByPseudonym gets the user ID for a pseudonym using IBE correlation
-func (dao *SecurePseudonymDAO) GetUserIDByPseudonym(ctx context.Context, pseudonymID, roleName, scope string) (int64, error) {
+func (dao *PseudonymDAO) GetUserIDByPseudonym(ctx context.Context, pseudonymID, roleName, scope string) (int64, error) {
 	log.Debug().
 		Str("pseudonym_id", pseudonymID).
 		Str("role_name", roleName).
@@ -622,7 +622,7 @@ func (dao *SecurePseudonymDAO) GetUserIDByPseudonym(ctx context.Context, pseudon
 
 // DeactivatePseudonym deactivates a pseudonym, preventing it from being used for new content
 // Users cannot reactivate deactivated pseudonyms
-func (dao *SecurePseudonymDAO) DeactivatePseudonym(ctx context.Context, pseudonymID string, userID int64, roleName, scope string) error {
+func (dao *PseudonymDAO) DeactivatePseudonym(ctx context.Context, pseudonymID string, userID int64, roleName, scope string) error {
 	// Validate that the key has the required capability
 	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, constants.CapabilityManageOwnPseudonyms)
 	if err != nil {
@@ -674,7 +674,7 @@ func (dao *SecurePseudonymDAO) DeactivatePseudonym(ctx context.Context, pseudony
 }
 
 // deactivatePseudonymWithKey deactivates a pseudonym using the provided key
-func (dao *SecurePseudonymDAO) deactivatePseudonymWithKey(ctx context.Context, pseudonymID string, keyData []byte) error {
+func (dao *PseudonymDAO) deactivatePseudonymWithKey(ctx context.Context, pseudonymID string, keyData []byte) error {
 	// Update the pseudonym to set is_active to false
 	updates := &models.PseudonymSetter{
 		IsActive: &sql.Null[bool]{V: false, Valid: true},

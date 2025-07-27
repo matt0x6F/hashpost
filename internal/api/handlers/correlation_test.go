@@ -14,6 +14,7 @@ import (
 	dbmodels "github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/matt0x6f/hashpost/internal/fixtures"
 	"github.com/matt0x6f/hashpost/internal/ibe"
+	"github.com/stephenafamo/bob"
 	"github.com/stephenafamo/bob/types"
 	"github.com/stephenafamo/scan"
 	"github.com/stretchr/testify/assert"
@@ -636,6 +637,36 @@ func TestCorrelationResponseCreation(t *testing.T) {
 		assert.Equal(t, correlationID, response.Body.CorrelationID)
 		assert.Equal(t, auditID, response.Body.AuditID)
 		assert.Len(t, response.Body.Results, 1)
+	})
+}
+
+// TestNewCorrelationHandler tests the main constructor function
+func TestNewCorrelationHandler(t *testing.T) {
+	t.Run("NewCorrelationHandlerSuccess", func(t *testing.T) {
+		// Create mock dependencies
+		var mockDB bob.Executor = nil
+		mockIBESystem := &ibe.IBESystem{}
+		mockSecurePseudonymDAO := &mocks.MockSecurePseudonymDAO{}
+		mockIdentityMappingDAO := &mocks.MockIdentityMappingDAO{}
+		mockPostDAO := &mocks.MockPostDAO{}
+		mockCommentDAO := &mocks.MockCommentDAO{}
+		mockSubforumDAO := &mocks.MockSubforumDAO{}
+		mockCorrelationAuditDAO := &mocks.MockCorrelationAuditDAO{}
+
+		// Create handler with dependencies
+		handler := NewCorrelationHandler(
+			mockDB,
+			mockIBESystem,
+			mockSecurePseudonymDAO,
+			mockIdentityMappingDAO,
+			mockPostDAO,
+			mockCommentDAO,
+			mockSubforumDAO,
+			mockCorrelationAuditDAO,
+		)
+
+		// Verify handler is created
+		assert.NotNil(t, handler)
 	})
 }
 

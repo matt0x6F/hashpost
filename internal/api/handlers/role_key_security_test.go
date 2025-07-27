@@ -44,8 +44,9 @@ func createTestAuthHandler() (*AuthHandler, *mocks.MockUserDAO, *mocks.MockSecur
 		},
 	}
 
-	handler := NewAuthHandlerWithDependencies(
+	handler := NewAuthHandler(
 		cfg,
+		nil, // nil db for testing
 		mockUserDAO,
 		mockSecurePseudonymDAO,
 		mockIdentityMappingDAO,

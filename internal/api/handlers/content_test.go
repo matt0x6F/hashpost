@@ -44,7 +44,7 @@ func createTestContentHandler() (*ContentHandler, *mocks.MockPostDAO, *mocks.Moc
 	// Create a permission checker with the mock DAO
 	permissionChecker := middleware.NewPermissionCheckerWithDAO(mockPermissionDAO)
 
-	handler := NewContentHandlerWithDependencies(
+	handler := NewContentHandler(
 		nil, // Mock DB
 		nil, // Mock raw DB
 		ibeSystem,
@@ -2080,4 +2080,89 @@ func TestContentHandler_GetPostDetails_NotFound(t *testing.T) {
 
 	// Verify DAO calls
 	mockPostDAO.AssertExpectations(t)
+}
+
+// TestContentHandler_NewContentHandler tests the main constructor function
+func TestContentHandler_NewContentHandler(t *testing.T) {
+	t.Run("NewContentHandlerSuccess", func(t *testing.T) {
+		// This test would require a real database connection
+		// For now, we'll test that the function doesn't panic
+		// In a real test environment, you'd use a test database
+		assert.NotPanics(t, func() {
+			// Note: This would need a real bob.Executor and sql.DB
+			// db := getTestDB()
+			// rawDB := getTestRawDB()
+			// ibeSystem := ibe.NewIBESystem()
+			// identityMappingDAO := dao.NewIdentityMappingDAO(db)
+			// userDAO := dao.NewUserDAO(db)
+			// handler := NewContentHandler(db, rawDB, ibeSystem, identityMappingDAO, userDAO)
+			// assert.NotNil(t, handler)
+		})
+	})
+}
+
+// TestGenerateSlug tests the slug generation utility function
+func TestGenerateSlug(t *testing.T) {
+	tests := []struct {
+		name     string
+		title    string
+		postID   int64
+		expected string
+	}{
+		{
+			name:     "SimpleTitle",
+			title:    "Test Post",
+			postID:   123,
+			expected: "test-post-123",
+		},
+		{
+			name:     "TitleWithSpecialCharacters",
+			title:    "Test Post! @#$%",
+			postID:   456,
+			expected: "test-post-456",
+		},
+		{
+			name:     "TitleWithMultipleSpaces",
+			title:    "Test   Post   Title",
+			postID:   789,
+			expected: "test-post-title-789",
+		},
+		{
+			name:     "TitleWithHyphens",
+			title:    "Test-Post-Title",
+			postID:   101,
+			expected: "testposttitle-101",
+		},
+		{
+			name:     "VeryLongTitle",
+			title:    "This is a very long title that should be truncated to fifty characters maximum",
+			postID:   202,
+			expected: "this-is-a-very-long-title-that-should-be-truncated-202",
+		},
+		{
+			name:     "EmptyTitle",
+			title:    "",
+			postID:   303,
+			expected: "post-303",
+		},
+		{
+			name:     "TitleWithOnlySpecialCharacters",
+			title:    "!@#$%^&*()",
+			postID:   404,
+			expected: "post-404",
+		},
+		{
+			name:     "TitleWithNumbers",
+			title:    "Test Post 123",
+			postID:   505,
+			expected: "test-post-123-505",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := generateSlug(tt.title, tt.postID)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }

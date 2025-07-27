@@ -13,7 +13,7 @@ import (
 
 // RegisterContentRoutes registers content-related routes
 func RegisterContentRoutes(api huma.API, db bob.Executor, rawDB *sql.DB, ibeSystem *ibe.IBESystem, identityMappingDAO *dao.IdentityMappingDAO, userDAO *dao.UserDAO) {
-	contentHandler := handlers.NewContentHandler(db, rawDB, ibeSystem, identityMappingDAO, userDAO)
+	contentHandler := handlers.NewContentHandler(db, rawDB, ibeSystem, identityMappingDAO, userDAO, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	// Get posts from subforum
 	huma.Register(api, huma.Operation{

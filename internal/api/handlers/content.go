@@ -60,31 +60,9 @@ type ContentHandler struct {
 	permissionDAO      dao.PermissionDAOInterface
 }
 
-// NewContentHandler creates a new content handler
-func NewContentHandler(db bob.Executor, rawDB *sql.DB, ibeSystem *ibe.IBESystem, identityMappingDAO *dao.IdentityMappingDAO, userDAO *dao.UserDAO) *ContentHandler {
-	roleKeyDAO := dao.NewRoleKeyDAO(db)
-	userBlocksDAO := dao.NewUserBlocksDAO(db)
-	securePseudonymDAO := dao.NewSecurePseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
-	permissionDAO := dao.NewPermissionDAO(db)
-
-	return &ContentHandler{
-		db:                 db,
-		rawDB:              rawDB,
-		ibeSystem:          ibeSystem,
-		identityMappingDAO: identityMappingDAO,
-		userDAO:            userDAO,
-		postDAO:            dao.NewPostDAO(db),
-		commentDAO:         dao.NewCommentDAO(db),
-		subforumDAO:        dao.NewSubforumDAO(db),
-		securePseudonymDAO: securePseudonymDAO,
-		voteDAO:            dao.NewVoteDAO(db),
-		permissionChecker:  middleware.NewPermissionChecker(db),
-		permissionDAO:      permissionDAO,
-	}
-}
-
-// NewContentHandlerWithDependencies creates a new content handler with injected dependencies
-func NewContentHandlerWithDependencies(
+// NewContentHandler creates a new content handler with optional dependencies
+// If db is provided, real DAOs will be created. If nil, mock DAOs should be provided.
+func NewContentHandler(
 	db bob.Executor,
 	rawDB *sql.DB,
 	ibeSystem *ibe.IBESystem,
@@ -100,6 +78,19 @@ func NewContentHandlerWithDependencies(
 	permissionChecker middleware.PermissionCheckerInterface,
 	permissionDAO dao.PermissionDAOInterface,
 ) *ContentHandler {
+	// If db is provided, create real DAOs (production mode)
+	if db != nil {
+		roleKeyDAO = dao.NewRoleKeyDAO(db)
+		userBlocksDAO = dao.NewUserBlocksDAO(db)
+		securePseudonymDAO = dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO.(*dao.IdentityMappingDAO), userDAO.(*dao.UserDAO), roleKeyDAO.(*dao.RoleKeyDAO), userBlocksDAO.(*dao.UserBlocksDAO))
+		permissionDAO = dao.NewPermissionDAO(db)
+		postDAO = dao.NewPostDAO(db)
+		commentDAO = dao.NewCommentDAO(db)
+		subforumDAO = dao.NewSubforumDAO(db)
+		voteDAO = dao.NewVoteDAO(db)
+		permissionChecker = middleware.NewPermissionChecker(db)
+	}
+
 	return &ContentHandler{
 		db:                 db,
 		rawDB:              rawDB,

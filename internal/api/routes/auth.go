@@ -13,7 +13,7 @@ import (
 
 // RegisterAuthRoutes registers authentication-related routes
 func RegisterAuthRoutes(api huma.API, cfg *config.Config, db bob.Executor, rawDB *sql.DB, ibeSystem *ibe.IBESystem) {
-	authHandler := handlers.NewAuthHandlerWithIBE(cfg, db, rawDB, ibeSystem)
+	authHandler := handlers.NewAuthHandler(cfg, db, nil, nil, nil, nil, ibeSystem, nil, nil)
 
 	// User registration
 	huma.Register(api, huma.Operation{

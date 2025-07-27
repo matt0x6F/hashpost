@@ -15,6 +15,7 @@ import (
 	"github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/matt0x6f/hashpost/internal/ibe"
 	"github.com/rs/zerolog/log"
+	"github.com/stephenafamo/bob"
 )
 
 // UserHandler handles user management requests
@@ -28,21 +29,10 @@ type UserHandler struct {
 	ibeSystem          *ibe.IBESystem
 }
 
-// NewUserHandler creates a new user handler
-func NewUserHandler(userDAO *dao.UserDAO, securePseudonymDAO *dao.SecurePseudonymDAO, userPreferencesDAO *dao.UserPreferencesDAO, userBlocksDAO *dao.UserBlocksDAO, postDAO *dao.PostDAO, commentDAO *dao.CommentDAO, ibeSystem *ibe.IBESystem) *UserHandler {
-	return &UserHandler{
-		userDAO:            userDAO,
-		securePseudonymDAO: securePseudonymDAO,
-		userPreferencesDAO: userPreferencesDAO,
-		userBlocksDAO:      userBlocksDAO,
-		postDAO:            postDAO,
-		commentDAO:         commentDAO,
-		ibeSystem:          ibeSystem,
-	}
-}
-
-// NewUserHandlerWithDependencies creates a new user handler with injected dependencies
-func NewUserHandlerWithDependencies(
+// NewUserHandler creates a new user handler with optional dependencies
+// If db is provided, real DAOs will be created. If nil, mock DAOs should be provided.
+func NewUserHandler(
+	db bob.Executor,
 	userDAO dao.UserDAOInterface,
 	securePseudonymDAO dao.SecurePseudonymDAOInterface,
 	userPreferencesDAO dao.UserPreferencesDAOInterface,
@@ -51,6 +41,16 @@ func NewUserHandlerWithDependencies(
 	commentDAO dao.CommentDAOInterface,
 	ibeSystem *ibe.IBESystem,
 ) *UserHandler {
+	// If db is provided, create real DAOs (production mode)
+	if db != nil {
+		userDAO = dao.NewUserDAO(db)
+		securePseudonymDAO = dao.NewPseudonymDAO(db, ibeSystem, dao.NewIdentityMappingDAO(db), userDAO.(*dao.UserDAO), dao.NewRoleKeyDAO(db), dao.NewUserBlocksDAO(db))
+		userPreferencesDAO = dao.NewUserPreferencesDAO(db)
+		userBlocksDAO = dao.NewUserBlocksDAO(db)
+		postDAO = dao.NewPostDAO(db)
+		commentDAO = dao.NewCommentDAO(db)
+	}
+
 	return &UserHandler{
 		userDAO:            userDAO,
 		securePseudonymDAO: securePseudonymDAO,

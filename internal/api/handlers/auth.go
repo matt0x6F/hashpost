@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -35,56 +34,33 @@ type AuthHandler struct {
 	permissionDAO      dao.PermissionDAOInterface
 }
 
-// NewAuthHandler creates a new authentication handler
-func NewAuthHandler(cfg *config.Config, db bob.Executor, rawDB *sql.DB) *AuthHandler {
-	userDAO := dao.NewUserDAO(db)
-	ibeSystem := ibe.NewIBESystem()
-	identityMappingDAO := dao.NewIdentityMappingDAO(db)
-	roleKeyDAO := dao.NewRoleKeyDAO(db)
-	userBlocksDAO := dao.NewUserBlocksDAO(db)
-	securePseudonymDAO := dao.NewSecurePseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
-	subforumDAO := dao.NewSubforumDAO(db)
-	permissionDAO := dao.NewPermissionDAO(db)
+// NewAuthHandler creates a new authentication handler with optional dependencies
+// If db is provided, real DAOs will be created. If nil, mock DAOs should be provided.
+func NewAuthHandler(
+	cfg *config.Config,
+	db bob.Executor,
+	userDAO dao.UserDAOInterface,
+	securePseudonymDAO dao.SecurePseudonymDAOInterface,
+	identityMappingDAO dao.IdentityMappingDAOInterface,
+	roleKeyDAO dao.RoleKeyDAOInterface,
+	ibeSystem *ibe.IBESystem,
+	subforumDAO dao.SubforumDAOInterface,
+	permissionDAO dao.PermissionDAOInterface,
+) *AuthHandler {
+	// If db is provided, create real DAOs (production mode)
+	if db != nil {
+		userDAO = dao.NewUserDAO(db)
+		identityMappingDAO = dao.NewIdentityMappingDAO(db)
+		roleKeyDAO = dao.NewRoleKeyDAO(db)
+		userBlocksDAO := dao.NewUserBlocksDAO(db)
+		securePseudonymDAO = dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO.(*dao.IdentityMappingDAO), userDAO.(*dao.UserDAO), roleKeyDAO.(*dao.RoleKeyDAO), userBlocksDAO)
+		subforumDAO = dao.NewSubforumDAO(db)
+		permissionDAO = dao.NewPermissionDAO(db)
+	}
 
 	return &AuthHandler{
 		config:             cfg,
 		db:                 db,
-		userDAO:            userDAO,
-		securePseudonymDAO: securePseudonymDAO,
-		identityMappingDAO: identityMappingDAO,
-		ibeSystem:          ibeSystem,
-		subforumDAO:        subforumDAO,
-		permissionDAO:      permissionDAO,
-	}
-}
-
-// NewAuthHandlerWithIBE creates a new authentication handler with a specific IBE system
-func NewAuthHandlerWithIBE(cfg *config.Config, db bob.Executor, rawDB *sql.DB, ibeSystem *ibe.IBESystem) *AuthHandler {
-	userDAO := dao.NewUserDAO(db)
-	identityMappingDAO := dao.NewIdentityMappingDAO(db)
-	roleKeyDAO := dao.NewRoleKeyDAO(db)
-	userBlocksDAO := dao.NewUserBlocksDAO(db)
-	securePseudonymDAO := dao.NewSecurePseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
-	subforumDAO := dao.NewSubforumDAO(db)
-	permissionDAO := dao.NewPermissionDAO(db)
-
-	return &AuthHandler{
-		config:             cfg,
-		db:                 db,
-		userDAO:            userDAO,
-		securePseudonymDAO: securePseudonymDAO,
-		identityMappingDAO: identityMappingDAO,
-		ibeSystem:          ibeSystem,
-		subforumDAO:        subforumDAO,
-		permissionDAO:      permissionDAO,
-	}
-}
-
-// NewAuthHandlerWithDependencies creates a new authentication handler with injected dependencies
-func NewAuthHandlerWithDependencies(cfg *config.Config, userDAO dao.UserDAOInterface, securePseudonymDAO dao.SecurePseudonymDAOInterface, identityMappingDAO dao.IdentityMappingDAOInterface, roleKeyDAO dao.RoleKeyDAOInterface, ibeSystem *ibe.IBESystem, subforumDAO dao.SubforumDAOInterface, permissionDAO dao.PermissionDAOInterface) *AuthHandler {
-	return &AuthHandler{
-		config:             cfg,
-		db:                 nil, // Will be set by individual constructors
 		userDAO:            userDAO,
 		securePseudonymDAO: securePseudonymDAO,
 		identityMappingDAO: identityMappingDAO,

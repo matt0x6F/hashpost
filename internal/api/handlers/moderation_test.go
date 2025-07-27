@@ -8,6 +8,7 @@ import (
 
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	"github.com/matt0x6f/hashpost/internal/api/models"
+	"github.com/matt0x6f/hashpost/internal/database/dao/mocks"
 	"github.com/stephenafamo/bob/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -570,5 +571,40 @@ func TestModerationHandler_HelperMethods(t *testing.T) {
 		// Test with invalid JSON (nil)
 		details := handler.parseActionDetails(sql.Null[types.JSON[json.RawMessage]]{Valid: false})
 		assert.Nil(t, details)
+	})
+}
+
+// TestNewModerationHandler tests the main constructor function
+func TestNewModerationHandler(t *testing.T) {
+	t.Run("NewModerationHandlerSuccess", func(t *testing.T) {
+		// Create mock DAOs
+		mockReportDAO := &mocks.MockReportDAO{}
+		mockModerationActionDAO := &mocks.MockModerationActionDAO{}
+		mockUserBanDAO := &mocks.MockUserBanDAO{}
+		mockSecurePseudonymDAO := &mocks.MockSecurePseudonymDAO{}
+		mockSubforumDAO := &mocks.MockSubforumDAO{}
+		mockPostDAO := &mocks.MockPostDAO{}
+		mockCommentDAO := &mocks.MockCommentDAO{}
+
+		// Create handler with dependencies
+		handler := NewModerationHandler(
+			mockReportDAO,
+			mockModerationActionDAO,
+			mockUserBanDAO,
+			mockSecurePseudonymDAO,
+			mockSubforumDAO,
+			mockPostDAO,
+			mockCommentDAO,
+		)
+
+		// Verify handler is created
+		assert.NotNil(t, handler)
+		assert.Equal(t, mockReportDAO, handler.reportDAO)
+		assert.Equal(t, mockModerationActionDAO, handler.moderationActionDAO)
+		assert.Equal(t, mockUserBanDAO, handler.userBanDAO)
+		assert.Equal(t, mockSecurePseudonymDAO, handler.securePseudonymDAO)
+		assert.Equal(t, mockSubforumDAO, handler.subforumDAO)
+		assert.Equal(t, mockPostDAO, handler.postDAO)
+		assert.Equal(t, mockCommentDAO, handler.commentDAO)
 	})
 }

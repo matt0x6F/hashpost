@@ -2,49 +2,78 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	"github.com/matt0x6f/hashpost/internal/api/models"
+	"github.com/matt0x6f/hashpost/internal/database/dao"
 	"github.com/rs/zerolog/log"
+	"github.com/stephenafamo/bob"
 )
 
 // MessagesHandler handles direct message requests
 type MessagesHandler struct {
-	// TODO: Add database connection and other dependencies
+	directMessageDAO dao.DirectMessageDAOInterface
+	userDAO          dao.UserDAOInterface
 }
 
-// NewMessagesHandler creates a new messages handler
-func NewMessagesHandler() *MessagesHandler {
-	return &MessagesHandler{}
+// NewMessagesHandler creates a new messages handler with optional dependencies
+// If db is provided, real DAOs will be created. If nil, mock DAOs should be provided.
+func NewMessagesHandler(
+	db bob.Executor,
+	directMessageDAO dao.DirectMessageDAOInterface,
+	userDAO dao.UserDAOInterface,
+) *MessagesHandler {
+	// If db is provided, create real DAOs (production mode)
+	if db != nil {
+		directMessageDAO = dao.NewDirectMessageDAO(db)
+		userDAO = dao.NewUserDAO(db)
+	}
+
+	return &MessagesHandler{
+		directMessageDAO: directMessageDAO,
+		userDAO:          userDAO,
+	}
 }
 
 // SendDirectMessage handles sending a direct message to another user
 func (h *MessagesHandler) SendDirectMessage(ctx context.Context, input *models.DirectMessageInput) (*models.DirectMessageResponse, error) {
-	// TODO: Extract user from context (from JWT token)
-	userID := 123 // TODO: Get from context
+	// Extract user from context
+	user, err := middleware.ExtractUserFromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("authentication required: %w", err)
+	}
 
 	log.Info().
 		Str("endpoint", "messages").
 		Str("component", "handler").
-		Int("user_id", userID).
+		Int64("user_id", user.UserID).
 		Str("recipient_pseudonym_id", input.Body.RecipientPseudonymID).
 		Msg("Send direct message requested")
 
-	// TODO: Validate input
-	// TODO: Check if recipient exists
-	// TODO: Check if user is blocked
-	// TODO: Create message in database
-	// TODO: Send notification to recipient
+	// Create the direct message
+	message, err := h.directMessageDAO.CreateDirectMessage(
+		ctx,
+		user.ActivePseudonymID,
+		input.Body.RecipientPseudonymID,
+		input.Body.Content,
+	)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to create direct message")
+		return nil, fmt.Errorf("failed to send message: %w", err)
+	}
 
-	// Mock message ID
-	messageID := 123 // TODO: Get from database
-
-	response := models.NewDirectMessageResponse(messageID, input.Body.RecipientPseudonymID, input.Body.Content)
+	response := models.NewDirectMessageResponse(
+		int(message.MessageID),
+		message.RecipientPseudonymID,
+		message.Content,
+	)
 
 	log.Info().
 		Str("endpoint", "messages").
 		Str("component", "handler").
-		Int("user_id", userID).
-		Int("message_id", messageID).
+		Int64("user_id", user.UserID).
+		Int64("message_id", message.MessageID).
 		Msg("Send direct message completed")
 
 	return response, nil
@@ -52,51 +81,70 @@ func (h *MessagesHandler) SendDirectMessage(ctx context.Context, input *models.D
 
 // GetDirectMessages handles getting direct messages for the current user
 func (h *MessagesHandler) GetDirectMessages(ctx context.Context, input *models.DirectMessageListInput) (*models.DirectMessageListResponse, error) {
-	// TODO: Extract user from context (from JWT token)
-	userID := 123 // TODO: Get from context
+	// Extract user from context
+	user, err := middleware.ExtractUserFromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("authentication required: %w", err)
+	}
 
 	log.Info().
 		Str("endpoint", "messages").
 		Str("component", "handler").
-		Int("user_id", userID).
+		Int64("user_id", user.UserID).
 		Msg("Get direct messages requested")
 
-	// TODO: Get messages from database
-	// TODO: Apply pagination
-	// TODO: Mark messages as read if requested
-
-	// Mock messages data
-	messages := []models.DirectMessage{
-		{
-			MessageID:            123,
-			SenderPseudonymID:    "def789ghi012...",
-			SenderDisplayName:    "sender_name",
-			RecipientPseudonymID: "abc123def456...",
-			Content:              "Hello! I wanted to discuss...",
-			IsRead:               false,
-			CreatedAt:            "2024-01-01T20:00:00Z",
-		},
+	// Get messages for the user
+	messages, err := h.directMessageDAO.GetDirectMessagesByPseudonym(
+		ctx,
+		user.ActivePseudonymID,
+		input.Page,
+		input.Limit,
+	)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to get direct messages")
+		return nil, fmt.Errorf("failed to get messages: %w", err)
 	}
 
-	// Mock pagination data
-	page := input.Page
-	if page <= 0 {
-		page = 1
-	}
-	limit := input.Limit
-	if limit <= 0 {
-		limit = 25
-	}
-	total := 50 // TODO: Get from database
+	// Convert database messages to API messages
+	apiMessages := make([]models.DirectMessage, len(messages))
+	for i, msg := range messages {
+		// Handle nullable fields
+		isRead := false
+		if msg.IsRead.Valid {
+			isRead = msg.IsRead.V
+		}
 
-	response := models.NewDirectMessageListResponse(messages, page, limit, total)
+		createdAt := ""
+		if msg.CreatedAt.Valid {
+			createdAt = msg.CreatedAt.V.Format("2006-01-02T15:04:05Z")
+		}
+
+		apiMessages[i] = models.DirectMessage{
+			MessageID:            int(msg.MessageID),
+			SenderPseudonymID:    msg.SenderPseudonymID,
+			SenderDisplayName:    user.DisplayName, // Use current user's display name for now
+			RecipientPseudonymID: msg.RecipientPseudonymID,
+			Content:              msg.Content,
+			IsRead:               isRead,
+			CreatedAt:            createdAt,
+		}
+	}
+
+	// Get total count for pagination
+	total, err := h.directMessageDAO.CountDirectMessagesByPseudonym(ctx, user.ActivePseudonymID)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to count direct messages")
+		return nil, fmt.Errorf("failed to count messages: %w", err)
+	}
+
+	response := models.NewDirectMessageListResponse(apiMessages, input.Page, input.Limit, int(total))
 
 	log.Info().
 		Str("endpoint", "messages").
 		Str("component", "handler").
-		Int("user_id", userID).
-		Int("count", len(messages)).
-		Int("total", total).
+		Int64("user_id", user.UserID).
+		Int("count", len(apiMessages)).
+		Int("total", int(total)).
 		Msg("Get direct messages completed")
 
 	return response, nil

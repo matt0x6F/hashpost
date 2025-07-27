@@ -55,7 +55,7 @@ func NewServer() *Server {
 	identityMappingDAO := dao.NewIdentityMappingDAO(db)
 	roleKeyDAO := dao.NewRoleKeyDAO(db)
 	userBlocksDAO := dao.NewUserBlocksDAO(db)
-	securePseudonymDAO := dao.NewSecurePseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
+	securePseudonymDAO := dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
 	postDAO := dao.NewPostDAO(db)
 	commentDAO := dao.NewCommentDAO(db)
 	userPreferencesDAO := dao.NewUserPreferencesDAO(db)
@@ -95,12 +95,11 @@ func NewServer() *Server {
 
 	// Register routes
 	routes.RegisterHealthRoutes(api)
-	routes.RegisterHelloRoutes(api)
 	routes.RegisterAuthRoutes(api, cfg, db, rawDB, ibeSystem)
 	routes.RegisterUserRoutes(api, userDAO, securePseudonymDAO, userPreferencesDAO, userBlocksDAO, postDAO, commentDAO, ibeSystem)
 	routes.RegisterSubforumRoutes(api, db)
-	routes.RegisterMessagesRoutes(api)
-	routes.RegisterSearchRoutes(api)
+	routes.RegisterMessagesRoutes(api, db)
+	routes.RegisterSearchRoutes(api, db)
 	routes.RegisterModerationRoutes(api, reportDAO, moderationActionDAO, userBanDAO, securePseudonymDAO, subforumDAO, postDAO, commentDAO)
 	routes.RegisterContentRoutes(api, db, rawDB, ibeSystem, identityMappingDAO, userDAO)
 	routes.RegisterCorrelationRoutes(api, db, ibeSystem, securePseudonymDAO, identityMappingDAO, postDAO, commentDAO, subforumDAO)
