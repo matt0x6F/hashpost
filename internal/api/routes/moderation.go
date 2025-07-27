@@ -9,7 +9,7 @@ import (
 )
 
 // RegisterModerationRoutes registers moderation-related routes
-func RegisterModerationRoutes(api huma.API, reportDAO *dao.ReportDAO, moderationActionDAO *dao.ModerationActionDAO, userBanDAO *dao.UserBanDAO, securePseudonymDAO *dao.SecurePseudonymDAO, subforumDAO *dao.SubforumDAO, postDAO *dao.PostDAO, commentDAO *dao.CommentDAO) {
+func RegisterModerationRoutes(api huma.API, reportDAO *dao.ReportDAO, moderationActionDAO *dao.ModerationActionDAO, userBanDAO *dao.UserBanDAO, securePseudonymDAO *dao.PseudonymDAO, subforumDAO *dao.SubforumDAO, postDAO *dao.PostDAO, commentDAO *dao.CommentDAO) {
 	moderationHandler := handlers.NewModerationHandler(reportDAO, moderationActionDAO, userBanDAO, securePseudonymDAO, subforumDAO, postDAO, commentDAO)
 
 	// Report content

@@ -27,21 +27,27 @@ type SubforumHandler struct {
 	db                      bob.Executor
 }
 
-// NewSubforumHandler creates a new subforum handler with real DAOs
-func NewSubforumHandler(db bob.Executor) *SubforumHandler {
-	return &SubforumHandler{
-		subforumDAO:             dao.NewSubforumDAO(db),
-		subforumSubscriptionDAO: dao.NewSubforumSubscriptionDAO(db),
-		permissionDAO:           dao.NewPermissionDAO(db),
-		subforumModeratorDAO:    dao.NewSubforumModeratorDAO(db),
-		identityMappingDAO:      dao.NewIdentityMappingDAO(db),
-		postDAO:                 dao.NewPostDAO(db),
-		db:                      db,
+// NewSubforumHandler creates a new subforum handler with optional dependencies
+// If db is provided, real DAOs will be created. If nil, mock DAOs should be provided.
+func NewSubforumHandler(
+	db bob.Executor,
+	subforumDAO dao.SubforumDAOInterface,
+	subforumSubscriptionDAO dao.SubforumSubscriptionDAOInterface,
+	permissionDAO dao.PermissionDAOInterface,
+	subforumModeratorDAO dao.SubforumModeratorDAOInterface,
+	identityMappingDAO dao.IdentityMappingDAOInterface,
+	postDAO dao.PostDAOInterface,
+) *SubforumHandler {
+	// If db is provided, create real DAOs (production mode)
+	if db != nil {
+		subforumDAO = dao.NewSubforumDAO(db)
+		subforumSubscriptionDAO = dao.NewSubforumSubscriptionDAO(db)
+		permissionDAO = dao.NewPermissionDAO(db)
+		subforumModeratorDAO = dao.NewSubforumModeratorDAO(db)
+		identityMappingDAO = dao.NewIdentityMappingDAO(db)
+		postDAO = dao.NewPostDAO(db)
 	}
-}
 
-// NewSubforumHandlerWithMocks creates a new subforum handler with mock DAOs for testing
-func NewSubforumHandlerWithMocks(subforumDAO dao.SubforumDAOInterface, subforumSubscriptionDAO dao.SubforumSubscriptionDAOInterface, permissionDAO dao.PermissionDAOInterface, subforumModeratorDAO dao.SubforumModeratorDAOInterface, identityMappingDAO dao.IdentityMappingDAOInterface, postDAO dao.PostDAOInterface, db bob.Executor) *SubforumHandler {
 	return &SubforumHandler{
 		subforumDAO:             subforumDAO,
 		subforumSubscriptionDAO: subforumSubscriptionDAO,

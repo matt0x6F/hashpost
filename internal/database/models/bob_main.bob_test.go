@@ -40,11 +40,17 @@ var _ bob.HookableType = &models.DirectMessage{}
 // Make sure the type IdentityMapping runs hooks after queries
 var _ bob.HookableType = &models.IdentityMapping{}
 
+// Make sure the type KeyRotationMigration runs hooks after queries
+var _ bob.HookableType = &models.KeyRotationMigration{}
+
 // Make sure the type KeyUsageAudit runs hooks after queries
 var _ bob.HookableType = &models.KeyUsageAudit{}
 
 // Make sure the type MediaAttachment runs hooks after queries
 var _ bob.HookableType = &models.MediaAttachment{}
+
+// Make sure the type MigrationProgress runs hooks after queries
+var _ bob.HookableType = &models.MigrationProgress{}
 
 // Make sure the type ModerationAction runs hooks after queries
 var _ bob.HookableType = &models.ModerationAction{}

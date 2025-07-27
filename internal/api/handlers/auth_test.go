@@ -50,10 +50,10 @@ func createTestAuthHandler() (*handlers.AuthHandler, *mocks.MockUserDAO, *mocks.
 	mockRoleKeyDAO := &mocks.MockRoleKeyDAO{}
 	mockSubforumDAO := mocks.NewMockSubforumDAO()
 	mockPermissionDAO := mocks.NewMockPermissionDAO()
-	ibeSystem := ibe.NewIBESystem()
+	ibeSystem := ibe.NewIBESystemWithOptions(ibe.IBEOptions{})
 
 	// Create handler with the SAME mock instances that we return
-	handler := handlers.NewAuthHandlerWithDependencies(cfg, mockUserDAO, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockRoleKeyDAO, ibeSystem, mockSubforumDAO, mockPermissionDAO)
+	handler := handlers.NewAuthHandler(cfg, nil, mockUserDAO, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockRoleKeyDAO, ibeSystem, mockSubforumDAO, mockPermissionDAO)
 
 	// Return the SAME mock instances that the handler is using
 	return handler, mockUserDAO, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockRoleKeyDAO, mockSubforumDAO, mockPermissionDAO
@@ -840,28 +840,6 @@ func TestAuthHandler_SwitchPseudonym(t *testing.T) {
 		mockSecurePseudonymDAO.AssertExpectations(t)
 	})
 
-}
-
-func TestAuthHandler_SwitchPseudonym_Integration(t *testing.T) {
-	// This test verifies the endpoint works with real database operations
-	// It's a simplified integration test that doesn't require the full test suite setup
-
-	t.Run("IntegrationTest", func(t *testing.T) {
-		// Skip if not in integration test mode
-		if testing.Short() {
-			t.Skip("Skipping integration test in short mode")
-		}
-
-		// This would require a real database connection
-		// For now, we'll just verify the endpoint is registered correctly
-		t.Log("Pseudonym switching endpoint is ready for integration testing")
-		t.Log("Endpoint: POST /auth/switch-pseudonym")
-		t.Log("Expected behavior:")
-		t.Log("- Validates user owns the target pseudonym")
-		t.Log("- Updates last_active timestamp")
-		t.Log("- Generates new JWT with updated pseudonym context")
-		t.Log("- Returns new access token")
-	})
 }
 
 func TestAuthHandler_DeactivatePseudonym(t *testing.T) {
@@ -1999,5 +1977,69 @@ func TestPseudonymSecurityIsolation(t *testing.T) {
 		t.Log("✅ Scope validation security model is maintained")
 		t.Log("✅ Authentication scope is prioritized for security")
 		t.Log("✅ Multi-scope fallback provides reliability without compromising security")
+	})
+}
+
+// TestAuthHandler_NewAuthHandler tests the main constructor function
+func TestAuthHandler_NewAuthHandler(t *testing.T) {
+	t.Run("NewAuthHandlerWithMocks", func(t *testing.T) {
+		// Test constructor with mocked dependencies
+		mockConfig := &config.Config{JWT: config.JWTConfig{Secret: "test-secret"}}
+		mockUserDAO := &mocks.MockUserDAO{}
+		mockSecurePseudonymDAO := &mocks.MockSecurePseudonymDAO{}
+		mockIdentityMappingDAO := &mocks.MockIdentityMappingDAO{}
+		mockRoleKeyDAO := &mocks.MockRoleKeyDAO{}
+		mockIBESystem := &ibe.IBESystem{}
+		mockSubforumDAO := &mocks.MockSubforumDAO{}
+		mockPermissionDAO := &mocks.MockPermissionDAO{}
+
+		// Create handler with mocked dependencies
+		handler := handlers.NewAuthHandler(
+			mockConfig,
+			nil, // Mock DB
+			mockUserDAO,
+			mockSecurePseudonymDAO,
+			mockIdentityMappingDAO,
+			mockRoleKeyDAO,
+			mockIBESystem,
+			mockSubforumDAO,
+			mockPermissionDAO,
+		)
+
+		// Verify handler was created successfully
+		assert.NotNil(t, handler)
+		// Note: We can't access private fields directly, but we can verify the handler was created
+		// The actual field assignments are tested through the handler's behavior in other tests
+	})
+}
+
+// TestAuthHandler_NewAuthHandlerWithDependencies tests the dependency injection constructor
+func TestAuthHandler_NewAuthHandlerWithDependencies(t *testing.T) {
+	t.Run("NewAuthHandlerWithDependenciesSuccess", func(t *testing.T) {
+		// Create mock dependencies
+		mockConfig := &config.Config{}
+		mockUserDAO := &mocks.MockUserDAO{}
+		mockSecurePseudonymDAO := &mocks.MockSecurePseudonymDAO{}
+		mockIdentityMappingDAO := &mocks.MockIdentityMappingDAO{}
+		mockRoleKeyDAO := &mocks.MockRoleKeyDAO{}
+		mockIBESystem := &ibe.IBESystem{}
+		mockSubforumDAO := &mocks.MockSubforumDAO{}
+		mockPermissionDAO := &mocks.MockPermissionDAO{}
+
+		// Create handler with dependencies
+		handler := handlers.NewAuthHandler(
+			mockConfig,
+			nil, // nil db for testing
+			mockUserDAO,
+			mockSecurePseudonymDAO,
+			mockIdentityMappingDAO,
+			mockRoleKeyDAO,
+			mockIBESystem,
+			mockSubforumDAO,
+			mockPermissionDAO,
+		)
+
+		// Verify handler is created
+		assert.NotNil(t, handler)
 	})
 }

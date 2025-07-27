@@ -176,6 +176,30 @@ func TestCreateIdentityMapping(t *testing.T) {
 	}
 }
 
+func TestCreateKeyRotationMigration(t *testing.T) {
+	if testDB == nil {
+		t.Skip("skipping test, no DSN provided")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	tx, err := testDB.Begin(ctx)
+	if err != nil {
+		t.Fatalf("Error starting transaction: %v", err)
+	}
+
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil {
+			t.Fatalf("Error rolling back transaction: %v", err)
+		}
+	}()
+
+	if _, err := New().NewKeyRotationMigration(ctx).Create(ctx, tx); err != nil {
+		t.Fatalf("Error creating KeyRotationMigration: %v", err)
+	}
+}
+
 func TestCreateKeyUsageAudit(t *testing.T) {
 	if testDB == nil {
 		t.Skip("skipping test, no DSN provided")
@@ -221,6 +245,30 @@ func TestCreateMediaAttachment(t *testing.T) {
 
 	if _, err := New().NewMediaAttachment(ctx).Create(ctx, tx); err != nil {
 		t.Fatalf("Error creating MediaAttachment: %v", err)
+	}
+}
+
+func TestCreateMigrationProgress(t *testing.T) {
+	if testDB == nil {
+		t.Skip("skipping test, no DSN provided")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	tx, err := testDB.Begin(ctx)
+	if err != nil {
+		t.Fatalf("Error starting transaction: %v", err)
+	}
+
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil {
+			t.Fatalf("Error rolling back transaction: %v", err)
+		}
+	}()
+
+	if _, err := New().NewMigrationProgress(ctx).Create(ctx, tx); err != nil {
+		t.Fatalf("Error creating MigrationProgress: %v", err)
 	}
 }
 

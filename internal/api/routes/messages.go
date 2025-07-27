@@ -5,11 +5,12 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/matt0x6f/hashpost/internal/api/handlers"
+	"github.com/stephenafamo/bob"
 )
 
 // RegisterMessagesRoutes registers direct message routes
-func RegisterMessagesRoutes(api huma.API) {
-	messagesHandler := handlers.NewMessagesHandler()
+func RegisterMessagesRoutes(api huma.API, db bob.Executor) {
+	messagesHandler := handlers.NewMessagesHandler(db, nil, nil)
 
 	// Send direct message
 	huma.Register(api, huma.Operation{

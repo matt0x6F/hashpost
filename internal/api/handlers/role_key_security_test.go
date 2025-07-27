@@ -24,7 +24,7 @@ func createTestAuthHandler() (*AuthHandler, *mocks.MockUserDAO, *mocks.MockSecur
 	mockSubforumDAO := mocks.NewMockSubforumDAO()
 	mockPermissionDAO := mocks.NewMockPermissionDAO()
 
-	ibeSystem := ibe.NewIBESystem()
+	ibeSystem := ibe.NewIBESystemWithOptions(ibe.IBEOptions{})
 
 	cfg := &config.Config{
 		JWT: config.JWTConfig{
@@ -44,8 +44,9 @@ func createTestAuthHandler() (*AuthHandler, *mocks.MockUserDAO, *mocks.MockSecur
 		},
 	}
 
-	handler := NewAuthHandlerWithDependencies(
+	handler := NewAuthHandler(
 		cfg,
+		nil, // nil db for testing
 		mockUserDAO,
 		mockSecurePseudonymDAO,
 		mockIdentityMappingDAO,

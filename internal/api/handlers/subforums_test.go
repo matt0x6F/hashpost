@@ -101,7 +101,7 @@ func TestSubforumHandler_GetSubforums(t *testing.T) {
 			mockPostDAO.SetDefaultBehavior()
 
 			// Create handler with mocks
-			handler := NewSubforumHandlerWithMocks(mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPostDAO, nil)
+			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPostDAO)
 
 			// Create context
 			ctx := context.Background()
@@ -206,7 +206,7 @@ func TestSubforumHandler_GetSubforumDetails(t *testing.T) {
 			mockPostDAO.SetDefaultBehavior()
 
 			// Create handler with mocks
-			handler := NewSubforumHandlerWithMocks(mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPostDAO, nil)
+			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPostDAO)
 
 			// Create context
 			ctx := context.Background()
@@ -297,7 +297,7 @@ func TestSubforumHandler_SubscribeToSubforum(t *testing.T) {
 			mockPostDAO.SetDefaultBehavior()
 
 			// Create handler with mocks
-			handler := NewSubforumHandlerWithMocks(mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPostDAO, nil)
+			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPostDAO)
 
 			// Create context
 			ctx := context.Background()
@@ -397,7 +397,7 @@ func TestSubforumHandler_UnsubscribeFromSubforum(t *testing.T) {
 			mockPostDAO.SetDefaultBehavior()
 
 			// Create handler with mocks
-			handler := NewSubforumHandlerWithMocks(mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPostDAO, nil)
+			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPostDAO)
 
 			// Create context
 			ctx := context.Background()
@@ -511,7 +511,7 @@ func TestSubforumHandler_CreateSubforum(t *testing.T) {
 			mockPostDAO.SetDefaultBehavior()
 
 			// Create handler with mocks
-			handler := NewSubforumHandlerWithMocks(mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPostDAO, nil)
+			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPostDAO)
 
 			// Create context
 			ctx := context.Background()
@@ -631,7 +631,7 @@ func TestSubforumHandler_GetPseudonymSubscriptions(t *testing.T) {
 			mockPostDAO.SetDefaultBehavior()
 
 			// Create handler with mocks
-			handler := NewSubforumHandlerWithMocks(mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPostDAO, nil)
+			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPostDAO)
 
 			// Create context
 			ctx := context.Background()
@@ -652,4 +652,30 @@ func TestSubforumHandler_GetPseudonymSubscriptions(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestNewSubforumHandler tests the main constructor function
+func TestNewSubforumHandler(t *testing.T) {
+	t.Run("NewSubforumHandlerSuccess", func(t *testing.T) {
+		// Create mock dependencies
+		mockSubforumDAO := &mocks.MockSubforumDAO{}
+		mockSubforumSubscriptionDAO := &mocks.MockSubforumSubscriptionDAO{}
+		mockPermissionDAO := &mocks.MockPermissionDAO{}
+		mockSubforumModeratorDAO := &mocks.MockSubforumModeratorDAO{}
+		mockIdentityMappingDAO := &mocks.MockIdentityMappingDAO{}
+		mockPostDAO := &mocks.MockPostDAO{}
+		// Create handler with dependencies
+		handler := NewSubforumHandler(
+			nil, // nil db for testing
+			mockSubforumDAO,
+			mockSubforumSubscriptionDAO,
+			mockPermissionDAO,
+			mockSubforumModeratorDAO,
+			mockIdentityMappingDAO,
+			mockPostDAO,
+		)
+
+		// Verify handler is created
+		assert.NotNil(t, handler)
+	})
 }

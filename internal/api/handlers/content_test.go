@@ -31,7 +31,7 @@ func createTestContentHandler() (*ContentHandler, *mocks.MockPostDAO, *mocks.Moc
 	mockRoleKeyDAO := &mocks.MockRoleKeyDAO{}
 	mockPermissionDAO := &mocks.MockPermissionDAO{}
 
-	ibeSystem := ibe.NewIBESystem()
+	ibeSystem := ibe.NewIBESystemWithOptions(ibe.IBEOptions{})
 
 	// Create a mock auth middleware for testing
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
@@ -44,7 +44,7 @@ func createTestContentHandler() (*ContentHandler, *mocks.MockPostDAO, *mocks.Moc
 	// Create a permission checker with the mock DAO
 	permissionChecker := middleware.NewPermissionCheckerWithDAO(mockPermissionDAO)
 
-	handler := NewContentHandlerWithDependencies(
+	handler := NewContentHandler(
 		nil, // Mock DB
 		nil, // Mock raw DB
 		ibeSystem,
@@ -1083,7 +1083,50 @@ func TestContentHandler_CreateComment_ValidationErrors(t *testing.T) {
 
 // TestContentHandler_EditPost_Success tests successful post editing
 func TestContentHandler_EditPost_Success(t *testing.T) {
-	t.Skip("Skipping EditPost test - requires real database connection for post.Update()")
+	handler, mockPostDAO, _, _, _, _, _ := createTestContentHandler()
+
+	// Create test post owned by the user
+	testPost := fixtures.CreateTestPost()
+
+	// Set up expectations
+	mockPostDAO.On("GetPostByID", mock.Anything, int64(123)).Return(
+		func(ctx context.Context, postID int64) (*dbmodels.Post, error) {
+			return testPost, nil
+		},
+	)
+	mockPostDAO.On("UpdatePost", mock.Anything, int64(123), "Updated Post Title", "Updated post content").Return(nil)
+
+	// Create test input
+	input := &apimodels.PostEditInput{
+		PostID: 123,
+		Body: apimodels.PostEditInputBody{
+			Title:   "Updated Post Title",
+			Content: "Updated post content",
+		},
+		AuthInput: middleware.AuthInput{
+			Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "test-pseudonym-id"),
+		},
+	}
+
+	// Set up user context
+	userCtx := fixtures.CreateTestUserContext()
+	ctx := context.WithValue(context.Background(), middleware.UserContextKeyValue, userCtx)
+
+	// Call handler
+	response, err := handler.EditPost(ctx, input)
+
+	// Verify response
+	require.NoError(t, err)
+	require.NotNil(t, response)
+	assert.Equal(t, 200, response.Status)
+	assert.Equal(t, "Updated Post Title", response.Body.Title)
+	assert.Equal(t, "Updated post content", response.Body.Content)
+	assert.Equal(t, "test-pseudonym-id", response.Body.Author.PseudonymID)
+	assert.Equal(t, "TestUser", response.Body.Author.DisplayName)
+	assert.True(t, response.Body.IsEdited)
+
+	// Verify DAO calls
+	mockPostDAO.AssertExpectations(t)
 }
 
 // TestContentHandler_EditPost_NotOwner tests editing a post the user doesn't own
@@ -2080,4 +2123,118 @@ func TestContentHandler_GetPostDetails_NotFound(t *testing.T) {
 
 	// Verify DAO calls
 	mockPostDAO.AssertExpectations(t)
+}
+
+// TestContentHandler_NewContentHandler tests the main constructor function
+func TestContentHandler_NewContentHandler(t *testing.T) {
+	t.Run("NewContentHandlerWithMocks", func(t *testing.T) {
+		// Test constructor with mocked dependencies
+		mockPostDAO := mocks.NewMockPostDAO()
+		mockCommentDAO := mocks.NewMockCommentDAO()
+		mockVoteDAO := mocks.NewMockVoteDAO()
+		mockSubforumDAO := mocks.NewMockSubforumDAO()
+		mockSecurePseudonymDAO := mocks.NewMockSecurePseudonymDAO()
+		mockUserDAO := &mocks.MockUserDAO{}
+		mockIdentityMappingDAO := &mocks.MockIdentityMappingDAO{}
+		mockUserBlocksDAO := &mocks.MockUserBlocksDAO{}
+		mockRoleKeyDAO := &mocks.MockRoleKeyDAO{}
+		mockPermissionDAO := &mocks.MockPermissionDAO{}
+
+		ibeSystem := ibe.NewIBESystemWithOptions(ibe.IBEOptions{})
+		permissionChecker := middleware.NewPermissionCheckerWithDAO(mockPermissionDAO)
+
+		// Create handler with mocked dependencies
+		handler := NewContentHandler(
+			nil, // Mock DB
+			nil, // Mock raw DB
+			ibeSystem,
+			mockIdentityMappingDAO,
+			mockUserDAO,
+			mockPostDAO,
+			mockCommentDAO,
+			mockSubforumDAO,
+			mockSecurePseudonymDAO,
+			mockVoteDAO,
+			mockUserBlocksDAO,
+			mockRoleKeyDAO,
+			permissionChecker,
+			mockPermissionDAO,
+		)
+
+		// Verify handler was created successfully
+		assert.NotNil(t, handler)
+		assert.Equal(t, ibeSystem, handler.ibeSystem)
+		assert.Equal(t, mockPostDAO, handler.postDAO)
+		assert.Equal(t, mockCommentDAO, handler.commentDAO)
+		assert.Equal(t, mockVoteDAO, handler.voteDAO)
+		assert.Equal(t, mockSubforumDAO, handler.subforumDAO)
+		assert.Equal(t, mockSecurePseudonymDAO, handler.securePseudonymDAO)
+		assert.Equal(t, mockPermissionDAO, handler.permissionDAO)
+	})
+}
+
+// TestGenerateSlug tests the slug generation utility function
+func TestGenerateSlug(t *testing.T) {
+	tests := []struct {
+		name     string
+		title    string
+		postID   int64
+		expected string
+	}{
+		{
+			name:     "SimpleTitle",
+			title:    "Test Post",
+			postID:   123,
+			expected: "test-post-123",
+		},
+		{
+			name:     "TitleWithSpecialCharacters",
+			title:    "Test Post! @#$%",
+			postID:   456,
+			expected: "test-post-456",
+		},
+		{
+			name:     "TitleWithMultipleSpaces",
+			title:    "Test   Post   Title",
+			postID:   789,
+			expected: "test-post-title-789",
+		},
+		{
+			name:     "TitleWithHyphens",
+			title:    "Test-Post-Title",
+			postID:   101,
+			expected: "testposttitle-101",
+		},
+		{
+			name:     "VeryLongTitle",
+			title:    "This is a very long title that should be truncated to fifty characters maximum",
+			postID:   202,
+			expected: "this-is-a-very-long-title-that-should-be-truncated-202",
+		},
+		{
+			name:     "EmptyTitle",
+			title:    "",
+			postID:   303,
+			expected: "post-303",
+		},
+		{
+			name:     "TitleWithOnlySpecialCharacters",
+			title:    "!@#$%^&*()",
+			postID:   404,
+			expected: "post-404",
+		},
+		{
+			name:     "TitleWithNumbers",
+			title:    "Test Post 123",
+			postID:   505,
+			expected: "test-post-123-505",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := generateSlug(tt.title, tt.postID)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }

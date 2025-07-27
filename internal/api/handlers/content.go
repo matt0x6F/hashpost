@@ -44,6 +44,33 @@ func generateSlug(title string, postID int64) string {
 	return fmt.Sprintf("%s-%d", slug, postID)
 }
 
+// ContentHandlerConfig holds configuration for creating a ContentHandler
+type ContentHandlerConfig struct {
+	DB                 bob.Executor
+	RawDB              *sql.DB
+	IBESystem          *ibe.IBESystem
+	IdentityMappingDAO dao.IdentityMappingDAOInterface
+	UserDAO            dao.UserDAOInterface
+	PostDAO            dao.PostDAOInterface
+	CommentDAO         dao.CommentDAOInterface
+	SubforumDAO        dao.SubforumDAOInterface
+	SecurePseudonymDAO dao.SecurePseudonymDAOInterface
+	VoteDAO            dao.VoteDAOInterface
+	UserBlocksDAO      dao.UserBlocksDAOInterface
+	RoleKeyDAO         dao.RoleKeyDAOInterface
+	PermissionChecker  middleware.PermissionCheckerInterface
+	PermissionDAO      dao.PermissionDAOInterface
+}
+
+// NewContentHandlerConfig creates a new configuration for ContentHandler
+func NewContentHandlerConfig(db bob.Executor, rawDB *sql.DB, ibeSystem *ibe.IBESystem) *ContentHandlerConfig {
+	return &ContentHandlerConfig{
+		DB:        db,
+		RawDB:     rawDB,
+		IBESystem: ibeSystem,
+	}
+}
+
 // ContentHandler handles content-related requests
 type ContentHandler struct {
 	db                 bob.Executor
@@ -60,31 +87,9 @@ type ContentHandler struct {
 	permissionDAO      dao.PermissionDAOInterface
 }
 
-// NewContentHandler creates a new content handler
-func NewContentHandler(db bob.Executor, rawDB *sql.DB, ibeSystem *ibe.IBESystem, identityMappingDAO *dao.IdentityMappingDAO, userDAO *dao.UserDAO) *ContentHandler {
-	roleKeyDAO := dao.NewRoleKeyDAO(db)
-	userBlocksDAO := dao.NewUserBlocksDAO(db)
-	securePseudonymDAO := dao.NewSecurePseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
-	permissionDAO := dao.NewPermissionDAO(db)
-
-	return &ContentHandler{
-		db:                 db,
-		rawDB:              rawDB,
-		ibeSystem:          ibeSystem,
-		identityMappingDAO: identityMappingDAO,
-		userDAO:            userDAO,
-		postDAO:            dao.NewPostDAO(db),
-		commentDAO:         dao.NewCommentDAO(db),
-		subforumDAO:        dao.NewSubforumDAO(db),
-		securePseudonymDAO: securePseudonymDAO,
-		voteDAO:            dao.NewVoteDAO(db),
-		permissionChecker:  middleware.NewPermissionChecker(db),
-		permissionDAO:      permissionDAO,
-	}
-}
-
-// NewContentHandlerWithDependencies creates a new content handler with injected dependencies
-func NewContentHandlerWithDependencies(
+// NewContentHandler creates a new content handler with optional dependencies
+// If db is provided, real DAOs will be created. If nil, mock DAOs should be provided.
+func NewContentHandler(
 	db bob.Executor,
 	rawDB *sql.DB,
 	ibeSystem *ibe.IBESystem,
@@ -100,6 +105,42 @@ func NewContentHandlerWithDependencies(
 	permissionChecker middleware.PermissionCheckerInterface,
 	permissionDAO dao.PermissionDAOInterface,
 ) *ContentHandler {
+	// If db is provided, create real DAOs (production mode)
+	if db != nil {
+		roleKeyDAO = dao.NewRoleKeyDAO(db)
+		userBlocksDAO = dao.NewUserBlocksDAO(db)
+
+		// Safe type assertions with error handling
+		identityMappingDAOImpl, ok := identityMappingDAO.(*dao.IdentityMappingDAO)
+		if !ok {
+			log.Error().Msg("identityMappingDAO is not of type *dao.IdentityMappingDAO")
+			return nil
+		}
+		userDAOImpl, ok := userDAO.(*dao.UserDAO)
+		if !ok {
+			log.Error().Msg("userDAO is not of type *dao.UserDAO")
+			return nil
+		}
+		roleKeyDAOImpl, ok := roleKeyDAO.(*dao.RoleKeyDAO)
+		if !ok {
+			log.Error().Msg("roleKeyDAO is not of type *dao.RoleKeyDAO")
+			return nil
+		}
+		userBlocksDAOImpl, ok := userBlocksDAO.(*dao.UserBlocksDAO)
+		if !ok {
+			log.Error().Msg("userBlocksDAO is not of type *dao.UserBlocksDAO")
+			return nil
+		}
+
+		securePseudonymDAO = dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAOImpl, userDAOImpl, roleKeyDAOImpl, userBlocksDAOImpl)
+		permissionDAO = dao.NewPermissionDAO(db)
+		postDAO = dao.NewPostDAO(db)
+		commentDAO = dao.NewCommentDAO(db)
+		subforumDAO = dao.NewSubforumDAO(db)
+		voteDAO = dao.NewVoteDAO(db)
+		permissionChecker = middleware.NewPermissionChecker(db)
+	}
+
 	return &ContentHandler{
 		db:                 db,
 		rawDB:              rawDB,
@@ -114,6 +155,26 @@ func NewContentHandlerWithDependencies(
 		permissionChecker:  permissionChecker,
 		permissionDAO:      permissionDAO,
 	}
+}
+
+// NewContentHandlerFromConfig creates a new content handler from a configuration struct
+func NewContentHandlerFromConfig(cfg *ContentHandlerConfig) *ContentHandler {
+	return NewContentHandler(
+		cfg.DB,
+		cfg.RawDB,
+		cfg.IBESystem,
+		cfg.IdentityMappingDAO,
+		cfg.UserDAO,
+		cfg.PostDAO,
+		cfg.CommentDAO,
+		cfg.SubforumDAO,
+		cfg.SecurePseudonymDAO,
+		cfg.VoteDAO,
+		cfg.UserBlocksDAO,
+		cfg.RoleKeyDAO,
+		cfg.PermissionChecker,
+		cfg.PermissionDAO,
+	)
 }
 
 // GetPosts handles getting posts from a subforum

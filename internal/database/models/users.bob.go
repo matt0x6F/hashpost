@@ -59,20 +59,21 @@ type UsersQuery = *psql.ViewQuery[*User, UserSlice]
 
 // userR is where relationships are stored.
 type userR struct {
-	AssignedUserComplianceReports  ComplianceReportSlice `scan:"AssignedUserComplianceReports" json:"AssignedUserComplianceReports"`   // compliance_reports.compliance_reports_assigned_user_id_fkey
-	CorrelationAudits              CorrelationAuditSlice `scan:"CorrelationAudits" json:"CorrelationAudits"`                           // correlation_audit.correlation_audit_user_id_fkey
-	IdentityMappings               IdentityMappingSlice  `scan:"IdentityMappings" json:"IdentityMappings"`                             // identity_mappings.identity_mappings_user_id_fkey
-	KeyUsageAudits                 KeyUsageAuditSlice    `scan:"KeyUsageAudits" json:"KeyUsageAudits"`                                 // key_usage_audit.key_usage_audit_user_id_fkey
-	ModeratorUserModerationActions ModerationActionSlice `scan:"ModeratorUserModerationActions" json:"ModeratorUserModerationActions"` // moderation_actions.moderation_actions_moderator_user_id_fkey
-	TargetUserModerationActions    ModerationActionSlice `scan:"TargetUserModerationActions" json:"TargetUserModerationActions"`       // moderation_actions.moderation_actions_target_user_id_fkey
-	ResolvedByUserReports          ReportSlice           `scan:"ResolvedByUserReports" json:"ResolvedByUserReports"`                   // reports.reports_resolved_by_user_id_fkey
-	CreatedByRoleKeys              RoleKeySlice          `scan:"CreatedByRoleKeys" json:"CreatedByRoleKeys"`                           // role_keys.role_keys_created_by_fkey
-	CreatedByUserSubforums         SubforumSlice         `scan:"CreatedByUserSubforums" json:"CreatedByUserSubforums"`                 // subforums.subforums_created_by_user_id_fkey
-	UpdatedBySystemSettings        SystemSettingSlice    `scan:"UpdatedBySystemSettings" json:"UpdatedBySystemSettings"`               // system_settings.system_settings_updated_by_fkey
-	BannedByUserUserBans           UserBanSlice          `scan:"BannedByUserUserBans" json:"BannedByUserUserBans"`                     // user_bans.user_bans_banned_by_user_id_fkey
-	BannedUserUserBans             UserBanSlice          `scan:"BannedUserUserBans" json:"BannedUserUserBans"`                         // user_bans.user_bans_banned_user_id_fkey
-	BlockedUserUserBlocks          UserBlockSlice        `scan:"BlockedUserUserBlocks" json:"BlockedUserUserBlocks"`                   // user_blocks.user_blocks_blocked_user_id_fkey
-	UserPreference                 *UserPreference       `scan:"UserPreference" json:"UserPreference"`                                 // user_preferences.user_preferences_user_id_fkey
+	AssignedUserComplianceReports  ComplianceReportSlice     `scan:"AssignedUserComplianceReports" json:"AssignedUserComplianceReports"`   // compliance_reports.compliance_reports_assigned_user_id_fkey
+	CorrelationAudits              CorrelationAuditSlice     `scan:"CorrelationAudits" json:"CorrelationAudits"`                           // correlation_audit.correlation_audit_user_id_fkey
+	IdentityMappings               IdentityMappingSlice      `scan:"IdentityMappings" json:"IdentityMappings"`                             // identity_mappings.identity_mappings_user_id_fkey
+	CreatedByKeyRotationMigrations KeyRotationMigrationSlice `scan:"CreatedByKeyRotationMigrations" json:"CreatedByKeyRotationMigrations"` // key_rotation_migrations.key_rotation_migrations_created_by_fkey
+	KeyUsageAudits                 KeyUsageAuditSlice        `scan:"KeyUsageAudits" json:"KeyUsageAudits"`                                 // key_usage_audit.key_usage_audit_user_id_fkey
+	ModeratorUserModerationActions ModerationActionSlice     `scan:"ModeratorUserModerationActions" json:"ModeratorUserModerationActions"` // moderation_actions.moderation_actions_moderator_user_id_fkey
+	TargetUserModerationActions    ModerationActionSlice     `scan:"TargetUserModerationActions" json:"TargetUserModerationActions"`       // moderation_actions.moderation_actions_target_user_id_fkey
+	ResolvedByUserReports          ReportSlice               `scan:"ResolvedByUserReports" json:"ResolvedByUserReports"`                   // reports.reports_resolved_by_user_id_fkey
+	CreatedByRoleKeys              RoleKeySlice              `scan:"CreatedByRoleKeys" json:"CreatedByRoleKeys"`                           // role_keys.role_keys_created_by_fkey
+	CreatedByUserSubforums         SubforumSlice             `scan:"CreatedByUserSubforums" json:"CreatedByUserSubforums"`                 // subforums.subforums_created_by_user_id_fkey
+	UpdatedBySystemSettings        SystemSettingSlice        `scan:"UpdatedBySystemSettings" json:"UpdatedBySystemSettings"`               // system_settings.system_settings_updated_by_fkey
+	BannedByUserUserBans           UserBanSlice              `scan:"BannedByUserUserBans" json:"BannedByUserUserBans"`                     // user_bans.user_bans_banned_by_user_id_fkey
+	BannedUserUserBans             UserBanSlice              `scan:"BannedUserUserBans" json:"BannedUserUserBans"`                         // user_bans.user_bans_banned_user_id_fkey
+	BlockedUserUserBlocks          UserBlockSlice            `scan:"BlockedUserUserBlocks" json:"BlockedUserUserBlocks"`                   // user_blocks.user_blocks_blocked_user_id_fkey
+	UserPreference                 *UserPreference           `scan:"UserPreference" json:"UserPreference"`                                 // user_preferences.user_preferences_user_id_fkey
 }
 
 type userColumnNames struct {
@@ -846,6 +847,7 @@ type userJoins[Q dialect.Joinable] struct {
 	AssignedUserComplianceReports  modAs[Q, complianceReportColumns]
 	CorrelationAudits              modAs[Q, correlationAuditColumns]
 	IdentityMappings               modAs[Q, identityMappingColumns]
+	CreatedByKeyRotationMigrations modAs[Q, keyRotationMigrationColumns]
 	KeyUsageAudits                 modAs[Q, keyUsageAuditColumns]
 	ModeratorUserModerationActions modAs[Q, moderationActionColumns]
 	TargetUserModerationActions    modAs[Q, moderationActionColumns]
@@ -902,6 +904,20 @@ func buildUserJoins[Q dialect.Joinable](cols userColumns, typ string) userJoins[
 				{
 					mods = append(mods, dialect.Join[Q](typ, IdentityMappings.Name().As(to.Alias())).On(
 						to.UserID.EQ(cols.UserID),
+					))
+				}
+
+				return mods
+			},
+		},
+		CreatedByKeyRotationMigrations: modAs[Q, keyRotationMigrationColumns]{
+			c: KeyRotationMigrationColumns,
+			f: func(to keyRotationMigrationColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, KeyRotationMigrations.Name().As(to.Alias())).On(
+						to.CreatedBy.EQ(cols.UserID),
 					))
 				}
 
@@ -1125,6 +1141,27 @@ func (os UserSlice) IdentityMappings(mods ...bob.Mod[*dialect.SelectQuery]) Iden
 
 	return IdentityMappings.Query(append(mods,
 		sm.Where(psql.Group(IdentityMappingColumns.UserID).OP("IN", PKArgExpr)),
+	)...)
+}
+
+// CreatedByKeyRotationMigrations starts a query for related objects on key_rotation_migrations
+func (o *User) CreatedByKeyRotationMigrations(mods ...bob.Mod[*dialect.SelectQuery]) KeyRotationMigrationsQuery {
+	return KeyRotationMigrations.Query(append(mods,
+		sm.Where(KeyRotationMigrationColumns.CreatedBy.EQ(psql.Arg(o.UserID))),
+	)...)
+}
+
+func (os UserSlice) CreatedByKeyRotationMigrations(mods ...bob.Mod[*dialect.SelectQuery]) KeyRotationMigrationsQuery {
+	pkUserID := make(pgtypes.Array[int64], len(os))
+	for i, o := range os {
+		pkUserID[i] = o.UserID
+	}
+	PKArgExpr := psql.Select(sm.Columns(
+		psql.F("unnest", psql.Cast(psql.Arg(pkUserID), "bigint[]")),
+	))
+
+	return KeyRotationMigrations.Query(append(mods,
+		sm.Where(psql.Group(KeyRotationMigrationColumns.CreatedBy).OP("IN", PKArgExpr)),
 	)...)
 }
 
@@ -1407,6 +1444,20 @@ func (o *User) Preload(name string, retrieved any) error {
 			}
 		}
 		return nil
+	case "CreatedByKeyRotationMigrations":
+		rels, ok := retrieved.(KeyRotationMigrationSlice)
+		if !ok {
+			return fmt.Errorf("user cannot load %T as %q", retrieved, name)
+		}
+
+		o.R.CreatedByKeyRotationMigrations = rels
+
+		for _, rel := range rels {
+			if rel != nil {
+				rel.R.CreatedByUser = o
+			}
+		}
+		return nil
 	case "KeyUsageAudits":
 		rels, ok := retrieved.(KeyUsageAuditSlice)
 		if !ok {
@@ -1594,6 +1645,7 @@ type userThenLoader[Q orm.Loadable] struct {
 	AssignedUserComplianceReports  func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	CorrelationAudits              func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	IdentityMappings               func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	CreatedByKeyRotationMigrations func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	KeyUsageAudits                 func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	ModeratorUserModerationActions func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	TargetUserModerationActions    func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
@@ -1616,6 +1668,9 @@ func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
 	}
 	type IdentityMappingsLoadInterface interface {
 		LoadIdentityMappings(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	}
+	type CreatedByKeyRotationMigrationsLoadInterface interface {
+		LoadCreatedByKeyRotationMigrations(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 	type KeyUsageAuditsLoadInterface interface {
 		LoadKeyUsageAudits(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
@@ -1668,6 +1723,12 @@ func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
 			"IdentityMappings",
 			func(ctx context.Context, exec bob.Executor, retrieved IdentityMappingsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
 				return retrieved.LoadIdentityMappings(ctx, exec, mods...)
+			},
+		),
+		CreatedByKeyRotationMigrations: thenLoadBuilder[Q](
+			"CreatedByKeyRotationMigrations",
+			func(ctx context.Context, exec bob.Executor, retrieved CreatedByKeyRotationMigrationsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadCreatedByKeyRotationMigrations(ctx, exec, mods...)
 			},
 		),
 		KeyUsageAudits: thenLoadBuilder[Q](
@@ -1889,6 +1950,58 @@ func (os UserSlice) LoadIdentityMappings(ctx context.Context, exec bob.Executor,
 			rel.R.User = o
 
 			o.R.IdentityMappings = append(o.R.IdentityMappings, rel)
+		}
+	}
+
+	return nil
+}
+
+// LoadCreatedByKeyRotationMigrations loads the user's CreatedByKeyRotationMigrations into the .R struct
+func (o *User) LoadCreatedByKeyRotationMigrations(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if o == nil {
+		return nil
+	}
+
+	// Reset the relationship
+	o.R.CreatedByKeyRotationMigrations = nil
+
+	related, err := o.CreatedByKeyRotationMigrations(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, rel := range related {
+		rel.R.CreatedByUser = o
+	}
+
+	o.R.CreatedByKeyRotationMigrations = related
+	return nil
+}
+
+// LoadCreatedByKeyRotationMigrations loads the user's CreatedByKeyRotationMigrations into the .R struct
+func (os UserSlice) LoadCreatedByKeyRotationMigrations(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if len(os) == 0 {
+		return nil
+	}
+
+	keyRotationMigrations, err := os.CreatedByKeyRotationMigrations(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range os {
+		o.R.CreatedByKeyRotationMigrations = nil
+	}
+
+	for _, o := range os {
+		for _, rel := range keyRotationMigrations {
+			if o.UserID != rel.CreatedBy {
+				continue
+			}
+
+			rel.R.CreatedByUser = o
+
+			o.R.CreatedByKeyRotationMigrations = append(o.R.CreatedByKeyRotationMigrations, rel)
 		}
 	}
 
@@ -2667,6 +2780,74 @@ func (user0 *User) AttachIdentityMappings(ctx context.Context, exec bob.Executor
 
 	for _, rel := range related {
 		rel.R.User = user0
+	}
+
+	return nil
+}
+
+func insertUserCreatedByKeyRotationMigrations0(ctx context.Context, exec bob.Executor, keyRotationMigrations1 []*KeyRotationMigrationSetter, user0 *User) (KeyRotationMigrationSlice, error) {
+	for i := range keyRotationMigrations1 {
+		keyRotationMigrations1[i].CreatedBy = &user0.UserID
+	}
+
+	ret, err := KeyRotationMigrations.Insert(bob.ToMods(keyRotationMigrations1...)).All(ctx, exec)
+	if err != nil {
+		return ret, fmt.Errorf("insertUserCreatedByKeyRotationMigrations0: %w", err)
+	}
+
+	return ret, nil
+}
+
+func attachUserCreatedByKeyRotationMigrations0(ctx context.Context, exec bob.Executor, count int, keyRotationMigrations1 KeyRotationMigrationSlice, user0 *User) (KeyRotationMigrationSlice, error) {
+	setter := &KeyRotationMigrationSetter{
+		CreatedBy: &user0.UserID,
+	}
+
+	err := keyRotationMigrations1.UpdateAll(ctx, exec, *setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachUserCreatedByKeyRotationMigrations0: %w", err)
+	}
+
+	return keyRotationMigrations1, nil
+}
+
+func (user0 *User) InsertCreatedByKeyRotationMigrations(ctx context.Context, exec bob.Executor, related ...*KeyRotationMigrationSetter) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+
+	keyRotationMigrations1, err := insertUserCreatedByKeyRotationMigrations0(ctx, exec, related, user0)
+	if err != nil {
+		return err
+	}
+
+	user0.R.CreatedByKeyRotationMigrations = append(user0.R.CreatedByKeyRotationMigrations, keyRotationMigrations1...)
+
+	for _, rel := range keyRotationMigrations1 {
+		rel.R.CreatedByUser = user0
+	}
+	return nil
+}
+
+func (user0 *User) AttachCreatedByKeyRotationMigrations(ctx context.Context, exec bob.Executor, related ...*KeyRotationMigration) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+	keyRotationMigrations1 := KeyRotationMigrationSlice(related)
+
+	_, err = attachUserCreatedByKeyRotationMigrations0(ctx, exec, len(related), keyRotationMigrations1, user0)
+	if err != nil {
+		return err
+	}
+
+	user0.R.CreatedByKeyRotationMigrations = append(user0.R.CreatedByKeyRotationMigrations, keyRotationMigrations1...)
+
+	for _, rel := range related {
+		rel.R.CreatedByUser = user0
 	}
 
 	return nil
