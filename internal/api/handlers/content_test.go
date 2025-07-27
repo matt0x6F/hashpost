@@ -31,7 +31,7 @@ func createTestContentHandler() (*ContentHandler, *mocks.MockPostDAO, *mocks.Moc
 	mockRoleKeyDAO := &mocks.MockRoleKeyDAO{}
 	mockPermissionDAO := &mocks.MockPermissionDAO{}
 
-	ibeSystem := ibe.NewIBESystem()
+	ibeSystem := ibe.NewIBESystemWithOptions(ibe.IBEOptions{})
 
 	// Create a mock auth middleware for testing
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
@@ -2140,7 +2140,7 @@ func TestContentHandler_NewContentHandler(t *testing.T) {
 		mockRoleKeyDAO := &mocks.MockRoleKeyDAO{}
 		mockPermissionDAO := &mocks.MockPermissionDAO{}
 
-		ibeSystem := ibe.NewIBESystem()
+		ibeSystem := ibe.NewIBESystemWithOptions(ibe.IBEOptions{})
 		permissionChecker := middleware.NewPermissionCheckerWithDAO(mockPermissionDAO)
 
 		// Create handler with mocked dependencies

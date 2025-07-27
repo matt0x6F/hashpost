@@ -26,8 +26,10 @@ var TableNames = struct {
 	CorrelationAudits      string
 	DirectMessages         string
 	IdentityMappings       string
+	KeyRotationMigrations  string
 	KeyUsageAudits         string
 	MediaAttachments       string
+	MigrationProgresses    string
 	ModerationActions      string
 	PerformanceMetrics     string
 	PollVotes              string
@@ -56,8 +58,10 @@ var TableNames = struct {
 	CorrelationAudits:      "correlation_audit",
 	DirectMessages:         "direct_messages",
 	IdentityMappings:       "identity_mappings",
+	KeyRotationMigrations:  "key_rotation_migrations",
 	KeyUsageAudits:         "key_usage_audit",
 	MediaAttachments:       "media_attachments",
+	MigrationProgresses:    "migration_progress",
 	ModerationActions:      "moderation_actions",
 	PerformanceMetrics:     "performance_metrics",
 	PollVotes:              "poll_votes",
@@ -88,8 +92,10 @@ var ColumnNames = struct {
 	CorrelationAudits      correlationAuditColumnNames
 	DirectMessages         directMessageColumnNames
 	IdentityMappings       identityMappingColumnNames
+	KeyRotationMigrations  keyRotationMigrationColumnNames
 	KeyUsageAudits         keyUsageAuditColumnNames
 	MediaAttachments       mediaAttachmentColumnNames
+	MigrationProgresses    migrationProgressColumnNames
 	ModerationActions      moderationActionColumnNames
 	PerformanceMetrics     performanceMetricColumnNames
 	PollVotes              pollVoteColumnNames
@@ -206,6 +212,25 @@ var ColumnNames = struct {
 		UserID:                    "user_id",
 		KeyScope:                  "key_scope",
 	},
+	KeyRotationMigrations: keyRotationMigrationColumnNames{
+		MigrationID:      "migration_id",
+		Domain:           "domain",
+		OldKeyVersion:    "old_key_version",
+		NewKeyVersion:    "new_key_version",
+		Status:           "status",
+		StartedAt:        "started_at",
+		PausedAt:         "paused_at",
+		ResumedAt:        "resumed_at",
+		CompletedAt:      "completed_at",
+		TotalRecords:     "total_records",
+		ProcessedRecords: "processed_records",
+		FailedRecords:    "failed_records",
+		LastProcessedID:  "last_processed_id",
+		ErrorMessage:     "error_message",
+		RetryCount:       "retry_count",
+		MaxRetries:       "max_retries",
+		CreatedBy:        "created_by",
+	},
 	KeyUsageAudits: keyUsageAuditColumnNames{
 		UsageID:           "usage_id",
 		KeyID:             "key_id",
@@ -230,6 +255,16 @@ var ColumnNames = struct {
 		Height:          "height",
 		DurationSeconds: "duration_seconds",
 		CreatedAt:       "created_at",
+	},
+	MigrationProgresses: migrationProgressColumnNames{
+		MigrationID:  "migration_id",
+		MappingID:    "mapping_id",
+		Status:       "status",
+		StartedAt:    "started_at",
+		CompletedAt:  "completed_at",
+		ErrorMessage: "error_message",
+		RetryCount:   "retry_count",
+		MaxRetries:   "max_retries",
 	},
 	ModerationActions: moderationActionColumnNames{
 		ActionID:             "action_id",
@@ -488,8 +523,10 @@ func Where[Q psql.Filterable]() struct {
 	CorrelationAudits      correlationAuditWhere[Q]
 	DirectMessages         directMessageWhere[Q]
 	IdentityMappings       identityMappingWhere[Q]
+	KeyRotationMigrations  keyRotationMigrationWhere[Q]
 	KeyUsageAudits         keyUsageAuditWhere[Q]
 	MediaAttachments       mediaAttachmentWhere[Q]
+	MigrationProgresses    migrationProgressWhere[Q]
 	ModerationActions      moderationActionWhere[Q]
 	PerformanceMetrics     performanceMetricWhere[Q]
 	PollVotes              pollVoteWhere[Q]
@@ -519,8 +556,10 @@ func Where[Q psql.Filterable]() struct {
 		CorrelationAudits      correlationAuditWhere[Q]
 		DirectMessages         directMessageWhere[Q]
 		IdentityMappings       identityMappingWhere[Q]
+		KeyRotationMigrations  keyRotationMigrationWhere[Q]
 		KeyUsageAudits         keyUsageAuditWhere[Q]
 		MediaAttachments       mediaAttachmentWhere[Q]
+		MigrationProgresses    migrationProgressWhere[Q]
 		ModerationActions      moderationActionWhere[Q]
 		PerformanceMetrics     performanceMetricWhere[Q]
 		PollVotes              pollVoteWhere[Q]
@@ -549,8 +588,10 @@ func Where[Q psql.Filterable]() struct {
 		CorrelationAudits:      buildCorrelationAuditWhere[Q](CorrelationAuditColumns),
 		DirectMessages:         buildDirectMessageWhere[Q](DirectMessageColumns),
 		IdentityMappings:       buildIdentityMappingWhere[Q](IdentityMappingColumns),
+		KeyRotationMigrations:  buildKeyRotationMigrationWhere[Q](KeyRotationMigrationColumns),
 		KeyUsageAudits:         buildKeyUsageAuditWhere[Q](KeyUsageAuditColumns),
 		MediaAttachments:       buildMediaAttachmentWhere[Q](MediaAttachmentColumns),
+		MigrationProgresses:    buildMigrationProgressWhere[Q](MigrationProgressColumns),
 		ModerationActions:      buildModerationActionWhere[Q](ModerationActionColumns),
 		PerformanceMetrics:     buildPerformanceMetricWhere[Q](PerformanceMetricColumns),
 		PollVotes:              buildPollVoteWhere[Q](PollVoteColumns),
@@ -584,8 +625,10 @@ type preloaders struct {
 	CorrelationAudit      correlationAuditPreloader
 	DirectMessage         directMessagePreloader
 	IdentityMapping       identityMappingPreloader
+	KeyRotationMigration  keyRotationMigrationPreloader
 	KeyUsageAudit         keyUsageAuditPreloader
 	MediaAttachment       mediaAttachmentPreloader
+	MigrationProgress     migrationProgressPreloader
 	ModerationAction      moderationActionPreloader
 	PollVote              pollVotePreloader
 	Poll                  pollPreloader
@@ -613,8 +656,10 @@ func getPreloaders() preloaders {
 		CorrelationAudit:      buildCorrelationAuditPreloader(),
 		DirectMessage:         buildDirectMessagePreloader(),
 		IdentityMapping:       buildIdentityMappingPreloader(),
+		KeyRotationMigration:  buildKeyRotationMigrationPreloader(),
 		KeyUsageAudit:         buildKeyUsageAuditPreloader(),
 		MediaAttachment:       buildMediaAttachmentPreloader(),
+		MigrationProgress:     buildMigrationProgressPreloader(),
 		ModerationAction:      buildModerationActionPreloader(),
 		PollVote:              buildPollVotePreloader(),
 		Poll:                  buildPollPreloader(),
@@ -648,8 +693,10 @@ type thenLoaders[Q orm.Loadable] struct {
 	CorrelationAudit      correlationAuditThenLoader[Q]
 	DirectMessage         directMessageThenLoader[Q]
 	IdentityMapping       identityMappingThenLoader[Q]
+	KeyRotationMigration  keyRotationMigrationThenLoader[Q]
 	KeyUsageAudit         keyUsageAuditThenLoader[Q]
 	MediaAttachment       mediaAttachmentThenLoader[Q]
+	MigrationProgress     migrationProgressThenLoader[Q]
 	ModerationAction      moderationActionThenLoader[Q]
 	PollVote              pollVoteThenLoader[Q]
 	Poll                  pollThenLoader[Q]
@@ -677,8 +724,10 @@ func getThenLoaders[Q orm.Loadable]() thenLoaders[Q] {
 		CorrelationAudit:      buildCorrelationAuditThenLoader[Q](),
 		DirectMessage:         buildDirectMessageThenLoader[Q](),
 		IdentityMapping:       buildIdentityMappingThenLoader[Q](),
+		KeyRotationMigration:  buildKeyRotationMigrationThenLoader[Q](),
 		KeyUsageAudit:         buildKeyUsageAuditThenLoader[Q](),
 		MediaAttachment:       buildMediaAttachmentThenLoader[Q](),
+		MigrationProgress:     buildMigrationProgressThenLoader[Q](),
 		ModerationAction:      buildModerationActionThenLoader[Q](),
 		PollVote:              buildPollVoteThenLoader[Q](),
 		Poll:                  buildPollThenLoader[Q](),
@@ -746,8 +795,10 @@ type joins[Q dialect.Joinable] struct {
 	CorrelationAudits      joinSet[correlationAuditJoins[Q]]
 	DirectMessages         joinSet[directMessageJoins[Q]]
 	IdentityMappings       joinSet[identityMappingJoins[Q]]
+	KeyRotationMigrations  joinSet[keyRotationMigrationJoins[Q]]
 	KeyUsageAudits         joinSet[keyUsageAuditJoins[Q]]
 	MediaAttachments       joinSet[mediaAttachmentJoins[Q]]
+	MigrationProgresses    joinSet[migrationProgressJoins[Q]]
 	ModerationActions      joinSet[moderationActionJoins[Q]]
 	PollVotes              joinSet[pollVoteJoins[Q]]
 	Polls                  joinSet[pollJoins[Q]]
@@ -783,8 +834,10 @@ func getJoins[Q dialect.Joinable]() joins[Q] {
 		CorrelationAudits:      buildJoinSet[correlationAuditJoins[Q]](CorrelationAuditColumns, buildCorrelationAuditJoins),
 		DirectMessages:         buildJoinSet[directMessageJoins[Q]](DirectMessageColumns, buildDirectMessageJoins),
 		IdentityMappings:       buildJoinSet[identityMappingJoins[Q]](IdentityMappingColumns, buildIdentityMappingJoins),
+		KeyRotationMigrations:  buildJoinSet[keyRotationMigrationJoins[Q]](KeyRotationMigrationColumns, buildKeyRotationMigrationJoins),
 		KeyUsageAudits:         buildJoinSet[keyUsageAuditJoins[Q]](KeyUsageAuditColumns, buildKeyUsageAuditJoins),
 		MediaAttachments:       buildJoinSet[mediaAttachmentJoins[Q]](MediaAttachmentColumns, buildMediaAttachmentJoins),
+		MigrationProgresses:    buildJoinSet[migrationProgressJoins[Q]](MigrationProgressColumns, buildMigrationProgressJoins),
 		ModerationActions:      buildJoinSet[moderationActionJoins[Q]](ModerationActionColumns, buildModerationActionJoins),
 		PollVotes:              buildJoinSet[pollVoteJoins[Q]](PollVoteColumns, buildPollVoteJoins),
 		Polls:                  buildJoinSet[pollJoins[Q]](PollColumns, buildPollJoins),

@@ -36,7 +36,7 @@ func NewSearchHandler(
 ) *SearchHandler {
 	if db != nil {
 		// Production mode - create real DAOs
-		ibeSystem := ibe.NewIBESystem()
+		ibeSystem := ibe.NewTestIBESystem()
 		identityMappingDAO := dao.NewIdentityMappingDAO(db)
 		roleKeyDAO := dao.NewRoleKeyDAO(db)
 		userBlocksDAO := dao.NewUserBlocksDAO(db)

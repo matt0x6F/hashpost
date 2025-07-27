@@ -190,7 +190,7 @@ func TestIBESystem_EnhancedArchitecture(t *testing.T) {
 
 		// Test backward compatibility with legacy methods
 		userSecret := []byte("test_user_secret")
-		legacyPseudonym := ibeSystem.GeneratePseudonym(userSecret)
+		legacyPseudonym := ibeSystem.GeneratePseudonymFromSecret(userSecret)
 
 		// Legacy pseudonym should still work
 		assert.NotEmpty(t, legacyPseudonym, "Legacy pseudonym generation should work")
@@ -236,7 +236,7 @@ func TestIBESystem_IntegrationWithDatabase(t *testing.T) {
 		t.Logf("Decrypted real identity: %s", decryptedRealIdentity)
 		t.Logf("Decrypted pseudonym: %s", decryptedPseudonym)
 
-		// Expect the fingerprint, not the email
+		// Expect the fingerprint, not the real identity
 		expectedFingerprint := ibeSystem.GenerateFingerprint(realIdentity)
 		expectedMapping := expectedFingerprint + ":" + pseudonymID
 		assert.Equal(t, expectedMapping, decryptedRealIdentity, "Decrypted real identity should be the fingerprint mapping")
@@ -248,7 +248,7 @@ func TestIBESystem_IntegrationWithDatabase(t *testing.T) {
 
 func TestIBESystem_Configuration(t *testing.T) {
 	t.Run("Default Configuration", func(t *testing.T) {
-		ibeSystem := NewIBESystem()
+		ibeSystem := NewIBESystemWithOptions(IBEOptions{})
 
 		// Test default values
 		assert.Equal(t, 1, ibeSystem.GetKeyVersion(), "Default key version should be 1")
@@ -327,13 +327,13 @@ func TestIBESystem_IdentityOperations(t *testing.T) {
 		assert.Len(t, fingerprint1, 32, "Fingerprint should be 32 hex characters")
 
 		// Different identities should generate different fingerprints
-		otherIdentity := "other@example.com"
-		otherFingerprint := ibeSystem.GenerateFingerprint(otherIdentity)
-		assert.NotEqual(t, fingerprint1, otherFingerprint, "Different identities should generate different fingerprints")
+		identity2 := "test2@example.com"
+		fingerprint3 := ibeSystem.GenerateFingerprint(identity2)
+		assert.NotEqual(t, fingerprint1, fingerprint3, "Different identities should generate different fingerprints")
 	})
 
 	t.Run("Identity Encryption and Decryption", func(t *testing.T) {
-		// Test identity encryption/decryption
+		// Test identity encryption and decryption
 		realIdentity := "test@example.com"
 		pseudonymID := "abc123def456"
 		adminKey := ibeSystem.GenerateTimeBoundedKey("platform_admin", "correlation", time.Hour)
@@ -347,7 +347,7 @@ func TestIBESystem_IdentityOperations(t *testing.T) {
 		decryptedRealIdentity, decryptedPseudonym, err := ibeSystem.DecryptIdentity(encryptedMapping, adminKey)
 		require.NoError(t, err, "Should decrypt identity mapping")
 
-		// Verify decrypted values
+		// Verify decrypted values - expect fingerprint, not real identity
 		expectedFingerprint := ibeSystem.GenerateFingerprint(realIdentity)
 		expectedMapping := expectedFingerprint + ":" + pseudonymID
 		assert.Equal(t, expectedMapping, decryptedRealIdentity, "Decrypted real identity should be the fingerprint mapping")
@@ -368,5 +368,228 @@ func TestIBESystem_IdentityOperations(t *testing.T) {
 		// Try to decrypt with wrong key
 		_, _, err = ibeSystem.DecryptIdentity(encryptedMapping, wrongKey)
 		assert.Error(t, err, "Should fail to decrypt with wrong key")
+	})
+}
+
+// TestMultiVersionKeyMigration tests the multi-version key system during migration
+func TestMultiVersionKeyMigration(t *testing.T) {
+	// Create key registry with multiple versions
+	registry := NewKeyVersionRegistry()
+
+	// Add old key version (version 1) - make sure keys are different
+	oldDomainKeys := map[string][]byte{
+		DOMAIN_USER_CORRELATION:  []byte("old-user-domain-key-32-bytes-long"),
+		DOMAIN_ADMIN_CORRELATION: []byte("old-admin-domain-key-32-bytes"),
+	}
+	registry.AddKeyVersion(1, oldDomainKeys, "old_salt_v1")
+
+	// Add new key version (version 2) - make sure keys are different
+	newDomainKeys := map[string][]byte{
+		DOMAIN_USER_CORRELATION:  []byte("new-user-domain-key-32-bytes-long"),
+		DOMAIN_ADMIN_CORRELATION: []byte("new-admin-domain-key-32-bytes"),
+	}
+	registry.AddKeyVersion(2, newDomainKeys, "new_salt_v2")
+
+	// Create IBE system with multi-version support
+	ibeSystem := NewIBESystemWithOptions(IBEOptions{
+		DomainMasters: newDomainKeys, // Current keys are version 2
+		KeyVersion:    2,
+		Salt:          "new_salt_v2",
+		KeyRegistry:   registry,
+	})
+
+	// Enable migration mode BEFORE any operations
+	ibeSystem.EnableMigrationMode()
+
+	// Verify migration mode is enabled
+	assert.True(t, registry.MigrationMode)
+
+	// Test data
+	realIdentity := "user123@example.com"
+	pseudonymID := "pseudonym-456"
+	domain := DOMAIN_USER_CORRELATION
+
+	t.Run("EncryptWithOldKey", func(t *testing.T) {
+		// Encrypt with old key version
+		encrypted, err := ibeSystem.EncryptIdentityWithVersion(realIdentity, pseudonymID, domain, 1)
+		assert.NoError(t, err)
+		assert.NotNil(t, encrypted)
+
+		// Decrypt with old key version
+		decryptedRealIdentity, decryptedPseudonymID, err := ibeSystem.DecryptIdentityWithVersion(encrypted, domain, 1)
+		assert.NoError(t, err)
+		// Expect fingerprint, not real identity
+		expectedFingerprint := ibeSystem.GenerateFingerprint(realIdentity)
+		assert.Equal(t, expectedFingerprint, decryptedRealIdentity)
+		assert.Equal(t, pseudonymID, decryptedPseudonymID)
+	})
+
+	t.Run("EncryptWithNewKey", func(t *testing.T) {
+		// Encrypt with new key version
+		encrypted, err := ibeSystem.EncryptIdentityWithVersion(realIdentity, pseudonymID, domain, 2)
+		assert.NoError(t, err)
+		assert.NotNil(t, encrypted)
+
+		// Decrypt with new key version
+		decryptedRealIdentity, decryptedPseudonymID, err := ibeSystem.DecryptIdentityWithVersion(encrypted, domain, 2)
+		assert.NoError(t, err)
+		// Expect fingerprint, not real identity
+		expectedFingerprint := ibeSystem.GenerateFingerprint(realIdentity)
+		assert.Equal(t, expectedFingerprint, decryptedRealIdentity)
+		assert.Equal(t, pseudonymID, decryptedPseudonymID)
+	})
+
+	t.Run("CrossVersionDecryptionFails", func(t *testing.T) {
+		// Encrypt with old key version
+		encrypted, err := ibeSystem.EncryptIdentityWithVersion(realIdentity, pseudonymID, domain, 1)
+		assert.NoError(t, err)
+
+		// Try to decrypt with new key version (should fail)
+		_, _, err = ibeSystem.DecryptIdentityWithVersion(encrypted, domain, 2)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to decrypt")
+	})
+
+	t.Run("KeyVersionManagement", func(t *testing.T) {
+		// Test key version info retrieval
+		keyInfo, err := registry.GetKeyVersionInfo(1)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, keyInfo.Version)
+		assert.True(t, keyInfo.IsActive)
+		assert.False(t, keyInfo.IsDeprecated)
+
+		// Test deprecating old key version
+		err = registry.DeprecateKeyVersion(1)
+		assert.NoError(t, err)
+
+		// Verify old key is now deprecated
+		keyInfo, err = registry.GetKeyVersionInfo(1)
+		assert.NoError(t, err)
+		assert.True(t, keyInfo.IsDeprecated)
+		assert.False(t, keyInfo.IsActive)
+		assert.NotNil(t, keyInfo.DeprecatedAt)
+
+		// Verify new key is still active
+		keyInfo, err = registry.GetKeyVersionInfo(2)
+		assert.NoError(t, err)
+		assert.False(t, keyInfo.IsDeprecated)
+		assert.True(t, keyInfo.IsActive)
+	})
+
+	t.Run("MigrationModeOperations", func(t *testing.T) {
+		// Test that migration mode allows access to deprecated keys
+		assert.True(t, registry.MigrationMode)
+
+		// Should still be able to decrypt with deprecated key
+		encrypted, err := ibeSystem.EncryptIdentityWithVersion(realIdentity, pseudonymID, domain, 1)
+		assert.NoError(t, err)
+
+		decryptedRealIdentity, decryptedPseudonymID, err := ibeSystem.DecryptIdentityWithVersion(encrypted, domain, 1)
+		assert.NoError(t, err)
+		// Expect fingerprint, not real identity
+		expectedFingerprint := ibeSystem.GenerateFingerprint(realIdentity)
+		assert.Equal(t, expectedFingerprint, decryptedRealIdentity)
+		assert.Equal(t, pseudonymID, decryptedPseudonymID)
+
+		// Disable migration mode
+		ibeSystem.DisableMigrationMode()
+		assert.False(t, registry.MigrationMode)
+	})
+
+	t.Run("CorrelationKeyVersioning", func(t *testing.T) {
+		// Re-enable migration mode for this test
+		ibeSystem.EnableMigrationMode()
+
+		// Test correlation key generation with different versions
+		role := "admin"
+		scope := "correlation"
+		timeWindow := 24 * time.Hour
+
+		// Generate correlation key with old version
+		oldCorrelationKey := ibeSystem.GenerateCorrelationKeyForVersion(role, scope, timeWindow, 1)
+		assert.NotNil(t, oldCorrelationKey)
+
+		// Generate correlation key with new version
+		newCorrelationKey := ibeSystem.GenerateCorrelationKeyForVersion(role, scope, timeWindow, 2)
+		assert.NotNil(t, newCorrelationKey)
+
+		// Keys should be different due to different domain keys
+		assert.NotEqual(t, oldCorrelationKey, newCorrelationKey)
+
+		// Test that same version produces same key for same time window
+		oldCorrelationKey2 := ibeSystem.GenerateCorrelationKeyForVersion(role, scope, timeWindow, 1)
+		assert.Equal(t, oldCorrelationKey, oldCorrelationKey2)
+
+		// Test that different time windows produce different keys
+		differentTimeWindow := 12 * time.Hour
+		oldCorrelationKey3 := ibeSystem.GenerateCorrelationKeyForVersion(role, scope, differentTimeWindow, 1)
+		assert.NotEqual(t, oldCorrelationKey, oldCorrelationKey3)
+	})
+}
+
+// TestKeyVersionRegistry tests the key version registry functionality
+func TestKeyVersionRegistry(t *testing.T) {
+	registry := NewKeyVersionRegistry()
+
+	t.Run("AddKeyVersion", func(t *testing.T) {
+		domainKeys := map[string][]byte{
+			DOMAIN_USER_CORRELATION: []byte("test-domain-key-32-bytes-long"),
+		}
+
+		registry.AddKeyVersion(1, domainKeys, "test_salt")
+
+		keyInfo, err := registry.GetKeyVersionInfo(1)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, keyInfo.Version)
+		assert.Equal(t, "test_salt", keyInfo.Salt)
+		assert.True(t, keyInfo.IsActive)
+		assert.False(t, keyInfo.IsDeprecated)
+	})
+
+	t.Run("GetDomainKeyForVersion", func(t *testing.T) {
+		domainKeys := map[string][]byte{
+			DOMAIN_USER_CORRELATION: []byte("test-domain-key-32-bytes-long"),
+		}
+
+		registry.AddKeyVersion(1, domainKeys, "test_salt")
+
+		key, err := registry.GetDomainKeyForVersion(1, DOMAIN_USER_CORRELATION)
+		assert.NoError(t, err)
+		assert.Equal(t, []byte("test-domain-key-32-bytes-long"), key)
+
+		// Test non-existent domain
+		_, err = registry.GetDomainKeyForVersion(1, "non_existent_domain")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "no key found for domain")
+	})
+
+	t.Run("DeprecateKeyVersion", func(t *testing.T) {
+		domainKeys := map[string][]byte{
+			DOMAIN_USER_CORRELATION: []byte("test-domain-key-32-bytes-long"),
+		}
+
+		registry.AddKeyVersion(1, domainKeys, "test_salt")
+
+		// Initially active
+		keyInfo, err := registry.GetKeyVersionInfo(1)
+		assert.NoError(t, err)
+		assert.True(t, keyInfo.IsActive)
+
+		// Deprecate
+		err = registry.DeprecateKeyVersion(1)
+		assert.NoError(t, err)
+
+		// Now deprecated
+		keyInfo, err = registry.GetKeyVersionInfo(1)
+		assert.NoError(t, err)
+		assert.True(t, keyInfo.IsDeprecated)
+		assert.False(t, keyInfo.IsActive)
+		assert.NotNil(t, keyInfo.DeprecatedAt)
+	})
+
+	t.Run("DeprecateNonExistentVersion", func(t *testing.T) {
+		err := registry.DeprecateKeyVersion(999)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "key version 999 not found")
 	})
 }

@@ -21,8 +21,10 @@ var (
 	correlationAuditCtx      = newContextual[*models.CorrelationAudit]("correlationAudit")
 	directMessageCtx         = newContextual[*models.DirectMessage]("directMessage")
 	identityMappingCtx       = newContextual[*models.IdentityMapping]("identityMapping")
+	keyRotationMigrationCtx  = newContextual[*models.KeyRotationMigration]("keyRotationMigration")
 	keyUsageAuditCtx         = newContextual[*models.KeyUsageAudit]("keyUsageAudit")
 	mediaAttachmentCtx       = newContextual[*models.MediaAttachment]("mediaAttachment")
+	migrationProgressCtx     = newContextual[*models.MigrationProgress]("migrationProgress")
 	moderationActionCtx      = newContextual[*models.ModerationAction]("moderationAction")
 	performanceMetricCtx     = newContextual[*models.PerformanceMetric]("performanceMetric")
 	pollVoteCtx              = newContextual[*models.PollVote]("pollVote")
@@ -79,8 +81,14 @@ var (
 	directMessageRelSenderPseudonymPseudonymCtx    = newContextual[bool]("direct_messages.pseudonyms.direct_messages.direct_messages_sender_pseudonym_id_fkey")
 
 	// Relationship Contexts for identity_mappings
-	identityMappingWithParentsCascadingCtx = newContextual[bool]("identityMappingWithParentsCascading")
-	identityMappingRelUserCtx              = newContextual[bool]("identity_mappings.users.identity_mappings.identity_mappings_user_id_fkey")
+	identityMappingWithParentsCascadingCtx          = newContextual[bool]("identityMappingWithParentsCascading")
+	identityMappingRelUserCtx                       = newContextual[bool]("identity_mappings.users.identity_mappings.identity_mappings_user_id_fkey")
+	identityMappingRelMappingMigrationProgressesCtx = newContextual[bool]("identity_mappings.migration_progress.migration_progress.migration_progress_mapping_id_fkey")
+
+	// Relationship Contexts for key_rotation_migrations
+	keyRotationMigrationWithParentsCascadingCtx            = newContextual[bool]("keyRotationMigrationWithParentsCascading")
+	keyRotationMigrationRelCreatedByUserCtx                = newContextual[bool]("key_rotation_migrations.users.key_rotation_migrations.key_rotation_migrations_created_by_fkey")
+	keyRotationMigrationRelMigrationMigrationProgressesCtx = newContextual[bool]("key_rotation_migrations.migration_progress.migration_progress.migration_progress_migration_id_fkey")
 
 	// Relationship Contexts for key_usage_audit
 	keyUsageAuditWithParentsCascadingCtx = newContextual[bool]("keyUsageAuditWithParentsCascading")
@@ -90,6 +98,11 @@ var (
 	// Relationship Contexts for media_attachments
 	mediaAttachmentWithParentsCascadingCtx = newContextual[bool]("mediaAttachmentWithParentsCascading")
 	mediaAttachmentRelPostCtx              = newContextual[bool]("media_attachments.posts.media_attachments.media_attachments_post_id_fkey")
+
+	// Relationship Contexts for migration_progress
+	migrationProgressWithParentsCascadingCtx             = newContextual[bool]("migrationProgressWithParentsCascading")
+	migrationProgressRelMappingIdentityMappingCtx        = newContextual[bool]("identity_mappings.migration_progress.migration_progress.migration_progress_mapping_id_fkey")
+	migrationProgressRelMigrationKeyRotationMigrationCtx = newContextual[bool]("key_rotation_migrations.migration_progress.migration_progress.migration_progress_migration_id_fkey")
 
 	// Relationship Contexts for moderation_actions
 	moderationActionWithParentsCascadingCtx           = newContextual[bool]("moderationActionWithParentsCascading")
@@ -213,6 +226,7 @@ var (
 	userRelAssignedUserComplianceReportsCtx  = newContextual[bool]("compliance_reports.users.compliance_reports.compliance_reports_assigned_user_id_fkey")
 	userRelCorrelationAuditsCtx              = newContextual[bool]("correlation_audit.users.correlation_audit.correlation_audit_user_id_fkey")
 	userRelIdentityMappingsCtx               = newContextual[bool]("identity_mappings.users.identity_mappings.identity_mappings_user_id_fkey")
+	userRelCreatedByKeyRotationMigrationsCtx = newContextual[bool]("key_rotation_migrations.users.key_rotation_migrations.key_rotation_migrations_created_by_fkey")
 	userRelKeyUsageAuditsCtx                 = newContextual[bool]("key_usage_audit.users.key_usage_audit.key_usage_audit_user_id_fkey")
 	userRelModeratorUserModerationActionsCtx = newContextual[bool]("moderation_actions.users.moderation_actions.moderation_actions_moderator_user_id_fkey")
 	userRelTargetUserModerationActionsCtx    = newContextual[bool]("moderation_actions.users.moderation_actions.moderation_actions_target_user_id_fkey")

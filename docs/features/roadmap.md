@@ -6,26 +6,28 @@ This roadmap outlines planned features for HashPost, organized by logical groupi
 
 ## 🔐 **Group 1: Security & Authentication Foundation**
 
-### Key Rotation
-**Status**: Planning  
+### Key Rotation Migration System
+**Status**: Implemented  
 **Priority**: Critical  
 **Dependencies**: Existing IBE system
 
-**Description**: Implement automatic key rotation for IBE keys to maintain security standards.
+**Description**: Implemented resumable, fault-tolerant key rotation migration system for IBE keys with comprehensive progress tracking and recovery mechanisms.
 
-**Technical Requirements**:
-- Automated key generation and distribution
-- Graceful key transition periods
-- Backward compatibility for existing encrypted data
-- Audit logging for key rotation events
+**Technical Implementation**:
+- ✅ Resumable migrations with checkpoint-based recovery
+- ✅ Network outage resilience and graceful interruption handling
+- ✅ Record-level checkpointing and retry mechanisms
+- ✅ Real-time progress tracking and monitoring
+- ✅ Batch processing with configurable rate limiting
+- ✅ CLI management tools for migration operations
+- ✅ Comprehensive audit logging and error handling
+
+**Implementation Details**:
+- Database schema with `key_rotation_migrations` and `migration_progress` tables
+- `ResumableMigrationService` with fault-tolerant processing
+- `KeyRotationMigrationDAO` for database operations
+- CLI commands for start, status, pause, resume, and recover operations
 - Integration with existing IBE infrastructure
-
-**Implementation Steps**:
-1. Design key rotation strategy (time-based vs. event-based)
-2. Implement key generation automation
-3. Create migration system for encrypted data
-4. Add monitoring and alerting
-5. Update documentation and procedures
 
 **Dependencies**: Existing IBE system, audit logging
 
@@ -162,25 +164,27 @@ This roadmap outlines planned features for HashPost, organized by logical groupi
 ---
 
 ### Direct Messaging System
-**Status**: Planning  
+**Status**: Implemented  
 **Priority**: Medium  
 **Dependencies**: User system, authentication system
 
-**Description**: Implement private messaging between users for direct communication.
+**Description**: Implemented private messaging between users with blocking controls and conversation management.
 
-**Technical Requirements**:
-- Private message creation and delivery
-- Message threading and conversation management
-- Message status tracking (read/unread)
-- User blocking and privacy controls
-- Message history and archiving
+**Technical Implementation**:
+- ✅ Private message creation and delivery
+- ✅ Message status tracking (read/unread)
+- ✅ User blocking integration for privacy controls
+- ✅ Message history and conversation management
+- ✅ Pagination and message retrieval
+- ✅ Integration with existing user system
 
-**Implementation Steps**:
-1. Design messaging database schema
-2. Implement message creation and delivery
-3. Create conversation management system
-4. Add privacy and blocking controls
-5. Integrate with existing user system
+**Implementation Details**:
+- Database schema with `direct_messages` table
+- `DirectMessageDAO` for data access operations
+- `MessagesHandler` for API endpoints
+- Integration with user blocking system
+- Message validation and privacy controls
+- Comprehensive test coverage
 
 **Dependencies**: User system, authentication system
 
@@ -213,25 +217,28 @@ This roadmap outlines planned features for HashPost, organized by logical groupi
 ---
 
 ### User Blocking System
-**Status**: Planning  
+**Status**: Implemented  
 **Priority**: Medium  
 **Dependencies**: User system, authentication system
 
-**Description**: Implement user blocking functionality for personal privacy and safety.
+**Description**: Implemented comprehensive user blocking functionality with both pseudonym-level and fingerprint-level blocking capabilities.
 
-**Technical Requirements**:
-- Block/unblock user functionality
-- Blocked user content filtering
-- Block list management
-- Privacy controls and settings
-- Block history and reporting
+**Technical Implementation**:
+- ✅ Block/unblock user functionality at pseudonym level
+- ✅ Fingerprint-level blocking (blocks all personas of a user)
+- ✅ Blocked user content filtering
+- ✅ Block list management and retrieval
+- ✅ Privacy controls and settings
+- ✅ Integration with direct messaging system
+- ✅ Comprehensive test coverage
 
-**Implementation Steps**:
-1. Design blocking database schema
-2. Implement block/unblock functionality
-3. Create content filtering system
-4. Add block list management
-5. Integrate with existing user system
+**Implementation Details**:
+- Database schema with `user_blocks` table supporting both blocking types
+- `UserBlocksDAO` with advanced blocking logic
+- `UserHandler` with block/unblock endpoints
+- Integration with IBE-based user correlation
+- Block validation and self-blocking prevention
+- Support for both pseudonym-specific and user-wide blocks
 
 **Dependencies**: User system, authentication system
 
@@ -419,11 +426,13 @@ This roadmap outlines planned features for HashPost, organized by logical groupi
 ## 📊 **Feature Dependencies & Relationships**
 
 ### Foundation Features (No Dependencies)
-- **Key Rotation** - Can be implemented independently
+- **Key Rotation Migration System** - ✅ Implemented independently
 - **Email Verification** - Requires email service integration
 - **MFA** - Requires authentication system
 
 ### User Experience Features
+- **Direct Messaging System** - ✅ Implemented with user system integration
+- **User Blocking System** - ✅ Implemented with authentication system
 - **Notifications** - Depends on user system and email service
 - **Moderator Dashboard** - Depends on existing moderation system
 - **ID Proofing** - Depends on cryptography system and external APIs

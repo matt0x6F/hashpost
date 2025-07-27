@@ -26,7 +26,7 @@ func createTestUserHandler() (*UserHandler, *mocks.MockUserDAO, *mocks.MockSecur
 	mockPostDAO := mocks.NewMockPostDAO()
 	mockCommentDAO := mocks.NewMockCommentDAO()
 
-	ibeSystem := ibe.NewIBESystem()
+	ibeSystem := ibe.NewIBESystemWithOptions(ibe.IBEOptions{})
 
 	handler := NewUserHandler(
 		nil, // nil db for testing
@@ -291,7 +291,7 @@ func TestUserHandler_GetUserProfile(t *testing.T) {
 			nil, // Mock UserBlocksDAO
 			mockPostDAO,
 			mockCommentDAO,
-			ibe.NewIBESystem(),
+			ibe.NewIBESystemWithOptions(ibe.IBEOptions{}),
 		)
 
 		// Generate a proper JWT token
