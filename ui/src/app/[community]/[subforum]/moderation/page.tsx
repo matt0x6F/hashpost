@@ -5,9 +5,10 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/shadcn/card';
 import { Badge } from '@/components/shadcn/badge';
 import { Button } from '@/components/shadcn/button';
-import { Shield, Users, Flag, History, Settings, LayoutDashboard } from 'lucide-react';
+import { Shield, Users, Flag, Settings, LayoutDashboard } from 'lucide-react';
 import { DebugUserInfo } from '@/components/DebugUserInfo';
 import { EngagementAnalytics } from '@/components/EngagementAnalytics';
+import { ModerationStats } from '@/components/ModerationStats';
 import { COMMUNITY_CONFIG, type CommunityType } from '@/lib/community-config';
 import { useAuth } from '@/lib/auth-context';
 import { authenticateUserForSubforum } from '@/lib/auth-utils';
@@ -171,40 +172,7 @@ export default function SubforumModerationPage() {
       <DebugUserInfo />
 
       <div className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending Reports</CardTitle>
-              <Flag className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">0</div>
-              <p className="text-xs text-muted-foreground">Reports awaiting review</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Banned Users</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">0</div>
-              <p className="text-xs text-muted-foreground">Users currently banned</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Mod Actions</CardTitle>
-              <History className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">0</div>
-              <p className="text-xs text-muted-foreground">Actions this week</p>
-            </CardContent>
-          </Card>
-        </div>
+        <ModerationStats subforumPath={fullSubforumPath} />
 
         <Card>
           <CardHeader>

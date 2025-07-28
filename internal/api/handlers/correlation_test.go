@@ -23,7 +23,7 @@ import (
 )
 
 // Helper function to create test correlation handler with mocks
-func createTestCorrelationHandler() (*CorrelationHandler, *mocks.MockSecurePseudonymDAO, *mocks.MockIdentityMappingDAO, *mocks.MockPostDAO, *mocks.MockCommentDAO, *mocks.MockSubforumDAO, *mocks.MockCorrelationAuditDAO) {
+func NewCorrelationHandlerWithMocks() (*CorrelationHandler, *mocks.MockSecurePseudonymDAO, *mocks.MockIdentityMappingDAO, *mocks.MockPostDAO, *mocks.MockCommentDAO, *mocks.MockSubforumDAO, *mocks.MockCorrelationAuditDAO) {
 	mockSecurePseudonymDAO := &mocks.MockSecurePseudonymDAO{}
 	mockIdentityMappingDAO := &mocks.MockIdentityMappingDAO{}
 	mockPostDAO := &mocks.MockPostDAO{}
@@ -66,7 +66,7 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
 
 	t.Run("Success", func(t *testing.T) {
-		handler, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockPostDAO, mockCommentDAO, _, mockCorrelationAuditDAO := createTestCorrelationHandler()
+		handler, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockPostDAO, mockCommentDAO, _, mockCorrelationAuditDAO := NewCorrelationHandlerWithMocks()
 
 		// Test data
 		adminUserID := int64(1)
@@ -189,7 +189,7 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 	})
 
 	t.Run("InsufficientPermissions", func(t *testing.T) {
-		handler, _, _, _, _, _, _ := createTestCorrelationHandler()
+		handler, _, _, _, _, _, _ := NewCorrelationHandlerWithMocks()
 
 		// Create user context without correlation capability
 		userCtx := fixtures.CreateTestUserContext()
@@ -218,7 +218,7 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 	})
 
 	t.Run("PseudonymNotFound", func(t *testing.T) {
-		handler, mockSecurePseudonymDAO, _, _, _, _, _ := createTestCorrelationHandler()
+		handler, mockSecurePseudonymDAO, _, _, _, _, _ := NewCorrelationHandlerWithMocks()
 
 		// Create user context with correlation capability
 		userCtx := fixtures.CreateTestUserContext()
@@ -258,7 +258,7 @@ func TestCorrelationHandler_RequestIdentityCorrelation(t *testing.T) {
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
 
 	t.Run("Success", func(t *testing.T) {
-		handler, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockPostDAO, mockCommentDAO, mockSubforumDAO, mockCorrelationAuditDAO := createTestCorrelationHandler()
+		handler, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockPostDAO, mockCommentDAO, mockSubforumDAO, mockCorrelationAuditDAO := NewCorrelationHandlerWithMocks()
 
 		// Test data
 		adminUserID := int64(1)
@@ -376,7 +376,7 @@ func TestCorrelationHandler_RequestIdentityCorrelation(t *testing.T) {
 	})
 
 	t.Run("InsufficientPermissions", func(t *testing.T) {
-		handler, _, _, _, _, _, _ := createTestCorrelationHandler()
+		handler, _, _, _, _, _, _ := NewCorrelationHandlerWithMocks()
 
 		// Create user context without identity correlation capability
 		userCtx := fixtures.CreateTestUserContext()
@@ -412,7 +412,7 @@ func TestCorrelationHandler_GetCorrelationHistory(t *testing.T) {
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
 
 	t.Run("Success", func(t *testing.T) {
-		handler, _, _, _, _, _, mockCorrelationAuditDAO := createTestCorrelationHandler()
+		handler, _, _, _, _, _, mockCorrelationAuditDAO := NewCorrelationHandlerWithMocks()
 
 		// Create test user context with history capability
 		userCtx := fixtures.CreateTestUserContext()
@@ -463,7 +463,7 @@ func TestCorrelationHandler_GetCorrelationHistory(t *testing.T) {
 	})
 
 	t.Run("InsufficientPermissions", func(t *testing.T) {
-		handler, _, _, _, _, _, _ := createTestCorrelationHandler()
+		handler, _, _, _, _, _, _ := NewCorrelationHandlerWithMocks()
 
 		// Create user context without history viewing capability
 		userCtx := fixtures.CreateTestUserContext()

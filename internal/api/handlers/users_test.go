@@ -18,7 +18,7 @@ import (
 )
 
 // Helper function to create a test UserHandler with mocks
-func createTestUserHandler() (*UserHandler, *mocks.MockUserDAO, *mocks.MockSecurePseudonymDAO, *mocks.MockUserPreferencesDAO, *mocks.MockUserBlocksDAO, *mocks.MockPostDAO, *mocks.MockCommentDAO) {
+func NewUserHandlerWithMocks() (*UserHandler, *mocks.MockUserDAO, *mocks.MockSecurePseudonymDAO, *mocks.MockUserPreferencesDAO, *mocks.MockUserBlocksDAO, *mocks.MockPostDAO, *mocks.MockCommentDAO) {
 	mockUserDAO := &mocks.MockUserDAO{}
 	mockSecurePseudonymDAO := mocks.NewMockSecurePseudonymDAO()
 	mockUserPreferencesDAO := &mocks.MockUserPreferencesDAO{}
@@ -43,7 +43,7 @@ func createTestUserHandler() (*UserHandler, *mocks.MockUserDAO, *mocks.MockSecur
 }
 
 func TestUserHandler_GetPseudonymProfile(t *testing.T) {
-	handler, _, mockSecurePseudonymDAO, _, _, mockPostDAO, mockCommentDAO := createTestUserHandler()
+	handler, _, mockSecurePseudonymDAO, _, _, mockPostDAO, mockCommentDAO := NewUserHandlerWithMocks()
 
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
@@ -142,7 +142,7 @@ func TestUserHandler_GetPseudonymProfile(t *testing.T) {
 }
 
 func TestUserHandler_CreatePseudonym(t *testing.T) {
-	handler, mockUserDAO, mockSecurePseudonymDAO, _, _, _, _ := createTestUserHandler()
+	handler, mockUserDAO, mockSecurePseudonymDAO, _, _, _, _ := NewUserHandlerWithMocks()
 
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
@@ -356,7 +356,7 @@ func TestNewUserHandler(t *testing.T) {
 // TestUserHandler_GetUserPreferences tests the get user preferences functionality
 func TestUserHandler_GetUserPreferences(t *testing.T) {
 	t.Run("GetUserPreferencesSuccess", func(t *testing.T) {
-		handler, _, _, mockUserPreferencesDAO, _, _, _ := createTestUserHandler()
+		handler, _, _, mockUserPreferencesDAO, _, _, _ := NewUserHandlerWithMocks()
 
 		// Test data
 		userID := int64(1)
@@ -407,7 +407,7 @@ func TestUserHandler_GetUserPreferences(t *testing.T) {
 	})
 
 	t.Run("GetUserPreferencesNoPreferences", func(t *testing.T) {
-		handler, _, _, mockUserPreferencesDAO, _, _, _ := createTestUserHandler()
+		handler, _, _, mockUserPreferencesDAO, _, _, _ := NewUserHandlerWithMocks()
 
 		// Test data
 		userID := int64(1)
@@ -448,7 +448,7 @@ func TestUserHandler_GetUserPreferences(t *testing.T) {
 	})
 
 	t.Run("GetUserPreferencesDatabaseError", func(t *testing.T) {
-		handler, _, _, mockUserPreferencesDAO, _, _, _ := createTestUserHandler()
+		handler, _, _, mockUserPreferencesDAO, _, _, _ := NewUserHandlerWithMocks()
 
 		// Test data
 		userID := int64(1)
@@ -483,7 +483,7 @@ func TestUserHandler_GetUserPreferences(t *testing.T) {
 	})
 
 	t.Run("GetUserPreferencesNoAuthentication", func(t *testing.T) {
-		handler, _, _, _, _, _, _ := createTestUserHandler()
+		handler, _, _, _, _, _, _ := NewUserHandlerWithMocks()
 
 		// Create input without authentication
 		input := &struct {
@@ -504,7 +504,7 @@ func TestUserHandler_GetUserPreferences(t *testing.T) {
 // TestUserHandler_UpdateUserPreferences tests the update user preferences functionality
 func TestUserHandler_UpdateUserPreferences(t *testing.T) {
 	t.Run("UpdateUserPreferencesSuccess", func(t *testing.T) {
-		handler, _, _, mockUserPreferencesDAO, _, _, _ := createTestUserHandler()
+		handler, _, _, mockUserPreferencesDAO, _, _, _ := NewUserHandlerWithMocks()
 
 		// Test data
 		userID := int64(1)
@@ -574,7 +574,7 @@ func TestUserHandler_UpdateUserPreferences(t *testing.T) {
 	})
 
 	t.Run("UpdateUserPreferencesPartialUpdate", func(t *testing.T) {
-		handler, _, _, mockUserPreferencesDAO, _, _, _ := createTestUserHandler()
+		handler, _, _, mockUserPreferencesDAO, _, _, _ := NewUserHandlerWithMocks()
 
 		// Test data
 		userID := int64(1)
@@ -624,7 +624,7 @@ func TestUserHandler_UpdateUserPreferences(t *testing.T) {
 	})
 
 	t.Run("UpdateUserPreferencesDatabaseError", func(t *testing.T) {
-		handler, _, _, mockUserPreferencesDAO, _, _, _ := createTestUserHandler()
+		handler, _, _, mockUserPreferencesDAO, _, _, _ := NewUserHandlerWithMocks()
 
 		// Test data
 		userID := int64(1)
@@ -665,7 +665,7 @@ func TestUserHandler_UpdateUserPreferences(t *testing.T) {
 	})
 
 	t.Run("UpdateUserPreferencesNoAuthentication", func(t *testing.T) {
-		handler, _, _, _, _, _, _ := createTestUserHandler()
+		handler, _, _, _, _, _, _ := NewUserHandlerWithMocks()
 
 		// Create input without authentication
 		input := &struct {

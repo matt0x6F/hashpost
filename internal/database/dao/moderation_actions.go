@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/matt0x6f/hashpost/internal/database/models"
@@ -124,4 +125,40 @@ func (dao *ModerationActionDAO) GetModerationActionsByModerator(ctx context.Cont
 	}
 
 	return actions, nil
+}
+
+// GetModActionsCount returns the count of moderation actions in a subforum since a given time
+func (dao *ModerationActionDAO) GetModActionsCount(ctx context.Context, subforumPath string, since time.Time) (int, error) {
+	log.Debug().
+		Str("subforum_path", subforumPath).
+		Time("since", since).
+		Msg("Getting moderation actions count")
+
+	// Parse subforum path to get community type and name
+	parts := strings.Split(subforumPath, "/")
+	if len(parts) != 2 {
+		return 0, fmt.Errorf("invalid subforum path format: %s", subforumPath)
+	}
+	communityType := parts[0]
+	subforumName := parts[1]
+
+	// First get the subforum ID
+	subforum, err := models.Subforums.Query(
+		models.SelectWhere.Subforums.CommunityType.EQ(communityType),
+		models.SelectWhere.Subforums.Name.EQ(subforumName),
+	).One(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get subforum: %w", err)
+	}
+
+	// Count moderation actions for the subforum since the given time
+	count, err := models.ModerationActions.Query(
+		models.SelectWhere.ModerationActions.SubforumID.EQ(subforum.SubforumID),
+		models.SelectWhere.ModerationActions.CreatedAt.GTE(since),
+	).Count(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count moderation actions: %w", err)
+	}
+
+	return int(count), nil
 }

@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Helper function to create test user handler for blocking tests
-func createTestUserHandlerForBlocking() (*UserHandler, *mocks.MockSecurePseudonymDAO, *mocks.MockUserBlocksDAO) {
+// NewUserHandlerWithMocksForBlockingForBlocking creates a new user handler with mock DAOs for blocking tests
+func NewUserHandlerWithMocksForBlocking() (*UserHandler, *mocks.MockSecurePseudonymDAO, *mocks.MockUserBlocksDAO) {
 	mockSecurePseudonymDAO := mocks.NewMockSecurePseudonymDAO()
 	mockUserBlocksDAO := &mocks.MockUserBlocksDAO{}
 
@@ -39,7 +39,7 @@ func TestUserHandler_BlockUser(t *testing.T) {
 	}, &config.SecurityConfig{}))
 
 	t.Run("BlockPseudonymLevel", func(t *testing.T) {
-		handler, mockSecurePseudonymDAO, mockUserBlocksDAO := createTestUserHandlerForBlocking()
+		handler, mockSecurePseudonymDAO, mockUserBlocksDAO := NewUserHandlerWithMocksForBlocking()
 
 		// Test data
 		blockerUserID := int64(1)
@@ -91,7 +91,7 @@ func TestUserHandler_BlockUser(t *testing.T) {
 	})
 
 	t.Run("BlockFingerprintLevel", func(t *testing.T) {
-		handler, mockSecurePseudonymDAO, mockUserBlocksDAO := createTestUserHandlerForBlocking()
+		handler, mockSecurePseudonymDAO, mockUserBlocksDAO := NewUserHandlerWithMocksForBlocking()
 
 		// Test data
 		blockerUserID := int64(1)
@@ -147,7 +147,7 @@ func TestUserHandler_BlockUser(t *testing.T) {
 	})
 
 	t.Run("BlockSelfPrevention", func(t *testing.T) {
-		handler, mockSecurePseudonymDAO, mockUserBlocksDAO := createTestUserHandlerForBlocking()
+		handler, mockSecurePseudonymDAO, mockUserBlocksDAO := NewUserHandlerWithMocksForBlocking()
 
 		// Test data
 		blockerUserID := int64(1)
@@ -194,7 +194,7 @@ func TestUserHandler_BlockUser(t *testing.T) {
 	})
 
 	t.Run("BlockNonExistentPseudonym", func(t *testing.T) {
-		handler, mockSecurePseudonymDAO, mockUserBlocksDAO := createTestUserHandlerForBlocking()
+		handler, mockSecurePseudonymDAO, mockUserBlocksDAO := NewUserHandlerWithMocksForBlocking()
 
 		// Test data
 		blockerUserID := int64(1)
@@ -247,7 +247,7 @@ func TestUserHandler_UnblockUser(t *testing.T) {
 	}, &config.SecurityConfig{}))
 
 	t.Run("UnblockPseudonymLevel", func(t *testing.T) {
-		handler, _, mockUserBlocksDAO := createTestUserHandlerForBlocking()
+		handler, _, mockUserBlocksDAO := NewUserHandlerWithMocksForBlocking()
 
 		// Test data
 		blockerPseudonymID := "blocker-pseudonym-123"
@@ -286,7 +286,7 @@ func TestUserHandler_UnblockUser(t *testing.T) {
 	})
 
 	t.Run("UnblockFingerprintLevel", func(t *testing.T) {
-		handler, mockSecurePseudonymDAO, mockUserBlocksDAO := createTestUserHandlerForBlocking()
+		handler, mockSecurePseudonymDAO, mockUserBlocksDAO := NewUserHandlerWithMocksForBlocking()
 
 		// Test data
 		blockerPseudonymID := "blocker-pseudonym-123"
@@ -333,7 +333,7 @@ func TestUserHandler_UnblockUser(t *testing.T) {
 	})
 
 	t.Run("UnblockNonExistentBlock", func(t *testing.T) {
-		handler, mockSecurePseudonymDAO, mockUserBlocksDAO := createTestUserHandlerForBlocking()
+		handler, mockSecurePseudonymDAO, mockUserBlocksDAO := NewUserHandlerWithMocksForBlocking()
 
 		// Test data
 		blockerPseudonymID := "blocker-pseudonym-123"

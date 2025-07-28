@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/matt0x6f/hashpost/internal/database/models"
@@ -576,4 +577,68 @@ func (dao *CommentDAO) UpdateComment(ctx context.Context, commentID int64, conte
 	}
 
 	return nil
+}
+
+// GetCommentsCount returns the count of comments in a subforum since a given time
+func (dao *CommentDAO) GetCommentsCount(ctx context.Context, subforumPath string, since time.Time) (int, error) {
+	log.Debug().
+		Str("subforum_path", subforumPath).
+		Time("since", since).
+		Msg("Getting comments count")
+
+	// Parse subforum path to get community type and name
+	parts := strings.Split(subforumPath, "/")
+	if len(parts) != 2 {
+		return 0, fmt.Errorf("invalid subforum path format: %s", subforumPath)
+	}
+	communityType := parts[0]
+	subforumName := parts[1]
+
+	// First get the subforum ID
+	subforum, err := models.Subforums.Query(
+		models.SelectWhere.Subforums.CommunityType.EQ(communityType),
+		models.SelectWhere.Subforums.Name.EQ(subforumName),
+	).One(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get subforum: %w", err)
+	}
+
+	// Get post IDs in the subforum
+	posts, err := models.Posts.Query(
+		models.SelectWhere.Posts.SubforumID.EQ(subforum.SubforumID),
+	).All(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get posts in subforum: %w", err)
+	}
+
+	if len(posts) == 0 {
+		return 0, nil
+	}
+
+	// Extract post IDs
+	postIDs := make([]int64, len(posts))
+	for i, post := range posts {
+		postIDs[i] = post.PostID
+	}
+
+	// Count comments in these posts since the given time
+	count, err := models.Comments.Query(
+		models.SelectWhere.Comments.PostID.In(postIDs...),
+		sm.Where(psql.Group(psql.And(
+			psql.Group(psql.Or(
+				psql.Quote("comments", "is_removed").IsNull(),
+				psql.Quote("comments", "is_removed").EQ(psql.Arg(false)),
+			)),
+			psql.Group(psql.Or(
+				psql.Quote("comments", "is_deleted").IsNull(),
+				psql.Quote("comments", "is_deleted").EQ(psql.Arg(false)),
+			)),
+			psql.Quote("comments", "created_at").GTE(psql.Arg(since)),
+		))),
+	).Count(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count comments: %w", err)
+	}
+
+	return int(count), nil
 }

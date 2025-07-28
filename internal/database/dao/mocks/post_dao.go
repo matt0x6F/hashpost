@@ -280,3 +280,9 @@ func (m *MockPostDAO) GetSubforumsByPseudonym(ctx context.Context, pseudonymID s
 	}
 	return args.Get(0).([]int32), args.Error(1)
 }
+
+// GetPostsCount returns the count of posts in a subforum since a given time
+func (m *MockPostDAO) GetPostsCount(ctx context.Context, subforumPath string, since time.Time) (int, error) {
+	args := m.Called(ctx, subforumPath, since)
+	return args.Get(0).(int), args.Error(1)
+}

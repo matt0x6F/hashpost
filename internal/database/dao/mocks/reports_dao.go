@@ -178,3 +178,9 @@ func (m *MockReportDAO) ResolveReport(ctx context.Context, reportID int64, resol
 	args := m.Called(ctx, reportID, resolverUserID, resolverPseudonymID, resolutionNotes)
 	return args.Error(0)
 }
+
+// GetPendingReportsCount returns the count of pending reports for a subforum
+func (m *MockReportDAO) GetPendingReportsCount(ctx context.Context, subforumPath string) (int, error) {
+	args := m.Called(ctx, subforumPath)
+	return args.Get(0).(int), args.Error(1)
+}

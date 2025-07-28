@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/matt0x6f/hashpost/internal/database/models"
@@ -189,4 +190,39 @@ func (dao *UserBanDAO) DeactivateUserBan(ctx context.Context, banID int64) error
 	}
 
 	return dao.UpdateUserBan(ctx, banID, updates)
+}
+
+// GetBannedUsersCount returns the count of banned users in a subforum
+func (dao *UserBanDAO) GetBannedUsersCount(ctx context.Context, subforumPath string) (int, error) {
+	log.Debug().
+		Str("subforum_path", subforumPath).
+		Msg("Getting banned users count")
+
+	// Parse subforum path to get community type and name
+	parts := strings.Split(subforumPath, "/")
+	if len(parts) != 2 {
+		return 0, fmt.Errorf("invalid subforum path format: %s", subforumPath)
+	}
+	communityType := parts[0]
+	subforumName := parts[1]
+
+	// First get the subforum ID
+	subforum, err := models.Subforums.Query(
+		models.SelectWhere.Subforums.CommunityType.EQ(communityType),
+		models.SelectWhere.Subforums.Name.EQ(subforumName),
+	).One(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get subforum: %w", err)
+	}
+
+	// Count active bans for the subforum
+	count, err := models.UserBans.Query(
+		models.SelectWhere.UserBans.SubforumID.EQ(subforum.SubforumID),
+		models.SelectWhere.UserBans.IsActive.EQ(true),
+	).Count(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count banned users: %w", err)
+	}
+
+	return int(count), nil
 }

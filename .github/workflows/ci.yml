@@ -57,4 +57,6 @@ jobs:
       - name: Install sql-migrate
         run: go install github.com/rubenv/sql-migrate/...@latest
       - name: Run DAO integration tests
-        run: make test-dao-ci 
+        run: make test-dao-ci
+
+ 

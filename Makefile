@@ -215,6 +215,17 @@ test-dao-pattern: test-dao-setup
 	@TEST_DATABASE_URL="postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable" go test ./internal/database/dao/ -run $(PATTERN) -v
 	@make test-dao-cleanup-only
 
+
+# Setup test database for VSCode test runner
+setup-test-db:
+	@echo "Setting up test database for VSCode test runner..."
+	@echo "Starting test database..."
+	@docker-compose --profile test up -d postgres-test
+	@sleep 3
+	@echo "Applying migrations..."
+	@DATABASE_URL="postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable" sql-migrate up -config=dbconfig.yml -env=test
+	@echo "Test database ready for tests"
+
 # Legacy test-integration-local target (for backward compatibility)
 test-integration-local:
 	@echo "Running integration tests with clean DB..."

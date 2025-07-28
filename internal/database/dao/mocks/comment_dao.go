@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/stretchr/testify/mock"
@@ -203,4 +204,10 @@ func (m *MockCommentDAO) UpdateComment(ctx context.Context, commentID int64, con
 func (m *MockCommentDAO) SetCommentRemoved(ctx context.Context, commentID int64, removed bool, reason, removedByPseudonymID string) error {
 	args := m.Called(ctx, commentID, removed, reason, removedByPseudonymID)
 	return args.Error(0)
+}
+
+// GetCommentsCount returns the count of comments in a subforum since a given time
+func (m *MockCommentDAO) GetCommentsCount(ctx context.Context, subforumPath string, since time.Time) (int, error) {
+	args := m.Called(ctx, subforumPath, since)
+	return args.Get(0).(int), args.Error(1)
 }

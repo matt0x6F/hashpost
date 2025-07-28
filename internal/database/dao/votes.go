@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/matt0x6f/hashpost/internal/database/models"
@@ -206,4 +207,475 @@ func (dao *VoteDAO) GetVoteSummaryByContent(ctx context.Context, contentType str
 	}
 
 	return upvotes, downvotes, total, nil
+}
+
+// GetVotesCount returns the total count of votes in a subforum since a given time
+func (dao *VoteDAO) GetVotesCount(ctx context.Context, subforumPath string, since time.Time) (int, error) {
+	log.Debug().
+		Str("subforum_path", subforumPath).
+		Time("since", since).
+		Msg("Getting votes count")
+
+	// Parse subforum path to get community type and name
+	parts := strings.Split(subforumPath, "/")
+	if len(parts) != 2 {
+		return 0, fmt.Errorf("invalid subforum path format: %s", subforumPath)
+	}
+	communityType := parts[0]
+	subforumName := parts[1]
+
+	// First get the subforum ID
+	subforum, err := models.Subforums.Query(
+		models.SelectWhere.Subforums.CommunityType.EQ(communityType),
+		models.SelectWhere.Subforums.Name.EQ(subforumName),
+	).One(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get subforum: %w", err)
+	}
+
+	// Get post IDs in the subforum
+	posts, err := models.Posts.Query(
+		models.SelectWhere.Posts.SubforumID.EQ(subforum.SubforumID),
+	).All(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get posts in subforum: %w", err)
+	}
+
+	if len(posts) == 0 {
+		return 0, nil
+	}
+
+	// Extract post IDs
+	postIDs := make([]int64, len(posts))
+	for i, post := range posts {
+		postIDs[i] = post.PostID
+	}
+
+	// Count votes on posts since the given time
+	postVotesCount, err := models.Votes.Query(
+		models.SelectWhere.Votes.ContentType.EQ("post"),
+		models.SelectWhere.Votes.ContentID.In(postIDs...),
+		models.SelectWhere.Votes.CreatedAt.GTE(since),
+	).Count(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count post votes: %w", err)
+	}
+
+	// Get comment IDs in the subforum
+	comments, err := models.Comments.Query(
+		models.SelectWhere.Comments.PostID.In(postIDs...),
+	).All(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get comments in subforum: %w", err)
+	}
+
+	if len(comments) == 0 {
+		return int(postVotesCount), nil
+	}
+
+	// Extract comment IDs
+	commentIDs := make([]int64, len(comments))
+	for i, comment := range comments {
+		commentIDs[i] = comment.CommentID
+	}
+
+	// Count votes on comments since the given time
+	commentVotesCount, err := models.Votes.Query(
+		models.SelectWhere.Votes.ContentType.EQ("comment"),
+		models.SelectWhere.Votes.ContentID.In(commentIDs...),
+		models.SelectWhere.Votes.CreatedAt.GTE(since),
+	).Count(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count comment votes: %w", err)
+	}
+
+	return int(postVotesCount + commentVotesCount), nil
+}
+
+// GetPostVotesCount returns the count of votes on posts in a subforum since a given time
+func (dao *VoteDAO) GetPostVotesCount(ctx context.Context, subforumPath string, since time.Time) (int, error) {
+	log.Debug().
+		Str("subforum_path", subforumPath).
+		Time("since", since).
+		Msg("Getting post votes count")
+
+	// Parse subforum path to get community type and name
+	parts := strings.Split(subforumPath, "/")
+	if len(parts) != 2 {
+		return 0, fmt.Errorf("invalid subforum path format: %s", subforumPath)
+	}
+	communityType := parts[0]
+	subforumName := parts[1]
+
+	// First get the subforum ID
+	subforum, err := models.Subforums.Query(
+		models.SelectWhere.Subforums.CommunityType.EQ(communityType),
+		models.SelectWhere.Subforums.Name.EQ(subforumName),
+	).One(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get subforum: %w", err)
+	}
+
+	// Get post IDs in the subforum
+	posts, err := models.Posts.Query(
+		models.SelectWhere.Posts.SubforumID.EQ(subforum.SubforumID),
+	).All(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get posts in subforum: %w", err)
+	}
+
+	if len(posts) == 0 {
+		return 0, nil
+	}
+
+	// Extract post IDs
+	postIDs := make([]int64, len(posts))
+	for i, post := range posts {
+		postIDs[i] = post.PostID
+	}
+
+	// Count votes on posts since the given time
+	count, err := models.Votes.Query(
+		models.SelectWhere.Votes.ContentType.EQ("post"),
+		models.SelectWhere.Votes.ContentID.In(postIDs...),
+		models.SelectWhere.Votes.CreatedAt.GTE(since),
+	).Count(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count post votes: %w", err)
+	}
+
+	return int(count), nil
+}
+
+// GetCommentVotesCount returns the count of votes on comments in a subforum since a given time
+func (dao *VoteDAO) GetCommentVotesCount(ctx context.Context, subforumPath string, since time.Time) (int, error) {
+	log.Debug().
+		Str("subforum_path", subforumPath).
+		Time("since", since).
+		Msg("Getting comment votes count")
+
+	// Parse subforum path to get community type and name
+	parts := strings.Split(subforumPath, "/")
+	if len(parts) != 2 {
+		return 0, fmt.Errorf("invalid subforum path format: %s", subforumPath)
+	}
+	communityType := parts[0]
+	subforumName := parts[1]
+
+	// First get the subforum ID
+	subforum, err := models.Subforums.Query(
+		models.SelectWhere.Subforums.CommunityType.EQ(communityType),
+		models.SelectWhere.Subforums.Name.EQ(subforumName),
+	).One(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get subforum: %w", err)
+	}
+
+	// Get post IDs in the subforum
+	posts, err := models.Posts.Query(
+		models.SelectWhere.Posts.SubforumID.EQ(subforum.SubforumID),
+	).All(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get posts in subforum: %w", err)
+	}
+
+	if len(posts) == 0 {
+		return 0, nil
+	}
+
+	// Extract post IDs
+	postIDs := make([]int64, len(posts))
+	for i, post := range posts {
+		postIDs[i] = post.PostID
+	}
+
+	// Get comment IDs in the subforum
+	comments, err := models.Comments.Query(
+		models.SelectWhere.Comments.PostID.In(postIDs...),
+	).All(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get comments in subforum: %w", err)
+	}
+
+	if len(comments) == 0 {
+		return 0, nil
+	}
+
+	// Extract comment IDs
+	commentIDs := make([]int64, len(comments))
+	for i, comment := range comments {
+		commentIDs[i] = comment.CommentID
+	}
+
+	// Count votes on comments since the given time
+	count, err := models.Votes.Query(
+		models.SelectWhere.Votes.ContentType.EQ("comment"),
+		models.SelectWhere.Votes.ContentID.In(commentIDs...),
+		models.SelectWhere.Votes.CreatedAt.GTE(since),
+	).Count(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count comment votes: %w", err)
+	}
+
+	return int(count), nil
+}
+
+// GetPostUpvotesCount returns the count of upvotes on posts in a subforum since a given time
+func (dao *VoteDAO) GetPostUpvotesCount(ctx context.Context, subforumPath string, since time.Time) (int, error) {
+	log.Debug().
+		Str("subforum_path", subforumPath).
+		Time("since", since).
+		Msg("Getting post upvotes count")
+
+	// Parse subforum path to get community type and name
+	parts := strings.Split(subforumPath, "/")
+	if len(parts) != 2 {
+		return 0, fmt.Errorf("invalid subforum path format: %s", subforumPath)
+	}
+	communityType := parts[0]
+	subforumName := parts[1]
+
+	// First get the subforum ID
+	subforum, err := models.Subforums.Query(
+		models.SelectWhere.Subforums.CommunityType.EQ(communityType),
+		models.SelectWhere.Subforums.Name.EQ(subforumName),
+	).One(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get subforum: %w", err)
+	}
+
+	// Get post IDs in the subforum
+	posts, err := models.Posts.Query(
+		models.SelectWhere.Posts.SubforumID.EQ(subforum.SubforumID),
+	).All(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get posts in subforum: %w", err)
+	}
+
+	if len(posts) == 0 {
+		return 0, nil
+	}
+
+	// Extract post IDs
+	postIDs := make([]int64, len(posts))
+	for i, post := range posts {
+		postIDs[i] = post.PostID
+	}
+
+	// Count upvotes on posts since the given time
+	count, err := models.Votes.Query(
+		models.SelectWhere.Votes.ContentType.EQ("post"),
+		models.SelectWhere.Votes.ContentID.In(postIDs...),
+		models.SelectWhere.Votes.VoteValue.EQ(1),
+		models.SelectWhere.Votes.CreatedAt.GTE(since),
+	).Count(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count post upvotes: %w", err)
+	}
+
+	return int(count), nil
+}
+
+// GetPostDownvotesCount returns the count of downvotes on posts in a subforum since a given time
+func (dao *VoteDAO) GetPostDownvotesCount(ctx context.Context, subforumPath string, since time.Time) (int, error) {
+	log.Debug().
+		Str("subforum_path", subforumPath).
+		Time("since", since).
+		Msg("Getting post downvotes count")
+
+	// Parse subforum path to get community type and name
+	parts := strings.Split(subforumPath, "/")
+	if len(parts) != 2 {
+		return 0, fmt.Errorf("invalid subforum path format: %s", subforumPath)
+	}
+	communityType := parts[0]
+	subforumName := parts[1]
+
+	// First get the subforum ID
+	subforum, err := models.Subforums.Query(
+		models.SelectWhere.Subforums.CommunityType.EQ(communityType),
+		models.SelectWhere.Subforums.Name.EQ(subforumName),
+	).One(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get subforum: %w", err)
+	}
+
+	// Get post IDs in the subforum
+	posts, err := models.Posts.Query(
+		models.SelectWhere.Posts.SubforumID.EQ(subforum.SubforumID),
+	).All(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get posts in subforum: %w", err)
+	}
+
+	if len(posts) == 0 {
+		return 0, nil
+	}
+
+	// Extract post IDs
+	postIDs := make([]int64, len(posts))
+	for i, post := range posts {
+		postIDs[i] = post.PostID
+	}
+
+	// Count downvotes on posts since the given time
+	count, err := models.Votes.Query(
+		models.SelectWhere.Votes.ContentType.EQ("post"),
+		models.SelectWhere.Votes.ContentID.In(postIDs...),
+		models.SelectWhere.Votes.VoteValue.EQ(-1),
+		models.SelectWhere.Votes.CreatedAt.GTE(since),
+	).Count(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count post downvotes: %w", err)
+	}
+
+	return int(count), nil
+}
+
+// GetCommentUpvotesCount returns the count of upvotes on comments in a subforum since a given time
+func (dao *VoteDAO) GetCommentUpvotesCount(ctx context.Context, subforumPath string, since time.Time) (int, error) {
+	log.Debug().
+		Str("subforum_path", subforumPath).
+		Time("since", since).
+		Msg("Getting comment upvotes count")
+
+	// Parse subforum path to get community type and name
+	parts := strings.Split(subforumPath, "/")
+	if len(parts) != 2 {
+		return 0, fmt.Errorf("invalid subforum path format: %s", subforumPath)
+	}
+	communityType := parts[0]
+	subforumName := parts[1]
+
+	// First get the subforum ID
+	subforum, err := models.Subforums.Query(
+		models.SelectWhere.Subforums.CommunityType.EQ(communityType),
+		models.SelectWhere.Subforums.Name.EQ(subforumName),
+	).One(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get subforum: %w", err)
+	}
+
+	// Get post IDs in the subforum
+	posts, err := models.Posts.Query(
+		models.SelectWhere.Posts.SubforumID.EQ(subforum.SubforumID),
+	).All(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get posts in subforum: %w", err)
+	}
+
+	if len(posts) == 0 {
+		return 0, nil
+	}
+
+	// Extract post IDs
+	postIDs := make([]int64, len(posts))
+	for i, post := range posts {
+		postIDs[i] = post.PostID
+	}
+
+	// Get comment IDs in the subforum
+	comments, err := models.Comments.Query(
+		models.SelectWhere.Comments.PostID.In(postIDs...),
+	).All(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get comments in subforum: %w", err)
+	}
+
+	if len(comments) == 0 {
+		return 0, nil
+	}
+
+	// Extract comment IDs
+	commentIDs := make([]int64, len(comments))
+	for i, comment := range comments {
+		commentIDs[i] = comment.CommentID
+	}
+
+	// Count upvotes on comments since the given time
+	count, err := models.Votes.Query(
+		models.SelectWhere.Votes.ContentType.EQ("comment"),
+		models.SelectWhere.Votes.ContentID.In(commentIDs...),
+		models.SelectWhere.Votes.VoteValue.EQ(1),
+		models.SelectWhere.Votes.CreatedAt.GTE(since),
+	).Count(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count comment upvotes: %w", err)
+	}
+
+	return int(count), nil
+}
+
+// GetCommentDownvotesCount returns the count of downvotes on comments in a subforum since a given time
+func (dao *VoteDAO) GetCommentDownvotesCount(ctx context.Context, subforumPath string, since time.Time) (int, error) {
+	log.Debug().
+		Str("subforum_path", subforumPath).
+		Time("since", since).
+		Msg("Getting comment downvotes count")
+
+	// Parse subforum path to get community type and name
+	parts := strings.Split(subforumPath, "/")
+	if len(parts) != 2 {
+		return 0, fmt.Errorf("invalid subforum path format: %s", subforumPath)
+	}
+	communityType := parts[0]
+	subforumName := parts[1]
+
+	// First get the subforum ID
+	subforum, err := models.Subforums.Query(
+		models.SelectWhere.Subforums.CommunityType.EQ(communityType),
+		models.SelectWhere.Subforums.Name.EQ(subforumName),
+	).One(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get subforum: %w", err)
+	}
+
+	// Get post IDs in the subforum
+	posts, err := models.Posts.Query(
+		models.SelectWhere.Posts.SubforumID.EQ(subforum.SubforumID),
+	).All(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get posts in subforum: %w", err)
+	}
+
+	if len(posts) == 0 {
+		return 0, nil
+	}
+
+	// Extract post IDs
+	postIDs := make([]int64, len(posts))
+	for i, post := range posts {
+		postIDs[i] = post.PostID
+	}
+
+	// Get comment IDs in the subforum
+	comments, err := models.Comments.Query(
+		models.SelectWhere.Comments.PostID.In(postIDs...),
+	).All(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get comments in subforum: %w", err)
+	}
+
+	if len(comments) == 0 {
+		return 0, nil
+	}
+
+	// Extract comment IDs
+	commentIDs := make([]int64, len(comments))
+	for i, comment := range comments {
+		commentIDs[i] = comment.CommentID
+	}
+
+	// Count downvotes on comments since the given time
+	count, err := models.Votes.Query(
+		models.SelectWhere.Votes.ContentType.EQ("comment"),
+		models.SelectWhere.Votes.ContentID.In(commentIDs...),
+		models.SelectWhere.Votes.VoteValue.EQ(-1),
+		models.SelectWhere.Votes.CreatedAt.GTE(since),
+	).Count(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count comment downvotes: %w", err)
+	}
+
+	return int(count), nil
 }

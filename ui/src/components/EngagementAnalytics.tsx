@@ -5,73 +5,39 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/shadcn/select';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, Area, AreaChart } from 'recharts';
 import { Calendar, MessageSquare, ThumbsUp, TrendingUp, Activity } from 'lucide-react';
-
-interface EngagementDataPoint {
-  date: string;
-  posts: number;
-  comments: number;
-  postVotes: number;
-  commentVotes: number;
-  totalVotes: number;
-  postUpvotes: number;
-  postDownvotes: number;
-  commentUpvotes: number;
-  commentDownvotes: number;
-}
+import { getApi } from '@/lib/api-client';
+import { ModerationApi, EngagementDataPoint, GetEngagementAnalyticsTimeRangeEnum } from '@/generated/api/src';
 
 interface EngagementAnalyticsProps {
   subforumPath: string;
   timeRange?: '7d' | '14d' | '30d';
 }
 
-// Mock data for demonstration - in real implementation this would come from API
-const generateMockData = (days: number): EngagementDataPoint[] => {
-  const data: EngagementDataPoint[] = [];
-  const today = new Date();
-  
-  for (let i = days - 1; i >= 0; i--) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i);
-    
-      // Generate upvote/downvote breakdown
-      const postVotes = Math.floor(Math.random() * 50) + 10;
-      const commentVotes = Math.floor(Math.random() * 30) + 5;
-      const postUpvotes = Math.floor(postVotes * 0.7) + Math.floor(Math.random() * 10);
-      const postDownvotes = Math.max(0, postVotes - postUpvotes);
-      const commentUpvotes = Math.floor(commentVotes * 0.8) + Math.floor(Math.random() * 8);
-      const commentDownvotes = Math.max(0, commentVotes - commentUpvotes);
-      
-      data.push({
-        date: date.toISOString().split('T')[0],
-        posts: Math.floor(Math.random() * 10) + 1,
-        comments: Math.floor(Math.random() * 25) + 5,
-        postVotes,
-        commentVotes,
-        totalVotes: postVotes + commentVotes,
-        postUpvotes,
-        postDownvotes,
-        commentUpvotes,
-        commentDownvotes,
-      });
-  }
-  
-  return data;
-};
-
 export function EngagementAnalytics({ subforumPath, timeRange = '14d' }: EngagementAnalyticsProps) {
   const [data, setData] = useState<EngagementDataPoint[]>([]);
   const [selectedTimeRange, setSelectedTimeRange] = useState<'7d' | '14d' | '30d'>(timeRange || '14d');
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Simulate API call
-    setIsLoading(true);
-    setTimeout(() => {
-      const days = selectedTimeRange === '7d' ? 7 : 
-                   selectedTimeRange === '14d' ? 14 : 30;
-      setData(generateMockData(days));
-      setIsLoading(false);
-    }, 1000);
+    const fetchData = async () => {
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        const moderationApi = getApi(ModerationApi);
+        const timeRangeEnum = selectedTimeRange as GetEngagementAnalyticsTimeRangeEnum;
+        const response = await moderationApi.getEngagementAnalytics(subforumPath, timeRangeEnum);
+        setData(response.dataPoints || []);
+      } catch (err) {
+        console.error('Failed to fetch engagement analytics:', err);
+        setError('Failed to load engagement analytics. Please try again.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
   }, [selectedTimeRange, subforumPath]);
 
   const totalPosts = data.reduce((sum, point) => sum + point.posts, 0);
@@ -91,11 +57,6 @@ export function EngagementAnalytics({ subforumPath, timeRange = '14d' }: Engagem
     date: formatDate(point.date),
   }));
 
-  // Debug: Log first data point to check if upvote/downvote data exists
-  if (chartData.length > 0) {
-    console.log('First data point:', chartData[0]);
-  }
-
   if (isLoading) {
     return (
       <Card>
@@ -111,6 +72,35 @@ export function EngagementAnalytics({ subforumPath, timeRange = '14d' }: Engagem
         <CardContent>
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="w-5 h-5" />
+            Engagement Analytics
+          </CardTitle>
+          <CardDescription>
+            Activity metrics for {subforumPath}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <p className="text-muted-foreground mb-2">{error}</p>
+              <button 
+                onClick={() => window.location.reload()} 
+                className="text-sm text-primary hover:underline"
+              >
+                Try again
+              </button>
+            </div>
           </div>
         </CardContent>
       </Card>

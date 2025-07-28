@@ -255,3 +255,9 @@ func (m *MockUserBanDAO) DeactivateUserBan(ctx context.Context, banID int64) err
 	args := m.Called(ctx, banID)
 	return args.Error(0)
 }
+
+// GetBannedUsersCount returns the count of banned users in a subforum
+func (m *MockUserBanDAO) GetBannedUsersCount(ctx context.Context, subforumPath string) (int, error) {
+	args := m.Called(ctx, subforumPath)
+	return args.Get(0).(int), args.Error(1)
+}

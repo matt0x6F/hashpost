@@ -58,6 +58,7 @@ func NewServer() *Server {
 	securePseudonymDAO := dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
 	postDAO := dao.NewPostDAO(db)
 	commentDAO := dao.NewCommentDAO(db)
+	voteDAO := dao.NewVoteDAO(db)
 	userPreferencesDAO := dao.NewUserPreferencesDAO(db)
 	apiKeyDAO := dao.NewAPIKeyDAO(db)
 	subforumDAO := dao.NewSubforumDAO(db)
@@ -66,6 +67,7 @@ func NewServer() *Server {
 	reportDAO := dao.NewReportDAO(db)
 	moderationActionDAO := dao.NewModerationActionDAO(db)
 	userBanDAO := dao.NewUserBanDAO(db)
+	permissionDAO := dao.NewPermissionDAO(db)
 
 	// Create auth middleware with configuration
 	authMiddleware := middleware.NewAuthMiddleware(cfg.JWT.Secret, apiKeyDAO, &cfg.JWT, &cfg.Security)
@@ -100,7 +102,7 @@ func NewServer() *Server {
 	routes.RegisterSubforumRoutes(api, db)
 	routes.RegisterMessagesRoutes(api, db)
 	routes.RegisterSearchRoutes(api, db)
-	routes.RegisterModerationRoutes(api, reportDAO, moderationActionDAO, userBanDAO, securePseudonymDAO, subforumDAO, postDAO, commentDAO)
+	routes.RegisterModerationRoutes(api, reportDAO, moderationActionDAO, userBanDAO, securePseudonymDAO, subforumDAO, postDAO, commentDAO, voteDAO, permissionDAO)
 	routes.RegisterContentRoutes(api, db, rawDB, ibeSystem, identityMappingDAO, userDAO)
 	routes.RegisterCorrelationRoutes(api, db, ibeSystem, securePseudonymDAO, identityMappingDAO, postDAO, commentDAO, subforumDAO)
 

@@ -129,6 +129,15 @@ func (m *MockVoteDAO) SetDefaultBehavior() {
 			return nil
 		},
 	)
+
+	// Default behavior for moderation dashboard methods
+	m.On("GetVotesCount", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("time.Time")).Return(0, nil)
+	m.On("GetPostVotesCount", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("time.Time")).Return(0, nil)
+	m.On("GetCommentVotesCount", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("time.Time")).Return(0, nil)
+	m.On("GetPostUpvotesCount", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("time.Time")).Return(0, nil)
+	m.On("GetPostDownvotesCount", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("time.Time")).Return(0, nil)
+	m.On("GetCommentUpvotesCount", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("time.Time")).Return(0, nil)
+	m.On("GetCommentDownvotesCount", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("time.Time")).Return(0, nil)
 }
 
 // CreateVote creates a new vote
@@ -188,8 +197,50 @@ func (m *MockVoteDAO) CountVotesByContent(ctx context.Context, contentType strin
 	return args.Get(0).(int), args.Error(1)
 }
 
-// GetVoteSummaryByContent gets vote summary by content
+// GetVoteSummaryByContent returns the vote summary for a specific content item
 func (m *MockVoteDAO) GetVoteSummaryByContent(ctx context.Context, contentType string, contentID int64) (upvotes, downvotes, total int, err error) {
 	args := m.Called(ctx, contentType, contentID)
 	return args.Get(0).(int), args.Get(1).(int), args.Get(2).(int), args.Error(3)
+}
+
+// GetVotesCount returns the total count of votes in a subforum since a given time
+func (m *MockVoteDAO) GetVotesCount(ctx context.Context, subforumPath string, since time.Time) (int, error) {
+	args := m.Called(ctx, subforumPath, since)
+	return args.Get(0).(int), args.Error(1)
+}
+
+// GetPostVotesCount returns the count of votes on posts in a subforum since a given time
+func (m *MockVoteDAO) GetPostVotesCount(ctx context.Context, subforumPath string, since time.Time) (int, error) {
+	args := m.Called(ctx, subforumPath, since)
+	return args.Get(0).(int), args.Error(1)
+}
+
+// GetCommentVotesCount returns the count of votes on comments in a subforum since a given time
+func (m *MockVoteDAO) GetCommentVotesCount(ctx context.Context, subforumPath string, since time.Time) (int, error) {
+	args := m.Called(ctx, subforumPath, since)
+	return args.Get(0).(int), args.Error(1)
+}
+
+// GetPostUpvotesCount returns the count of upvotes on posts in a subforum since a given time
+func (m *MockVoteDAO) GetPostUpvotesCount(ctx context.Context, subforumPath string, since time.Time) (int, error) {
+	args := m.Called(ctx, subforumPath, since)
+	return args.Get(0).(int), args.Error(1)
+}
+
+// GetPostDownvotesCount returns the count of downvotes on posts in a subforum since a given time
+func (m *MockVoteDAO) GetPostDownvotesCount(ctx context.Context, subforumPath string, since time.Time) (int, error) {
+	args := m.Called(ctx, subforumPath, since)
+	return args.Get(0).(int), args.Error(1)
+}
+
+// GetCommentUpvotesCount returns the count of upvotes on comments in a subforum since a given time
+func (m *MockVoteDAO) GetCommentUpvotesCount(ctx context.Context, subforumPath string, since time.Time) (int, error) {
+	args := m.Called(ctx, subforumPath, since)
+	return args.Get(0).(int), args.Error(1)
+}
+
+// GetCommentDownvotesCount returns the count of downvotes on comments in a subforum since a given time
+func (m *MockVoteDAO) GetCommentDownvotesCount(ctx context.Context, subforumPath string, since time.Time) (int, error) {
+	args := m.Called(ctx, subforumPath, since)
+	return args.Get(0).(int), args.Error(1)
 }
