@@ -63,11 +63,14 @@ type RoleKeyDAOInterface interface {
 
 // SubforumDAOInterface defines the interface for subforum data access operations
 type SubforumDAOInterface interface {
-	CreateSubforum(ctx context.Context, name, displayName, description, sidebarText, rulesText string, isNSFW, isPrivate, isRestricted bool) (*models.Subforum, error)
+	CreateSubforum(ctx context.Context, name, displayName, description, sidebarText, rulesText, communityType, governanceStyle string, isNSFW, isPrivate, isRestricted bool, ownerPseudonymID string) (*models.Subforum, error)
 	GetSubforumByID(ctx context.Context, subforumID int32) (*models.Subforum, error)
 	GetSubforumByName(ctx context.Context, name string) (*models.Subforum, error)
+	GetSubforumByCommunityTypeAndName(ctx context.Context, communityType, name string) (*models.Subforum, error)
 	ListSubforums(ctx context.Context) ([]*models.Subforum, error)
+	ListSubforumsByCommunityType(ctx context.Context, communityType string) ([]*models.Subforum, error)
 	UpdatePostCount(ctx context.Context, subforumID int32, postCount int32) error
+	UpdateSubscriberCount(ctx context.Context, subforumID int32, subscriberCount int32) error
 }
 
 // PostDAOInterface defines the interface for post data access operations
@@ -88,6 +91,8 @@ type PostDAOInterface interface {
 	SetRemoved(ctx context.Context, postID int64, removed bool) error
 	MarkPostAsDeletedByPseudonym(ctx context.Context, postID int64, pseudonymID string, reason string) error
 	UpdatePost(ctx context.Context, postID int64, title, content string) error
+	// Moderation dashboard methods
+	GetPostsCount(ctx context.Context, subforumPath string, since time.Time) (int, error)
 }
 
 // CommentDAOInterface defines the interface for comment data access operations
@@ -106,6 +111,8 @@ type CommentDAOInterface interface {
 	SetRemoved(ctx context.Context, commentID int64, removed bool) error
 	SetCommentRemoved(ctx context.Context, commentID int64, removed bool, reason, removedByPseudonymID string) error
 	UpdateComment(ctx context.Context, commentID int64, content, editReason string) error
+	// Moderation dashboard methods
+	GetCommentsCount(ctx context.Context, subforumPath string, since time.Time) (int, error)
 }
 
 // VoteDAOInterface defines the interface for vote data access operations
@@ -118,6 +125,14 @@ type VoteDAOInterface interface {
 	GetVotesByContent(ctx context.Context, contentType string, contentID int64) ([]*models.Vote, error)
 	CountVotesByContent(ctx context.Context, contentType string, contentID int64) (int, error)
 	GetVoteSummaryByContent(ctx context.Context, contentType string, contentID int64) (upvotes, downvotes, total int, err error)
+	// Moderation dashboard methods
+	GetVotesCount(ctx context.Context, subforumPath string, since time.Time) (int, error)
+	GetPostVotesCount(ctx context.Context, subforumPath string, since time.Time) (int, error)
+	GetCommentVotesCount(ctx context.Context, subforumPath string, since time.Time) (int, error)
+	GetPostUpvotesCount(ctx context.Context, subforumPath string, since time.Time) (int, error)
+	GetPostDownvotesCount(ctx context.Context, subforumPath string, since time.Time) (int, error)
+	GetCommentUpvotesCount(ctx context.Context, subforumPath string, since time.Time) (int, error)
+	GetCommentDownvotesCount(ctx context.Context, subforumPath string, since time.Time) (int, error)
 }
 
 // APIKeyDAOInterface defines the interface for API key data access operations
@@ -167,6 +182,8 @@ type ReportDAOInterface interface {
 	CountReports(ctx context.Context, status string) (int64, error)
 	UpdateReport(ctx context.Context, reportID int64, updates *models.ReportSetter) error
 	ResolveReport(ctx context.Context, reportID int64, resolverUserID int64, resolverPseudonymID string, resolutionNotes string) error
+	// Moderation dashboard methods
+	GetPendingReportsCount(ctx context.Context, subforumPath string) (int, error)
 }
 
 // ModerationActionDAOInterface defines the interface for moderation action data access operations
@@ -176,6 +193,8 @@ type ModerationActionDAOInterface interface {
 	GetModerationActions(ctx context.Context, actionType string, page, limit int) ([]*models.ModerationAction, error)
 	CountModerationActions(ctx context.Context, actionType string) (int64, error)
 	GetModerationActionsByModerator(ctx context.Context, moderatorUserID int64, page, limit int) ([]*models.ModerationAction, error)
+	// Moderation dashboard methods
+	GetModActionsCount(ctx context.Context, subforumPath string, since time.Time) (int, error)
 }
 
 // UserBanDAOInterface defines the interface for user ban data access operations
@@ -189,6 +208,8 @@ type UserBanDAOInterface interface {
 	IsUserBannedFromSubforum(ctx context.Context, userID int64, subforumID int32) (bool, error)
 	UpdateUserBan(ctx context.Context, banID int64, updates *models.UserBanSetter) error
 	DeactivateUserBan(ctx context.Context, banID int64) error
+	// Moderation dashboard methods
+	GetBannedUsersCount(ctx context.Context, subforumPath string) (int, error)
 }
 
 // SubforumSubscriptionDAOInterface defines the interface for subforum subscription data access operations

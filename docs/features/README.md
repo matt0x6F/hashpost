@@ -14,7 +14,7 @@ HashPost provides a comprehensive forum platform with advanced features for cont
 - **User Blocking System** - Pseudonym and fingerprint-level blocking
 - **Authentication & User Management** - Complete user authentication system
 - **Content Creation** - Posts, comments, and voting system
-- **Communities & Subforums** - Community management and participation
+- **Communities & Subforums** - Community management and participation with four community types (t/, g/, b/, c/)
 - **Moderation & Safety** - Content moderation and user safety features
 - **Comments & Discussions** - Comprehensive comment system
 

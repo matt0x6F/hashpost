@@ -6,7 +6,6 @@ require (
 	github.com/danielgtaylor/huma/v2 v2.33.0
 	github.com/gofrs/uuid/v5 v5.3.2
 	github.com/golang-jwt/jwt/v5 v5.2.2
-	github.com/google/uuid v1.6.0
 	github.com/jaswdr/faker/v2 v2.5.0
 	github.com/lib/pq v1.10.9
 	github.com/rs/zerolog v1.34.0

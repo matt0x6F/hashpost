@@ -479,18 +479,3 @@ func (dao *PermissionDAO) GetActivePseudonymRolesAndCapabilities(ctx context.Con
 
 	return roles, capabilities, nil
 }
-
-// removeDuplicates removes duplicate strings from a slice
-func (dao *PermissionDAO) removeDuplicates(slice []string) []string {
-	seen := make(map[string]bool)
-	result := []string{}
-
-	for _, item := range slice {
-		if !seen[item] {
-			seen[item] = true
-			result = append(result, item)
-		}
-	}
-
-	return result
-}

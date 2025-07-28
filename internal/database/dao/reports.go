@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/matt0x6f/hashpost/internal/database/models"
@@ -162,4 +163,82 @@ func (dao *ReportDAO) ResolveReport(ctx context.Context, reportID int64, resolve
 	}
 
 	return dao.UpdateReport(ctx, reportID, updates)
+}
+
+// GetPendingReportsCount returns the count of pending reports for a subforum
+func (dao *ReportDAO) GetPendingReportsCount(ctx context.Context, subforumPath string) (int, error) {
+	log.Debug().
+		Str("subforum_path", subforumPath).
+		Msg("Getting pending reports count")
+
+	// Parse subforum path to get community type and name
+	parts := strings.Split(subforumPath, "/")
+	if len(parts) != 2 {
+		return 0, fmt.Errorf("invalid subforum path format: %s", subforumPath)
+	}
+	communityType := parts[0]
+	subforumName := parts[1]
+
+	// First get the subforum ID
+	subforum, err := models.Subforums.Query(
+		models.SelectWhere.Subforums.CommunityType.EQ(communityType),
+		models.SelectWhere.Subforums.Name.EQ(subforumName),
+	).One(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get subforum: %w", err)
+	}
+
+	// Get post IDs in the subforum
+	posts, err := models.Posts.Query(
+		models.SelectWhere.Posts.SubforumID.EQ(subforum.SubforumID),
+	).All(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get posts in subforum: %w", err)
+	}
+
+	if len(posts) == 0 {
+		return 0, nil
+	}
+
+	// Extract post IDs
+	postIDs := make([]int64, len(posts))
+	for i, post := range posts {
+		postIDs[i] = post.PostID
+	}
+
+	// Get comment IDs in the subforum
+	comments, err := models.Comments.Query(
+		models.SelectWhere.Comments.PostID.In(postIDs...),
+	).All(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get comments in subforum: %w", err)
+	}
+
+	// Extract comment IDs
+	commentIDs := make([]int64, len(comments))
+	for i, comment := range comments {
+		commentIDs[i] = comment.CommentID
+	}
+
+	// Count pending reports for posts in the subforum
+	postReportsCount, err := models.Reports.Query(
+		models.SelectWhere.Reports.Status.EQ("pending"),
+		models.SelectWhere.Reports.ContentType.EQ("post"),
+		models.SelectWhere.Reports.ContentID.In(postIDs...),
+	).Count(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count post reports: %w", err)
+	}
+
+	// Count pending reports for comments in the subforum
+	commentReportsCount, err := models.Reports.Query(
+		models.SelectWhere.Reports.Status.EQ("pending"),
+		models.SelectWhere.Reports.ContentType.EQ("comment"),
+		models.SelectWhere.Reports.ContentID.In(commentIDs...),
+	).Count(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count comment reports: %w", err)
+	}
+
+	return int(postReportsCount + commentReportsCount), nil
 }

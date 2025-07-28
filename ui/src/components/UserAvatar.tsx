@@ -6,14 +6,22 @@ import { useAuth } from "@/lib/auth-context";
 import { LogOut, User, Settings, Users } from "lucide-react";
 import { CreatePseudonymDialog } from "./CreatePseudonymDialog";
 import { switchPseudonym } from "@/lib/pseudonym-utils";
+import { usePathname } from "next/navigation";
+import { authenticateUserForSubforum } from "@/lib/auth-utils";
 
 
 export function UserAvatar() {
-  const { user, logout, refreshUser } = useAuth();
+  const { user, logout, refreshUser, updateUserWithSubforumData } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [showPseudonymManager, setShowPseudonymManager] = useState(false);
   const [showCreatePseudonym, setShowCreatePseudonym] = useState(false);
+  const pathname = usePathname();
+
+  // Check if we're in a subforum context (any of the community type routes)
+  const isInSubforumContext = pathname?.match(/^\/([tgbch])\/[^\/]+/);
+  const subforumMatch = pathname?.match(/^\/([tgbch])\/([^\/]+)/);
+  const subforumName = subforumMatch ? `${subforumMatch[1]}/${subforumMatch[2]}` : null;
 
 
   const handleLogout = async () => {
@@ -46,7 +54,7 @@ export function UserAvatar() {
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 w-8 rounded-full p-0 hover:bg-zinc-800"
+          className="h-8 w-8 rounded-full p-0 hover:bg-foreground/10 dark:hover:bg-foreground/20"
           onClick={() => setShowDropdown(!showDropdown)}
           disabled={isLoading}
         >
@@ -64,10 +72,10 @@ export function UserAvatar() {
             />
             
             {/* Dropdown */}
-            <div className="absolute right-0 top-full mt-2 w-56 rounded-md shadow-lg bg-background border border-zinc-800 z-50">
+            <div className="absolute right-0 top-full mt-2 w-56 rounded-md shadow-lg bg-background border border-border z-50">
               <div className="py-1">
                 {/* User info */}
-                <div className="px-4 py-2 border-b border-zinc-800">
+                <div className="px-4 py-2 border-b border-border">
                   <div className="text-sm font-medium text-foreground">
                     {user.displayName}
                   </div>
@@ -82,7 +90,7 @@ export function UserAvatar() {
                 {/* Menu items */}
                 <div className="py-1">
                   <button
-                    className="flex items-center w-full px-4 py-2 text-sm text-foreground hover:bg-zinc-800 transition-colors"
+                    className="flex items-center w-full px-4 py-2 text-sm text-foreground hover:bg-foreground/10 dark:hover:bg-foreground/10 transition-colors"
                     onClick={() => {
                       setShowPseudonymManager(true);
                       setShowDropdown(false);
@@ -93,7 +101,7 @@ export function UserAvatar() {
                   </button>
                   
                   <button
-                    className="flex items-center w-full px-4 py-2 text-sm text-foreground hover:bg-zinc-800 transition-colors"
+                    className="flex items-center w-full px-4 py-2 text-sm text-foreground hover:bg-foreground/10 dark:hover:bg-foreground/10 transition-colors"
                     onClick={() => {
                       setShowDropdown(false);
                       // TODO: Navigate to profile
@@ -104,7 +112,7 @@ export function UserAvatar() {
                   </button>
                   
                   <button
-                    className="flex items-center w-full px-4 py-2 text-sm text-foreground hover:bg-zinc-800 transition-colors"
+                    className="flex items-center w-full px-4 py-2 text-sm text-foreground hover:bg-foreground/10 dark:hover:bg-foreground/10 transition-colors"
                     onClick={() => {
                       setShowDropdown(false);
                       // TODO: Navigate to settings
@@ -115,7 +123,7 @@ export function UserAvatar() {
                   </button>
                   
                   <button
-                    className="flex items-center w-full px-4 py-2 text-sm text-red-500 hover:bg-zinc-800 transition-colors"
+                    className="flex items-center w-full px-4 py-2 text-sm text-foreground hover:bg-foreground/10 dark:hover:bg-foreground/10 transition-colors"
                     onClick={handleLogout}
                     disabled={isLoading}
                   >
@@ -150,7 +158,7 @@ export function UserAvatar() {
                       {user.pseudonyms.find(p => p.pseudonymId === user.activePseudonymId)?.karmaScore || 0} karma
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 text-green-600">
+                  <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400/60">
                     <span className="text-sm">Active</span>
                   </div>
                 </div>
@@ -163,7 +171,7 @@ export function UserAvatar() {
                     key={pseudonym.pseudonymId}
                     className={`p-3 border rounded-lg ${
                       pseudonym.pseudonymId === user.activePseudonymId
-                        ? "border-primary bg-primary/5"
+                        ? "border-primary/50 bg-primary/5 dark:bg-primary/10"
                         : "border-border"
                     }`}
                   >
@@ -191,6 +199,22 @@ export function UserAvatar() {
                                   // Refresh user data to get updated active pseudonym
                                   // The new JWT token is automatically set as a cookie
                                   await refreshUser();
+                                  
+                                  // If we're in a subforum context, also refresh subforum-specific user context
+                                  if (isInSubforumContext && subforumName) {
+                                    try {
+                                      const subforumUserData = await authenticateUserForSubforum(subforumName);
+                                      if (subforumUserData) {
+                                        // Update the user context with subforum-specific capabilities
+                                        updateUserWithSubforumData(subforumUserData);
+                                      }
+                                    } catch (error) {
+                                      console.error('Error refreshing subforum user context:', error);
+                                      // Fallback to page reload if subforum context refresh fails
+                                      window.location.reload();
+                                    }
+                                  }
+                                  
                                   setShowPseudonymManager(false);
                                 } else {
                                   console.error("Failed to switch pseudonym:", result.error);

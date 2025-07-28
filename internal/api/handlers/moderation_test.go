@@ -9,6 +9,8 @@ import (
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	"github.com/matt0x6f/hashpost/internal/api/models"
 	"github.com/matt0x6f/hashpost/internal/database/dao/mocks"
+	dbmodels "github.com/matt0x6f/hashpost/internal/database/models"
+	"github.com/matt0x6f/hashpost/internal/fixtures"
 	"github.com/stephenafamo/bob/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -574,6 +576,72 @@ func TestModerationHandler_HelperMethods(t *testing.T) {
 	})
 }
 
+// NewModerationHandlerWithMocks creates a new moderation handler with mock DAOs and fixture data
+func NewModerationHandlerWithMocks() *ModerationHandler {
+	// Create mock DAOs
+	mockReportDAO := mocks.NewMockReportDAO()
+	mockModerationActionDAO := mocks.NewMockModerationActionDAO()
+	mockUserBanDAO := mocks.NewMockUserBanDAO()
+	mockSecurePseudonymDAO := mocks.NewMockSecurePseudonymDAO()
+	mockSubforumDAO := mocks.NewMockSubforumDAO()
+	mockPostDAO := mocks.NewMockPostDAO()
+	mockCommentDAO := mocks.NewMockCommentDAO()
+	mockVoteDAO := mocks.NewMockVoteDAO()
+	mockPermissionDAO := mocks.NewMockPermissionDAO()
+
+	// Inject fixture data into mocks
+	mockReportDAO.InjectReport(fixtures.CreateTestReport())
+	mockReportDAO.InjectReport(fixtures.CreateTestReportWithResolution())
+	mockReportDAO.InjectReportsByStatus("pending", []*dbmodels.Report{fixtures.CreateTestReport()})
+	mockReportDAO.InjectReportsByStatus("resolved", []*dbmodels.Report{fixtures.CreateTestReportWithResolution()})
+	mockReportDAO.InjectCount("pending", 1)
+	mockReportDAO.InjectCount("resolved", 1)
+	mockReportDAO.SetDefaultBehavior()
+
+	mockModerationActionDAO.InjectAction(fixtures.CreateTestModerationAction())
+	mockModerationActionDAO.InjectAction(fixtures.CreateTestModerationActionWithDetails())
+	mockModerationActionDAO.InjectActionsByType("remove_post", []*dbmodels.ModerationAction{fixtures.CreateTestModerationAction()})
+	mockModerationActionDAO.InjectCount("remove_post", 1)
+	mockModerationActionDAO.SetDefaultBehavior()
+
+	mockUserBanDAO.InjectBan(fixtures.CreateTestUserBan())
+	mockUserBanDAO.InjectBan(fixtures.CreateTestPermanentUserBan())
+	mockUserBanDAO.InjectBan(fixtures.CreateTestInactiveUserBan())
+	mockUserBanDAO.InjectBansBySubforum(1, []*dbmodels.UserBan{fixtures.CreateTestUserBan()})
+	mockUserBanDAO.InjectCount("subforum_1", 1)
+	mockUserBanDAO.SetDefaultBehavior()
+
+	// Set up mock secure pseudonym DAO with fixture data
+	mockSecurePseudonymDAO.InjectPseudonym(fixtures.CreateTestPseudonym())
+	mockSecurePseudonymDAO.SetDefaultBehavior()
+
+	// Set up mock post DAO with fixture data
+	mockPostDAO.InjectPost(fixtures.CreateTestPost())
+	mockPostDAO.SetDefaultBehavior()
+
+	// Set up mock comment DAO with fixture data
+	mockCommentDAO.InjectComment(fixtures.CreateTestComment())
+	mockCommentDAO.SetDefaultBehavior()
+
+	// Set up mock vote DAO with fixture data
+	mockVoteDAO.SetDefaultBehavior()
+
+	// Set up mock permission DAO with fixture data
+	mockPermissionDAO.SetDefaultBehavior()
+
+	return &ModerationHandler{
+		reportDAO:           mockReportDAO,
+		moderationActionDAO: mockModerationActionDAO,
+		userBanDAO:          mockUserBanDAO,
+		securePseudonymDAO:  mockSecurePseudonymDAO,
+		subforumDAO:         mockSubforumDAO,
+		postDAO:             mockPostDAO,
+		commentDAO:          mockCommentDAO,
+		voteDAO:             mockVoteDAO,
+		permissionDAO:       mockPermissionDAO,
+	}
+}
+
 // TestNewModerationHandler tests the main constructor function
 func TestNewModerationHandler(t *testing.T) {
 	t.Run("NewModerationHandlerSuccess", func(t *testing.T) {
@@ -585,6 +653,8 @@ func TestNewModerationHandler(t *testing.T) {
 		mockSubforumDAO := &mocks.MockSubforumDAO{}
 		mockPostDAO := &mocks.MockPostDAO{}
 		mockCommentDAO := &mocks.MockCommentDAO{}
+		mockVoteDAO := &mocks.MockVoteDAO{}
+		mockPermissionDAO := &mocks.MockPermissionDAO{}
 
 		// Create handler with dependencies
 		handler := NewModerationHandler(
@@ -595,6 +665,8 @@ func TestNewModerationHandler(t *testing.T) {
 			mockSubforumDAO,
 			mockPostDAO,
 			mockCommentDAO,
+			mockVoteDAO,
+			mockPermissionDAO,
 		)
 
 		// Verify handler is created
@@ -606,5 +678,7 @@ func TestNewModerationHandler(t *testing.T) {
 		assert.Equal(t, mockSubforumDAO, handler.subforumDAO)
 		assert.Equal(t, mockPostDAO, handler.postDAO)
 		assert.Equal(t, mockCommentDAO, handler.commentDAO)
+		assert.Equal(t, mockVoteDAO, handler.voteDAO)
+		assert.Equal(t, mockPermissionDAO, handler.permissionDAO)
 	})
 }

@@ -23,7 +23,7 @@ import (
 )
 
 // Helper function to create test correlation handler with mocks
-func createTestCorrelationHandler() (*CorrelationHandler, *mocks.MockSecurePseudonymDAO, *mocks.MockIdentityMappingDAO, *mocks.MockPostDAO, *mocks.MockCommentDAO, *mocks.MockSubforumDAO, *mocks.MockCorrelationAuditDAO) {
+func NewCorrelationHandlerWithMocks() (*CorrelationHandler, *mocks.MockSecurePseudonymDAO, *mocks.MockIdentityMappingDAO, *mocks.MockPostDAO, *mocks.MockCommentDAO, *mocks.MockSubforumDAO, *mocks.MockCorrelationAuditDAO) {
 	mockSecurePseudonymDAO := &mocks.MockSecurePseudonymDAO{}
 	mockIdentityMappingDAO := &mocks.MockIdentityMappingDAO{}
 	mockPostDAO := &mocks.MockPostDAO{}
@@ -48,7 +48,7 @@ func createTestCorrelationHandler() (*CorrelationHandler, *mocks.MockSecurePseud
 }
 
 // Helper function to create test identity mapping
-func createTestIdentityMapping(pseudonymID, fingerprint string, encryptedIdentity []byte) *dbmodels.IdentityMapping {
+func createTestIdentityMapping(pseudonymID string, encryptedIdentity []byte) *dbmodels.IdentityMapping {
 	mappingID := uuid.Must(uuid.NewV4())
 	return &dbmodels.IdentityMapping{
 		MappingID:             mappingID,
@@ -66,7 +66,7 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
 
 	t.Run("Success", func(t *testing.T) {
-		handler, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockPostDAO, mockCommentDAO, _, mockCorrelationAuditDAO := createTestCorrelationHandler()
+		handler, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockPostDAO, mockCommentDAO, _, mockCorrelationAuditDAO := NewCorrelationHandlerWithMocks()
 
 		// Test data
 		adminUserID := int64(1)
@@ -96,7 +96,7 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 		plaintext := fingerprint + ":" + requestedPseudonymID
 		encryptedBytes, err := ibeSystem.EncryptIdentity(plaintext, requestedPseudonymID, adminKey)
 		require.NoError(t, err)
-		testMapping := createTestIdentityMapping(requestedPseudonymID, fingerprint, encryptedBytes)
+		testMapping := createTestIdentityMapping(requestedPseudonymID, encryptedBytes)
 		mockIdentityMappingDAO.On("GetIdentityMappingByPseudonymID", mock.Anything, requestedPseudonymID).Return(testMapping, nil)
 
 		// Mock related identity mappings (same fingerprint)
@@ -104,7 +104,7 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 		relatedPlaintext := fingerprint + ":" + relatedPseudonymID
 		relatedEncryptedBytes, err := ibeSystem.EncryptIdentity(relatedPlaintext, relatedPseudonymID, adminKey)
 		require.NoError(t, err)
-		relatedMapping := createTestIdentityMapping(relatedPseudonymID, fingerprint, relatedEncryptedBytes)
+		relatedMapping := createTestIdentityMapping(relatedPseudonymID, relatedEncryptedBytes)
 		relatedMappings := dbmodels.IdentityMappingSlice{testMapping, relatedMapping}
 
 		// The handler will call GenerateFingerprint on the decrypted mapping
@@ -189,7 +189,7 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 	})
 
 	t.Run("InsufficientPermissions", func(t *testing.T) {
-		handler, _, _, _, _, _, _ := createTestCorrelationHandler()
+		handler, _, _, _, _, _, _ := NewCorrelationHandlerWithMocks()
 
 		// Create user context without correlation capability
 		userCtx := fixtures.CreateTestUserContext()
@@ -218,7 +218,7 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 	})
 
 	t.Run("PseudonymNotFound", func(t *testing.T) {
-		handler, mockSecurePseudonymDAO, _, _, _, _, _ := createTestCorrelationHandler()
+		handler, mockSecurePseudonymDAO, _, _, _, _, _ := NewCorrelationHandlerWithMocks()
 
 		// Create user context with correlation capability
 		userCtx := fixtures.CreateTestUserContext()
@@ -258,7 +258,7 @@ func TestCorrelationHandler_RequestIdentityCorrelation(t *testing.T) {
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
 
 	t.Run("Success", func(t *testing.T) {
-		handler, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockPostDAO, mockCommentDAO, mockSubforumDAO, mockCorrelationAuditDAO := createTestCorrelationHandler()
+		handler, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockPostDAO, mockCommentDAO, mockSubforumDAO, mockCorrelationAuditDAO := NewCorrelationHandlerWithMocks()
 
 		// Test data
 		adminUserID := int64(1)
@@ -287,7 +287,7 @@ func TestCorrelationHandler_RequestIdentityCorrelation(t *testing.T) {
 		plaintext := fingerprint + ":" + requestedPseudonymID
 		encryptedBytes, err := ibeSystem.EncryptIdentity(plaintext, requestedPseudonymID, adminKey)
 		require.NoError(t, err)
-		testMapping := createTestIdentityMapping(requestedPseudonymID, fingerprint, encryptedBytes)
+		testMapping := createTestIdentityMapping(requestedPseudonymID, encryptedBytes)
 		mockIdentityMappingDAO.On("GetIdentityMappingByPseudonymID", mock.Anything, requestedPseudonymID).Return(testMapping, nil)
 
 		// Mock related identity mappings (same fingerprint)
@@ -295,7 +295,7 @@ func TestCorrelationHandler_RequestIdentityCorrelation(t *testing.T) {
 		relatedPlaintext := fingerprint + ":" + relatedPseudonymID
 		relatedEncryptedBytes, err := ibeSystem.EncryptIdentity(relatedPlaintext, relatedPseudonymID, adminKey)
 		require.NoError(t, err)
-		relatedMapping := createTestIdentityMapping(relatedPseudonymID, fingerprint, relatedEncryptedBytes)
+		relatedMapping := createTestIdentityMapping(relatedPseudonymID, relatedEncryptedBytes)
 		relatedMappings := dbmodels.IdentityMappingSlice{testMapping, relatedMapping}
 
 		// The handler will call GenerateFingerprint on the decrypted mapping
@@ -376,7 +376,7 @@ func TestCorrelationHandler_RequestIdentityCorrelation(t *testing.T) {
 	})
 
 	t.Run("InsufficientPermissions", func(t *testing.T) {
-		handler, _, _, _, _, _, _ := createTestCorrelationHandler()
+		handler, _, _, _, _, _, _ := NewCorrelationHandlerWithMocks()
 
 		// Create user context without identity correlation capability
 		userCtx := fixtures.CreateTestUserContext()
@@ -412,7 +412,7 @@ func TestCorrelationHandler_GetCorrelationHistory(t *testing.T) {
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
 
 	t.Run("Success", func(t *testing.T) {
-		handler, _, _, _, _, _, mockCorrelationAuditDAO := createTestCorrelationHandler()
+		handler, _, _, _, _, _, mockCorrelationAuditDAO := NewCorrelationHandlerWithMocks()
 
 		// Create test user context with history capability
 		userCtx := fixtures.CreateTestUserContext()
@@ -463,7 +463,7 @@ func TestCorrelationHandler_GetCorrelationHistory(t *testing.T) {
 	})
 
 	t.Run("InsufficientPermissions", func(t *testing.T) {
-		handler, _, _, _, _, _, _ := createTestCorrelationHandler()
+		handler, _, _, _, _, _, _ := NewCorrelationHandlerWithMocks()
 
 		// Create user context without history viewing capability
 		userCtx := fixtures.CreateTestUserContext()
@@ -493,10 +493,9 @@ func TestCorrelationHandler_GetCorrelationHistory(t *testing.T) {
 func TestCorrelationFixtures(t *testing.T) {
 	t.Run("CreateTestIdentityMapping", func(t *testing.T) {
 		pseudonymID := "test-pseudonym-123"
-		fingerprint := "test-fingerprint-456"
 		encryptedIdentity := []byte("encrypted-data")
 
-		mapping := createTestIdentityMapping(pseudonymID, fingerprint, encryptedIdentity)
+		mapping := createTestIdentityMapping(pseudonymID, encryptedIdentity)
 
 		// Assertions
 		assert.NotNil(t, mapping)

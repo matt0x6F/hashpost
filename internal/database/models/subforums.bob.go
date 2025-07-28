@@ -45,6 +45,12 @@ type Subforum struct {
 	MinimumAccountAgeHours sql.Null[int32]     `db:"minimum_account_age_hours" scan:"minimum_account_age_hours" json:"minimum_account_age_hours"`
 	MinimumKarmaRequired   sql.Null[int32]     `db:"minimum_karma_required" scan:"minimum_karma_required" json:"minimum_karma_required"`
 	UpdatedAt              sql.Null[time.Time] `db:"updated_at" scan:"updated_at" json:"updated_at"`
+	// Community type: t=topical, g=geographic, b=branded, c=creator
+	CommunityType string `db:"community_type" scan:"community_type" json:"community_type"`
+	// Governance style: democratic=community-elected moderators, owned=owner-controlled
+	GovernanceStyle string `db:"governance_style" scan:"governance_style" json:"governance_style"`
+	// Pseudonym ID of the community owner (for owned communities)
+	OwnerPseudonymID sql.Null[string] `db:"owner_pseudonym_id" scan:"owner_pseudonym_id" json:"owner_pseudonym_id"`
 
 	R subforumR `db:"-" scan:"rel" json:"rel"`
 }
@@ -61,12 +67,13 @@ type SubforumsQuery = *psql.ViewQuery[*Subforum, SubforumSlice]
 
 // subforumR is where relationships are stored.
 type subforumR struct {
-	ModerationActions     ModerationActionSlice     `scan:"ModerationActions" json:"ModerationActions"`         // moderation_actions.moderation_actions_subforum_id_fkey
-	Posts                 PostSlice                 `scan:"Posts" json:"Posts"`                                 // posts.posts_subforum_id_fkey
-	SubforumModerators    SubforumModeratorSlice    `scan:"SubforumModerators" json:"SubforumModerators"`       // subforum_moderators.subforum_moderators_subforum_id_fkey
-	SubforumSubscriptions SubforumSubscriptionSlice `scan:"SubforumSubscriptions" json:"SubforumSubscriptions"` // subforum_subscriptions.subforum_subscriptions_subforum_id_fkey
-	CreatedByUserUser     *User                     `scan:"CreatedByUserUser" json:"CreatedByUserUser"`         // subforums.subforums_created_by_user_id_fkey
-	UserBans              UserBanSlice              `scan:"UserBans" json:"UserBans"`                           // user_bans.user_bans_subforum_id_fkey
+	ModerationActions       ModerationActionSlice     `scan:"ModerationActions" json:"ModerationActions"`             // moderation_actions.moderation_actions_subforum_id_fkey
+	Posts                   PostSlice                 `scan:"Posts" json:"Posts"`                                     // posts.posts_subforum_id_fkey
+	SubforumModerators      SubforumModeratorSlice    `scan:"SubforumModerators" json:"SubforumModerators"`           // subforum_moderators.subforum_moderators_subforum_id_fkey
+	SubforumSubscriptions   SubforumSubscriptionSlice `scan:"SubforumSubscriptions" json:"SubforumSubscriptions"`     // subforum_subscriptions.subforum_subscriptions_subforum_id_fkey
+	OwnerPseudonymPseudonym *Pseudonym                `scan:"OwnerPseudonymPseudonym" json:"OwnerPseudonymPseudonym"` // subforums.fk_subforums_owner_pseudonym
+	CreatedByUserUser       *User                     `scan:"CreatedByUserUser" json:"CreatedByUserUser"`             // subforums.subforums_created_by_user_id_fkey
+	UserBans                UserBanSlice              `scan:"UserBans" json:"UserBans"`                               // user_bans.user_bans_subforum_id_fkey
 }
 
 type subforumColumnNames struct {
@@ -91,6 +98,9 @@ type subforumColumnNames struct {
 	MinimumAccountAgeHours string
 	MinimumKarmaRequired   string
 	UpdatedAt              string
+	CommunityType          string
+	GovernanceStyle        string
+	OwnerPseudonymID       string
 }
 
 var SubforumColumns = buildSubforumColumns("subforums")
@@ -118,6 +128,9 @@ type subforumColumns struct {
 	MinimumAccountAgeHours psql.Expression
 	MinimumKarmaRequired   psql.Expression
 	UpdatedAt              psql.Expression
+	CommunityType          psql.Expression
+	GovernanceStyle        psql.Expression
+	OwnerPseudonymID       psql.Expression
 }
 
 func (c subforumColumns) Alias() string {
@@ -152,6 +165,9 @@ func buildSubforumColumns(alias string) subforumColumns {
 		MinimumAccountAgeHours: psql.Quote(alias, "minimum_account_age_hours"),
 		MinimumKarmaRequired:   psql.Quote(alias, "minimum_karma_required"),
 		UpdatedAt:              psql.Quote(alias, "updated_at"),
+		CommunityType:          psql.Quote(alias, "community_type"),
+		GovernanceStyle:        psql.Quote(alias, "governance_style"),
+		OwnerPseudonymID:       psql.Quote(alias, "owner_pseudonym_id"),
 	}
 }
 
@@ -177,6 +193,9 @@ type subforumWhere[Q psql.Filterable] struct {
 	MinimumAccountAgeHours psql.WhereNullMod[Q, int32]
 	MinimumKarmaRequired   psql.WhereNullMod[Q, int32]
 	UpdatedAt              psql.WhereNullMod[Q, time.Time]
+	CommunityType          psql.WhereMod[Q, string]
+	GovernanceStyle        psql.WhereMod[Q, string]
+	OwnerPseudonymID       psql.WhereNullMod[Q, string]
 }
 
 func (subforumWhere[Q]) AliasedAs(alias string) subforumWhere[Q] {
@@ -206,6 +225,9 @@ func buildSubforumWhere[Q psql.Filterable](cols subforumColumns) subforumWhere[Q
 		MinimumAccountAgeHours: psql.WhereNull[Q, int32](cols.MinimumAccountAgeHours),
 		MinimumKarmaRequired:   psql.WhereNull[Q, int32](cols.MinimumKarmaRequired),
 		UpdatedAt:              psql.WhereNull[Q, time.Time](cols.UpdatedAt),
+		CommunityType:          psql.Where[Q, string](cols.CommunityType),
+		GovernanceStyle:        psql.Where[Q, string](cols.GovernanceStyle),
+		OwnerPseudonymID:       psql.WhereNull[Q, string](cols.OwnerPseudonymID),
 	}
 }
 
@@ -217,18 +239,18 @@ var SubforumErrors = &subforumErrors{
 		s:       "subforums_pkey",
 	},
 
-	ErrUniqueSubforumsNameKey: &UniqueConstraintError{
+	ErrUniqueUniqueSubforumNamePerType: &UniqueConstraintError{
 		schema:  "",
 		table:   "subforums",
-		columns: []string{"name"},
-		s:       "subforums_name_key",
+		columns: []string{"community_type", "name"},
+		s:       "unique_subforum_name_per_type",
 	},
 }
 
 type subforumErrors struct {
 	ErrUniqueSubforumsPkey *UniqueConstraintError
 
-	ErrUniqueSubforumsNameKey *UniqueConstraintError
+	ErrUniqueUniqueSubforumNamePerType *UniqueConstraintError
 }
 
 // SubforumSetter is used for insert/upsert/update operations
@@ -256,10 +278,13 @@ type SubforumSetter struct {
 	MinimumAccountAgeHours *sql.Null[int32]     `db:"minimum_account_age_hours" scan:"minimum_account_age_hours" json:"minimum_account_age_hours"`
 	MinimumKarmaRequired   *sql.Null[int32]     `db:"minimum_karma_required" scan:"minimum_karma_required" json:"minimum_karma_required"`
 	UpdatedAt              *sql.Null[time.Time] `db:"updated_at" scan:"updated_at" json:"updated_at"`
+	CommunityType          *string              `db:"community_type" scan:"community_type" json:"community_type"`
+	GovernanceStyle        *string              `db:"governance_style" scan:"governance_style" json:"governance_style"`
+	OwnerPseudonymID       *sql.Null[string]    `db:"owner_pseudonym_id" scan:"owner_pseudonym_id" json:"owner_pseudonym_id"`
 }
 
 func (s SubforumSetter) SetColumns() []string {
-	vals := make([]string, 0, 21)
+	vals := make([]string, 0, 24)
 	if s.SubforumID != nil {
 		vals = append(vals, "subforum_id")
 	}
@@ -344,6 +369,18 @@ func (s SubforumSetter) SetColumns() []string {
 		vals = append(vals, "updated_at")
 	}
 
+	if s.CommunityType != nil {
+		vals = append(vals, "community_type")
+	}
+
+	if s.GovernanceStyle != nil {
+		vals = append(vals, "governance_style")
+	}
+
+	if s.OwnerPseudonymID != nil {
+		vals = append(vals, "owner_pseudonym_id")
+	}
+
 	return vals
 }
 
@@ -411,6 +448,15 @@ func (s SubforumSetter) Overwrite(t *Subforum) {
 	if s.UpdatedAt != nil {
 		t.UpdatedAt = *s.UpdatedAt
 	}
+	if s.CommunityType != nil {
+		t.CommunityType = *s.CommunityType
+	}
+	if s.GovernanceStyle != nil {
+		t.GovernanceStyle = *s.GovernanceStyle
+	}
+	if s.OwnerPseudonymID != nil {
+		t.OwnerPseudonymID = *s.OwnerPseudonymID
+	}
 }
 
 func (s *SubforumSetter) Apply(q *dialect.InsertQuery) {
@@ -419,7 +465,7 @@ func (s *SubforumSetter) Apply(q *dialect.InsertQuery) {
 	})
 
 	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
-		vals := make([]bob.Expression, 21)
+		vals := make([]bob.Expression, 24)
 		if s.SubforumID != nil {
 			vals[0] = psql.Arg(*s.SubforumID)
 		} else {
@@ -546,6 +592,24 @@ func (s *SubforumSetter) Apply(q *dialect.InsertQuery) {
 			vals[20] = psql.Raw("DEFAULT")
 		}
 
+		if s.CommunityType != nil {
+			vals[21] = psql.Arg(*s.CommunityType)
+		} else {
+			vals[21] = psql.Raw("DEFAULT")
+		}
+
+		if s.GovernanceStyle != nil {
+			vals[22] = psql.Arg(*s.GovernanceStyle)
+		} else {
+			vals[22] = psql.Raw("DEFAULT")
+		}
+
+		if s.OwnerPseudonymID != nil {
+			vals[23] = psql.Arg(*s.OwnerPseudonymID)
+		} else {
+			vals[23] = psql.Raw("DEFAULT")
+		}
+
 		return bob.ExpressSlice(ctx, w, d, start, vals, "", ", ", "")
 	}))
 }
@@ -555,7 +619,7 @@ func (s SubforumSetter) UpdateMod() bob.Mod[*dialect.UpdateQuery] {
 }
 
 func (s SubforumSetter) Expressions(prefix ...string) []bob.Expression {
-	exprs := make([]bob.Expression, 0, 21)
+	exprs := make([]bob.Expression, 0, 24)
 
 	if s.SubforumID != nil {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
@@ -701,6 +765,27 @@ func (s SubforumSetter) Expressions(prefix ...string) []bob.Expression {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "updated_at")...),
 			psql.Arg(s.UpdatedAt),
+		}})
+	}
+
+	if s.CommunityType != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "community_type")...),
+			psql.Arg(s.CommunityType),
+		}})
+	}
+
+	if s.GovernanceStyle != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "governance_style")...),
+			psql.Arg(s.GovernanceStyle),
+		}})
+	}
+
+	if s.OwnerPseudonymID != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "owner_pseudonym_id")...),
+			psql.Arg(s.OwnerPseudonymID),
 		}})
 	}
 
@@ -931,13 +1016,14 @@ func (o SubforumSlice) ReloadAll(ctx context.Context, exec bob.Executor) error {
 }
 
 type subforumJoins[Q dialect.Joinable] struct {
-	typ                   string
-	ModerationActions     modAs[Q, moderationActionColumns]
-	Posts                 modAs[Q, postColumns]
-	SubforumModerators    modAs[Q, subforumModeratorColumns]
-	SubforumSubscriptions modAs[Q, subforumSubscriptionColumns]
-	CreatedByUserUser     modAs[Q, userColumns]
-	UserBans              modAs[Q, userBanColumns]
+	typ                     string
+	ModerationActions       modAs[Q, moderationActionColumns]
+	Posts                   modAs[Q, postColumns]
+	SubforumModerators      modAs[Q, subforumModeratorColumns]
+	SubforumSubscriptions   modAs[Q, subforumSubscriptionColumns]
+	OwnerPseudonymPseudonym modAs[Q, pseudonymColumns]
+	CreatedByUserUser       modAs[Q, userColumns]
+	UserBans                modAs[Q, userBanColumns]
 }
 
 func (j subforumJoins[Q]) aliasedAs(alias string) subforumJoins[Q] {
@@ -997,6 +1083,20 @@ func buildSubforumJoins[Q dialect.Joinable](cols subforumColumns, typ string) su
 				{
 					mods = append(mods, dialect.Join[Q](typ, SubforumSubscriptions.Name().As(to.Alias())).On(
 						to.SubforumID.EQ(cols.SubforumID),
+					))
+				}
+
+				return mods
+			},
+		},
+		OwnerPseudonymPseudonym: modAs[Q, pseudonymColumns]{
+			c: PseudonymColumns,
+			f: func(to pseudonymColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, Pseudonyms.Name().As(to.Alias())).On(
+						to.PseudonymID.EQ(cols.OwnerPseudonymID),
 					))
 				}
 
@@ -1118,6 +1218,27 @@ func (os SubforumSlice) SubforumSubscriptions(mods ...bob.Mod[*dialect.SelectQue
 	)...)
 }
 
+// OwnerPseudonymPseudonym starts a query for related objects on pseudonyms
+func (o *Subforum) OwnerPseudonymPseudonym(mods ...bob.Mod[*dialect.SelectQuery]) PseudonymsQuery {
+	return Pseudonyms.Query(append(mods,
+		sm.Where(PseudonymColumns.PseudonymID.EQ(psql.Arg(o.OwnerPseudonymID))),
+	)...)
+}
+
+func (os SubforumSlice) OwnerPseudonymPseudonym(mods ...bob.Mod[*dialect.SelectQuery]) PseudonymsQuery {
+	pkOwnerPseudonymID := make(pgtypes.Array[sql.Null[string]], len(os))
+	for i, o := range os {
+		pkOwnerPseudonymID[i] = o.OwnerPseudonymID
+	}
+	PKArgExpr := psql.Select(sm.Columns(
+		psql.F("unnest", psql.Cast(psql.Arg(pkOwnerPseudonymID), "character varying[]")),
+	))
+
+	return Pseudonyms.Query(append(mods,
+		sm.Where(psql.Group(PseudonymColumns.PseudonymID).OP("IN", PKArgExpr)),
+	)...)
+}
+
 // CreatedByUserUser starts a query for related objects on users
 func (o *Subforum) CreatedByUserUser(mods ...bob.Mod[*dialect.SelectQuery]) UsersQuery {
 	return Users.Query(append(mods,
@@ -1222,6 +1343,18 @@ func (o *Subforum) Preload(name string, retrieved any) error {
 			}
 		}
 		return nil
+	case "OwnerPseudonymPseudonym":
+		rel, ok := retrieved.(*Pseudonym)
+		if !ok {
+			return fmt.Errorf("subforum cannot load %T as %q", retrieved, name)
+		}
+
+		o.R.OwnerPseudonymPseudonym = rel
+
+		if rel != nil {
+			rel.R.OwnerPseudonymSubforums = SubforumSlice{o}
+		}
+		return nil
 	case "CreatedByUserUser":
 		rel, ok := retrieved.(*User)
 		if !ok {
@@ -1254,11 +1387,29 @@ func (o *Subforum) Preload(name string, retrieved any) error {
 }
 
 type subforumPreloader struct {
-	CreatedByUserUser func(...psql.PreloadOption) psql.Preloader
+	OwnerPseudonymPseudonym func(...psql.PreloadOption) psql.Preloader
+	CreatedByUserUser       func(...psql.PreloadOption) psql.Preloader
 }
 
 func buildSubforumPreloader() subforumPreloader {
 	return subforumPreloader{
+		OwnerPseudonymPseudonym: func(opts ...psql.PreloadOption) psql.Preloader {
+			return psql.Preload[*Pseudonym, PseudonymSlice](orm.Relationship{
+				Name: "OwnerPseudonymPseudonym",
+				Sides: []orm.RelSide{
+					{
+						From: TableNames.Subforums,
+						To:   TableNames.Pseudonyms,
+						FromColumns: []string{
+							ColumnNames.Subforums.OwnerPseudonymID,
+						},
+						ToColumns: []string{
+							ColumnNames.Pseudonyms.PseudonymID,
+						},
+					},
+				},
+			}, Pseudonyms.Columns().Names(), opts...)
+		},
 		CreatedByUserUser: func(opts ...psql.PreloadOption) psql.Preloader {
 			return psql.Preload[*User, UserSlice](orm.Relationship{
 				Name: "CreatedByUserUser",
@@ -1280,12 +1431,13 @@ func buildSubforumPreloader() subforumPreloader {
 }
 
 type subforumThenLoader[Q orm.Loadable] struct {
-	ModerationActions     func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	Posts                 func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	SubforumModerators    func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	SubforumSubscriptions func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	CreatedByUserUser     func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	UserBans              func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	ModerationActions       func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	Posts                   func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	SubforumModerators      func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	SubforumSubscriptions   func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	OwnerPseudonymPseudonym func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	CreatedByUserUser       func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	UserBans                func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 }
 
 func buildSubforumThenLoader[Q orm.Loadable]() subforumThenLoader[Q] {
@@ -1300,6 +1452,9 @@ func buildSubforumThenLoader[Q orm.Loadable]() subforumThenLoader[Q] {
 	}
 	type SubforumSubscriptionsLoadInterface interface {
 		LoadSubforumSubscriptions(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	}
+	type OwnerPseudonymPseudonymLoadInterface interface {
+		LoadOwnerPseudonymPseudonym(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 	type CreatedByUserUserLoadInterface interface {
 		LoadCreatedByUserUser(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
@@ -1331,6 +1486,12 @@ func buildSubforumThenLoader[Q orm.Loadable]() subforumThenLoader[Q] {
 			"SubforumSubscriptions",
 			func(ctx context.Context, exec bob.Executor, retrieved SubforumSubscriptionsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
 				return retrieved.LoadSubforumSubscriptions(ctx, exec, mods...)
+			},
+		),
+		OwnerPseudonymPseudonym: thenLoadBuilder[Q](
+			"OwnerPseudonymPseudonym",
+			func(ctx context.Context, exec bob.Executor, retrieved OwnerPseudonymPseudonymLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadOwnerPseudonymPseudonym(ctx, exec, mods...)
 			},
 		),
 		CreatedByUserUser: thenLoadBuilder[Q](
@@ -1550,6 +1711,53 @@ func (os SubforumSlice) LoadSubforumSubscriptions(ctx context.Context, exec bob.
 			rel.R.Subforum = o
 
 			o.R.SubforumSubscriptions = append(o.R.SubforumSubscriptions, rel)
+		}
+	}
+
+	return nil
+}
+
+// LoadOwnerPseudonymPseudonym loads the subforum's OwnerPseudonymPseudonym into the .R struct
+func (o *Subforum) LoadOwnerPseudonymPseudonym(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if o == nil {
+		return nil
+	}
+
+	// Reset the relationship
+	o.R.OwnerPseudonymPseudonym = nil
+
+	related, err := o.OwnerPseudonymPseudonym(mods...).One(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	related.R.OwnerPseudonymSubforums = SubforumSlice{o}
+
+	o.R.OwnerPseudonymPseudonym = related
+	return nil
+}
+
+// LoadOwnerPseudonymPseudonym loads the subforum's OwnerPseudonymPseudonym into the .R struct
+func (os SubforumSlice) LoadOwnerPseudonymPseudonym(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if len(os) == 0 {
+		return nil
+	}
+
+	pseudonyms, err := os.OwnerPseudonymPseudonym(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range os {
+		for _, rel := range pseudonyms {
+			if o.OwnerPseudonymID.V != rel.PseudonymID {
+				continue
+			}
+
+			rel.R.OwnerPseudonymSubforums = append(rel.R.OwnerPseudonymSubforums, o)
+
+			o.R.OwnerPseudonymPseudonym = rel
+			break
 		}
 	}
 
@@ -1929,6 +2137,55 @@ func (subforum0 *Subforum) AttachSubforumSubscriptions(ctx context.Context, exec
 	for _, rel := range related {
 		rel.R.Subforum = subforum0
 	}
+
+	return nil
+}
+
+func attachSubforumOwnerPseudonymPseudonym0(ctx context.Context, exec bob.Executor, count int, subforum0 *Subforum, pseudonym1 *Pseudonym) (*Subforum, error) {
+	setter := &SubforumSetter{
+		OwnerPseudonymID: func() *sql.Null[string] {
+			v := sql.Null[string]{V: pseudonym1.PseudonymID, Valid: true}
+			return &v
+		}(),
+	}
+
+	err := subforum0.Update(ctx, exec, setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachSubforumOwnerPseudonymPseudonym0: %w", err)
+	}
+
+	return subforum0, nil
+}
+
+func (subforum0 *Subforum) InsertOwnerPseudonymPseudonym(ctx context.Context, exec bob.Executor, related *PseudonymSetter) error {
+	pseudonym1, err := Pseudonyms.Insert(related).One(ctx, exec)
+	if err != nil {
+		return fmt.Errorf("inserting related objects: %w", err)
+	}
+
+	_, err = attachSubforumOwnerPseudonymPseudonym0(ctx, exec, 1, subforum0, pseudonym1)
+	if err != nil {
+		return err
+	}
+
+	subforum0.R.OwnerPseudonymPseudonym = pseudonym1
+
+	pseudonym1.R.OwnerPseudonymSubforums = append(pseudonym1.R.OwnerPseudonymSubforums, subforum0)
+
+	return nil
+}
+
+func (subforum0 *Subforum) AttachOwnerPseudonymPseudonym(ctx context.Context, exec bob.Executor, pseudonym1 *Pseudonym) error {
+	var err error
+
+	_, err = attachSubforumOwnerPseudonymPseudonym0(ctx, exec, 1, subforum0, pseudonym1)
+	if err != nil {
+		return err
+	}
+
+	subforum0.R.OwnerPseudonymPseudonym = pseudonym1
+
+	pseudonym1.R.OwnerPseudonymSubforums = append(pseudonym1.R.OwnerPseudonymSubforums, subforum0)
 
 	return nil
 }

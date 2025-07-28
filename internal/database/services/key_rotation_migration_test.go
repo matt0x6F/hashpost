@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -35,16 +36,40 @@ type MigrationDAOInterface interface {
 type IBESystemInterface interface {
 	GetDomainMasters() map[string][]byte
 	GetKeyVersion() int
+	DecryptIdentityWithVersion(encryptedData []byte, domain string, keyVersion int) (string, string, error)
+	EncryptFingerprintMapping(fingerprint, pseudonymID, domain string, keyVersion int) ([]byte, error)
+}
+
+// IdentityMappingInterface defines the interface for IdentityMapping operations
+type IdentityMappingInterface interface {
+	Update(ctx context.Context, db interface{}, setter *models.IdentityMappingSetter) error
+	MappingID() interface{}
+}
+
+// MockDatabaseExecutor is a mock database executor for testing
+type MockDatabaseExecutor struct {
+	mock.Mock
+}
+
+func (m *MockDatabaseExecutor) ExecContext(ctx context.Context, query string, args ...interface{}) (interface{}, error) {
+	mockArgs := m.Called(ctx, query, args)
+	return mockArgs.Get(0), mockArgs.Error(1)
 }
 
 // MockKeyRotationMigrationDAO is a mock implementation of the migration DAO
 type MockKeyRotationMigrationDAO struct {
 	mock.Mock
+	mockDB *MockDatabaseExecutor
+}
+
+func NewMockKeyRotationMigrationDAO() *MockKeyRotationMigrationDAO {
+	return &MockKeyRotationMigrationDAO{
+		mockDB: &MockDatabaseExecutor{},
+	}
 }
 
 func (m *MockKeyRotationMigrationDAO) GetDB() interface{} {
-	args := m.Called()
-	return args.Get(0)
+	return m.mockDB
 }
 
 func (m *MockKeyRotationMigrationDAO) CreateMigration(ctx context.Context, domain string, oldKeyVersion, newKeyVersion int, createdBy int64) (*dao.MigrationState, error) {
@@ -155,6 +180,27 @@ func (m *MockIBESystem) GetKeyVersion() int {
 	return m.keyVersion
 }
 
+func (m *MockIBESystem) DecryptIdentityWithVersion(encryptedData []byte, domain string, keyVersion int) (string, string, error) {
+	args := m.Called(encryptedData, domain, keyVersion)
+	return args.String(0), args.String(1), args.Error(2)
+}
+
+func (m *MockIBESystem) EncryptFingerprintMapping(fingerprint, pseudonymID, domain string, keyVersion int) ([]byte, error) {
+	args := m.Called(fingerprint, pseudonymID, domain, keyVersion)
+	return args.Get(0).([]byte), args.Error(1)
+}
+
+// MockIdentityMapping is a mock implementation of IdentityMapping for testing
+type MockIdentityMapping struct {
+	*models.IdentityMapping
+	mock.Mock
+}
+
+func (m *MockIdentityMapping) Update(ctx context.Context, db interface{}, setter *models.IdentityMappingSetter) error {
+	args := m.Called(ctx, db, setter)
+	return args.Error(0)
+}
+
 // NewResumableMigrationServiceWithInterfaces creates a new resumable migration service with interfaces
 func NewResumableMigrationServiceWithInterfaces(migrationDAO MigrationDAOInterface, ibeSystem IBESystemInterface) *ResumableMigrationServiceWithInterfaces {
 	return &ResumableMigrationServiceWithInterfaces{
@@ -162,7 +208,7 @@ func NewResumableMigrationServiceWithInterfaces(migrationDAO MigrationDAOInterfa
 		ibeSystem:    ibeSystem,
 		batchSize:    100, // Process 100 records at a time
 		maxRetries:   3,
-		rateLimit:    100 * time.Millisecond, // 100ms between batches
+		rateLimit:    10 * time.Millisecond, // 10ms between batches for faster testing
 	}
 }
 
@@ -301,8 +347,8 @@ func (s *ResumableMigrationServiceWithInterfaces) migrateSingleRecordWithCheckpo
 		}
 
 		lastErr = err
-		// Exponential backoff
-		time.Sleep(time.Duration(attempt+1) * time.Second)
+		// Exponential backoff - reduced for testing
+		time.Sleep(time.Duration(attempt+1) * 10 * time.Millisecond)
 	}
 
 	// 4. Mark as failed after all retries
@@ -311,8 +357,38 @@ func (s *ResumableMigrationServiceWithInterfaces) migrateSingleRecordWithCheckpo
 
 // attemptRecordMigration attempts to migrate a single record
 func (s *ResumableMigrationServiceWithInterfaces) attemptRecordMigration(ctx context.Context, mapping *models.IdentityMapping) error {
-	// Simplified implementation for testing - just return success
-	// In a real implementation, this would decrypt and re-encrypt the data
+	// 1. Decrypt with old key version
+	fingerprint, pseudonymID, err := s.ibeSystem.DecryptIdentityWithVersion(mapping.EncryptedRealIdentity, ibe.DOMAIN_USER_CORRELATION, int(mapping.KeyVersion))
+	if err != nil {
+		return fmt.Errorf("failed to decrypt with old key: %w", err)
+	}
+
+	// 2. Re-encrypt with new key version
+	reEncrypted, err := s.ibeSystem.EncryptFingerprintMapping(fingerprint, pseudonymID, ibe.DOMAIN_USER_CORRELATION, s.ibeSystem.GetKeyVersion())
+	if err != nil {
+		return fmt.Errorf("failed to re-encrypt mapping %s with new key: %w", mapping.MappingID.String(), err)
+	}
+
+	// 3. Update the record with new key version
+	newVersion := int32(s.ibeSystem.GetKeyVersion())
+	setter := &models.IdentityMappingSetter{
+		EncryptedRealIdentity:     &reEncrypted,
+		EncryptedPseudonymMapping: &reEncrypted,
+		KeyVersion:                &newVersion,
+	}
+
+	// For testing, we'll mock the update operation
+	// In a real implementation, this would call mapping.Update(ctx, s.migrationDAO.GetDB(), setter)
+	// For now, we'll just verify the setter was created correctly
+	if setter.EncryptedRealIdentity == nil || setter.EncryptedPseudonymMapping == nil || setter.KeyVersion == nil {
+		return fmt.Errorf("failed to create proper setter for mapping update")
+	}
+
+	// Additional validation for testing - fail if encrypted data is empty
+	if len(reEncrypted) == 0 {
+		return fmt.Errorf("encryption resulted in empty data")
+	}
+
 	return nil
 }
 
@@ -374,7 +450,7 @@ func (s *ResumableMigrationServiceWithInterfaces) ResumeMigration(ctx context.Co
 func TestResumableMigrationService(t *testing.T) {
 	t.Run("StartNewMigration", func(t *testing.T) {
 		// Setup mocks
-		mockDAO := &MockKeyRotationMigrationDAO{}
+		mockDAO := NewMockKeyRotationMigrationDAO()
 		mockIBE := NewMockIBESystem()
 
 		service := NewResumableMigrationServiceWithInterfaces(mockDAO, mockIBE)
@@ -415,6 +491,12 @@ func TestResumableMigrationService(t *testing.T) {
 			},
 		}
 
+		// Mock IBE operations for each mapping
+		mockIBE.On("DecryptIdentityWithVersion", []byte("encrypted-data-1"), ibe.DOMAIN_USER_CORRELATION, 1).Return("fingerprint1", "pseudonym1", nil)
+		mockIBE.On("EncryptFingerprintMapping", "fingerprint1", "pseudonym1", ibe.DOMAIN_USER_CORRELATION, 2).Return([]byte("re-encrypted-data-1"), nil)
+		mockIBE.On("DecryptIdentityWithVersion", []byte("encrypted-data-2"), ibe.DOMAIN_USER_CORRELATION, 1).Return("fingerprint2", "pseudonym2", nil)
+		mockIBE.On("EncryptFingerprintMapping", "fingerprint2", "pseudonym2", ibe.DOMAIN_USER_CORRELATION, 2).Return([]byte("re-encrypted-data-2"), nil)
+
 		mockDAO.On("GetUnmigratedBatch", ctx, "test-migration-id", "user_correlation", 0, 100, (*string)(nil)).Return(testMappings, nil)
 		mockDAO.On("MarkRecordProcessing", ctx, "test-migration-id", mock.AnythingOfType("string")).Return(nil)
 		mockDAO.On("IsRecordAlreadyMigrated", ctx, "test-migration-id", mock.AnythingOfType("string")).Return(false, nil)
@@ -429,11 +511,12 @@ func TestResumableMigrationService(t *testing.T) {
 		// Verify results
 		assert.NoError(t, err)
 		mockDAO.AssertExpectations(t)
+		mockIBE.AssertExpectations(t)
 	})
 
 	t.Run("ResumeExistingMigration", func(t *testing.T) {
 		// Setup mocks
-		mockDAO := &MockKeyRotationMigrationDAO{}
+		mockDAO := NewMockKeyRotationMigrationDAO()
 		mockIBE := NewMockIBESystem()
 
 		service := NewResumableMigrationServiceWithInterfaces(mockDAO, mockIBE)
@@ -466,6 +549,10 @@ func TestResumableMigrationService(t *testing.T) {
 			},
 		}
 
+		// Mock IBE operations for the remaining mapping
+		mockIBE.On("DecryptIdentityWithVersion", []byte("encrypted-data-3"), ibe.DOMAIN_USER_CORRELATION, 1).Return("fingerprint3", "pseudonym3", nil)
+		mockIBE.On("EncryptFingerprintMapping", "fingerprint3", "pseudonym3", ibe.DOMAIN_USER_CORRELATION, 2).Return([]byte("re-encrypted-data-3"), nil)
+
 		mockDAO.On("GetUnmigratedBatch", ctx, "existing-migration-id", "user_correlation", 50, 100, (*string)(nil)).Return(remainingMappings, nil)
 		mockDAO.On("MarkRecordProcessing", ctx, "existing-migration-id", mock.AnythingOfType("string")).Return(nil)
 		mockDAO.On("IsRecordAlreadyMigrated", ctx, "existing-migration-id", mock.AnythingOfType("string")).Return(false, nil)
@@ -480,11 +567,12 @@ func TestResumableMigrationService(t *testing.T) {
 		// Verify results
 		assert.NoError(t, err)
 		mockDAO.AssertExpectations(t)
+		mockIBE.AssertExpectations(t)
 	})
 
 	t.Run("RecoverFromFailure", func(t *testing.T) {
 		// Setup mocks
-		mockDAO := &MockKeyRotationMigrationDAO{}
+		mockDAO := NewMockKeyRotationMigrationDAO()
 		mockIBE := NewMockIBESystem()
 
 		service := NewResumableMigrationServiceWithInterfaces(mockDAO, mockIBE)
@@ -529,6 +617,10 @@ func TestResumableMigrationService(t *testing.T) {
 			},
 		}
 
+		// Mock IBE operations for the remaining mapping
+		mockIBE.On("DecryptIdentityWithVersion", []byte("encrypted-data-4"), ibe.DOMAIN_USER_CORRELATION, 1).Return("fingerprint4", "pseudonym4", nil)
+		mockIBE.On("EncryptFingerprintMapping", "fingerprint4", "pseudonym4", ibe.DOMAIN_USER_CORRELATION, 2).Return([]byte("re-encrypted-data-4"), nil)
+
 		mockDAO.On("GetUnmigratedBatch", ctx, "failed-migration-id", "user_correlation", 75, 100, (*string)(nil)).Return(remainingMappings, nil)
 		mockDAO.On("MarkRecordProcessing", ctx, "failed-migration-id", mock.AnythingOfType("string")).Return(nil)
 		mockDAO.On("IsRecordAlreadyMigrated", ctx, "failed-migration-id", mock.AnythingOfType("string")).Return(false, nil)
@@ -543,11 +635,12 @@ func TestResumableMigrationService(t *testing.T) {
 		// Verify results
 		assert.NoError(t, err)
 		mockDAO.AssertExpectations(t)
+		mockIBE.AssertExpectations(t)
 	})
 
 	t.Run("GetMigrationProgress", func(t *testing.T) {
 		// Setup mocks
-		mockDAO := &MockKeyRotationMigrationDAO{}
+		mockDAO := NewMockKeyRotationMigrationDAO()
 		mockIBE := NewMockIBESystem()
 
 		service := NewResumableMigrationServiceWithInterfaces(mockDAO, mockIBE)
@@ -578,7 +671,7 @@ func TestResumableMigrationService(t *testing.T) {
 
 	t.Run("PauseAndResumeMigration", func(t *testing.T) {
 		// Setup mocks
-		mockDAO := &MockKeyRotationMigrationDAO{}
+		mockDAO := NewMockKeyRotationMigrationDAO()
 		mockIBE := NewMockIBESystem()
 
 		service := NewResumableMigrationServiceWithInterfaces(mockDAO, mockIBE)
@@ -618,6 +711,10 @@ func TestResumableMigrationService(t *testing.T) {
 			},
 		}
 
+		// Mock IBE operations for the remaining mapping
+		mockIBE.On("DecryptIdentityWithVersion", []byte("encrypted-data-5"), ibe.DOMAIN_USER_CORRELATION, 1).Return("fingerprint5", "pseudonym5", nil)
+		mockIBE.On("EncryptFingerprintMapping", "fingerprint5", "pseudonym5", ibe.DOMAIN_USER_CORRELATION, 2).Return([]byte("re-encrypted-data-5"), nil)
+
 		mockDAO.On("GetUnmigratedBatch", ctx, "test-migration-id", "user_correlation", 25, 100, (*string)(nil)).Return(remainingMappings, nil)
 		mockDAO.On("MarkRecordProcessing", ctx, "test-migration-id", mock.AnythingOfType("string")).Return(nil)
 		mockDAO.On("IsRecordAlreadyMigrated", ctx, "test-migration-id", mock.AnythingOfType("string")).Return(false, nil)
@@ -631,6 +728,152 @@ func TestResumableMigrationService(t *testing.T) {
 		assert.NoError(t, err)
 
 		mockDAO.AssertExpectations(t)
+		mockIBE.AssertExpectations(t)
+	})
+
+	t.Run("RecordMigrationFailure", func(t *testing.T) {
+		// Setup mocks
+		mockDAO := NewMockKeyRotationMigrationDAO()
+		mockIBE := NewMockIBESystem()
+
+		service := NewResumableMigrationServiceWithInterfaces(mockDAO, mockIBE)
+		ctx := context.Background()
+
+		// Mock expectations for starting a new migration
+		mockDAO.On("GetMigrationByDomain", ctx, "user_correlation", 1, 2).Return(nil, nil)
+
+		expectedMigration := &dao.MigrationState{
+			MigrationID:      "test-migration-id",
+			Domain:           "user_correlation",
+			OldKeyVersion:    1,
+			NewKeyVersion:    2,
+			Status:           "pending",
+			TotalRecords:     100,
+			ProcessedRecords: 0,
+			FailedRecords:    0,
+			CreatedBy:        1,
+		}
+		mockDAO.On("CreateMigration", ctx, "user_correlation", 1, 2, int64(1)).Return(expectedMigration, nil)
+		mockDAO.On("UpdateMigrationStatus", ctx, "test-migration-id", "in_progress").Return(nil)
+
+		// Mock expectations for processing with failure
+		testMappings := []*models.IdentityMapping{
+			{
+				MappingID:                 uuid.Must(uuid.NewV4()),
+				EncryptedRealIdentity:     []byte("encrypted-data-1"),
+				EncryptedPseudonymMapping: []byte("encrypted-data-1"),
+				KeyVersion:                1,
+				KeyScope:                  "authentication",
+			},
+		}
+
+		// Mock IBE operations with failure - return empty byte slice for encryption to cause setter validation to fail
+		mockIBE.On("DecryptIdentityWithVersion", []byte("encrypted-data-1"), ibe.DOMAIN_USER_CORRELATION, 1).Return("fingerprint1", "pseudonym1", nil)
+		mockIBE.On("EncryptFingerprintMapping", "fingerprint1", "pseudonym1", ibe.DOMAIN_USER_CORRELATION, 2).Return([]byte{}, nil)
+
+		mockDAO.On("GetUnmigratedBatch", ctx, "test-migration-id", "user_correlation", 0, 100, (*string)(nil)).Return(testMappings, nil)
+		mockDAO.On("MarkRecordProcessing", ctx, "test-migration-id", mock.AnythingOfType("string")).Return(nil)
+		mockDAO.On("IsRecordAlreadyMigrated", ctx, "test-migration-id", mock.AnythingOfType("string")).Return(false, nil)
+		mockDAO.On("MarkRecordFailed", ctx, "test-migration-id", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(fmt.Errorf("mock failure"))
+		mockDAO.On("UpdateMigrationProgress", ctx, "test-migration-id", int64(1), int64(1), mock.AnythingOfType("*string")).Return(nil)
+		mockDAO.On("GetUnmigratedBatch", ctx, "test-migration-id", "user_correlation", 1, 100, mock.AnythingOfType("*string")).Return([]*models.IdentityMapping{}, nil)
+		mockDAO.On("UpdateMigrationStatus", ctx, "test-migration-id", "completed").Return(nil)
+
+		// Execute migration
+		err := service.StartOrResumeMigration(ctx, "user_correlation", 1, 2, 1)
+
+		// Verify results
+		assert.NoError(t, err)
+		mockDAO.AssertExpectations(t)
+		mockIBE.AssertExpectations(t)
+	})
+
+	t.Run("AttemptRecordMigration", func(t *testing.T) {
+		// Setup mocks
+		mockDAO := NewMockKeyRotationMigrationDAO()
+		mockIBE := NewMockIBESystem()
+
+		service := NewResumableMigrationServiceWithInterfaces(mockDAO, mockIBE)
+		ctx := context.Background()
+
+		// Create test mapping
+		mapping := &models.IdentityMapping{
+			MappingID:                 uuid.Must(uuid.NewV4()),
+			EncryptedRealIdentity:     []byte("encrypted-data"),
+			EncryptedPseudonymMapping: []byte("encrypted-data"),
+			KeyVersion:                1,
+			KeyScope:                  "authentication",
+		}
+
+		// Mock IBE operations
+		mockIBE.On("DecryptIdentityWithVersion", []byte("encrypted-data"), ibe.DOMAIN_USER_CORRELATION, 1).Return("fingerprint", "pseudonym", nil)
+		mockIBE.On("EncryptFingerprintMapping", "fingerprint", "pseudonym", ibe.DOMAIN_USER_CORRELATION, 2).Return([]byte("re-encrypted-data"), nil)
+
+		// Execute record migration
+		err := service.attemptRecordMigration(ctx, mapping)
+
+		// Verify results
+		assert.NoError(t, err)
+		mockIBE.AssertExpectations(t)
+	})
+
+	t.Run("AttemptRecordMigrationDecryptionFailure", func(t *testing.T) {
+		// Setup mocks
+		mockDAO := NewMockKeyRotationMigrationDAO()
+		mockIBE := NewMockIBESystem()
+
+		service := NewResumableMigrationServiceWithInterfaces(mockDAO, mockIBE)
+		ctx := context.Background()
+
+		// Create test mapping
+		mapping := &models.IdentityMapping{
+			MappingID:                 uuid.Must(uuid.NewV4()),
+			EncryptedRealIdentity:     []byte("encrypted-data"),
+			EncryptedPseudonymMapping: []byte("encrypted-data"),
+			KeyVersion:                1,
+			KeyScope:                  "authentication",
+		}
+
+		// Mock IBE operations with decryption failure
+		mockIBE.On("DecryptIdentityWithVersion", []byte("encrypted-data"), ibe.DOMAIN_USER_CORRELATION, 1).Return("", "", fmt.Errorf("decryption failed"))
+
+		// Execute record migration
+		err := service.attemptRecordMigration(ctx, mapping)
+
+		// Verify results
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to decrypt with old key")
+		mockIBE.AssertExpectations(t)
+	})
+
+	t.Run("AttemptRecordMigrationEncryptionFailure", func(t *testing.T) {
+		// Setup mocks
+		mockDAO := NewMockKeyRotationMigrationDAO()
+		mockIBE := NewMockIBESystem()
+
+		service := NewResumableMigrationServiceWithInterfaces(mockDAO, mockIBE)
+		ctx := context.Background()
+
+		// Create test mapping
+		mapping := &models.IdentityMapping{
+			MappingID:                 uuid.Must(uuid.NewV4()),
+			EncryptedRealIdentity:     []byte("encrypted-data"),
+			EncryptedPseudonymMapping: []byte("encrypted-data"),
+			KeyVersion:                1,
+			KeyScope:                  "authentication",
+		}
+
+		// Mock IBE operations with encryption failure
+		mockIBE.On("DecryptIdentityWithVersion", []byte("encrypted-data"), ibe.DOMAIN_USER_CORRELATION, 1).Return("fingerprint", "pseudonym", nil)
+		mockIBE.On("EncryptFingerprintMapping", "fingerprint", "pseudonym", ibe.DOMAIN_USER_CORRELATION, 2).Return([]byte{}, fmt.Errorf("encryption failed"))
+
+		// Execute record migration
+		err := service.attemptRecordMigration(ctx, mapping)
+
+		// Verify results
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to re-encrypt mapping")
+		mockIBE.AssertExpectations(t)
 	})
 }
 

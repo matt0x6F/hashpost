@@ -265,16 +265,26 @@ func (h *SubforumHandler) convertSubforumToAPIModel(subforum *dbmodels.Subforum)
 		PostCount:       int(postCount),
 		CreatedAt:       createdAt,
 		UpdatedAt:       updatedAt,
+		CommunityType:   subforum.CommunityType,
+		GovernanceStyle: subforum.GovernanceStyle,
+		OwnerPseudonymID: func() string {
+			if subforum.OwnerPseudonymID.Valid {
+				return subforum.OwnerPseudonymID.V
+			}
+			return ""
+		}(),
 	}
 }
 
 // GetSubforumDetails handles getting detailed information about a specific subforum
 func (h *SubforumHandler) GetSubforumDetails(ctx context.Context, input *models.SubforumSubscriptionInput) (*models.SubforumDetailsResponse, error) {
+	communityType := input.CommunityType
 	subforumName := input.SubforumName
 
 	log.Info().
 		Str("endpoint", "subforums/details").
 		Str("component", "handler").
+		Str("community_type", communityType).
 		Str("subforum_name", subforumName).
 		Msg("Get subforum details requested")
 
@@ -284,10 +294,10 @@ func (h *SubforumHandler) GetSubforumDetails(ctx context.Context, input *models.
 		log.Debug().Msg("No user context found, proceeding as anonymous user")
 	}
 
-	// Get subforum details from database
-	subforum, err := h.subforumDAO.GetSubforumByName(ctx, subforumName)
+	// Get subforum details from database using community type and name
+	subforum, err := h.subforumDAO.GetSubforumByCommunityTypeAndName(ctx, communityType, subforumName)
 	if err != nil {
-		log.Error().Err(err).Str("subforum_name", subforumName).Msg("Failed to get subforum from database")
+		log.Error().Err(err).Str("community_type", communityType).Str("subforum_name", subforumName).Msg("Failed to get subforum from database")
 		return nil, fmt.Errorf("failed to get subforum: %w", err)
 	}
 	if subforum == nil {
@@ -341,6 +351,7 @@ func (h *SubforumHandler) GetSubforumDetails(ctx context.Context, input *models.
 	log.Info().
 		Str("endpoint", "subforums/details").
 		Str("component", "handler").
+		Str("community_type", communityType).
 		Str("subforum_name", subforumName).
 		Int("subforum_id", int(subforum.SubforumID)).
 		Msg("Get subforum details completed")
@@ -405,8 +416,8 @@ func (h *SubforumHandler) SubscribeToSubforum(ctx context.Context, input *models
 		Str("subforum_name", subforumName).
 		Msg("Subscribe to subforum requested")
 
-	// Get subforum by name
-	subforum, err := h.subforumDAO.GetSubforumByName(ctx, subforumName)
+	// Get subforum by community type and name
+	subforum, err := h.subforumDAO.GetSubforumByCommunityTypeAndName(ctx, input.CommunityType, subforumName)
 	if err != nil {
 		log.Error().Err(err).Str("subforum_name", subforumName).Msg("Failed to get subforum")
 		return nil, fmt.Errorf("failed to get subforum: %w", err)
@@ -478,8 +489,8 @@ func (h *SubforumHandler) UnsubscribeFromSubforum(ctx context.Context, input *mo
 		Str("subforum_name", subforumName).
 		Msg("Unsubscribe from subforum requested")
 
-	// Get subforum by name
-	subforum, err := h.subforumDAO.GetSubforumByName(ctx, subforumName)
+	// Get subforum by community type and name
+	subforum, err := h.subforumDAO.GetSubforumByCommunityTypeAndName(ctx, input.CommunityType, subforumName)
 	if err != nil {
 		log.Error().Err(err).Str("subforum_name", subforumName).Msg("Failed to get subforum")
 		return nil, fmt.Errorf("failed to get subforum: %w", err)
@@ -584,6 +595,17 @@ func (h *SubforumHandler) CreateSubforum(ctx context.Context, input *models.Subf
 	isNSFW := input.Body.IsNSFW
 	isPrivate := input.Body.IsPrivate
 
+	// Enforce governance style based on community type
+	var governanceStyle string
+	switch input.Body.CommunityType {
+	case "t", "g":
+		governanceStyle = "democratic"
+	case "b", "c":
+		governanceStyle = "owned"
+	default:
+		return nil, huma.Error400BadRequest("invalid community type")
+	}
+
 	// Create the subforum in the database
 	subforum, err := h.subforumDAO.CreateSubforum(
 		ctx,
@@ -592,9 +614,12 @@ func (h *SubforumHandler) CreateSubforum(ctx context.Context, input *models.Subf
 		input.Body.Description,
 		sidebarText,
 		rulesText,
+		input.Body.CommunityType,
+		governanceStyle, // Use enforced governance style, not from request
 		isNSFW,
 		isPrivate,
 		isRestricted,
+		userCtx.ActivePseudonymID, // Owner is the creating user's active pseudonym
 	)
 	if err != nil {
 		log.Error().Err(err).Str("slug", input.Body.Slug).Msg("Failed to create subforum")

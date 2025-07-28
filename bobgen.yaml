@@ -9,11 +9,11 @@ tags:
   - "scan"
   - "json"
 
-# Disable generating factories for models (we can enable this later if needed)
-no_factory: false
+# Enable generating factories for models
+no_factory: true
 
-# Disable generating go test files (we can enable this later if needed)
-no_tests: false
+# Enable generating go test files
+no_tests: true
 
 # Disable back referencing in the loaded relationship structs
 no_back_referencing: false

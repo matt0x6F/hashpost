@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// createTestSearchHandler creates a SearchHandler with mocked dependencies
-func createTestSearchHandler() (*handlers.SearchHandler, *mocks.MockPostDAO, *mocks.MockUserDAO, *mocks.MockSubforumDAO, *mocks.MockSecurePseudonymDAO) {
+// NewSearchHandlerWithMocks creates a SearchHandler with mocked dependencies
+func NewSearchHandlerWithMocks() (*handlers.SearchHandler, *mocks.MockPostDAO, *mocks.MockUserDAO, *mocks.MockSubforumDAO, *mocks.MockSecurePseudonymDAO) {
 	mockPostDAO := &mocks.MockPostDAO{}
 	mockUserDAO := &mocks.MockUserDAO{}
 	mockSubforumDAO := &mocks.MockSubforumDAO{}
@@ -65,7 +65,7 @@ func createTestPlatformAdminContext(t *testing.T, userID int64, activePseudonymI
 // TestSearchHandler_SearchPosts tests the search posts functionality
 func TestSearchHandler_SearchPosts(t *testing.T) {
 	t.Run("SearchPostsSuccess", func(t *testing.T) {
-		handler, mockPostDAO, _, mockSubforumDAO, mockSecurePseudonymDAO := createTestSearchHandler()
+		handler, mockPostDAO, _, mockSubforumDAO, mockSecurePseudonymDAO := NewSearchHandlerWithMocks()
 
 		// Test data
 		userID := int64(1)
@@ -163,7 +163,7 @@ func TestSearchHandler_SearchPosts(t *testing.T) {
 	})
 
 	t.Run("SearchPostsEmptyQuery", func(t *testing.T) {
-		handler, _, _, _, _ := createTestSearchHandler()
+		handler, _, _, _, _ := NewSearchHandlerWithMocks()
 
 		// Create context with user
 		ctx := createTestSearchContext(t, 1, "user-pseudonym-123", "TestUser")
@@ -185,7 +185,7 @@ func TestSearchHandler_SearchPosts(t *testing.T) {
 	})
 
 	t.Run("SearchPostsAnonymousUser", func(t *testing.T) {
-		handler, mockPostDAO, _, mockSubforumDAO, _ := createTestSearchHandler()
+		handler, mockPostDAO, _, mockSubforumDAO, _ := NewSearchHandlerWithMocks()
 
 		// Create context without user (anonymous)
 		ctx := context.Background()
@@ -215,7 +215,7 @@ func TestSearchHandler_SearchPosts(t *testing.T) {
 	})
 
 	t.Run("SearchPostsDatabaseError", func(t *testing.T) {
-		handler, _, _, mockSubforumDAO, _ := createTestSearchHandler()
+		handler, _, _, mockSubforumDAO, _ := NewSearchHandlerWithMocks()
 
 		// Create context with user
 		ctx := createTestSearchContext(t, 1, "user-pseudonym-123", "TestUser")
@@ -242,7 +242,7 @@ func TestSearchHandler_SearchPosts(t *testing.T) {
 	})
 
 	t.Run("SearchPostsWithFilters", func(t *testing.T) {
-		handler, mockPostDAO, _, mockSubforumDAO, mockSecurePseudonymDAO := createTestSearchHandler()
+		handler, mockPostDAO, _, mockSubforumDAO, mockSecurePseudonymDAO := NewSearchHandlerWithMocks()
 
 		// Test data
 		userID := int64(1)
@@ -322,7 +322,7 @@ func TestSearchHandler_SearchPosts(t *testing.T) {
 // TestSearchHandler_SearchUsers tests the search users functionality
 func TestSearchHandler_SearchUsers(t *testing.T) {
 	t.Run("SearchUsersSuccess", func(t *testing.T) {
-		handler, mockPostDAO, mockUserDAO, _, mockSecurePseudonymDAO := createTestSearchHandler()
+		handler, mockPostDAO, mockUserDAO, _, mockSecurePseudonymDAO := NewSearchHandlerWithMocks()
 
 		// Test data
 		userID := int64(1)
@@ -401,7 +401,7 @@ func TestSearchHandler_SearchUsers(t *testing.T) {
 	})
 
 	t.Run("SearchUsersEmptyQuery", func(t *testing.T) {
-		handler, _, _, _, _ := createTestSearchHandler()
+		handler, _, _, _, _ := NewSearchHandlerWithMocks()
 
 		// Create context with platform admin user
 		ctx := createTestPlatformAdminContext(t, 1, "admin-pseudonym-123", "AdminUser")
@@ -423,7 +423,7 @@ func TestSearchHandler_SearchUsers(t *testing.T) {
 	})
 
 	t.Run("SearchUsersAnonymousUser", func(t *testing.T) {
-		handler, _, _, _, _ := createTestSearchHandler()
+		handler, _, _, _, _ := NewSearchHandlerWithMocks()
 
 		// Create context without user (anonymous)
 		ctx := context.Background()
@@ -445,7 +445,7 @@ func TestSearchHandler_SearchUsers(t *testing.T) {
 	})
 
 	t.Run("SearchUsersDatabaseError", func(t *testing.T) {
-		handler, _, mockUserDAO, _, _ := createTestSearchHandler()
+		handler, _, mockUserDAO, _, _ := NewSearchHandlerWithMocks()
 
 		// Create context with platform admin user
 		ctx := createTestPlatformAdminContext(t, 1, "admin-pseudonym-123", "AdminUser")

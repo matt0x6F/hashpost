@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -784,8 +785,15 @@ func (h *AuthHandler) GetCurrentUserSessionForSubforum(ctx context.Context, inpu
 	// Get subforum-specific capabilities
 	subforumCapabilities := []string{}
 
-	// Get subforum by name
-	subforum, err := h.subforumDAO.GetSubforumByName(ctx, input.SubforumName)
+	// Parse subforum name to extract community type and actual name
+	communityType, subforumName, err := h.parseSubforumName(input.SubforumName)
+	if err != nil {
+		log.Error().Err(err).Str("subforum_name", input.SubforumName).Msg("Failed to parse subforum name")
+		return nil, fmt.Errorf("invalid subforum name format: %w", err)
+	}
+
+	// Get subforum by community type and name
+	subforum, err := h.subforumDAO.GetSubforumByCommunityTypeAndName(ctx, communityType, subforumName)
 	if err == nil && subforum != nil {
 		// Check if the active pseudonym has moderator capabilities for this subforum
 		activePseudonymID := userCtx.ActivePseudonymID
@@ -796,44 +804,73 @@ func (h *AuthHandler) GetCurrentUserSessionForSubforum(ctx context.Context, inpu
 				Str("active_pseudonym_id", activePseudonymID).
 				Msg("Checking moderator capabilities for active pseudonym")
 
-			// Check if the active pseudonym is a moderator for this subforum
-			// Use the permission DAO to check moderator status
-			hasModerateContent, err := h.permissionDAO.HasSubforumCapabilityWithActivePseudonym(ctx, int64(userID), subforum.SubforumID, "moderate_content", activePseudonymID)
-			if err == nil && hasModerateContent {
+			// First, check if the active pseudonym is the owner of this subforum
+			isOwner := subforum.OwnerPseudonymID.Valid && subforum.OwnerPseudonymID.V == activePseudonymID
+			if isOwner {
 				log.Debug().
 					Int64("user_id", int64(userID)).
 					Int32("subforum_id", subforum.SubforumID).
 					Str("active_pseudonym_id", activePseudonymID).
-					Msg("Found moderator record")
+					Msg("Found owner record - granting owner and moderator capabilities")
 
-				// Only add moderator role if the user is not a platform admin
-				// Platform admins have moderator capabilities but shouldn't get the moderator role
-				if !contains(userCtx.Roles, "platform_admin") {
-					// Add moderator role to roles array
+				// Add owner role
+				if !contains(roles, "owner") {
+					roles = append(roles, "owner")
+				}
+
+				// Add moderator role for owners (even if they are platform admins)
+				if !contains(roles, "moderator") {
+					roles = append(roles, "moderator")
+				}
+
+				// Add owner capabilities (all moderator capabilities plus owner-specific ones)
+				subforumCapabilities = append(subforumCapabilities, "moderate_content", "ban_users", "manage_moderators", "sticky_post", "lock_post")
+			} else {
+				// Check if the active pseudonym is a moderator for this subforum
+				// Use the permission DAO to check moderator status
+				hasModerateContent, err := h.permissionDAO.HasSubforumCapabilityWithActivePseudonym(ctx, int64(userID), subforum.SubforumID, "moderate_content", activePseudonymID)
+				if err == nil && hasModerateContent {
+					log.Debug().
+						Int64("user_id", int64(userID)).
+						Int32("subforum_id", subforum.SubforumID).
+						Str("active_pseudonym_id", activePseudonymID).
+						Msg("Found moderator record")
+
+					// Add moderator role for moderators (even if they are platform admins)
 					if !contains(roles, "moderator") {
 						roles = append(roles, "moderator")
 					}
-				}
 
-				// Add moderator capabilities
-				subforumCapabilities = append(subforumCapabilities, "moderate_content")
+					// Add moderator capabilities based on what's in the permissions column
+					subforumCapabilities = append(subforumCapabilities, "moderate_content")
 
-				// Check for additional moderator capabilities
-				hasBanUsers, _ := h.permissionDAO.HasSubforumCapabilityWithActivePseudonym(ctx, int64(userID), subforum.SubforumID, "ban_users", activePseudonymID)
-				if hasBanUsers {
-					subforumCapabilities = append(subforumCapabilities, "ban_users")
-				}
+					// Check for additional moderator capabilities from permissions column
+					hasBanUsers, _ := h.permissionDAO.HasSubforumCapabilityWithActivePseudonym(ctx, int64(userID), subforum.SubforumID, "ban_users", activePseudonymID)
+					if hasBanUsers {
+						subforumCapabilities = append(subforumCapabilities, "ban_users")
+					}
 
-				hasManageModerators, _ := h.permissionDAO.HasSubforumCapabilityWithActivePseudonym(ctx, int64(userID), subforum.SubforumID, "manage_moderators", activePseudonymID)
-				if hasManageModerators {
-					subforumCapabilities = append(subforumCapabilities, "manage_moderators")
+					hasManageModerators, _ := h.permissionDAO.HasSubforumCapabilityWithActivePseudonym(ctx, int64(userID), subforum.SubforumID, "manage_moderators", activePseudonymID)
+					if hasManageModerators {
+						subforumCapabilities = append(subforumCapabilities, "manage_moderators")
+					}
+
+					hasStickyPost, _ := h.permissionDAO.HasSubforumCapabilityWithActivePseudonym(ctx, int64(userID), subforum.SubforumID, "sticky_post", activePseudonymID)
+					if hasStickyPost {
+						subforumCapabilities = append(subforumCapabilities, "sticky_post")
+					}
+
+					hasLockPost, _ := h.permissionDAO.HasSubforumCapabilityWithActivePseudonym(ctx, int64(userID), subforum.SubforumID, "lock_post", activePseudonymID)
+					if hasLockPost {
+						subforumCapabilities = append(subforumCapabilities, "lock_post")
+					}
+				} else {
+					log.Debug().
+						Int64("user_id", int64(userID)).
+						Int32("subforum_id", subforum.SubforumID).
+						Str("active_pseudonym_id", activePseudonymID).
+						Msg("No moderator record found")
 				}
-			} else {
-				log.Debug().
-					Int64("user_id", int64(userID)).
-					Int32("subforum_id", subforum.SubforumID).
-					Str("active_pseudonym_id", activePseudonymID).
-					Msg("No moderator record found")
 			}
 		}
 	}
@@ -1113,4 +1150,45 @@ func removeDuplicates(slice []string) []string {
 		}
 	}
 	return result
+}
+
+// parseSubforumName parses a full subforum name (e.g., "t/subforum-name") into community type and name
+func (h *AuthHandler) parseSubforumName(fullName string) (communityType, subforumName string, err error) {
+	// Handle different formats:
+	// 1. "t/subforum-name" -> communityType: "t", subforumName: "subforum-name"
+	// 2. "subforum-name" -> communityType: "h", subforumName: "subforum-name" (default for h/ subforums)
+
+	if fullName == "" {
+		return "", "", fmt.Errorf("subforum name cannot be empty")
+	}
+
+	// Check if it contains a slash (community type prefix)
+	if strings.Contains(fullName, "/") {
+		parts := strings.SplitN(fullName, "/", 2)
+		if len(parts) != 2 {
+			return "", "", fmt.Errorf("invalid subforum name format: expected 'community-type/name'")
+		}
+
+		communityType = parts[0]
+		subforumName = parts[1]
+
+		// Validate community type
+		validTypes := []string{"t", "g", "b", "c", "h"}
+		isValid := false
+		for _, validType := range validTypes {
+			if communityType == validType {
+				isValid = true
+				break
+			}
+		}
+
+		if !isValid {
+			return "", "", fmt.Errorf("invalid community type: %s", communityType)
+		}
+
+		return communityType, subforumName, nil
+	}
+
+	// No slash found, treat as h/ subforum (default)
+	return "h", fullName, nil
 }

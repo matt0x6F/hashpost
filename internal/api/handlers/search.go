@@ -389,7 +389,7 @@ func (h *SearchHandler) SearchUsers(ctx context.Context, input *models.SearchUse
 		}
 
 		// Calculate karma score
-		karmaScore, err := h.calculateKarmaScore(ctx, user.UserID)
+		karmaScore, err := h.calculateKarmaScore(ctx)
 		if err != nil {
 			log.Warn().Err(err).Int64("user_id", user.UserID).Msg("Failed to calculate karma score")
 			karmaScore = 0
@@ -519,7 +519,7 @@ func (h *SearchHandler) countSearchUsers(ctx context.Context, input *models.Sear
 }
 
 // calculateKarmaScore calculates the karma score for a user
-func (h *SearchHandler) calculateKarmaScore(ctx context.Context, userID int64) (int, error) {
+func (h *SearchHandler) calculateKarmaScore(ctx context.Context) (int, error) {
 	// Calculate karma based on post and comment scores
 	// This is a simplified implementation - in production, this would be more sophisticated
 

@@ -3,6 +3,7 @@ package mocks
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/stretchr/testify/mock"
@@ -200,4 +201,10 @@ func (m *MockModerationActionDAO) GetModerationActionsByModerator(ctx context.Co
 		return nil, args.Error(1)
 	}
 	return args.Get(0).([]*models.ModerationAction), args.Error(1)
+}
+
+// GetModActionsCount returns the count of moderation actions in a subforum since a given time
+func (m *MockModerationActionDAO) GetModActionsCount(ctx context.Context, subforumPath string, since time.Time) (int, error) {
+	args := m.Called(ctx, subforumPath, since)
+	return args.Get(0).(int), args.Error(1)
 }

@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Helper functions for testing
-func createTestAuthHandler() (*AuthHandler, *mocks.MockUserDAO, *mocks.MockSecurePseudonymDAO, *mocks.MockIdentityMappingDAO, *mocks.MockRoleKeyDAO, *mocks.MockSubforumDAO, *mocks.MockPermissionDAO) {
+// NewAuthHandlerWithMocks creates a new auth handler with mock DAOs and fixture data
+func NewAuthHandlerWithMocks() (*AuthHandler, *mocks.MockUserDAO, *mocks.MockSecurePseudonymDAO, *mocks.MockIdentityMappingDAO, *mocks.MockRoleKeyDAO, *mocks.MockSubforumDAO, *mocks.MockPermissionDAO) {
 	mockUserDAO := &mocks.MockUserDAO{}
 	mockSecurePseudonymDAO := mocks.NewMockSecurePseudonymDAO()
 	mockIdentityMappingDAO := &mocks.MockIdentityMappingDAO{}
@@ -62,7 +62,7 @@ func createTestAuthHandler() (*AuthHandler, *mocks.MockUserDAO, *mocks.MockSecur
 // TestRoleKeySecurity tests the role key security functionality
 func TestRoleKeySecurity(t *testing.T) {
 	t.Run("AuthenticationKeyScope", func(t *testing.T) {
-		_, _, mockSecurePseudonymDAO, _, _, _, _ := createTestAuthHandler()
+		_, _, mockSecurePseudonymDAO, _, _, _, _ := NewAuthHandlerWithMocks()
 
 		// Test data
 		testUserID := int64(1)
@@ -86,7 +86,7 @@ func TestRoleKeySecurity(t *testing.T) {
 	})
 
 	t.Run("SelfCorrelationKeyScope", func(t *testing.T) {
-		_, _, mockSecurePseudonymDAO, _, _, _, _ := createTestAuthHandler()
+		_, _, mockSecurePseudonymDAO, _, _, _, _ := NewAuthHandlerWithMocks()
 
 		// Test data
 		testUserID := int64(1)
@@ -107,7 +107,7 @@ func TestRoleKeySecurity(t *testing.T) {
 	})
 
 	t.Run("RoleKeyDatabaseOperations", func(t *testing.T) {
-		_, _, _, _, mockRoleKeyDAO, _, _ := createTestAuthHandler()
+		_, _, _, _, mockRoleKeyDAO, _, _ := NewAuthHandlerWithMocks()
 
 		// Test data
 		capabilities := []string{"test_capability", "another_capability"}

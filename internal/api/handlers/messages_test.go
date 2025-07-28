@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// createTestMessagesHandler creates a MessagesHandler with mocked dependencies
-func createTestMessagesHandler() (*handlers.MessagesHandler, *mocks.MockDirectMessageDAO, *mocks.MockUserDAO) {
+// NewMessagesHandlerWithMocks creates a MessagesHandler with mocked dependencies
+func NewMessagesHandlerWithMocks() (*handlers.MessagesHandler, *mocks.MockDirectMessageDAO, *mocks.MockUserDAO) {
 	mockDirectMessageDAO := &mocks.MockDirectMessageDAO{}
 	mockUserDAO := &mocks.MockUserDAO{}
 
@@ -51,7 +51,7 @@ func createTestContext(t *testing.T, userID int64, activePseudonymID string, dis
 // TestMessagesHandler_SendDirectMessage tests the send direct message functionality
 func TestMessagesHandler_SendDirectMessage(t *testing.T) {
 	t.Run("SendDirectMessageSuccess", func(t *testing.T) {
-		handler, mockDirectMessageDAO, _ := createTestMessagesHandler()
+		handler, mockDirectMessageDAO, _ := NewMessagesHandlerWithMocks()
 
 		// Test data
 		userID := int64(1)
@@ -97,7 +97,7 @@ func TestMessagesHandler_SendDirectMessage(t *testing.T) {
 	})
 
 	t.Run("SendDirectMessageNoAuthentication", func(t *testing.T) {
-		handler, _, _ := createTestMessagesHandler()
+		handler, _, _ := NewMessagesHandlerWithMocks()
 
 		// Create context without user
 		ctx := context.Background()
@@ -120,7 +120,7 @@ func TestMessagesHandler_SendDirectMessage(t *testing.T) {
 	})
 
 	t.Run("SendDirectMessageDatabaseError", func(t *testing.T) {
-		handler, mockDirectMessageDAO, _ := createTestMessagesHandler()
+		handler, mockDirectMessageDAO, _ := NewMessagesHandlerWithMocks()
 
 		// Test data
 		userID := int64(1)
@@ -158,7 +158,7 @@ func TestMessagesHandler_SendDirectMessage(t *testing.T) {
 // TestMessagesHandler_GetDirectMessages tests the get direct messages functionality
 func TestMessagesHandler_GetDirectMessages(t *testing.T) {
 	t.Run("GetDirectMessagesSuccess", func(t *testing.T) {
-		handler, mockDirectMessageDAO, _ := createTestMessagesHandler()
+		handler, mockDirectMessageDAO, _ := NewMessagesHandlerWithMocks()
 
 		// Test data
 		userID := int64(1)
@@ -234,7 +234,7 @@ func TestMessagesHandler_GetDirectMessages(t *testing.T) {
 	})
 
 	t.Run("GetDirectMessagesNoAuthentication", func(t *testing.T) {
-		handler, _, _ := createTestMessagesHandler()
+		handler, _, _ := NewMessagesHandlerWithMocks()
 
 		// Create context without user
 		ctx := context.Background()
@@ -255,7 +255,7 @@ func TestMessagesHandler_GetDirectMessages(t *testing.T) {
 	})
 
 	t.Run("GetDirectMessagesDatabaseError", func(t *testing.T) {
-		handler, mockDirectMessageDAO, _ := createTestMessagesHandler()
+		handler, mockDirectMessageDAO, _ := NewMessagesHandlerWithMocks()
 
 		// Test data
 		userID := int64(1)
@@ -288,7 +288,7 @@ func TestMessagesHandler_GetDirectMessages(t *testing.T) {
 	})
 
 	t.Run("GetDirectMessagesCountError", func(t *testing.T) {
-		handler, mockDirectMessageDAO, _ := createTestMessagesHandler()
+		handler, mockDirectMessageDAO, _ := NewMessagesHandlerWithMocks()
 
 		// Test data
 		userID := int64(1)
@@ -323,7 +323,7 @@ func TestMessagesHandler_GetDirectMessages(t *testing.T) {
 	})
 
 	t.Run("GetDirectMessagesWithNullFields", func(t *testing.T) {
-		handler, mockDirectMessageDAO, _ := createTestMessagesHandler()
+		handler, mockDirectMessageDAO, _ := NewMessagesHandlerWithMocks()
 
 		// Test data
 		userID := int64(1)

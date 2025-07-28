@@ -167,53 +167,60 @@ export function ForumList({ className }: ForumListProps) {
           </div>
         ) : (
           <div className="grid gap-4">
-            {filteredForums.map((forum) => (
-              <Link key={forum.name} href={`/h/${forum.name}`} className="block">
-                <div
-                  className="p-4 border border-border rounded-lg cursor-pointer"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="text-lg font-semibold truncate">
-                          h/{forum.name}
-                        </h3>
-                        <div className="flex items-center gap-1">
-                          {forum.isPrivate && (
-                            <Shield className="w-4 h-4 text-muted-foreground" />
-                          )}
-                          {forum.isNsfw && (
-                            <span className="text-xs bg-destructive/10 text-destructive px-2 py-1 rounded">
-                              NSFW
-                            </span>
-                          )}
+            {filteredForums.map((forum) => {
+              const communityTypePrefix = forum.communityType === 't' ? 't/' : 
+                                        forum.communityType === 'g' ? 'g/' : 
+                                        forum.communityType === 'b' ? 'b/' : 
+                                        forum.communityType === 'c' ? 'c/' : 'h/';
+
+              return (
+                <Link key={forum.name} href={`/${communityTypePrefix}${forum.name}`} className="block">
+                  <div
+                    className="p-4 border border-border rounded-lg cursor-pointer"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3 className="text-lg font-semibold truncate">
+                            {communityTypePrefix}{forum.name}
+                          </h3>
+                          <div className="flex items-center gap-1">
+                            {forum.isPrivate && (
+                              <Shield className="w-4 h-4 text-muted-foreground" />
+                            )}
+                            {forum.isNsfw && (
+                              <span className="text-xs bg-destructive/10 text-destructive px-2 py-1 rounded">
+                                NSFW
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                          {forum.description}
+                        </p>
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <Users className="w-3 h-3" />
+                            <span>{forum.subscriberCount?.toLocaleString() || 0} members</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <MessageSquare className="w-3 h-3" />
+                            <span>{forum.postCount?.toLocaleString() || 0} posts</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            <span>Created {formatDate(forum.createdAt)}</span>
+                          </div>
                         </div>
                       </div>
-                      <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                        {forum.description}
-                      </p>
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <Users className="w-3 h-3" />
-                          <span>{forum.subscriberCount?.toLocaleString() || 0} members</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <MessageSquare className="w-3 h-3" />
-                          <span>{forum.postCount?.toLocaleString() || 0} posts</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          <span>Created {formatDate(forum.createdAt)}</span>
-                        </div>
-                      </div>
+                      <Button variant="outline" size="sm">
+                        View
+                      </Button>
                     </div>
-                    <Button variant="outline" size="sm">
-                      View
-                    </Button>
                   </div>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              );
+            })}
           </div>
         )}
       </div>

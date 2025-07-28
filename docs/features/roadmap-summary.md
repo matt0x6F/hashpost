@@ -33,7 +33,7 @@
 
 | Feature | Priority | Dependencies | Description |
 |---------|----------|--------------|-------------|
-| **Subforum Classification** | Low | Community system | Generic vs. named community types |
+| **Community Types System** | Medium | Community system | ✅ **Implemented** - Four community types (t/, g/, b/, c/) with different governance models |
 | **Moderator Elections** | Low | Voting system | Democratic moderator selection |
 
 ## 📊 **Implementation Order**

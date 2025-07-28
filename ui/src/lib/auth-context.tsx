@@ -38,6 +38,7 @@ interface AuthContextType {
   login: (userData: UserLoginResponseBody | UserRegistrationResponseBody) => void;
   logout: () => void;
   refreshUser: () => Promise<void>;
+  updateUserWithSubforumData: (userData: UserLoginResponseBody) => void;
   isAuthenticated: boolean;
 }
 
@@ -155,12 +156,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const updateUserWithSubforumData = (userData: UserLoginResponseBody) => {
+    if (!user) return; // Safety check
+    
+    const normalizedUser: User = {
+      ...user, // Keep existing user data
+      // Update with subforum-specific data
+      roles: userData.roles || user.roles,
+      capabilities: userData.capabilities || user.capabilities,
+      activePseudonymId: userData.activePseudonymId,
+      displayName: userData.displayName,
+      pseudonyms: userData.pseudonyms || user.pseudonyms,
+      accessToken: userData.accessToken,
+      refreshToken: userData.refreshToken,
+    };
+    
+    setUser(normalizedUser);
+    // Store user data in localStorage (excluding sensitive tokens)
+    const userDataToStore = {
+      ...normalizedUser,
+      // Don't store tokens in localStorage - they're in cookies
+      accessToken: undefined,
+      refreshToken: undefined,
+    };
+    localStorage.setItem('hashpost_user', JSON.stringify(userDataToStore));
+  };
+
   const value: AuthContextType = {
     user,
     isLoading,
     login,
     logout,
     refreshUser,
+    updateUserWithSubforumData,
     isAuthenticated: !!user,
   };
 

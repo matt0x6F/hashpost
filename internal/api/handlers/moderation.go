@@ -7,14 +7,15 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"sync"
 	"time"
 
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	apimodels "github.com/matt0x6f/hashpost/internal/api/models"
 	"github.com/matt0x6f/hashpost/internal/database/dao"
-	"github.com/matt0x6f/hashpost/internal/database/dao/mocks"
 	dbmodels "github.com/matt0x6f/hashpost/internal/database/models"
-	"github.com/matt0x6f/hashpost/internal/fixtures"
 	"github.com/rs/zerolog/log"
 	"github.com/stephenafamo/bob/types"
 )
@@ -28,6 +29,8 @@ type ModerationHandler struct {
 	subforumDAO         dao.SubforumDAOInterface
 	postDAO             dao.PostDAOInterface
 	commentDAO          dao.CommentDAOInterface
+	voteDAO             dao.VoteDAOInterface
+	permissionDAO       dao.PermissionDAOInterface
 }
 
 // NewModerationHandler creates a new moderation handler with interface dependencies
@@ -39,6 +42,8 @@ func NewModerationHandler(
 	subforumDAO dao.SubforumDAOInterface,
 	postDAO dao.PostDAOInterface,
 	commentDAO dao.CommentDAOInterface,
+	voteDAO dao.VoteDAOInterface,
+	permissionDAO dao.PermissionDAOInterface,
 ) *ModerationHandler {
 	return &ModerationHandler{
 		reportDAO:           reportDAO,
@@ -48,62 +53,8 @@ func NewModerationHandler(
 		subforumDAO:         subforumDAO,
 		postDAO:             postDAO,
 		commentDAO:          commentDAO,
-	}
-}
-
-// NewModerationHandlerWithMocks creates a new moderation handler with mock DAOs and fixture data
-func NewModerationHandlerWithMocks() *ModerationHandler {
-	// Create mock DAOs
-	mockReportDAO := mocks.NewMockReportDAO()
-	mockModerationActionDAO := mocks.NewMockModerationActionDAO()
-	mockUserBanDAO := mocks.NewMockUserBanDAO()
-	mockSecurePseudonymDAO := mocks.NewMockSecurePseudonymDAO()
-	mockSubforumDAO := mocks.NewMockSubforumDAO()
-	mockPostDAO := mocks.NewMockPostDAO()
-	mockCommentDAO := mocks.NewMockCommentDAO()
-
-	// Inject fixture data into mocks
-	mockReportDAO.InjectReport(fixtures.CreateTestReport())
-	mockReportDAO.InjectReport(fixtures.CreateTestReportWithResolution())
-	mockReportDAO.InjectReportsByStatus("pending", []*dbmodels.Report{fixtures.CreateTestReport()})
-	mockReportDAO.InjectReportsByStatus("resolved", []*dbmodels.Report{fixtures.CreateTestReportWithResolution()})
-	mockReportDAO.InjectCount("pending", 1)
-	mockReportDAO.InjectCount("resolved", 1)
-	mockReportDAO.SetDefaultBehavior()
-
-	mockModerationActionDAO.InjectAction(fixtures.CreateTestModerationAction())
-	mockModerationActionDAO.InjectAction(fixtures.CreateTestModerationActionWithDetails())
-	mockModerationActionDAO.InjectActionsByType("remove_post", []*dbmodels.ModerationAction{fixtures.CreateTestModerationAction()})
-	mockModerationActionDAO.InjectCount("remove_post", 1)
-	mockModerationActionDAO.SetDefaultBehavior()
-
-	mockUserBanDAO.InjectBan(fixtures.CreateTestUserBan())
-	mockUserBanDAO.InjectBan(fixtures.CreateTestPermanentUserBan())
-	mockUserBanDAO.InjectBan(fixtures.CreateTestInactiveUserBan())
-	mockUserBanDAO.InjectBansBySubforum(1, []*dbmodels.UserBan{fixtures.CreateTestUserBan()})
-	mockUserBanDAO.InjectCount("subforum_1", 1)
-	mockUserBanDAO.SetDefaultBehavior()
-
-	// Set up mock secure pseudonym DAO with fixture data
-	mockSecurePseudonymDAO.InjectPseudonym(fixtures.CreateTestPseudonym())
-	mockSecurePseudonymDAO.SetDefaultBehavior()
-
-	// Set up mock post DAO with fixture data
-	mockPostDAO.InjectPost(fixtures.CreateTestPost())
-	mockPostDAO.SetDefaultBehavior()
-
-	// Set up mock comment DAO with fixture data
-	mockCommentDAO.InjectComment(fixtures.CreateTestComment())
-	mockCommentDAO.SetDefaultBehavior()
-
-	return &ModerationHandler{
-		reportDAO:           mockReportDAO,
-		moderationActionDAO: mockModerationActionDAO,
-		userBanDAO:          mockUserBanDAO,
-		securePseudonymDAO:  mockSecurePseudonymDAO,
-		subforumDAO:         mockSubforumDAO,
-		postDAO:             mockPostDAO,
-		commentDAO:          mockCommentDAO,
+		voteDAO:             voteDAO,
+		permissionDAO:       permissionDAO,
 	}
 }
 
@@ -116,7 +67,112 @@ func (h *ModerationHandler) extractUserFromContext(ctx context.Context) (*middle
 	return userCtx, nil
 }
 
-// validateModeratorPermissions validates that the user has moderator permissions
+// validateModeratorPermissions validates that the user has moderator permissions for a specific subforum
+func (h *ModerationHandler) validateModeratorPermissionsForSubforum(ctx context.Context, userCtx *middleware.UserContext, subforumPath string) error {
+	// Parse subforum path to extract community type and name
+	communityType, subforumName, err := h.parseSubforumPath(subforumPath)
+	if err != nil {
+		log.Error().Err(err).Str("subforum_path", subforumPath).Msg("Failed to parse subforum path")
+		return fmt.Errorf("invalid subforum path format: %w", err)
+	}
+
+	// Get subforum by community type and name
+	subforum, err := h.subforumDAO.GetSubforumByCommunityTypeAndName(ctx, communityType, subforumName)
+	if err != nil {
+		log.Error().Err(err).Str("subforum_path", subforumPath).Msg("Failed to get subforum")
+		return fmt.Errorf("failed to get subforum: %w", err)
+	}
+	if subforum == nil {
+		return fmt.Errorf("subforum not found: %s", subforumPath)
+	}
+
+	// Check if the active pseudonym has moderator capabilities for this subforum
+	activePseudonymID := userCtx.ActivePseudonymID
+	if activePseudonymID == "" {
+		return fmt.Errorf("no active pseudonym found")
+	}
+
+	// First, check if the active pseudonym is the owner of this subforum
+	isOwner := subforum.OwnerPseudonymID.Valid && subforum.OwnerPseudonymID.V == activePseudonymID
+	if isOwner {
+		log.Debug().
+			Int64("user_id", userCtx.UserID).
+			Int32("subforum_id", subforum.SubforumID).
+			Str("active_pseudonym_id", activePseudonymID).
+			Msg("Found owner record - granting moderator access")
+		return nil
+	}
+
+	// Check if the active pseudonym is a moderator for this subforum
+	hasModerateContent, err := h.permissionDAO.HasSubforumCapabilityWithActivePseudonym(ctx, userCtx.UserID, subforum.SubforumID, "moderate_content", activePseudonymID)
+	if err != nil {
+		log.Error().Err(err).
+			Int64("user_id", userCtx.UserID).
+			Int32("subforum_id", subforum.SubforumID).
+			Str("active_pseudonym_id", activePseudonymID).
+			Msg("Failed to check moderator capabilities")
+		return fmt.Errorf("failed to check moderator capabilities: %w", err)
+	}
+
+	if !hasModerateContent {
+		log.Warn().
+			Int64("user_id", userCtx.UserID).
+			Int32("subforum_id", subforum.SubforumID).
+			Str("active_pseudonym_id", activePseudonymID).
+			Msg("User does not have moderator capabilities for this subforum")
+		return fmt.Errorf("user does not have moderation permissions for this subforum")
+	}
+
+	log.Debug().
+		Int64("user_id", userCtx.UserID).
+		Int32("subforum_id", subforum.SubforumID).
+		Str("active_pseudonym_id", activePseudonymID).
+		Msg("User has moderator capabilities for this subforum")
+	return nil
+}
+
+// parseSubforumPath parses a full subforum path (e.g., "b/hashpost") into community type and name
+func (h *ModerationHandler) parseSubforumPath(fullPath string) (communityType, subforumName string, err error) {
+	// Handle different formats:
+	// 1. "b/hashpost" -> communityType: "b", subforumName: "hashpost"
+	// 2. "hashpost" -> communityType: "h", subforumName: "hashpost" (default for h/ subforums)
+
+	if fullPath == "" {
+		return "", "", fmt.Errorf("subforum path cannot be empty")
+	}
+
+	// Check if it contains a slash (community type prefix)
+	if strings.Contains(fullPath, "/") {
+		parts := strings.SplitN(fullPath, "/", 2)
+		if len(parts) != 2 {
+			return "", "", fmt.Errorf("invalid subforum path format: expected 'community-type/name'")
+		}
+
+		communityType = parts[0]
+		subforumName = parts[1]
+
+		// Validate community type
+		validTypes := []string{"t", "g", "b", "c", "h"}
+		isValid := false
+		for _, validType := range validTypes {
+			if communityType == validType {
+				isValid = true
+				break
+			}
+		}
+
+		if !isValid {
+			return "", "", fmt.Errorf("invalid community type: %s", communityType)
+		}
+
+		return communityType, subforumName, nil
+	}
+
+	// No slash found, treat as h/ subforum (default)
+	return "h", fullPath, nil
+}
+
+// validateModeratorPermissions validates that the user has moderator permissions (legacy method)
 func (h *ModerationHandler) validateModeratorPermissions(userCtx *middleware.UserContext) error {
 	if !userCtx.HasCapability("moderate_content") {
 		return fmt.Errorf("user does not have moderation permissions")
@@ -717,4 +773,313 @@ func (h *ModerationHandler) GetModerationHistory(ctx context.Context, input *api
 		Msg("Get moderation history completed")
 
 	return response, nil
+}
+
+// ModerationStats represents statistics for the moderation dashboard
+type ModerationStats struct {
+	PendingReports int `json:"pending_reports"`
+	BannedUsers    int `json:"banned_users"`
+	ModActions     int `json:"mod_actions"`
+	TotalPosts     int `json:"total_posts"`
+	TotalComments  int `json:"total_comments"`
+	TotalVotes     int `json:"total_votes"`
+	AvgEngagement  int `json:"avg_engagement"`
+}
+
+// EngagementData represents engagement analytics data
+type EngagementData struct {
+	TimeRange  string                `json:"time_range"`
+	DataPoints []EngagementDataPoint `json:"data_points"`
+}
+
+// EngagementDataPoint represents a single data point in engagement analytics
+type EngagementDataPoint struct {
+	Date             string `json:"date"`
+	Posts            int    `json:"posts"`
+	Comments         int    `json:"comments"`
+	PostVotes        int    `json:"post_votes"`
+	CommentVotes     int    `json:"comment_votes"`
+	TotalVotes       int    `json:"total_votes"`
+	PostUpvotes      int    `json:"post_upvotes"`
+	PostDownvotes    int    `json:"post_downvotes"`
+	CommentUpvotes   int    `json:"comment_upvotes"`
+	CommentDownvotes int    `json:"comment_downvotes"`
+}
+
+// ModerationInput represents the input for moderation endpoints
+type ModerationInput struct {
+	middleware.AuthInput
+	SubforumPath string `path:"subforum_path" example:"b/hashpost"`
+	TimeRange    string `query:"time_range" example:"14d" enum:"7d,14d,30d"`
+}
+
+// ModerationStatsOutput represents the output for moderation stats
+type ModerationStatsOutput struct {
+	Body ModerationStats `json:"body"`
+}
+
+// EngagementOutput represents the output for engagement analytics
+type EngagementOutput struct {
+	Body EngagementData `json:"body"`
+}
+
+// CacheEntry represents a cached value with expiration
+type CacheEntry struct {
+	Value      interface{}
+	Expiration time.Time
+}
+
+// ModerationCache is a thread-safe LRU cache for moderation data
+type ModerationCache struct {
+	cache   map[string]CacheEntry
+	mutex   sync.RWMutex
+	maxSize int
+}
+
+// NewModerationCache creates a new moderation cache
+func NewModerationCache(maxSize int) *ModerationCache {
+	return &ModerationCache{
+		cache:   make(map[string]CacheEntry),
+		maxSize: maxSize,
+	}
+}
+
+// Get retrieves a value from the cache
+func (c *ModerationCache) Get(key string) (interface{}, bool) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
+	entry, exists := c.cache[key]
+	if !exists {
+		return nil, false
+	}
+
+	if time.Now().After(entry.Expiration) {
+		// Expired, remove it
+		c.mutex.RUnlock()
+		c.mutex.Lock()
+		delete(c.cache, key)
+		c.mutex.Unlock()
+		c.mutex.RLock()
+		return nil, false
+	}
+
+	return entry.Value, true
+}
+
+// Set stores a value in the cache
+func (c *ModerationCache) Set(key string, value interface{}, ttl time.Duration) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	// Remove expired entries first
+	for k, entry := range c.cache {
+		if time.Now().After(entry.Expiration) {
+			delete(c.cache, k)
+		}
+	}
+
+	// If cache is full, remove oldest entry (simple implementation)
+	if len(c.cache) >= c.maxSize {
+		var oldestKey string
+		var oldestTime time.Time
+		for k, entry := range c.cache {
+			if oldestKey == "" || entry.Expiration.Before(oldestTime) {
+				oldestKey = k
+				oldestTime = entry.Expiration
+			}
+		}
+		if oldestKey != "" {
+			delete(c.cache, oldestKey)
+		}
+	}
+
+	c.cache[key] = CacheEntry{
+		Value:      value,
+		Expiration: time.Now().Add(ttl),
+	}
+}
+
+// Global cache instance
+var moderationCache = NewModerationCache(100)
+
+// GetModerationStats returns statistics for the moderation dashboard
+func (h *ModerationHandler) GetModerationStats(ctx context.Context, input *ModerationInput) (*ModerationStatsOutput, error) {
+	// Handle authentication - try to get user context from middleware
+	var userCtx *middleware.UserContext
+	var err error
+
+	// First, try to get user context from middleware (header-based auth)
+	userCtx, err = middleware.ExtractUserFromContext(ctx)
+	if err != nil {
+		// If no user context from middleware, try cookie-based auth from input
+		userCtx, err = middleware.ExtractUserFromHumaInput(&input.AuthInput)
+		if err != nil {
+			return nil, huma.Error403Forbidden("Authentication required")
+		}
+	}
+
+	// Check if user has moderation permissions for this specific subforum
+	err = h.validateModeratorPermissionsForSubforum(ctx, userCtx, input.SubforumPath)
+	if err != nil {
+		return nil, huma.Error403Forbidden("Moderation permissions required")
+	}
+
+	// Try to get from cache first
+	cacheKey := "mod_stats:" + input.SubforumPath
+	if cached, exists := moderationCache.Get(cacheKey); exists {
+		if stats, ok := cached.(ModerationStats); ok {
+			return &ModerationStatsOutput{Body: stats}, nil
+		}
+	}
+
+	// Calculate time range
+	days := 7
+	switch input.TimeRange {
+	case "14d":
+		days = 14
+	case "30d":
+		days = 30
+	}
+
+	since := time.Now().AddDate(0, 0, -days)
+
+	// Get statistics using handler's DAOs
+	pendingReports, err := h.reportDAO.GetPendingReportsCount(ctx, input.SubforumPath)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to get pending reports count")
+		pendingReports = 0
+	}
+
+	bannedUsers, err := h.userBanDAO.GetBannedUsersCount(ctx, input.SubforumPath)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to get banned users count")
+		bannedUsers = 0
+	}
+
+	modActions, err := h.moderationActionDAO.GetModActionsCount(ctx, input.SubforumPath, since)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to get mod actions count")
+		modActions = 0
+	}
+
+	totalPosts, err := h.postDAO.GetPostsCount(ctx, input.SubforumPath, since)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to get posts count")
+		totalPosts = 0
+	}
+
+	totalComments, err := h.commentDAO.GetCommentsCount(ctx, input.SubforumPath, since)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to get comments count")
+		totalComments = 0
+	}
+
+	// For now, we'll use a placeholder for votes since VoteDAO is not in the handler
+	// TODO: Add VoteDAO to the handler
+	totalVotes := 0
+
+	avgEngagement := 0
+	if days > 0 {
+		avgEngagement = (totalPosts + totalComments + totalVotes) / days
+	}
+
+	stats := ModerationStats{
+		PendingReports: pendingReports,
+		BannedUsers:    bannedUsers,
+		ModActions:     modActions,
+		TotalPosts:     totalPosts,
+		TotalComments:  totalComments,
+		TotalVotes:     totalVotes,
+		AvgEngagement:  avgEngagement,
+	}
+
+	// Cache the result for 5 minutes
+	moderationCache.Set(cacheKey, stats, 5*time.Minute)
+
+	return &ModerationStatsOutput{Body: stats}, nil
+}
+
+// GetEngagementAnalytics returns engagement analytics data
+func (h *ModerationHandler) GetEngagementAnalytics(ctx context.Context, input *ModerationInput) (*EngagementOutput, error) {
+	// Handle authentication - try to get user context from middleware
+	var userCtx *middleware.UserContext
+	var err error
+
+	// First, try to get user context from middleware (header-based auth)
+	userCtx, err = middleware.ExtractUserFromContext(ctx)
+	if err != nil {
+		// If no user context from middleware, try cookie-based auth from input
+		userCtx, err = middleware.ExtractUserFromHumaInput(&input.AuthInput)
+		if err != nil {
+			return nil, huma.Error403Forbidden("Authentication required")
+		}
+	}
+
+	// Check if user has moderation permissions for this specific subforum
+	err = h.validateModeratorPermissionsForSubforum(ctx, userCtx, input.SubforumPath)
+	if err != nil {
+		return nil, huma.Error403Forbidden("Moderation permissions required")
+	}
+
+	// Try to get from cache first
+	cacheKey := "engagement:" + input.SubforumPath + ":" + input.TimeRange
+	if cached, exists := moderationCache.Get(cacheKey); exists {
+		if data, ok := cached.(EngagementData); ok {
+			return &EngagementOutput{Body: data}, nil
+		}
+	}
+
+	// Calculate time range
+	days := 7
+	switch input.TimeRange {
+	case "14d":
+		days = 14
+	case "30d":
+		days = 30
+	}
+
+	// Generate data points for each day
+	dataPoints := make([]EngagementDataPoint, days)
+	today := time.Now()
+
+	for i := 0; i < days; i++ {
+		date := today.AddDate(0, 0, -i)
+		startOfDay := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+
+		// Get data for this day using handler's DAOs
+		posts, _ := h.postDAO.GetPostsCount(ctx, input.SubforumPath, startOfDay)
+		comments, _ := h.commentDAO.GetCommentsCount(ctx, input.SubforumPath, startOfDay)
+		postVotes, _ := h.voteDAO.GetPostVotesCount(ctx, input.SubforumPath, startOfDay)
+		commentVotes, _ := h.voteDAO.GetCommentVotesCount(ctx, input.SubforumPath, startOfDay)
+
+		// Get upvote/downvote breakdown
+		postUpvotes, _ := h.voteDAO.GetPostUpvotesCount(ctx, input.SubforumPath, startOfDay)
+		postDownvotes, _ := h.voteDAO.GetPostDownvotesCount(ctx, input.SubforumPath, startOfDay)
+		commentUpvotes, _ := h.voteDAO.GetCommentUpvotesCount(ctx, input.SubforumPath, startOfDay)
+		commentDownvotes, _ := h.voteDAO.GetCommentDownvotesCount(ctx, input.SubforumPath, startOfDay)
+
+		dataPoints[days-1-i] = EngagementDataPoint{
+			Date:             startOfDay.Format("2006-01-02"),
+			Posts:            posts,
+			Comments:         comments,
+			PostVotes:        postVotes,
+			CommentVotes:     commentVotes,
+			TotalVotes:       postVotes + commentVotes,
+			PostUpvotes:      postUpvotes,
+			PostDownvotes:    postDownvotes,
+			CommentUpvotes:   commentUpvotes,
+			CommentDownvotes: commentDownvotes,
+		}
+	}
+
+	data := EngagementData{
+		TimeRange:  input.TimeRange,
+		DataPoints: dataPoints,
+	}
+
+	// Cache the result for 10 minutes (engagement data is more expensive)
+	moderationCache.Set(cacheKey, data, 10*time.Minute)
+
+	return &EngagementOutput{Body: data}, nil
 }

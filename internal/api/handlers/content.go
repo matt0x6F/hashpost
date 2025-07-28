@@ -206,8 +206,15 @@ func (h *ContentHandler) GetPosts(ctx context.Context, input *models.PostListInp
 		}
 	}
 
-	// Check if subforum exists
-	subforum, err := h.subforumDAO.GetSubforumByName(ctx, subforumName)
+	// Parse subforum name to extract community type and actual name
+	communityType, actualSubforumName, err := h.parseSubforumName(subforumName)
+	if err != nil {
+		log.Error().Err(err).Str("subforum_name", subforumName).Msg("Failed to parse subforum name")
+		return nil, fmt.Errorf("invalid subforum name format: %w", err)
+	}
+
+	// Get subforum by community type and name
+	subforum, err := h.subforumDAO.GetSubforumByCommunityTypeAndName(ctx, communityType, actualSubforumName)
 	if subforum == nil {
 		log.Warn().Str("subforum_name", subforumName).Msg("Subforum not found")
 		return nil, fmt.Errorf("subforum not found: %s", subforumName)
@@ -356,8 +363,15 @@ func (h *ContentHandler) CreatePost(ctx context.Context, input *models.PostCreat
 		return nil, huma.Error400BadRequest("URL is required for link posts")
 	}
 
-	// Check if subforum exists
-	subforum, err := h.subforumDAO.GetSubforumByName(ctx, subforumName)
+	// Parse subforum name to extract community type and actual name
+	communityType, actualSubforumName, err := h.parseSubforumName(subforumName)
+	if err != nil {
+		log.Error().Err(err).Str("subforum_name", subforumName).Msg("Failed to parse subforum name")
+		return nil, fmt.Errorf("invalid subforum name format: %w", err)
+	}
+
+	// Get subforum by community type and name
+	subforum, err := h.subforumDAO.GetSubforumByCommunityTypeAndName(ctx, communityType, actualSubforumName)
 	if subforum == nil {
 		log.Warn().Str("subforum_name", subforumName).Msg("Subforum not found")
 		return nil, fmt.Errorf("subforum not found: %s", subforumName)
@@ -581,8 +595,15 @@ func (h *ContentHandler) GetPostBySlug(ctx context.Context, input *models.PostBy
 		}
 	}
 
-	// Check if subforum exists
-	subforum, err := h.subforumDAO.GetSubforumByName(ctx, subforumName)
+	// Parse subforum name to extract community type and actual name
+	communityType, actualSubforumName, err := h.parseSubforumName(subforumName)
+	if err != nil {
+		log.Error().Err(err).Str("subforum_name", subforumName).Msg("Failed to parse subforum name")
+		return nil, fmt.Errorf("invalid subforum name format: %w", err)
+	}
+
+	// Get subforum by community type and name
+	subforum, err := h.subforumDAO.GetSubforumByCommunityTypeAndName(ctx, communityType, actualSubforumName)
 	if subforum == nil {
 		log.Warn().Str("subforum_name", subforumName).Msg("Subforum not found")
 		return nil, fmt.Errorf("subforum not found: %s", subforumName)
@@ -1600,4 +1621,45 @@ func (h *ContentHandler) convertDBCommentToAPICommentWithReplies(ctx context.Con
 	apiComment.Author.DisplayName = authorDisplayName
 
 	return apiComment
+}
+
+// parseSubforumName parses a full subforum name (e.g., "t/subforum-name") into community type and name
+func (h *ContentHandler) parseSubforumName(fullName string) (communityType, subforumName string, err error) {
+	// Handle different formats:
+	// 1. "t/subforum-name" -> communityType: "t", subforumName: "subforum-name"
+	// 2. "subforum-name" -> communityType: "h", subforumName: "subforum-name" (default for h/ subforums)
+
+	if fullName == "" {
+		return "", "", fmt.Errorf("subforum name cannot be empty")
+	}
+
+	// Check if it contains a slash (community type prefix)
+	if strings.Contains(fullName, "/") {
+		parts := strings.SplitN(fullName, "/", 2)
+		if len(parts) != 2 {
+			return "", "", fmt.Errorf("invalid subforum name format: expected 'community-type/name'")
+		}
+
+		communityType = parts[0]
+		subforumName = parts[1]
+
+		// Validate community type
+		validTypes := []string{"t", "g", "b", "c", "h"}
+		isValid := false
+		for _, validType := range validTypes {
+			if communityType == validType {
+				isValid = true
+				break
+			}
+		}
+
+		if !isValid {
+			return "", "", fmt.Errorf("invalid community type: %s", communityType)
+		}
+
+		return communityType, subforumName, nil
+	}
+
+	// No slash found, treat as h/ subforum (default)
+	return "h", fullName, nil
 }

@@ -29,6 +29,7 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
     name: '',
     slug: '',
     description: '',
+    communityType: 't',
     isNsfw: false,
     isPrivate: false,
     isRestricted: false,
@@ -90,6 +91,7 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
         name: '',
         slug: '',
         description: '',
+        communityType: 't',
         isNsfw: false,
         isPrivate: false,
         isRestricted: false,
@@ -98,7 +100,7 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
       });
       
       // Show success toast using Sonner
-      toast.success(`Forum "r/${response.name}" created successfully!`, {
+      toast.success(`Forum "${response.subforum.communityType}/${response.subforum.name}" created successfully!`, {
         description: `Your new forum is now live and ready for discussions.`,
         action: {
           label: "View Forum",
@@ -109,7 +111,7 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
       });
       
       if (onForumCreated) {
-        onForumCreated(response.name);
+        onForumCreated(response.subforum.name);
       }
     } catch (err: unknown) {
       console.error('Error creating forum:', err);
@@ -191,7 +193,7 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
                   className="mt-1"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  This will be used in the URL: /r/{formData.slug || 'forum-name'}
+                  This will be used in the URL: /{formData.communityType}/{formData.slug || 'forum-name'}
                 </p>
               </div>
 
@@ -210,6 +212,53 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
                 <p className="text-xs text-muted-foreground mt-1">
                   {formData.description.length}/500 characters
                 </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="communityType" className="mb-1 block">Community Type *</Label>
+                  <select
+                    id="communityType"
+                    value={formData.communityType}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                      const newType = e.target.value;
+                      setFormData(prev => ({
+                        ...prev,
+                        communityType: newType,
+                      }));
+                    }}
+                    className="w-full h-10 px-3 py-2 border border-input bg-background rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    required
+                  >
+                    <option value="t">Topical (t/) - Generic subjects like programming, cooking (Democratic governance)</option>
+                    <option value="g">Geographic (g/) - Location-based like Seattle, Tacoma (Democratic governance)</option>
+                    <option value="b">Branded (b/) - Company/brand-owned like Apple, Minecraft (Owned governance)</option>
+                    <option value="c">Creator (c/) - Individual creator-owned like Joe Rogan (Owned governance)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <Label htmlFor="governanceStyle" className="mb-1 block">Governance Style</Label>
+                  <div className="w-full h-10 px-3 py-2 border border-input bg-background rounded-md text-sm flex items-center text-muted-foreground">
+                    {formData.communityType === 't' || formData.communityType === 'g' ? (
+                      <>
+                        <span className="font-medium text-foreground">Democratic</span>
+                        <span className="ml-2">- Owner commits to elected moderators</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-medium text-foreground">Owned</span>
+                        <span className="ml-2">- Owner directly manages all moderators</span>
+                      </>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formData.communityType === 't' || formData.communityType === 'g' 
+                      ? 'Topical and Geographic communities use Democratic governance'
+                      : 'Branded and Creator communities use Owned governance'
+                    }
+                  </p>
+                </div>
               </div>
 
               <div className="space-y-3">
