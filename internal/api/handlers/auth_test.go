@@ -1104,8 +1104,8 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 			SubforumID: int32(testSubforumID),
 			Name:       testSubforumName,
 		}
-		mockSubforumDAO.On("GetSubforumByName", mock.Anything, testSubforumName).Return(
-			func(ctx context.Context, name string) (*dbmodels.Subforum, error) {
+		mockSubforumDAO.On("GetSubforumByCommunityTypeAndName", mock.Anything, "h", testSubforumName).Return(
+			func(ctx context.Context, communityType string, name string) (*dbmodels.Subforum, error) {
 				return mockSubforum, nil
 			},
 		)
@@ -1114,6 +1114,8 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "moderate_content", testPseudonymID).Return(true, nil)
 		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "manage_moderators", testPseudonymID).Return(false, nil)
 		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "ban_users", testPseudonymID).Return(true, nil)
+		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "sticky_post", testPseudonymID).Return(false, nil)
+		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "lock_post", testPseudonymID).Return(false, nil)
 
 		// Mock pseudonym retrieval
 		mockPseudonym := &dbmodels.Pseudonym{
@@ -1192,8 +1194,8 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 			SubforumID: int32(testSubforumID),
 			Name:       testSubforumName,
 		}
-		mockSubforumDAO.On("GetSubforumByName", mock.Anything, testSubforumName).Return(
-			func(ctx context.Context, name string) (*dbmodels.Subforum, error) {
+		mockSubforumDAO.On("GetSubforumByCommunityTypeAndName", mock.Anything, "h", testSubforumName).Return(
+			func(ctx context.Context, communityType string, name string) (*dbmodels.Subforum, error) {
 				return mockSubforum, nil
 			},
 		)
@@ -1202,6 +1204,8 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "moderate_content", testPseudonymID).Return(true, nil)
 		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "manage_moderators", testPseudonymID).Return(false, nil)
 		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "ban_users", testPseudonymID).Return(true, nil)
+		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "sticky_post", testPseudonymID).Return(false, nil)
+		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "lock_post", testPseudonymID).Return(false, nil)
 
 		// Mock pseudonym retrieval
 		mockPseudonym := &dbmodels.Pseudonym{
@@ -1476,8 +1480,8 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 		mockUserDAO.On("UpdateLastActive", mock.Anything, testUserID).Return(nil)
 
 		// Mock subforum not found
-		mockSubforumDAO.On("GetSubforumByName", mock.Anything, testSubforumName).Return(
-			func(ctx context.Context, name string) (*dbmodels.Subforum, error) {
+		mockSubforumDAO.On("GetSubforumByCommunityTypeAndName", mock.Anything, "h", testSubforumName).Return(
+			func(ctx context.Context, communityType string, name string) (*dbmodels.Subforum, error) {
 				return nil, nil
 			},
 		)
@@ -1603,8 +1607,8 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 			SubforumID: int32(testSubforumID),
 			Name:       testSubforumName,
 		}
-		mockSubforumDAO.On("GetSubforumByName", mock.Anything, testSubforumName).Return(
-			func(ctx context.Context, name string) (*dbmodels.Subforum, error) {
+		mockSubforumDAO.On("GetSubforumByCommunityTypeAndName", mock.Anything, "h", testSubforumName).Return(
+			func(ctx context.Context, communityType string, name string) (*dbmodels.Subforum, error) {
 				return mockSubforum, nil
 			},
 		)
@@ -1684,8 +1688,8 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 			SubforumID: int32(testSubforumID),
 			Name:       testSubforumName,
 		}
-		mockSubforumDAO.On("GetSubforumByName", mock.Anything, testSubforumName).Return(
-			func(ctx context.Context, name string) (*dbmodels.Subforum, error) {
+		mockSubforumDAO.On("GetSubforumByCommunityTypeAndName", mock.Anything, "h", testSubforumName).Return(
+			func(ctx context.Context, communityType string, name string) (*dbmodels.Subforum, error) {
 				return mockSubforum, nil
 			},
 		)
@@ -1693,6 +1697,8 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 		// Mock permission DAO - user has admin capabilities
 		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "moderate_content", testPseudonymID).Return(true, nil)
 		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "ban_users", testPseudonymID).Return(true, nil)
+		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "sticky_post", testPseudonymID).Return(false, nil)
+		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "lock_post", testPseudonymID).Return(false, nil)
 		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "manage_moderators", testPseudonymID).Return(true, nil)
 
 		// Mock pseudonym retrieval (should use first role "user")
@@ -1736,7 +1742,7 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 		assert.Equal(t, int(testUserID), response.Body.UserID)
 		assert.Equal(t, testPseudonymID, response.Body.ActivePseudonymID)
 		assert.Equal(t, testDisplayName, response.Body.DisplayName)
-		assert.Len(t, response.Body.Roles, 2) // Should have both roles
+		assert.Len(t, response.Body.Roles, 3) // Should have user, platform_admin, and moderator roles
 
 		// Verify mocks were called
 		mockUserDAO.AssertExpectations(t)
@@ -1769,8 +1775,8 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 			SubforumID: int32(testSubforumID),
 			Name:       testSubforumName,
 		}
-		mockSubforumDAO.On("GetSubforumByName", mock.Anything, testSubforumName).Return(
-			func(ctx context.Context, name string) (*dbmodels.Subforum, error) {
+		mockSubforumDAO.On("GetSubforumByCommunityTypeAndName", mock.Anything, "h", testSubforumName).Return(
+			func(ctx context.Context, communityType string, name string) (*dbmodels.Subforum, error) {
 				return mockSubforum, nil
 			},
 		)

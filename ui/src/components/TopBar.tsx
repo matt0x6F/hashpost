@@ -1,19 +1,48 @@
 import React, { useEffect, useState } from "react";
-import { Menu, Sun, Moon } from "lucide-react";
+import { Menu, Sun, Moon, Shield } from "lucide-react";
 import Image from "next/image";
 import { Button } from "./shadcn/button";
 import { LoginDialog } from "./LoginDialog";
 import { UserAvatar } from "./UserAvatar";
 import { useAuth } from "@/lib/auth-context";
 import { useTheme } from "next-themes";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 interface TopBarProps {
   onMenuClick?: () => void;
 }
 
 export default function TopBar({ onMenuClick }: TopBarProps) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const { theme, setTheme } = useTheme();
+  const pathname = usePathname();
+
+  // Check if we're in a subforum context (any of the community type routes)
+  const isInSubforumContext = pathname?.match(/^\/([tgbch])\/[^\/]+/);
+
+  // Check if user has moderator permissions
+  const hasModerateContent = user?.capabilities?.includes('moderate_content');
+  const hasModeratorRole = user?.roles?.includes('moderator') || user?.roles?.includes('admin');
+  
+  // Show moderation link if user has moderator role or moderate_content capability
+  // AND we're in a subforum context where the role would be assigned
+  const isModerator = (hasModeratorRole || hasModerateContent) && isInSubforumContext;
+
+  // Debug logging
+  console.log('TopBar Debug:', {
+    isLoading,
+    isAuthenticated,
+    pathname,
+    isInSubforumContext,
+    user: user ? {
+      userId: user.userId,
+      capabilities: user.capabilities,
+      roles: user.roles,
+      activePseudonymId: user.activePseudonymId
+    } : null,
+    isModerator
+  });
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
@@ -48,6 +77,18 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
         <span className="text-xs text-muted-foreground ml-2">alpha</span>
       </div>
       <div className="flex items-center gap-4">
+        {/* Moderator Dashboard Link */}
+        {!isLoading && isAuthenticated && isModerator && (
+          <Link href={`${pathname}/moderation`}>
+            <Button variant="ghost" size="sm" className="flex items-center gap-2">
+              <Shield className="w-4 h-4" />
+              <span className="hidden sm:inline">Moderation</span>
+            </Button>
+          </Link>
+        )}
+
+
+
         {/* Theme Toggle */}
         <Button
           variant="ghost"

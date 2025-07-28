@@ -213,7 +213,7 @@ export function PostCard({ post, subforumName }: PostCardProps) {
       {/* Post Header */}
       <div className="flex items-center gap-2 mb-1 justify-between">
         <div className="flex items-center gap-2">
-          <Link href={`/h/${localPost.subforum.name}/posts/${localPost.slug}`} className="hover:underline">
+          <Link href={`/${subforumName || `h/${localPost.subforum.name}`}/posts/${localPost.slug}`} className="hover:underline">
             <h3 className="text-lg font-semibold">{localPost.title}</h3>
           </Link>
           <PostBadges
@@ -236,7 +236,7 @@ export function PostCard({ post, subforumName }: PostCardProps) {
               <div className="absolute right-0 top-full mt-1 bg-popover border border-border rounded-md shadow-lg z-10 min-w-48">
                 <div className="p-2 space-y-1">
                   {isAuthor && (
-                    <Link href={`/h/${localPost.subforum.name}/posts/${localPost.slug}/edit`}>
+                                            <Link href={`/${subforumName || `h/${localPost.subforum.name}`}/posts/${localPost.slug}/edit`}>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -324,7 +324,7 @@ export function PostCard({ post, subforumName }: PostCardProps) {
               <ArrowDown className={`w-4 h-4 ${localPost.userVote === -1 ? 'text-emerald-500' : 'text-muted-foreground'}`} />
             </Button>
           </div>
-          <Link href={`/h/${localPost.subforum.name}/posts/${localPost.slug}#comments`} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                          <Link href={`/${subforumName || `h/${localPost.subforum.name}`}/posts/${localPost.slug}#comments`} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
             <MessageSquare className="w-4 h-4" />
             <span>{localPost.commentCount} comments</span>
           </Link>

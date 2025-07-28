@@ -1,54 +1,50 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Button } from '@/components/shadcn/button';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { getApi } from '@/lib/api-client';
 import { SubforumsApi } from '@/generated/api/src/apis/SubforumsApi';
-import type { SubforumDetailsResponseBody } from '@/generated/api/src/models/SubforumDetailsResponseBody';
-import type { SubforumModerator } from '@/generated/api/src/models/SubforumModerator';
+import type { SubforumDetailsResponseBody, SubforumModerator } from '@/generated/api/src/models';
 import { PostList } from '@/components/PostList';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth-context';
 import { authenticateUserForSubforum } from '@/lib/auth-utils';
 
-export default function CreatorCommunityPage() {
+import type { CommunityType } from '@/lib/community-config';
+
+export default function SubforumPage() {
   const params = useParams();
+  const communityType = params.community as CommunityType;
   const subforumName = params.subforum as string;
+  const fullSubforumPath = `${communityType}/${subforumName}`;
+  
   const [forum, setForum] = useState<SubforumDetailsResponseBody | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { login } = useAuth();
+  const hasLoaded = useRef(false);
 
-  useEffect(() => {
-    if (subforumName) {
-      loadForum();
-      // Load subforum-specific user context
-      loadSubforumUserContext();
-    }
-  }, [subforumName]);
-
-  const loadSubforumUserContext = async () => {
+  const loadSubforumUserContext = useCallback(async () => {
     try {
-      const userData = await authenticateUserForSubforum(`c/${subforumName}`);
+      const userData = await authenticateUserForSubforum(fullSubforumPath);
       if (userData) {
         login(userData);
       }
     } catch (error) {
       console.error('Error loading subforum user context:', error);
-      // Don't show error toast for this - it's not critical
     }
-  };
+  }, [fullSubforumPath, login]);
 
-  const loadForum = async () => {
+  const loadForum = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     
     try {
       const subforumsApi = getApi(SubforumsApi);
-      const response = await subforumsApi.getSubforumDetails('c', subforumName);
+      const response = await subforumsApi.getSubforumDetails(communityType, subforumName);
       setForum(response);
     } catch (err: unknown) {
       console.error('Error loading forum:', err);
@@ -61,7 +57,16 @@ export default function CreatorCommunityPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [communityType, subforumName]);
+
+  useEffect(() => {
+    if (subforumName && communityType && !hasLoaded.current) {
+      hasLoaded.current = true;
+      loadForum();
+      loadSubforumUserContext();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subforumName, communityType]);
 
   if (isLoading) {
     return (
@@ -123,10 +128,7 @@ export default function CreatorCommunityPage() {
         <div className="flex-1 lg:pr-80">
           <div className="mb-8">
             <div className="flex items-center gap-2 mb-2">
-              <h1 className="text-3xl font-bold">c/{forum.subforum.name}</h1>
-              <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded">
-                Creator
-              </span>
+              <h1 className="text-3xl font-bold">{communityType}/{forum.subforum.name}</h1>
               {forum.subforum.isPrivate && (
                 <span className="text-xs bg-secondary text-secondary-foreground px-2 py-1 rounded">
                   Private
@@ -150,7 +152,7 @@ export default function CreatorCommunityPage() {
 
           {/* Posts List */}
           <PostList 
-            subforumName={forum.subforum.name} 
+            subforumName={fullSubforumPath} 
           />
         </div>
 
@@ -159,7 +161,7 @@ export default function CreatorCommunityPage() {
           className="hidden lg:block fixed top-16 right-0 h-[calc(100vh-4rem)] w-80 z-30 bg-background border-l border-border px-6 py-8"
         >
           <div className="sticky top-8">
-            <h2 className="text-lg font-semibold mb-4 text-foreground">c/{forum.subforum.name}</h2>
+            <h2 className="text-lg font-semibold mb-4 text-foreground">{communityType}/{forum.subforum.name}</h2>
             <div className="space-y-3 text-sm mb-8">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Subscribers</span>
@@ -172,10 +174,6 @@ export default function CreatorCommunityPage() {
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Created</span>
                 <span className="font-medium text-foreground">{new Date(forum.subforum.createdAt).toLocaleDateString()}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Governance</span>
-                <span className="font-medium text-foreground capitalize">{forum.subforum.governanceStyle}</span>
               </div>
             </div>
             {/* Moderators List */}

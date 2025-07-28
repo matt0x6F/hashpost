@@ -17,7 +17,7 @@ const items = [
 
 export function AppSidebar() {
   return (
-    <aside className="hidden md:block w-64 bg-sidebar border-r border-sidebar-border flex flex-col">
+    <aside className="md:block w-64 bg-sidebar border-r border-sidebar-border flex flex-col">
       <div className="flex-1 overflow-y-auto p-4">
         <SidebarGroup>
           <SidebarGroupContent>

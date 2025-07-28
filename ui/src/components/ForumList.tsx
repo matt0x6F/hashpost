@@ -172,16 +172,6 @@ export function ForumList({ className }: ForumListProps) {
                                         forum.communityType === 'g' ? 'g/' : 
                                         forum.communityType === 'b' ? 'b/' : 
                                         forum.communityType === 'c' ? 'c/' : 'h/';
-              
-              const communityTypeLabel = forum.communityType === 't' ? 'Topical' : 
-                                       forum.communityType === 'g' ? 'Geographic' : 
-                                       forum.communityType === 'b' ? 'Branded' : 
-                                       forum.communityType === 'c' ? 'Creator' : '';
-              
-              const communityTypeColor = forum.communityType === 't' ? 'bg-blue-100 text-blue-800' : 
-                                       forum.communityType === 'g' ? 'bg-green-100 text-green-800' : 
-                                       forum.communityType === 'b' ? 'bg-purple-100 text-purple-800' : 
-                                       forum.communityType === 'c' ? 'bg-orange-100 text-orange-800' : '';
 
               return (
                 <Link key={forum.name} href={`/${communityTypePrefix}${forum.name}`} className="block">
@@ -194,11 +184,6 @@ export function ForumList({ className }: ForumListProps) {
                           <h3 className="text-lg font-semibold truncate">
                             {communityTypePrefix}{forum.name}
                           </h3>
-                          {communityTypeLabel && (
-                            <span className={`text-xs ${communityTypeColor} px-2 py-1 rounded`}>
-                              {communityTypeLabel}
-                            </span>
-                          )}
                           <div className="flex items-center gap-1">
                             {forum.isPrivate && (
                               <Shield className="w-4 h-4 text-muted-foreground" />

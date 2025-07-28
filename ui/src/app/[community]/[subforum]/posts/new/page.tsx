@@ -16,10 +16,14 @@ import { MarkdownTextarea } from "@/components/MarkdownTextarea";
 import { useAuth } from "@/lib/auth-context";
 import { authenticateUserForSubforum } from "@/lib/auth-utils";
 
+import { COMMUNITY_CONFIG, type CommunityType } from '@/lib/community-config';
+
 export default function NewPostPage() {
   const router = useRouter();
   const params = useParams();
+  const communityType = params.community as CommunityType;
   const subforumName = params.subforum as string;
+  const fullSubforumPath = `${communityType}/${subforumName}`;
   const { isAuthenticated } = useAuth();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -29,16 +33,18 @@ export default function NewPostPage() {
   const [isLocked, setIsLocked] = useState(false);
   const [isModerator, setIsModerator] = useState(false);
 
+  const communityConfig = COMMUNITY_CONFIG[communityType];
+
   // Load subforum-specific user context to check moderator status
   useEffect(() => {
-    if (subforumName && isAuthenticated) {
+    if (fullSubforumPath && isAuthenticated) {
       loadSubforumUserContext();
     }
-  }, [subforumName, isAuthenticated]);
+  }, [fullSubforumPath, isAuthenticated]);
 
   const loadSubforumUserContext = async () => {
     try {
-      const userData = await authenticateUserForSubforum(subforumName);
+      const userData = await authenticateUserForSubforum(fullSubforumPath);
       if (userData) {
         const hasModeratorRole = userData.roles?.includes('moderator');
         const hasModerateContentCapability = userData.capabilities?.includes('moderate_content');
@@ -46,7 +52,6 @@ export default function NewPostPage() {
       }
     } catch (error) {
       console.error('Error loading subforum user context:', error);
-      // Don't show error toast for this - it's not critical
     }
   };
 
@@ -59,7 +64,7 @@ export default function NewPostPage() {
     setIsSubmitting(true);
     try {
       const contentApi = getApi(ContentApi);
-      const response = await contentApi.createPost(subforumName, {
+      const response = await contentApi.createPost(fullSubforumPath, {
         title: title.trim(),
         content: content.trim(),
         postType: "text",
@@ -69,7 +74,7 @@ export default function NewPostPage() {
         isSticky: isSticky,
       });
       toast.success("Post created successfully!");
-      router.push(`/h/${subforumName}/posts/${response.slug}`);
+      router.push(`/${communityType}/${subforumName}/posts/${response.slug}`);
     } catch {
       toast.error("Failed to create post");
     } finally {
@@ -79,7 +84,15 @@ export default function NewPostPage() {
 
   return (
     <div className="max-w-2xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-6">Create a New Post in h/{subforumName}</h1>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold mb-2">Create a New Post</h1>
+        <p className="text-muted-foreground">
+          in{' '}
+          <span className={`text-xs px-2 py-1 rounded ${communityConfig.color}`}>
+            {fullSubforumPath}
+          </span>
+        </p>
+      </div>
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-2">
           <Label htmlFor="title">Title</Label>

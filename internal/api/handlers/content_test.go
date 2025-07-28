@@ -326,8 +326,8 @@ func TestContentHandler_GetPostBySlug_FiltersDeletedPosts(t *testing.T) {
 	mockSubforumDAO.InjectSubforumByName("test-subforum", testSubforum)
 
 	// Set up subforum DAO expectations for GetPostBySlug
-	mockSubforumDAO.On("GetSubforumByName", mock.Anything, "test-subforum").Return(
-		func(ctx context.Context, name string) (*models.Subforum, error) {
+	mockSubforumDAO.On("GetSubforumByCommunityTypeAndName", mock.Anything, "h", "test-subforum").Return(
+		func(ctx context.Context, communityType string, name string) (*models.Subforum, error) {
 			return testSubforum, nil
 		},
 	)
@@ -476,8 +476,8 @@ func TestContentHandler_GetPosts_Success(t *testing.T) {
 	testPosts[1].Title = "Second Test Post"
 
 	// Set up expectations
-	mockSubforumDAO.On("GetSubforumByName", mock.Anything, "test-subforum").Return(
-		func(ctx context.Context, name string) (*dbmodels.Subforum, error) {
+	mockSubforumDAO.On("GetSubforumByCommunityTypeAndName", mock.Anything, "h", "test-subforum").Return(
+		func(ctx context.Context, communityType string, name string) (*dbmodels.Subforum, error) {
 			return testSubforum, nil
 		},
 	)
@@ -524,8 +524,8 @@ func TestContentHandler_GetPosts_PrivateSubforumAccess(t *testing.T) {
 	mockSubforumDAO.InjectSubforumByName("private-subforum", privateSubforum)
 
 	// Set up expectations for private subforum access check
-	mockSubforumDAO.On("GetSubforumByName", mock.Anything, "private-subforum").Return(
-		func(ctx context.Context, name string) (*dbmodels.Subforum, error) {
+	mockSubforumDAO.On("GetSubforumByCommunityTypeAndName", mock.Anything, "h", "private-subforum").Return(
+		func(ctx context.Context, communityType string, name string) (*dbmodels.Subforum, error) {
 			return privateSubforum, nil
 		},
 	)
@@ -562,8 +562,8 @@ func TestContentHandler_CreatePost_Success(t *testing.T) {
 	testPost.Slug = sql.Null[string]{V: "test-post-123", Valid: true}
 
 	// Set up expectations
-	mockSubforumDAO.On("GetSubforumByName", mock.Anything, "test-subforum").Return(
-		func(ctx context.Context, name string) (*dbmodels.Subforum, error) {
+	mockSubforumDAO.On("GetSubforumByCommunityTypeAndName", mock.Anything, "h", "test-subforum").Return(
+		func(ctx context.Context, communityType string, name string) (*dbmodels.Subforum, error) {
 			return testSubforum, nil
 		},
 	)
@@ -723,8 +723,8 @@ func TestContentHandler_GetPostBySlug_Success(t *testing.T) {
 	}
 
 	// Set up expectations
-	mockSubforumDAO.On("GetSubforumByName", mock.Anything, "test-subforum").Return(
-		func(ctx context.Context, name string) (*dbmodels.Subforum, error) {
+	mockSubforumDAO.On("GetSubforumByCommunityTypeAndName", mock.Anything, "h", "test-subforum").Return(
+		func(ctx context.Context, communityType string, name string) (*dbmodels.Subforum, error) {
 			return testSubforum, nil
 		},
 	)
@@ -1973,7 +1973,7 @@ func TestContentHandler_CreatePost_SubforumNotFound(t *testing.T) {
 	handler, _, _, _, mockSubforumDAO, _, _ := createTestContentHandler()
 
 	// Set up expectations for non-existent subforum
-	mockSubforumDAO.On("GetSubforumByName", mock.Anything, "non-existent-subforum").Return(nil, sql.ErrNoRows)
+	mockSubforumDAO.On("GetSubforumByCommunityTypeAndName", mock.Anything, "h", "non-existent-subforum").Return(nil, sql.ErrNoRows)
 
 	// Create test input
 	input := &apimodels.PostCreateInput{
@@ -2010,7 +2010,7 @@ func TestContentHandler_GetPosts_SubforumNotFound(t *testing.T) {
 	handler, _, _, _, mockSubforumDAO, _, _ := createTestContentHandler()
 
 	// Set up expectations for non-existent subforum
-	mockSubforumDAO.On("GetSubforumByName", mock.Anything, "non-existent-subforum").Return(nil, sql.ErrNoRows)
+	mockSubforumDAO.On("GetSubforumByCommunityTypeAndName", mock.Anything, "h", "non-existent-subforum").Return(nil, sql.ErrNoRows)
 
 	// Create test input
 	input := &apimodels.PostListInput{
@@ -2036,7 +2036,7 @@ func TestContentHandler_GetPostBySlug_SubforumNotFound(t *testing.T) {
 	handler, _, _, _, mockSubforumDAO, _, _ := createTestContentHandler()
 
 	// Set up expectations for non-existent subforum
-	mockSubforumDAO.On("GetSubforumByName", mock.Anything, "non-existent-subforum").Return(nil, sql.ErrNoRows)
+	mockSubforumDAO.On("GetSubforumByCommunityTypeAndName", mock.Anything, "h", "non-existent-subforum").Return(nil, sql.ErrNoRows)
 
 	// Create test input
 	input := &apimodels.PostBySlugInput{
@@ -2070,7 +2070,7 @@ func TestContentHandler_GetPostBySlug_PostNotFound(t *testing.T) {
 	testSubforum := fixtures.CreateTestSubforum()
 
 	// Set up expectations
-	mockSubforumDAO.On("GetSubforumByName", mock.Anything, "test-subforum").Return(testSubforum, nil)
+	mockSubforumDAO.On("GetSubforumByCommunityTypeAndName", mock.Anything, "h", "test-subforum").Return(testSubforum, nil)
 	mockPostDAO.On("GetPostBySubforumAndSlug", mock.Anything, int32(1), "non-existent-post").Return(nil, sql.ErrNoRows)
 
 	// Create test input

@@ -6,14 +6,22 @@ import { useAuth } from "@/lib/auth-context";
 import { LogOut, User, Settings, Users } from "lucide-react";
 import { CreatePseudonymDialog } from "./CreatePseudonymDialog";
 import { switchPseudonym } from "@/lib/pseudonym-utils";
+import { usePathname } from "next/navigation";
+import { authenticateUserForSubforum } from "@/lib/auth-utils";
 
 
 export function UserAvatar() {
-  const { user, logout, refreshUser } = useAuth();
+  const { user, logout, refreshUser, updateUserWithSubforumData } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [showPseudonymManager, setShowPseudonymManager] = useState(false);
   const [showCreatePseudonym, setShowCreatePseudonym] = useState(false);
+  const pathname = usePathname();
+
+  // Check if we're in a subforum context (any of the community type routes)
+  const isInSubforumContext = pathname?.match(/^\/([tgbch])\/[^\/]+/);
+  const subforumMatch = pathname?.match(/^\/([tgbch])\/([^\/]+)/);
+  const subforumName = subforumMatch ? `${subforumMatch[1]}/${subforumMatch[2]}` : null;
 
 
   const handleLogout = async () => {
@@ -191,6 +199,22 @@ export function UserAvatar() {
                                   // Refresh user data to get updated active pseudonym
                                   // The new JWT token is automatically set as a cookie
                                   await refreshUser();
+                                  
+                                  // If we're in a subforum context, also refresh subforum-specific user context
+                                  if (isInSubforumContext && subforumName) {
+                                    try {
+                                      const subforumUserData = await authenticateUserForSubforum(subforumName);
+                                      if (subforumUserData) {
+                                        // Update the user context with subforum-specific capabilities
+                                        updateUserWithSubforumData(subforumUserData);
+                                      }
+                                    } catch (error) {
+                                      console.error('Error refreshing subforum user context:', error);
+                                      // Fallback to page reload if subforum context refresh fails
+                                      window.location.reload();
+                                    }
+                                  }
+                                  
                                   setShowPseudonymManager(false);
                                 } else {
                                   console.error("Failed to switch pseudonym:", result.error);

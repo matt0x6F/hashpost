@@ -32,33 +32,32 @@ import { authenticateUserForSubforum } from '@/lib/auth-utils';
 
 export default function PostPage() {
   const params = useParams();
+  const communityType = params.community as string;
   const subforum = params.subforum as string;
   const slug = params.slug as string;
+  const fullSubforumPath = `${communityType}/${subforum}`;
   const [postDetails, setPostDetails] = useState<PostDetailsResponseBody | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Add post voting handler
   const [isVoting, setIsVoting] = useState(false);
   const { user, login } = useAuth();
   const [showDropdown, setShowDropdown] = useState(false);
 
   useEffect(() => {
-    if (subforum && slug) {
+    if (fullSubforumPath && slug) {
       loadPostDetails();
-      // Load subforum-specific user context
       loadSubforumUserContext();
     }
-  }, [subforum, slug]);
+  }, [fullSubforumPath, slug]);
 
   const loadSubforumUserContext = async () => {
     try {
-      const userData = await authenticateUserForSubforum(subforum);
+      const userData = await authenticateUserForSubforum(fullSubforumPath);
       if (userData) {
         login(userData);
       }
     } catch (error) {
       console.error('Error loading subforum user context:', error);
-      // Don't show error toast for this - it's not critical
     }
   };
 
@@ -68,7 +67,7 @@ export default function PostPage() {
     
     try {
       const contentApi = getApi(ContentApi);
-      const response = await contentApi.getPostBySlug(subforum, slug, 'best');
+      const response = await contentApi.getPostBySlug(fullSubforumPath, slug, 'best');
       setPostDetails(response);
     } catch (err: unknown) {
       console.error('Error loading post details:', err);
@@ -93,24 +92,19 @@ export default function PostPage() {
     });
   };
 
-  // Add post voting handler
   const handlePostVote = async (voteValue: number) => {
     if (!postDetails) return;
     setIsVoting(true);
     
-    // Store the previous state for rollback on error
     const previousPostDetails = { ...postDetails };
     
-    // Optimistically update the local state
     setPostDetails(prev => {
       if (!prev) return prev;
       
-      // Calculate the new score based on the vote change
       let newScore = prev.score;
       let newUpvotes = prev.upvotes;
       let newDownvotes = prev.downvotes;
       
-      // Remove the previous vote effect
       if (prev.userVote === 1) {
         newScore -= 1;
         newUpvotes -= 1;
@@ -119,7 +113,6 @@ export default function PostPage() {
         newDownvotes -= 1;
       }
       
-      // Add the new vote effect
       if (voteValue === 1) {
         newScore += 1;
         newUpvotes += 1;
@@ -140,44 +133,35 @@ export default function PostPage() {
     try {
       const contentApi = getApi(ContentApi);
       await contentApi.voteOnPost(postDetails.postId, { voteValue });
-      // Don't reload the entire post - the optimistic update is sufficient
     } catch (err: unknown) {
       console.error('Error voting on post:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to vote on post';
       toast.error('Failed to vote', { description: errorMessage });
-      
-      // Rollback to the previous state on error
       setPostDetails(previousPostDetails);
     } finally {
       setIsVoting(false);
     }
   };
 
-  // Add comment voting handler
   const handleCommentVote = async (commentId: number, voteValue: number) => {
     if (!postDetails) return;
     
-    // Store the previous state for rollback on error
     const previousPostDetails = { ...postDetails };
     
-    // Optimistically update the comment state
     setPostDetails(prev => {
       if (!prev) return prev;
       
       const updateCommentVote = (comments: CommentType[]): CommentType[] => {
         return comments.map(comment => {
           if (comment.commentId === commentId) {
-            // Calculate the new score based on the vote change
             let newScore = comment.score;
             
-            // Remove the previous vote effect
             if (comment.userVote === 1) {
               newScore -= 1;
             } else if (comment.userVote === -1) {
               newScore += 1;
             }
             
-            // Add the new vote effect
             if (voteValue === 1) {
               newScore += 1;
             } else if (voteValue === -1) {
@@ -191,7 +175,6 @@ export default function PostPage() {
             };
           }
           
-          // Recursively update replies
           if (comment.replies && comment.replies.length > 0) {
             return {
               ...comment,
@@ -212,20 +195,17 @@ export default function PostPage() {
     try {
       const contentApi = getApi(ContentApi);
       await contentApi.voteOnComment(commentId, { voteValue });
-      // Don't reload the entire post - the optimistic update is sufficient
     } catch (err: unknown) {
       console.error('Error voting on comment:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to vote on comment';
       toast.error('Failed to vote', { description: errorMessage });
-      
-      // Rollback to the previous state on error
       setPostDetails(previousPostDetails);
     }
   };
 
-  // Helper to check if current user is the post author
   const isPostAuthor = user?.activePseudonymId && postDetails?.author?.pseudonymId && (user.activePseudonymId === postDetails.author.pseudonymId);
   const isModerator = user?.roles?.includes('moderator') || user?.capabilities?.includes('moderate_content');
+  
   const handleModeratorAction = async (action: string, value: boolean) => {
     if (!isModerator || !postDetails) {
       toast.error('You do not have permission to perform this action');
@@ -259,13 +239,6 @@ export default function PostPage() {
       setShowDropdown(false);
     }
   };
-
-  // Debug logs for author check
-  if (postDetails) {
-    // Debug information removed for production
-  }
-
-
 
   if (isLoading) {
     return (
@@ -316,10 +289,10 @@ export default function PostPage() {
     <div className="max-w-4xl mx-auto p-6">
       {/* Navigation */}
       <div className="flex items-center gap-4 mb-8">
-        <Link href={`/h/${postDetails.subforum.name}`}>
+        <Link href={`/${communityType}/${postDetails.subforum.name}`}>
           <Button variant="outline" size="sm">
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to h/{postDetails.subforum.name}
+            Back to {communityType}/{postDetails.subforum.name}
           </Button>
         </Link>
       </div>
@@ -352,7 +325,7 @@ export default function PostPage() {
                   <div className="p-2 space-y-1">
                     {isPostAuthor && (
                       <>
-                        <Link href={`/h/${postDetails.subforum.name}/posts/${postDetails.slug}/edit`}>
+                        <Link href={`/${communityType}/${postDetails.subforum.name}/posts/${postDetails.slug}/edit`}>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -372,8 +345,7 @@ export default function PostPage() {
                                 const contentApi = getApi(ContentApi);
                                 await contentApi.deletePost(postDetails.postId, { reason: 'User requested deletion' });
                                 toast.success('Post deleted');
-                                // Redirect to subforum
-                                window.location.href = `/h/${postDetails.subforum.name}`;
+                                window.location.href = `/${communityType}/${postDetails.subforum.name}`;
                               } catch (error: unknown) {
                                 console.error('Error deleting post:', error);
                                 const errorMessage = error instanceof Error ? error.message : 'Failed to delete post';
@@ -480,7 +452,6 @@ export default function PostPage() {
             size="md"
           />
         </div>
-
       </div>
 
       {/* Comment Form */}
