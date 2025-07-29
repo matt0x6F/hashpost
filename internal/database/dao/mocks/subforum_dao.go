@@ -3,7 +3,6 @@ package mocks
 import (
 	"context"
 	"database/sql"
-	"fmt"
 
 	"github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/stretchr/testify/mock"
