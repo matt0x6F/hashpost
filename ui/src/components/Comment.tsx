@@ -281,7 +281,7 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
                     </Button>
                   )}
                   
-                  {/* Debug: Show report button for non-authenticated users */}
+                  {/* Report button for non-authenticated users */}
                   {!isCommentAuthor && !isAuthenticated && (
                     <Button
                       variant="ghost"
@@ -297,6 +297,7 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
                       Report Comment (Login Required)
                     </Button>
                   )}
+
                 </div>
               </div>
             )}

@@ -110,7 +110,7 @@ test-unit:
 # Code Coverage Targets
 test-coverage:
 	@echo "🧪 Running unit tests with coverage..."
-	@PSQL_DSN=postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable go test ./... -v -coverprofile=coverage.out
+	@PSQL_DSN=postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable TEST_DATABASE_URL=postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable go test ./... -v -coverprofile=coverage.out
 	@echo "📊 Coverage Summary:"
 	@go tool cover -func=coverage.out | tail -1
 	@echo "📁 Coverage data saved to: coverage.out"
@@ -123,7 +123,7 @@ test-coverage-html: test-coverage
 
 test-coverage-ci:
 	@echo "🧪 Running tests with coverage for CI..."
-	@PSQL_DSN=postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable go test ./... -v -coverprofile=coverage.out -covermode=atomic
+	@PSQL_DSN=postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable TEST_DATABASE_URL=postgres://hashpost:hashpost_test@localhost:5433/hashpost_test?sslmode=disable go test ./... -v -coverprofile=coverage.out -covermode=atomic
 	@echo "📊 Coverage Summary:"
 	@COVERAGE=$$(go tool cover -func=coverage.out | tail -1 | awk '{print $$3}' | sed 's/%//'); \
 	echo "Total coverage: $$COVERAGE%"; \

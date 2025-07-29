@@ -270,7 +270,7 @@ export function PostCard({ post, subforumName }: PostCardProps) {
                   </Button>
                 )}
                 
-                {/* Debug: Show report button for non-authenticated users */}
+                {/* Report button for non-authenticated users */}
                 {!isAuthenticated && (
                   <Button
                     variant="ghost"

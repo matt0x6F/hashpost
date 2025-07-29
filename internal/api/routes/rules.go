@@ -5,12 +5,19 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/matt0x6f/hashpost/internal/api/handlers"
+	"github.com/matt0x6f/hashpost/internal/database/dao"
 	"github.com/stephenafamo/bob"
 )
 
 // RegisterRulesRoutes registers all rules-related routes
 func RegisterRulesRoutes(api huma.API, db bob.Executor) {
-	rulesHandler := handlers.NewRulesHandler(nil, nil, nil, nil) // TODO: Inject proper DAOs
+	// Initialize DAOs for rules handler
+	reportsDAO := dao.NewReportDAO(db)
+	subforumDAO := dao.NewSubforumDAO(db)
+	systemSettingsDAO := dao.NewSystemSettingsDAO(db)
+	permissionDAO := dao.NewPermissionDAO(db)
+
+	rulesHandler := handlers.NewRulesHandler(reportsDAO, subforumDAO, systemSettingsDAO, permissionDAO)
 
 	// Platform rules routes
 	huma.Register(api, huma.Operation{
