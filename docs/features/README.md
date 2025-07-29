@@ -16,6 +16,7 @@ HashPost provides a comprehensive forum platform with advanced features for cont
 - **Content Creation** - Posts, comments, and voting system
 - **Communities & Subforums** - Community management and participation with four community types (t/, g/, b/, c/)
 - **Moderation & Safety** - Content moderation and user safety features
+- **Reporting & Moderation System** - Comprehensive reporting and moderation workflows
 - **Comments & Discussions** - Comprehensive comment system
 
 ### 📋 **Planned Features**
@@ -70,6 +71,20 @@ Moderation and safety features:
 - Content reporting system
 - Moderation tools and processes
 - User safety and privacy protection
+
+### [Reporting & Moderation System](reporting.md)
+Comprehensive reporting and moderation workflow:
+- User reporting process and guidelines
+- Report status tracking and management
+- Moderator actions and decision transparency
+- Privacy protection and anonymous reporting
+
+### [Subforum Rules & Configuration](subforum-rules.md)
+Community rules and configuration system:
+- Subforum-specific rule creation and management
+- Rule-based reporting and automated enforcement
+- Rule categories and customizable actions
+- Moderator tools for community governance
 
 ### [Comment Workflow](comments.md)
 Comment system implementation and usage:

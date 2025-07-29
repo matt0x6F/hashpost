@@ -19,6 +19,9 @@
 | **User Blocking** | Medium | User system | ✅ **Implemented** - Pseudonym and fingerprint-level blocking |
 | **Comment Enhancements** | Low | Content system | Advanced comment features and tools |
 | **Notifications** | Medium | User system, Email | Real-time notification system |
+| **Reporting & Moderation System** | High | User system | ✅ **Implemented** - Comprehensive reporting and moderation workflows |
+| **Advanced Moderation Actions** | Medium | Reporting system | 🔄 **Partially Implemented** - Content removal, user banning, and temporary mutes |
+| **Subforum Rules & Configuration** | High | Reporting system, Communities | Rules configuration and rule-based reporting system |
 | **Moderator Dashboard** | Medium | Moderation system | Comprehensive moderation tools |
 
 ## 💰 **Group 3: Revenue & Monetization**
@@ -48,9 +51,12 @@
 4. **Search & Discovery** (requires content system)
 5. **Direct Messaging System** ✅ **Implemented**
 6. **User Blocking System** ✅ **Implemented**
-7. **Comment Enhancements** (requires content system)
-8. **Notifications** (requires email service)
-9. **Moderator Dashboard** (requires moderation system)
+7. **Reporting & Moderation System** ✅ **Implemented**
+8. **Advanced Moderation Actions** 🔄 **Partially Implemented**
+9. **Subforum Rules & Configuration** (requires reporting system)
+10. **Comment Enhancements** (requires content system)
+11. **Notifications** (requires email service)
+12. **Moderator Dashboard** (requires moderation system)
 
 ### Revenue Streams
 6. **Subscription System** (requires payment processing)

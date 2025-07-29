@@ -19,7 +19,8 @@ import {
   Pin,
   PinOff,
   Trash2,
-  RotateCcw
+  RotateCcw,
+  Flag
 } from 'lucide-react';
 import CommentForm from '@/components/CommentForm';
 import Comment from '@/components/Comment';
@@ -28,6 +29,7 @@ import { Comment as CommentType } from '@/generated/api/src/models';
 import { useAuth } from '@/lib/auth-context';
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 import { PostBadges } from '@/components/PostBadges';
+import { ReportDialog } from '@/components/ReportDialog';
 import { authenticateUserForSubforum } from '@/lib/auth-utils';
 
 export default function PostPage() {
@@ -42,6 +44,7 @@ export default function PostPage() {
   const [isVoting, setIsVoting] = useState(false);
   const { user, login } = useAuth();
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showReportDialog, setShowReportDialog] = useState(false);
 
   useEffect(() => {
     if (fullSubforumPath && slug) {
@@ -310,99 +313,117 @@ export default function PostPage() {
               isRemoved={postDetails.isRemoved}
             />
           </div>
-          {(isPostAuthor || isModerator) && (
-            <div className="relative">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowDropdown(!showDropdown)}
-                disabled={isLoading}
-              >
-                <MoreHorizontal className="w-4 h-4" />
-              </Button>
-              {showDropdown && (
-                <div className="absolute right-0 top-full mt-1 bg-popover border border-border rounded-md shadow-lg z-10 min-w-48">
-                  <div className="p-2 space-y-1">
-                    {isPostAuthor && (
-                      <>
-                        <Link href={`/${communityType}/${postDetails.subforum.name}/posts/${postDetails.slug}/edit`}>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="w-full justify-start"
-                          >
-                            Edit
-                          </Button>
-                        </Link>
+          <div className="relative">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowDropdown(!showDropdown)}
+              disabled={isLoading}
+            >
+              <MoreHorizontal className="w-4 h-4" />
+            </Button>
+            {showDropdown && (
+              <div className="absolute right-0 top-full mt-1 bg-popover border border-border rounded-md shadow-lg z-50 min-w-48">
+                <div className="p-2 space-y-1">
+                  {/* Report Button - for all users except author */}
+                  {!isPostAuthor && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start text-orange-600 hover:text-orange-700"
+                      onClick={() => {
+                        setShowReportDialog(true);
+                        setShowDropdown(false);
+                      }}
+                      disabled={isLoading}
+                    >
+                      <Flag className="w-4 h-4 mr-2" />
+                      Report Post
+                    </Button>
+                  )}
+                  
+                  {/* Author Actions */}
+                  {isPostAuthor && (
+                    <>
+                      <Link href={`/${communityType}/${postDetails.subforum.name}/posts/${postDetails.slug}/edit`}>
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="w-full justify-start text-destructive hover:text-destructive"
-                          onClick={async () => {
-                            if (confirm('Are you sure you want to delete this post? This action cannot be undone.')) {
-                              setIsLoading(true);
-                              try {
-                                const contentApi = getApi(ContentApi);
-                                await contentApi.deletePost(postDetails.postId, { reason: 'User requested deletion' });
-                                toast.success('Post deleted');
-                                window.location.href = `/${communityType}/${postDetails.subforum.name}`;
-                              } catch (error: unknown) {
-                                console.error('Error deleting post:', error);
-                                const errorMessage = error instanceof Error ? error.message : 'Failed to delete post';
-                                toast.error('Failed to delete post', { description: errorMessage });
-                              } finally {
-                                setIsLoading(false);
-                                setShowDropdown(false);
-                              }
+                          className="w-full justify-start"
+                        >
+                          Edit
+                        </Button>
+                      </Link>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start text-destructive hover:text-destructive"
+                        onClick={async () => {
+                          if (confirm('Are you sure you want to delete this post? This action cannot be undone.')) {
+                            setIsLoading(true);
+                            try {
+                              const contentApi = getApi(ContentApi);
+                              await contentApi.deletePost(postDetails.postId, { reason: 'User requested deletion' });
+                              toast.success('Post deleted');
+                              window.location.href = `/${communityType}/${postDetails.subforum.name}`;
+                            } catch (error: unknown) {
+                              console.error('Error deleting post:', error);
+                              const errorMessage = error instanceof Error ? error.message : 'Failed to delete post';
+                              toast.error('Failed to delete post', { description: errorMessage });
+                            } finally {
+                              setIsLoading(false);
+                              setShowDropdown(false);
                             }
-                          }}
-                          disabled={isLoading}
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Delete
-                        </Button>
-                      </>
-                    )}
-                    {isPostAuthor && isModerator && <hr className="my-2 border-border" />}
-                    {isModerator && (
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="w-full justify-start"
-                          onClick={() => handleModeratorAction('lock', !(postDetails.isLocked ?? false))}
-                          disabled={isLoading}
-                        >
-                          {postDetails.isLocked ? <Unlock className="w-4 h-4 mr-2" /> : <Lock className="w-4 h-4 mr-2" />}
-                          {postDetails.isLocked ? 'Unlock Post' : 'Lock Post'}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="w-full justify-start"
-                          onClick={() => handleModeratorAction('sticky', !(postDetails.isSticky ?? false))}
-                          disabled={isLoading}
-                        >
-                          {postDetails.isSticky ? <PinOff className="w-4 h-4 mr-2" /> : <Pin className="w-4 h-4 mr-2" />}
-                          {postDetails.isSticky ? 'Unsticky Post' : 'Sticky Post'}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="w-full justify-start text-destructive hover:text-destructive"
-                          onClick={() => handleModeratorAction('remove', !(postDetails.isRemoved ?? false))}
-                          disabled={isLoading}
-                        >
-                          {postDetails.isRemoved ? <RotateCcw className="w-4 h-4 mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
-                          {postDetails.isRemoved ? 'Restore Post' : 'Remove Post'}
-                        </Button>
-                      </>
-                    )}
-                  </div>
+                          }
+                        }}
+                        disabled={isLoading}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete
+                      </Button>
+                    </>
+                  )}
+                  
+                  {/* Moderator Actions */}
+                  {isModerator && (
+                    <>
+                      {(isPostAuthor || !isPostAuthor) && <hr className="my-2 border-border" />}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start"
+                        onClick={() => handleModeratorAction('lock', !(postDetails.isLocked ?? false))}
+                        disabled={isLoading}
+                      >
+                        {postDetails.isLocked ? <Unlock className="w-4 h-4 mr-2" /> : <Lock className="w-4 h-4 mr-2" />}
+                        {postDetails.isLocked ? 'Unlock Post' : 'Lock Post'}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start"
+                        onClick={() => handleModeratorAction('sticky', !(postDetails.isSticky ?? false))}
+                        disabled={isLoading}
+                      >
+                        {postDetails.isSticky ? <PinOff className="w-4 h-4 mr-2" /> : <Pin className="w-4 h-4 mr-2" />}
+                        {postDetails.isSticky ? 'Unsticky Post' : 'Sticky Post'}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start text-destructive hover:text-destructive"
+                        onClick={() => handleModeratorAction('remove', !(postDetails.isRemoved ?? false))}
+                        disabled={isLoading}
+                      >
+                        {postDetails.isRemoved ? <RotateCcw className="w-4 h-4 mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                        {postDetails.isRemoved ? 'Restore Post' : 'Remove Post'}
+                      </Button>
+                    </>
+                  )}
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
         </div>
         
         <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
@@ -496,6 +517,18 @@ export default function PostPage() {
           </div>
         )}
       </div>
+      
+      {/* Report Dialog */}
+      <ReportDialog
+        open={showReportDialog}
+        onOpenChange={setShowReportDialog}
+        contentType="post"
+        contentId={postDetails.postId}
+        reportedPseudonymId={postDetails.author.pseudonymId}
+        contentTitle={postDetails.title}
+        contentPreview={postDetails.content}
+        reportedUserDisplayName={postDetails.author.displayName}
+      />
     </div>
   );
 } 

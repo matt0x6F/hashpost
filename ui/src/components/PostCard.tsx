@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from './shadcn/button';
 import Link from 'next/link';
 import { 
@@ -13,7 +13,8 @@ import {
   Unlock,
   PinOff,
   Trash2,
-  RotateCcw
+  RotateCcw,
+  Flag
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { getApi } from '@/lib/api-client';
@@ -21,6 +22,7 @@ import { ContentApi } from '@/generated/api/src/apis/ContentApi';
 import { toast } from 'sonner';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { PostBadges } from './PostBadges';
+import { ReportDialog } from './ReportDialog';
 
 interface PostCardProps {
   post: {
@@ -53,6 +55,27 @@ export function PostCard({ post, subforumName }: PostCardProps) {
   const [localPost, setLocalPost] = useState(post);
   const { user, isAuthenticated } = useAuth();
   const [showModeratorControls, setShowModeratorControls] = useState(false);
+  const [showReportDialog, setShowReportDialog] = useState(false);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      // Don't close if clicking on the dropdown itself
+      const target = event.target as Element;
+      if (target.closest('.dropdown-menu')) {
+        return;
+      }
+      
+      if (showModeratorControls) {
+        setShowModeratorControls(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showModeratorControls]);
 
   // Update local post when prop changes
   React.useEffect(() => {
@@ -205,66 +228,105 @@ export function PostCard({ post, subforumName }: PostCardProps) {
             isRemoved={localPost.isRemoved}
           />
         </div>
-        {isModerator && (
-          <div className="relative">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowModeratorControls(!showModeratorControls)}
-              disabled={isLoading}
-            >
-              <MoreHorizontal className="w-4 h-4" />
-            </Button>
-            {showModeratorControls && (
-              <div className="absolute right-0 top-full mt-1 bg-popover border border-border rounded-md shadow-lg z-10 min-w-48">
-                <div className="p-2 space-y-1">
-                  {isAuthor && (
-                                            <Link href={`/${subforumName || `h/${localPost.subforum.name}`}/posts/${localPost.slug}/edit`}>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full justify-start"
-                      >
-                        Edit
-                      </Button>
-                    </Link>
-                  )}
-                  {isAuthor && <hr className="my-2 border-border" />}
+        <div className="relative">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowModeratorControls(!showModeratorControls)}
+            disabled={isLoading}
+          >
+            <MoreHorizontal className="w-4 h-4" />
+          </Button>
+          {showModeratorControls && (
+            <div className="absolute right-0 top-full mt-1 bg-popover border border-border rounded-md shadow-lg z-50 min-w-48 dropdown-menu">
+              <div className="p-2 space-y-1">
+                {isAuthor && (
+                  <Link href={`/${subforumName || `h/${localPost.subforum.name}`}/posts/${localPost.slug}/edit`}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start"
+                    >
+                      Edit
+                    </Button>
+                  </Link>
+                )}
+                {isAuthor && <hr className="my-2 border-border" />}
+                
+                {/* Report Button */}
+                {isAuthenticated && !isAuthor && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="w-full justify-start"
-                    onClick={() => handleModeratorAction('lock', !localPost.isLocked)}
+                    className="w-full justify-start text-orange-600 hover:text-orange-700"
+                    onClick={() => {
+                      setShowReportDialog(true);
+                      setShowModeratorControls(false);
+                    }}
                     disabled={isLoading}
                   >
-                    {localPost.isLocked ? <Unlock className="w-4 h-4 mr-2" /> : <Lock className="w-4 h-4 mr-2" />}
-                    {localPost.isLocked ? 'Unlock Post' : 'Lock Post'}
+                    <Flag className="w-4 h-4 mr-2" />
+                    Report Post
                   </Button>
+                )}
+                
+                {/* Debug: Show report button for non-authenticated users */}
+                {!isAuthenticated && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="w-full justify-start"
-                    onClick={() => handleModeratorAction('sticky', !localPost.isSticky)}
+                    className="w-full justify-start text-muted-foreground"
+                    onClick={() => {
+                      toast.error('Please log in to report posts');
+                      setShowModeratorControls(false);
+                    }}
                     disabled={isLoading}
                   >
-                    {localPost.isSticky ? <PinOff className="w-4 h-4 mr-2" /> : <Pin className="w-4 h-4 mr-2" />}
-                    {localPost.isSticky ? 'Unsticky Post' : 'Sticky Post'}
+                    <Flag className="w-4 h-4 mr-2" />
+                    Report Post (Login Required)
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full justify-start text-destructive hover:text-destructive"
-                    onClick={() => handleModeratorAction('remove', !localPost.isRemoved)}
-                    disabled={isLoading}
-                  >
-                    {localPost.isRemoved ? <RotateCcw className="w-4 h-4 mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
-                    {localPost.isRemoved ? 'Restore Post' : 'Remove Post'}
-                  </Button>
-                </div>
+                )}
+                
+                {/* Moderator Actions */}
+                {isModerator && (
+                  <>
+                    <hr className="my-2 border-border" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start"
+                      onClick={() => handleModeratorAction('lock', !localPost.isLocked)}
+                      disabled={isLoading}
+                    >
+                      {localPost.isLocked ? <Unlock className="w-4 h-4 mr-2" /> : <Lock className="w-4 h-4 mr-2" />}
+                      {localPost.isLocked ? 'Unlock Post' : 'Lock Post'}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start"
+                      onClick={() => handleModeratorAction('sticky', !localPost.isSticky)}
+                      disabled={isLoading}
+                    >
+                      {localPost.isSticky ? <PinOff className="w-4 h-4 mr-2" /> : <Pin className="w-4 h-4 mr-2" />}
+                      {localPost.isSticky ? 'Unsticky Post' : 'Sticky Post'}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start text-destructive hover:text-destructive"
+                      onClick={() => handleModeratorAction('remove', !localPost.isRemoved)}
+                      disabled={isLoading}
+                    >
+                      {localPost.isRemoved ? <RotateCcw className="w-4 h-4 mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                      {localPost.isRemoved ? 'Restore Post' : 'Remove Post'}
+                    </Button>
+                  </>
+                )}
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </div>
       <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
         <span>by {localPost.author.displayName}</span>
@@ -307,12 +369,26 @@ export function PostCard({ post, subforumName }: PostCardProps) {
               <ArrowDown className={`w-4 h-4 ${localPost.userVote === -1 ? 'text-emerald-500' : 'text-muted-foreground'}`} />
             </Button>
           </div>
-                          <Link href={`/${subforumName || `h/${localPost.subforum.name}`}/posts/${localPost.slug}#comments`} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <Link href={`/${subforumName || `h/${localPost.subforum.name}`}/posts/${localPost.slug}#comments`} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
             <MessageSquare className="w-4 h-4" />
             <span>{localPost.commentCount} comments</span>
           </Link>
         </div>
+        
+
       </div>
+      
+      {/* Report Dialog */}
+      <ReportDialog
+        open={showReportDialog}
+        onOpenChange={setShowReportDialog}
+        contentType="post"
+        contentId={localPost.postId}
+        reportedPseudonymId={localPost.author.pseudonymId}
+        contentTitle={localPost.title}
+        contentPreview={localPost.content}
+        reportedUserDisplayName={localPost.author.displayName}
+      />
     </div>
   );
 } 

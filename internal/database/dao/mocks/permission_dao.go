@@ -43,6 +43,12 @@ func (m *MockPermissionDAO) InjectModerationAbility(userID int64, subforumID int
 	m.roles[key] = canModerate
 }
 
+// InjectSubforumCapabilityWithActivePseudonym injects a capability for a user, subforum, and active pseudonym
+func (m *MockPermissionDAO) InjectSubforumCapabilityWithActivePseudonym(userID int64, subforumID int32, capability string, activePseudonymID string, hasCapability bool) {
+	key := fmt.Sprintf("%d-%d-%s-%s", userID, subforumID, capability, activePseudonymID)
+	m.capabilities[key] = hasCapability
+}
+
 // SetDefaultBehavior sets up default mock behavior for common operations
 func (m *MockPermissionDAO) SetDefaultBehavior() {
 	// Default behavior for CanAccessPrivateSubforum
@@ -82,6 +88,17 @@ func (m *MockPermissionDAO) SetDefaultBehavior() {
 	m.On("GetUserSubforumCapabilities", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int32")).Return(
 		func(ctx context.Context, userID int64, subforumID int32) ([]string, error) {
 			return []string{}, nil
+		},
+	)
+
+	// Default behavior for HasSubforumCapabilityWithActivePseudonym
+	m.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int32"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(
+		func(ctx context.Context, userID int64, subforumID int32, capability string, activePseudonymID string) (bool, error) {
+			key := fmt.Sprintf("%d-%d-%s-%s", userID, subforumID, capability, activePseudonymID)
+			if hasCapability, exists := m.capabilities[key]; exists {
+				return hasCapability, nil
+			}
+			return false, nil
 		},
 	)
 }

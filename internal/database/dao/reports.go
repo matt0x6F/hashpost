@@ -69,7 +69,7 @@ func (dao *ReportDAO) GetReportByID(ctx context.Context, reportID int64) (*model
 
 // GetReports retrieves reports with filtering and pagination
 func (dao *ReportDAO) GetReports(ctx context.Context, status string, page, limit int) ([]*models.Report, error) {
-	offset := page * limit
+	offset := (page - 1) * limit
 
 	// Build query with optional status filter
 	var reports []*models.Report
@@ -137,13 +137,18 @@ func (dao *ReportDAO) UpdateReport(ctx context.Context, reportID int64, updates 
 }
 
 // ResolveReport resolves a report with resolution details
-func (dao *ReportDAO) ResolveReport(ctx context.Context, reportID int64, resolverUserID int64, resolverPseudonymID string, resolutionNotes string) error {
+func (dao *ReportDAO) ResolveReport(ctx context.Context, reportID int64, resolverUserID int64, resolverPseudonymID string, resolutionNotes string, action string) error {
 	// Set resolution details
 	now := sql.Null[time.Time]{}
 	now.Scan(time.Now())
 
 	status := sql.Null[string]{}
-	status.Scan("resolved")
+	// Set status based on action
+	if action == "dismiss" {
+		status.Scan("dismissed")
+	} else {
+		status.Scan("resolved")
+	}
 
 	resolvedByUserID := sql.Null[int64]{}
 	resolvedByUserID.Scan(resolverUserID)

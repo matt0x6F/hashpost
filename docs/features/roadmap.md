@@ -163,6 +163,108 @@ This roadmap outlines planned features for HashPost, organized by logical groupi
 
 ---
 
+### Reporting & Moderation System
+**Status**: ✅ **Implemented**  
+**Priority**: High  
+**Dependencies**: User system, authentication system
+
+**Description**: Comprehensive reporting and moderation system with user-friendly workflows and privacy protection.
+
+**Technical Implementation**:
+- ✅ User reporting interface with three-dot menu integration
+- ✅ Report categorization (spam, harassment, misinformation, violations, other)
+- ✅ Anonymous reporting with privacy protection
+- ✅ Report status tracking (pending, investigating, resolved, dismissed)
+- ✅ Moderator dashboard with report management
+- ✅ Report resolution with notes and transparency
+- ✅ Integration with existing user and authentication systems
+
+**Implementation Details**:
+- Database schema with `reports` table supporting multiple content types
+- `ReportDAO` for data access operations
+- `ModerationHandler` for API endpoints
+- Frontend components for reporting and moderation workflows
+- Privacy-focused design with anonymous reporting
+- Comprehensive test coverage
+
+**Dependencies**: User system, authentication system
+
+---
+
+### Advanced Moderation Actions
+**Status**: Partially Implemented  
+**Priority**: Medium  
+**Dependencies**: Reporting & Moderation System
+
+**Description**: Complete implementation of advanced moderation actions including content removal, user banning, and temporary mutes.
+
+**Technical Requirements**:
+- ✅ Content removal API endpoints (posts and comments)
+- ✅ User banning system with permanent and temporary bans
+- ✅ Moderation action logging and audit trails
+- 🔄 Content removal UI integration (backend implemented, frontend needs completion)
+- 🔄 User banning UI integration (backend implemented, frontend needs completion)
+- 🔄 Temporary mute system (backend structure exists, needs full implementation)
+- 🔄 Ban appeal system for users to contest bans
+- 🔄 Moderation action notifications to affected users
+
+**Implementation Steps**:
+1. Complete frontend integration for content removal
+2. Complete frontend integration for user banning
+3. Implement temporary mute functionality
+4. Add ban appeal system
+5. Implement moderation notifications
+6. Add moderation action history tracking
+
+**Dependencies**: Reporting & Moderation System, User system
+
+---
+
+### Subforum Rules & Configuration System
+**Status**: Planning  
+**Priority**: High  
+**Dependencies**: Reporting & Moderation System, Communities system
+
+**Description**: Comprehensive rules system that allows moderators and owners to configure subforum-specific rules, with reporting based on those rules.
+
+**Technical Requirements**:
+- **Rules Configuration Interface**: Web-based interface for moderators/owners to configure rules
+- **Rule Types**: Support for different rule categories (content, behavior, spam, etc.)
+- **Rule Conditions**: Flexible rule conditions and triggers
+- **Rule Actions**: Automated actions based on rule violations
+- **Rule Reporting**: Integration with reporting system to flag violations
+- **Rule Templates**: Pre-built rule templates for common scenarios
+- **Rule History**: Tracking of rule changes and modifications
+- **Rule Permissions**: Different permission levels for rule management
+
+**Implementation Steps**:
+1. Design rules database schema
+2. Create rules configuration API endpoints
+3. Build rules configuration UI for moderators/owners
+4. Implement rule validation and enforcement system
+5. Integrate rules with reporting system
+6. Add rule-based automated moderation actions
+7. Create rule templates and examples
+8. Implement rule change tracking and audit logs
+
+**Rule Categories**:
+- **Content Rules**: Post/comment content restrictions
+- **Behavior Rules**: User behavior and interaction guidelines
+- **Spam Rules**: Anti-spam and promotional content rules
+- **Safety Rules**: Harassment and safety-related rules
+- **Community Rules**: Subforum-specific guidelines
+
+**Rule Actions**:
+- **Warning**: Send warning to user
+- **Auto-remove**: Automatically remove violating content
+- **Temporary mute**: Temporarily restrict user posting
+- **Report generation**: Create automatic report for review
+- **Notification**: Notify moderators of potential violations
+
+**Dependencies**: Reporting & Moderation System, Communities system, User system
+
+---
+
 ### Direct Messaging System
 **Status**: Implemented  
 **Priority**: Medium  

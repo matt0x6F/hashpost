@@ -42,18 +42,19 @@ func RegisterModerationRoutes(api huma.API, reportDAO *dao.ReportDAO, moderation
 		Summary:     "Report content or users",
 		Description: "Report content or users for moderation review",
 		Tags:        []string{"Moderation"},
+		Security:    []map[string][]string{{"jwt": {}}},
 	}, moderationHandler.ReportContent)
 
-	// Get reports (moderators only)
+	// Get reports for specific subforum (moderators only)
 	huma.Register(api, huma.Operation{
-		OperationID: "get-reports",
+		OperationID: "get-subforum-reports",
 		Method:      http.MethodGet,
-		Path:        "/moderation/reports",
-		Summary:     "Get reports for moderation review",
-		Description: "Get reports for moderation review (moderators only)",
+		Path:        "/moderation/{subforum_path}/reports",
+		Summary:     "Get reports for specific subforum",
+		Description: "Get reports for moderation review for a specific subforum (moderators only)",
 		Tags:        []string{"Moderation"},
 		Security:    []map[string][]string{{"jwt": {}}},
-	}, moderationHandler.GetReports)
+	}, moderationHandler.GetSubforumReports)
 
 	// Remove content (moderators only)
 	huma.Register(api, huma.Operation{
@@ -76,6 +77,17 @@ func RegisterModerationRoutes(api huma.API, reportDAO *dao.ReportDAO, moderation
 		Tags:        []string{"Moderation"},
 		Security:    []map[string][]string{{"jwt": {}}},
 	}, moderationHandler.BanUser)
+
+	// Resolve report (moderators only)
+	huma.Register(api, huma.Operation{
+		OperationID: "resolve-report",
+		Method:      http.MethodPost,
+		Path:        "/moderation/reports/{report_id}/resolve",
+		Summary:     "Resolve a report",
+		Description: "Resolve or dismiss a report (moderators only)",
+		Tags:        []string{"Moderation"},
+		Security:    []map[string][]string{{"jwt": {}}},
+	}, moderationHandler.ResolveReport)
 
 	// Get moderation history (moderators only)
 	huma.Register(api, huma.Operation{

@@ -13,6 +13,7 @@ import { COMMUNITY_CONFIG, type CommunityType } from '@/lib/community-config';
 import { useAuth } from '@/lib/auth-context';
 import { authenticateUserForSubforum } from '@/lib/auth-utils';
 import { toast } from 'sonner';
+import Link from 'next/link';
 import {
   NavigationMenu,
   NavigationMenuContent,
@@ -115,8 +116,9 @@ export default function SubforumModerationPage() {
                 <div className="p-4 w-48">
                   <div className="text-sm font-medium mb-2">Report Management</div>
                   <div className="space-y-1 text-sm text-muted-foreground">
-                    <div className="p-2 hover:bg-accent rounded cursor-pointer">Pending Reports</div>
-                    <div className="p-2 hover:bg-accent rounded cursor-pointer">Resolved Reports</div>
+                    <Link href={`/${fullSubforumPath}/moderation/reports`}>
+                      <div className="p-2 hover:bg-accent rounded cursor-pointer">View All Reports</div>
+                    </Link>
                     <div className="p-2 hover:bg-accent rounded cursor-pointer">Report Settings</div>
                   </div>
                 </div>
@@ -183,10 +185,12 @@ export default function SubforumModerationPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Button variant="outline" className="justify-start">
-                <Flag className="w-4 h-4 mr-2" />
-                Review Reports
-              </Button>
+              <Link href={`/${fullSubforumPath}/moderation/reports`}>
+                <Button variant="outline" className="justify-start w-full">
+                  <Flag className="w-4 h-4 mr-2" />
+                  Review Reports
+                </Button>
+              </Link>
               <Button variant="outline" className="justify-start">
                 <Users className="w-4 h-4 mr-2" />
                 Manage Bans

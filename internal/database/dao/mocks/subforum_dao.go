@@ -3,6 +3,7 @@ package mocks
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/stretchr/testify/mock"
@@ -63,9 +64,13 @@ func (m *MockSubforumDAO) SetDefaultBehavior() {
 	// Default behavior for GetSubforumByName
 	m.On("GetSubforumByName", mock.Anything, mock.AnythingOfType("string")).Return(
 		func(ctx context.Context, name string) (*models.Subforum, error) {
+			fmt.Printf("DEBUG: Mock GetSubforumByName called with name: %s\n", name)
+			fmt.Printf("DEBUG: Available subforums by name: %v\n", m.subforumsByName)
 			if subforum, exists := m.subforumsByName[name]; exists {
+				fmt.Printf("DEBUG: Found subforum: %s\n", subforum.Name)
 				return subforum, nil
 			}
+			fmt.Printf("DEBUG: Subforum not found for name: %s\n", name)
 			return nil, sql.ErrNoRows
 		},
 	)

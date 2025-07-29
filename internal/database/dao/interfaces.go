@@ -192,7 +192,7 @@ type ReportDAOInterface interface {
 	GetReports(ctx context.Context, status string, page, limit int) ([]*models.Report, error)
 	CountReports(ctx context.Context, status string) (int64, error)
 	UpdateReport(ctx context.Context, reportID int64, updates *models.ReportSetter) error
-	ResolveReport(ctx context.Context, reportID int64, resolverUserID int64, resolverPseudonymID string, resolutionNotes string) error
+	ResolveReport(ctx context.Context, reportID int64, resolverUserID int64, resolverPseudonymID string, resolutionNotes string, action string) error
 	// Moderation dashboard methods
 	GetPendingReportsCount(ctx context.Context, subforumPath string) (int, error)
 }

@@ -172,11 +172,60 @@ func (h *ModerationHandler) parseSubforumPath(fullPath string) (communityType, s
 	return "h", fullPath, nil
 }
 
-// validateModeratorPermissions validates that the user has moderator permissions (legacy method)
+// validateModeratorPermissions validates that the user has moderator permissions using unified permissions
 func (h *ModerationHandler) validateModeratorPermissions(userCtx *middleware.UserContext) error {
-	if !userCtx.HasCapability("moderate_content") {
-		return fmt.Errorf("user does not have moderation permissions")
+	log.Info().
+		Int("user_id", int(userCtx.UserID)).
+		Str("active_pseudonym_id", userCtx.ActivePseudonymID).
+		Msg("Validating moderator permissions using unified system")
+
+	// For global moderation endpoints, check platform-wide capabilities
+	// Get the unified roles and capabilities without a specific subforum
+	_, capabilities, err := h.permissionDAO.GetUnifiedActivePseudonymRolesAndCapabilities(
+		context.Background(),
+		userCtx.UserID,
+		userCtx.ActivePseudonymID,
+		nil, // No specific subforum for global moderation
+	)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to get unified capabilities")
+		return huma.Error500InternalServerError("Failed to validate permissions")
 	}
+
+	// Check for platform-wide moderation capabilities
+	hasModerateContent := false
+	hasSystemModeration := false
+
+	for _, cap := range capabilities {
+		if cap == "moderate_content" {
+			hasModerateContent = true
+		}
+		if cap == "system_moderation" {
+			hasSystemModeration = true
+		}
+	}
+
+	log.Info().
+		Int("user_id", int(userCtx.UserID)).
+		Str("active_pseudonym_id", userCtx.ActivePseudonymID).
+		Strs("capabilities", capabilities).
+		Bool("has_moderate_content", hasModerateContent).
+		Bool("has_system_moderation", hasSystemModeration).
+		Msg("Platform-wide capability check")
+
+	if !hasModerateContent && !hasSystemModeration {
+		log.Error().
+			Int("user_id", int(userCtx.UserID)).
+			Str("active_pseudonym_id", userCtx.ActivePseudonymID).
+			Strs("capabilities", capabilities).
+			Msg("User lacks platform-wide moderation permissions")
+		return huma.Error403Forbidden("user does not have moderation permissions")
+	}
+
+	log.Info().
+		Int("user_id", int(userCtx.UserID)).
+		Str("active_pseudonym_id", userCtx.ActivePseudonymID).
+		Msg("User has platform-wide moderation permissions")
 	return nil
 }
 
@@ -299,10 +348,20 @@ func (h *ModerationHandler) parseActionDetails(actionDetails sql.Null[types.JSON
 
 // loadRelatedData loads related data for reports and moderation actions
 func (h *ModerationHandler) loadRelatedData(ctx context.Context, report *dbmodels.Report) (*apimodels.Report, error) {
+	log.Info().
+		Int("report_id", int(report.ReportID)).
+		Str("reporter_pseudonym_id", report.ReporterPseudonymID).
+		Msg("Loading related data for report")
+
 	// Load reporter pseudonym
 	reporterPseudonym, err := h.securePseudonymDAO.GetPseudonymByID(ctx, report.ReporterPseudonymID)
 	if err != nil {
 		log.Error().Err(err).Str("pseudonym_id", report.ReporterPseudonymID).Msg("Failed to load reporter pseudonym")
+	} else {
+		log.Info().
+			Str("pseudonym_id", report.ReporterPseudonymID).
+			Str("display_name", reporterPseudonym.DisplayName).
+			Msg("Successfully loaded reporter pseudonym")
 	}
 
 	// Load reported pseudonym if available
@@ -353,16 +412,42 @@ func (h *ModerationHandler) loadRelatedData(ctx context.Context, report *dbmodel
 		}
 	}
 
+	// Set resolution information if report is resolved or dismissed
+	if report.Status.V == "resolved" || report.Status.V == "dismissed" {
+		if report.ResolutionNotes.Valid {
+			apiReport.ResolutionNotes = report.ResolutionNotes.V
+		}
+
+		if report.ResolvedAt.Valid {
+			apiReport.ResolvedAt = report.ResolvedAt.V.Format(time.RFC3339)
+		}
+
+		if report.ResolvedByPseudonymID.Valid {
+			// Load resolver pseudonym
+			resolverPseudonym, err := h.securePseudonymDAO.GetPseudonymByID(ctx, report.ResolvedByPseudonymID.V)
+			if err == nil && resolverPseudonym != nil {
+				resolvedBy := apimodels.ResolvedBy{
+					PseudonymID: resolverPseudonym.PseudonymID,
+					DisplayName: resolverPseudonym.DisplayName,
+				}
+				apiReport.ResolvedBy = &resolvedBy
+			}
+		}
+	}
+
 	return &apiReport, nil
 }
 
 // ReportContent handles reporting content or users
-func (h *ModerationHandler) ReportContent(ctx context.Context, input *apimodels.ReportInput) (*apimodels.ReportResponse, error) {
-	// Extract user from context
-	userCtx, err := h.extractUserFromContext(ctx)
+func (h *ModerationHandler) ReportContent(ctx context.Context, input *struct {
+	middleware.AuthInput
+	apimodels.ReportInput
+}) (*apimodels.ReportResponse, error) {
+	// Extract user from input
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to extract user from context")
-		return nil, fmt.Errorf("authentication required")
+		log.Error().Err(err).Msg("Failed to extract user from input")
+		return nil, huma.Error401Unauthorized("Authentication required")
 	}
 
 	log.Info().
@@ -425,29 +510,56 @@ func (h *ModerationHandler) ReportContent(ctx context.Context, input *apimodels.
 	return response, nil
 }
 
-// GetReports handles getting reports for moderation review
-func (h *ModerationHandler) GetReports(ctx context.Context, input *apimodels.ReportsListInput) (*apimodels.ReportsListResponse, error) {
-	// Extract moderator from context
-	userCtx, err := h.extractUserFromContext(ctx)
+// GetSubforumReports handles getting reports for a specific subforum
+func (h *ModerationHandler) GetSubforumReports(ctx context.Context, input *struct {
+	middleware.AuthInput
+	SubforumPath string `path:"subforum_path" example:"b/hashpost"`
+	Status       string `query:"status" example:"pending"`
+	Page         int    `query:"page" example:"1"`
+	Limit        int    `query:"limit" example:"25"`
+}) (*apimodels.ReportsListResponse, error) {
+	// Extract moderator from input
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to extract user from context")
-		return nil, fmt.Errorf("authentication required")
+		log.Error().Err(err).Msg("Failed to extract user from input")
+		return nil, huma.Error401Unauthorized("Authentication required")
 	}
 
-	// Validate moderator permissions
-	if err := h.validateModeratorPermissions(userCtx); err != nil {
-		log.Error().Err(err).Int("user_id", int(userCtx.UserID)).Msg("User lacks moderation permissions")
-		return nil, fmt.Errorf("insufficient permissions: %w", err)
+	// Parse subforum path
+	_, subforumName, err := h.parseSubforumPath(input.SubforumPath)
+	if err != nil {
+		log.Error().Err(err).Str("subforum_path", input.SubforumPath).Msg("Failed to parse subforum path")
+		return nil, huma.Error400BadRequest("Invalid subforum path")
+	}
+
+	// Get subforum
+	log.Info().Str("subforum_name", subforumName).Msg("Calling GetSubforumByName")
+	subforum, err := h.subforumDAO.GetSubforumByName(ctx, subforumName)
+	if err != nil {
+		log.Error().Err(err).Str("subforum_name", subforumName).Msg("Failed to get subforum")
+		return nil, huma.Error404NotFound("Subforum not found")
+	}
+	if subforum == nil {
+		log.Error().Str("subforum_name", subforumName).Msg("Subforum is nil")
+		return nil, huma.Error404NotFound("Subforum not found")
+	}
+	log.Info().Str("subforum_name", subforumName).Str("found_name", subforum.Name).Msg("Successfully retrieved subforum")
+
+	// Validate moderator permissions for this specific subforum
+	if err := h.validateModeratorPermissionsForSubforum(ctx, userCtx, input.SubforumPath); err != nil {
+		log.Error().Err(err).Int("user_id", int(userCtx.UserID)).Str("subforum_path", input.SubforumPath).Msg("User lacks moderation permissions for subforum")
+		return nil, huma.Error403Forbidden("Insufficient permissions for this subforum")
 	}
 
 	log.Info().
-		Str("endpoint", "moderation/reports").
+		Str("endpoint", "moderation/subforum/reports").
 		Str("component", "handler").
 		Int("moderator_id", int(userCtx.UserID)).
+		Str("subforum_path", input.SubforumPath).
 		Str("status", input.Status).
-		Msg("Get reports requested")
+		Msg("Get subforum reports requested")
 
-	// Get reports from database
+	// Get reports from database (same as global endpoint for now)
 	page := input.Page
 	if page <= 0 {
 		page = 1
@@ -457,11 +569,21 @@ func (h *ModerationHandler) GetReports(ctx context.Context, input *apimodels.Rep
 		limit = 25
 	}
 
+	log.Info().
+		Str("status", input.Status).
+		Int("page", page).
+		Int("limit", limit).
+		Msg("Querying reports from database")
+
 	reports, err := h.reportDAO.GetReports(ctx, input.Status, page, limit)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to get reports")
 		return nil, err
 	}
+
+	log.Info().
+		Int("reports_count", len(reports)).
+		Msg("Retrieved reports from database")
 
 	// Get total count
 	total, err := h.reportDAO.CountReports(ctx, input.Status)
@@ -473,6 +595,14 @@ func (h *ModerationHandler) GetReports(ctx context.Context, input *apimodels.Rep
 	// Convert database models to API models with related data
 	apiReports := make([]apimodels.Report, len(reports))
 	for i, report := range reports {
+		log.Info().
+			Int("report_id", int(report.ReportID)).
+			Str("content_type", report.ContentType).
+			Str("report_reason", report.ReportReason).
+			Str("status", report.Status.V).
+			Str("reporter_pseudonym_id", report.ReporterPseudonymID).
+			Msg("Processing report")
+
 		apiReport, err := h.loadRelatedData(ctx, report)
 		if err != nil {
 			log.Error().Err(err).Int("report_id", int(report.ReportID)).Msg("Failed to load related data")
@@ -492,12 +622,13 @@ func (h *ModerationHandler) GetReports(ctx context.Context, input *apimodels.Rep
 	response := apimodels.NewReportsListResponse(apiReports, page, limit, int(total))
 
 	log.Info().
-		Str("endpoint", "moderation/reports").
+		Str("endpoint", "moderation/subforum/reports").
 		Str("component", "handler").
 		Int("moderator_id", int(userCtx.UserID)).
+		Str("subforum_path", input.SubforumPath).
 		Int("count", len(reports)).
 		Int("total", int(total)).
-		Msg("Get reports completed")
+		Msg("Get subforum reports completed")
 
 	return response, nil
 }
@@ -669,6 +800,95 @@ func (h *ModerationHandler) BanUser(ctx context.Context, input *apimodels.UserBa
 		Int("ban_id", int(ban.BanID)).
 		Str("pseudonym_id", input.PseudonymID).
 		Msg("Ban user completed")
+
+	return response, nil
+}
+
+// ResolveReport handles resolving or dismissing a report
+func (h *ModerationHandler) ResolveReport(ctx context.Context, input *struct {
+	middleware.AuthInput
+	ReportID int `path:"report_id" example:"123"`
+	apimodels.ReportResolutionInput
+}) (*apimodels.ReportResolutionResponse, error) {
+	// Extract moderator from input
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to extract user from input")
+		return nil, huma.Error401Unauthorized("Authentication required")
+	}
+
+	// Validate moderator permissions
+	if err := h.validateModeratorPermissions(userCtx); err != nil {
+		log.Error().Err(err).Int("user_id", int(userCtx.UserID)).Msg("User lacks moderation permissions")
+		return nil, huma.Error403Forbidden("Insufficient permissions")
+	}
+
+	log.Info().
+		Str("endpoint", "moderation/reports/resolve").
+		Str("component", "handler").
+		Int("moderator_id", int(userCtx.UserID)).
+		Int("report_id", input.ReportID).
+		Str("action", input.Body.Action).
+		Msg("Resolve report requested")
+
+	// Get the report to validate it exists and is pending
+	report, err := h.reportDAO.GetReportByID(ctx, int64(input.ReportID))
+	if err != nil {
+		log.Error().Err(err).Int("report_id", input.ReportID).Msg("Failed to get report")
+		return nil, huma.Error404NotFound("Report not found")
+	}
+	if report == nil {
+		return nil, huma.Error404NotFound("Report not found")
+	}
+
+	// Check if report is still pending
+	if report.Status.V != "pending" {
+		return nil, huma.Error400BadRequest("Report is not pending")
+	}
+
+	// Resolve the report
+	err = h.reportDAO.ResolveReport(ctx, int64(input.ReportID), userCtx.UserID, userCtx.ActivePseudonymID, input.Body.Notes, input.Body.Action)
+	if err != nil {
+		log.Error().Err(err).Int("report_id", input.ReportID).Msg("Failed to resolve report")
+		return nil, huma.Error500InternalServerError("Failed to resolve report")
+	}
+
+	// Create moderation action record
+	actionDetails := map[string]interface{}{
+		"resolution_action": input.Body.Action,
+		"resolution_notes":  input.Body.Notes,
+		"report_id":         input.ReportID,
+	}
+
+	actionDetailsJSON, err := json.Marshal(actionDetails)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to marshal action details")
+		return nil, huma.Error500InternalServerError("Failed to create action details")
+	}
+
+	actionSetter := &dbmodels.ModerationActionSetter{
+		ModeratorUserID:      &userCtx.UserID,
+		ModeratorPseudonymID: &userCtx.ActivePseudonymID,
+		ActionType:           &[]string{"resolve_report"}[0],
+		ActionDetails:        &sql.Null[types.JSON[json.RawMessage]]{V: types.NewJSON[json.RawMessage](actionDetailsJSON), Valid: true},
+		CreatedAt:            &sql.Null[time.Time]{V: time.Now(), Valid: true},
+	}
+
+	_, err = h.moderationActionDAO.CreateModerationAction(ctx, actionSetter)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to create moderation action")
+		// Don't fail the request if action logging fails
+	}
+
+	response := apimodels.NewReportResolutionResponse(input.ReportID, input.Body.Action, input.Body.Notes, userCtx.ActivePseudonymID, userCtx.DisplayName)
+
+	log.Info().
+		Str("endpoint", "moderation/reports/resolve").
+		Str("component", "handler").
+		Int("moderator_id", int(userCtx.UserID)).
+		Int("report_id", input.ReportID).
+		Str("action", input.Body.Action).
+		Msg("Resolve report completed")
 
 	return response, nil
 }
