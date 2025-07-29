@@ -23,7 +23,7 @@ import (
 	"golang.org/x/term"
 )
 
-// AdminCreateInput defines the input for creating an admin user
+// AdminCreateInput defines the input for creating an admin user.
 type AdminCreateInput struct {
 	Email          string `doc:"Email address for the admin user" json:"email"`
 	Password       string `doc:"Password for the admin user" json:"password"`
@@ -116,23 +116,35 @@ func CreateAdminUser() error {
 
 		// Update user with admin-specific fields
 		rolesNull := sql.Null[types.JSON[json.RawMessage]]{}
-		rolesNull.Scan(rolesJSON)
+		if err := rolesNull.Scan(rolesJSON); err != nil {
+			return fmt.Errorf("failed to scan roles: %w", err)
+		}
 
 		capabilitiesNull := sql.Null[types.JSON[json.RawMessage]]{}
-		capabilitiesNull.Scan(capabilitiesJSON)
+		if err := capabilitiesNull.Scan(capabilitiesJSON); err != nil {
+			return fmt.Errorf("failed to scan capabilities: %w", err)
+		}
 
 		adminUsernameNull := sql.Null[string]{}
-		adminUsernameNull.Scan(adminUsername)
+		if err := adminUsernameNull.Scan(adminUsername); err != nil {
+			return fmt.Errorf("failed to scan admin username: %w", err)
+		}
 
 		adminPasswordHashNull := sql.Null[string]{}
-		adminPasswordHashNull.Scan(adminPasswordHash)
+		if err := adminPasswordHashNull.Scan(adminPasswordHash); err != nil {
+			return fmt.Errorf("failed to scan admin password hash: %w", err)
+		}
 
 		mfaEnabledNull := sql.Null[bool]{}
-		mfaEnabledNull.Scan(input.MFAEnabled)
+		if err := mfaEnabledNull.Scan(input.MFAEnabled); err != nil {
+			return fmt.Errorf("failed to scan MFA enabled: %w", err)
+		}
 
 		adminScopeNull := sql.Null[string]{}
 		if input.AdminScope != "" {
-			adminScopeNull.Scan(input.AdminScope)
+			if err := adminScopeNull.Scan(input.AdminScope); err != nil {
+				return fmt.Errorf("failed to scan admin scope: %w", err)
+			}
 		}
 
 		updates := &models.UserSetter{
@@ -186,23 +198,35 @@ func CreateAdminUser() error {
 
 		// Update user with admin-specific fields
 		rolesNull := sql.Null[types.JSON[json.RawMessage]]{}
-		rolesNull.Scan(rolesJSON)
+		if err := rolesNull.Scan(rolesJSON); err != nil {
+			return fmt.Errorf("failed to scan roles: %w", err)
+		}
 
 		capabilitiesNull := sql.Null[types.JSON[json.RawMessage]]{}
-		capabilitiesNull.Scan(capabilitiesJSON)
+		if err := capabilitiesNull.Scan(capabilitiesJSON); err != nil {
+			return fmt.Errorf("failed to scan capabilities: %w", err)
+		}
 
 		adminUsernameNull := sql.Null[string]{}
-		adminUsernameNull.Scan(adminUsername)
+		if err := adminUsernameNull.Scan(adminUsername); err != nil {
+			return fmt.Errorf("failed to scan admin username: %w", err)
+		}
 
 		adminPasswordHashNull := sql.Null[string]{}
-		adminPasswordHashNull.Scan(adminPasswordHash)
+		if err := adminPasswordHashNull.Scan(adminPasswordHash); err != nil {
+			return fmt.Errorf("failed to scan admin password hash: %w", err)
+		}
 
 		mfaEnabledNull := sql.Null[bool]{}
-		mfaEnabledNull.Scan(input.MFAEnabled)
+		if err := mfaEnabledNull.Scan(input.MFAEnabled); err != nil {
+			return fmt.Errorf("failed to scan MFA enabled: %w", err)
+		}
 
 		adminScopeNull := sql.Null[string]{}
 		if input.AdminScope != "" {
-			adminScopeNull.Scan(input.AdminScope)
+			if err := adminScopeNull.Scan(input.AdminScope); err != nil {
+				return fmt.Errorf("failed to scan admin scope: %w", err)
+			}
 		}
 
 		updates := &models.UserSetter{
@@ -262,7 +286,9 @@ func CreateAdminUser() error {
 		}
 
 		capabilitiesNull := sql.Null[types.JSON[json.RawMessage]]{}
-		capabilitiesNull.Scan(capabilitiesJSON)
+		if err := capabilitiesNull.Scan(capabilitiesJSON); err != nil {
+			return fmt.Errorf("failed to scan capabilities: %w", err)
+		}
 
 		// Update the pseudonym with admin capabilities
 		pseudonymUpdates := &models.PseudonymSetter{
@@ -399,7 +425,9 @@ func getAdminCreateInput() *AdminCreateInput {
 	cmd.Flags().Bool("non-interactive", false, "")
 
 	// Parse flags from os.Args
-	cmd.ParseFlags(os.Args[1:])
+	if err := cmd.ParseFlags(os.Args[1:]); err != nil {
+		log.Fatal().Err(err).Msg("failed to parse flags")
+	}
 
 	nonInteractive, _ := cmd.Flags().GetBool("non-interactive")
 
@@ -436,7 +464,9 @@ func getAdminCreateInput() *AdminCreateInput {
 	fmt.Println("=================")
 
 	fmt.Print("Email: ")
-	fmt.Scanln(&input.Email)
+	if _, err := fmt.Scanln(&input.Email); err != nil {
+		log.Fatal().Err(err).Msg("failed to read email")
+	}
 
 	// Get password with hidden input
 	input.Password = getPasswordInput("Password: ")
@@ -448,26 +478,34 @@ func getAdminCreateInput() *AdminCreateInput {
 	}
 
 	fmt.Print("Display Name (required, cannot be email): ")
-	fmt.Scanln(&input.DisplayName)
+	if _, err := fmt.Scanln(&input.DisplayName); err != nil {
+		log.Fatal().Err(err).Msg("failed to read display name")
+	}
 	if strings.TrimSpace(input.DisplayName) == "" {
 		log.Fatal().Msg("display name is required")
 	}
-	if strings.ToLower(strings.TrimSpace(input.DisplayName)) == strings.ToLower(strings.TrimSpace(input.Email)) {
+	if strings.EqualFold(strings.TrimSpace(input.DisplayName), strings.TrimSpace(input.Email)) {
 		log.Fatal().Msg("display name cannot be the same as email address")
 	}
 
 	fmt.Print("Admin Role (platform_admin, trust_safety, legal_team) [platform_admin]: ")
-	fmt.Scanln(&input.AdminRole)
+	if _, err := fmt.Scanln(&input.AdminRole); err != nil {
+		log.Fatal().Err(err).Msg("failed to read admin role")
+	}
 	if input.AdminRole == "" {
 		input.AdminRole = "platform_admin"
 	}
 
 	fmt.Print("Admin Scope (optional): ")
-	fmt.Scanln(&input.AdminScope)
+	if _, err := fmt.Scanln(&input.AdminScope); err != nil {
+		log.Fatal().Err(err).Msg("failed to read admin scope")
+	}
 
 	fmt.Print("Enable MFA (y/n) [y]: ")
 	var mfaInput string
-	fmt.Scanln(&mfaInput)
+	if _, err := fmt.Scanln(&mfaInput); err != nil {
+		log.Fatal().Err(err).Msg("failed to read MFA input")
+	}
 	input.MFAEnabled = mfaInput != "n" && mfaInput != "N"
 
 	return input
@@ -484,7 +522,9 @@ func getSetModeratorInput() *SetModeratorInput {
 	cmd.Flags().Bool("non-interactive", false, "")
 
 	// Parse flags from os.Args
-	cmd.ParseFlags(os.Args[1:])
+	if err := cmd.ParseFlags(os.Args[1:]); err != nil {
+		log.Fatal().Err(err).Msg("failed to parse flags")
+	}
 
 	nonInteractive, _ := cmd.Flags().GetBool("non-interactive")
 
@@ -509,10 +549,14 @@ func getSetModeratorInput() *SetModeratorInput {
 	fmt.Println("===================")
 
 	fmt.Print("Subforum Name: ")
-	fmt.Scanln(&input.SubforumName)
+	if _, err := fmt.Scanln(&input.SubforumName); err != nil {
+		log.Fatal().Err(err).Msg("failed to read subforum name")
+	}
 
 	fmt.Print("Pseudonym ID: ")
-	fmt.Scanln(&input.PseudonymID)
+	if _, err := fmt.Scanln(&input.PseudonymID); err != nil {
+		log.Fatal().Err(err).Msg("failed to read pseudonym ID")
+	}
 
 	return input
 }
@@ -559,7 +603,7 @@ func validateAdminInput(input *AdminCreateInput) error {
 	}
 
 	// Prevent using email as display name
-	if strings.ToLower(strings.TrimSpace(input.DisplayName)) == strings.ToLower(strings.TrimSpace(input.Email)) {
+	if strings.EqualFold(strings.TrimSpace(input.DisplayName), strings.TrimSpace(input.Email)) {
 		return fmt.Errorf("display name cannot be the same as email address")
 	}
 

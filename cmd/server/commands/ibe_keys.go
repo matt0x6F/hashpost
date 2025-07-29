@@ -346,15 +346,31 @@ func parseDuration(s string) (time.Duration, error) {
 
 	switch {
 	case strings.HasSuffix(s, "h"):
-		return time.ParseDuration(s)
+		duration, err := time.ParseDuration(s)
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse duration '%s': %w", s, err)
+		}
+		return duration, nil
 	case strings.HasSuffix(s, "d"):
 		days := strings.TrimSuffix(s, "d")
-		return time.ParseDuration(days + "h")
+		duration, err := time.ParseDuration(days + "h")
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse duration '%s': %w", s, err)
+		}
+		return duration, nil
 	case strings.HasSuffix(s, "w"):
 		weeks := strings.TrimSuffix(s, "w")
-		return time.ParseDuration(weeks + "h")
+		duration, err := time.ParseDuration(weeks + "h")
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse duration '%s': %w", s, err)
+		}
+		return duration, nil
 	default:
-		return time.ParseDuration(s)
+		duration, err := time.ParseDuration(s)
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse duration '%s': %w", s, err)
+		}
+		return duration, nil
 	}
 }
 
