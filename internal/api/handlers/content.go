@@ -1504,47 +1504,6 @@ func (h *ContentHandler) convertDBPostToAPIPost(ctx context.Context, dbPost *dbm
 	return apiPost
 }
 
-// convertDBCommentToAPIComment converts a database comment to an API comment model
-func (h *ContentHandler) convertDBCommentToAPIComment(ctx context.Context, dbComment *dbmodels.Comment) models.Comment {
-	displayName := "Unknown"
-	if dbComment.R.Pseudonym != nil {
-		displayName = dbComment.R.Pseudonym.DisplayName
-	}
-
-	userVote := 0
-	userCtx, err := middleware.ExtractUserFromContext(ctx)
-	if err != nil || userCtx == nil {
-		log.Warn().Msg("User context missing in convertDBCommentToAPIComment")
-	} else {
-		log.Info().Str("pseudonym_id", userCtx.ActivePseudonymID).Msg("User context found in convertDBCommentToAPIComment")
-		vote, err := h.voteDAO.GetVoteByPseudonymAndContent(ctx, userCtx.ActivePseudonymID, "comment", dbComment.CommentID)
-		if err == nil && vote != nil {
-			userVote = int(vote.VoteValue)
-		}
-	}
-
-	var parentCommentID *int
-	if dbComment.ParentCommentID.Valid {
-		parentID := int(dbComment.ParentCommentID.V)
-		parentCommentID = &parentID
-	}
-
-	apiComment := models.Comment{
-		CommentID:       int(dbComment.CommentID),
-		Content:         dbComment.Content,
-		ParentCommentID: parentCommentID,
-		Score:           int(dbComment.Score.V),
-		CreatedAt:       dbComment.CreatedAt.V.Format("2006-01-02T15:04:05Z"),
-		UserVote:        userVote,
-		Replies:         []models.Comment{},
-	}
-
-	apiComment.Author.PseudonymID = dbComment.PseudonymID
-	apiComment.Author.DisplayName = displayName
-
-	return apiComment
-}
-
 // convertDBCommentToAPICommentWithReplies converts a database comment to an API comment model with nested replies
 func (h *ContentHandler) convertDBCommentToAPICommentWithReplies(ctx context.Context, dbComment *dbmodels.Comment) models.Comment {
 	displayName := "Unknown"

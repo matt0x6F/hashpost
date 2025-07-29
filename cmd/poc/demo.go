@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
 	"fmt"
 	"time"
 
@@ -262,10 +261,4 @@ func (demo *Demo) showAuditTrail() {
 		fmt.Printf("    Legal Basis: %s\n", audit.LegalBasis)
 		fmt.Println()
 	}
-}
-
-// generateUserSecret creates a deterministic user secret for demo purposes
-func generateUserSecret(email string) []byte {
-	hash := sha256.Sum256([]byte(email))
-	return hash[:]
 }

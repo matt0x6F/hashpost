@@ -667,14 +667,6 @@ func (h *RulesHandler) extractUserFromContext(ctx context.Context) (*middleware.
 	return userCtx, nil
 }
 
-func (h *RulesHandler) validateModeratorPermissions(userCtx *middleware.UserContext) error {
-	// Check if user has moderation capabilities
-	if !userCtx.HasCapability("moderate_content") {
-		return fmt.Errorf("moderation permissions required")
-	}
-	return nil
-}
-
 func (h *RulesHandler) validateModeratorPermissionsForSubforum(ctx context.Context, userCtx *middleware.UserContext, subforumPath string) error {
 	// This is a simplified check - in practice you'd need to validate
 	// that the user has moderation permissions for the specific subforum

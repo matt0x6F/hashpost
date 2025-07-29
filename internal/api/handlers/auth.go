@@ -1093,19 +1093,6 @@ func contains(slice []string, item string) bool {
 	return false
 }
 
-// removeDuplicates removes duplicate strings from a slice
-func removeDuplicates(slice []string) []string {
-	seen := make(map[string]struct{})
-	var result []string
-	for _, item := range slice {
-		if _, ok := seen[item]; !ok {
-			result = append(result, item)
-			seen[item] = struct{}{}
-		}
-	}
-	return result
-}
-
 // parseSubforumName parses a full subforum name (e.g., "t/subforum-name") into community type and name
 func (h *AuthHandler) parseSubforumName(fullName string) (communityType, subforumName string, err error) {
 	// Handle different formats:

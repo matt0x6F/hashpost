@@ -304,19 +304,6 @@ func saveIBEConfiguration(ibeSystem *ibe.IBESystem, outputDir string) error {
 
 // Helper functions
 
-func parseDomains(domainsStr string) []string {
-	if domainsStr == "" {
-		return []string{
-			ibe.DOMAIN_USER_PSEUDONYMS,
-			ibe.DOMAIN_USER_CORRELATION,
-			ibe.DOMAIN_MOD_CORRELATION,
-			ibe.DOMAIN_ADMIN_CORRELATION,
-			ibe.DOMAIN_LEGAL_CORRELATION,
-		}
-	}
-	return strings.Split(domainsStr, ",")
-}
-
 func parseTimeWindows(timeWindowsStr string) []time.Duration {
 	if timeWindowsStr == "" {
 		return []time.Duration{
@@ -393,8 +380,4 @@ func saveKeyToFile(key []byte, path string) error {
 
 func saveStringToFile(content string, path string) error {
 	return os.WriteFile(path, []byte(content), 0644)
-}
-
-func loadMasterSecretFromFile(path string) ([]byte, error) {
-	return os.ReadFile(path)
 }
