@@ -16,7 +16,6 @@ import (
 	"github.com/matt0x6f/hashpost/internal/ibe"
 	"github.com/stephenafamo/bob"
 	"github.com/stephenafamo/bob/types"
-	"github.com/stephenafamo/scan"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -668,31 +667,3 @@ func TestNewCorrelationHandler(t *testing.T) {
 		assert.NotNil(t, handler)
 	})
 }
-
-// simpleMockDB implements bob.Executor for testing
-type simpleMockDB struct{}
-
-func (m *simpleMockDB) QueryContext(ctx context.Context, query string, args ...any) (scan.Rows, error) {
-	// Return empty results for audit queries
-	return &simpleMockRows{}, nil
-}
-
-func (m *simpleMockDB) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
-	// Return success for audit record insertion
-	return &simpleMockResult{}, nil
-}
-
-// simpleMockRows implements scan.Rows
-type simpleMockRows struct{}
-
-func (m *simpleMockRows) Next() bool                 { return false }
-func (m *simpleMockRows) Scan(dest ...any) error     { return nil }
-func (m *simpleMockRows) Close() error               { return nil }
-func (m *simpleMockRows) Err() error                 { return nil }
-func (m *simpleMockRows) Columns() ([]string, error) { return []string{}, nil }
-
-// simpleMockResult implements sql.Result
-type simpleMockResult struct{}
-
-func (m *simpleMockResult) LastInsertId() (int64, error) { return 1, nil }
-func (m *simpleMockResult) RowsAffected() (int64, error) { return 1, nil }

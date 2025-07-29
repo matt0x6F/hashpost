@@ -699,8 +699,8 @@ func (h *AuthHandler) GetCurrentUserSession(ctx context.Context, input *middlewa
 		displayName = pseudonyms[0].DisplayName
 	}
 
-	// Get active pseudonym's roles and capabilities
-	activeRoles, activeCapabilities, err := h.permissionDAO.GetActivePseudonymRolesAndCapabilities(ctx, int64(userID), activePseudonymID)
+	// Get active pseudonym's roles and capabilities (global only, no subforum context)
+	activeRoles, activeCapabilities, err := h.permissionDAO.GetUnifiedActivePseudonymRolesAndCapabilities(ctx, int64(userID), activePseudonymID, nil)
 	if err != nil {
 		log.Error().Err(err).Int64("user_id", int64(userID)).Str("active_pseudonym_id", activePseudonymID).Msg("Failed to get active pseudonym roles and capabilities")
 		return nil, fmt.Errorf("failed to get active pseudonym roles and capabilities: %w", err)
@@ -804,7 +804,15 @@ func (h *AuthHandler) GetCurrentUserSessionForSubforum(ctx context.Context, inpu
 				Str("active_pseudonym_id", activePseudonymID).
 				Msg("Checking moderator capabilities for active pseudonym")
 
-			// First, check if the active pseudonym is the owner of this subforum
+			// Use the unified permission system to get roles and capabilities
+			subforumID := &subforum.SubforumID
+			unifiedRoles, unifiedCapabilities, err := h.permissionDAO.GetUnifiedActivePseudonymRolesAndCapabilities(ctx, int64(userID), activePseudonymID, subforumID)
+			if err != nil {
+				log.Error().Err(err).Int64("user_id", int64(userID)).Str("active_pseudonym_id", activePseudonymID).Int32("subforum_id", subforum.SubforumID).Msg("Failed to get unified roles and capabilities")
+				return nil, fmt.Errorf("failed to get unified roles and capabilities: %w", err)
+			}
+
+			// Check if the active pseudonym is the owner of this subforum
 			isOwner := subforum.OwnerPseudonymID.Valid && subforum.OwnerPseudonymID.V == activePseudonymID
 			if isOwner {
 				log.Debug().
@@ -814,77 +822,23 @@ func (h *AuthHandler) GetCurrentUserSessionForSubforum(ctx context.Context, inpu
 					Msg("Found owner record - granting owner and moderator capabilities")
 
 				// Add owner role
-				if !contains(roles, "owner") {
-					roles = append(roles, "owner")
-				}
-
-				// Add moderator role for owners (even if they are platform admins)
-				if !contains(roles, "moderator") {
-					roles = append(roles, "moderator")
+				if !contains(unifiedRoles, "owner") {
+					unifiedRoles = append(unifiedRoles, "owner")
 				}
 
 				// Add owner capabilities (all moderator capabilities plus owner-specific ones)
-				subforumCapabilities = append(subforumCapabilities, "moderate_content", "ban_users", "manage_moderators", "sticky_post", "lock_post")
-			} else {
-				// Check if the active pseudonym is a moderator for this subforum
-				// Use the permission DAO to check moderator status
-				hasModerateContent, err := h.permissionDAO.HasSubforumCapabilityWithActivePseudonym(ctx, int64(userID), subforum.SubforumID, "moderate_content", activePseudonymID)
-				if err == nil && hasModerateContent {
-					log.Debug().
-						Int64("user_id", int64(userID)).
-						Int32("subforum_id", subforum.SubforumID).
-						Str("active_pseudonym_id", activePseudonymID).
-						Msg("Found moderator record")
-
-					// Add moderator role for moderators (even if they are platform admins)
-					if !contains(roles, "moderator") {
-						roles = append(roles, "moderator")
-					}
-
-					// Add moderator capabilities based on what's in the permissions column
-					subforumCapabilities = append(subforumCapabilities, "moderate_content")
-
-					// Check for additional moderator capabilities from permissions column
-					hasBanUsers, _ := h.permissionDAO.HasSubforumCapabilityWithActivePseudonym(ctx, int64(userID), subforum.SubforumID, "ban_users", activePseudonymID)
-					if hasBanUsers {
-						subforumCapabilities = append(subforumCapabilities, "ban_users")
-					}
-
-					hasManageModerators, _ := h.permissionDAO.HasSubforumCapabilityWithActivePseudonym(ctx, int64(userID), subforum.SubforumID, "manage_moderators", activePseudonymID)
-					if hasManageModerators {
-						subforumCapabilities = append(subforumCapabilities, "manage_moderators")
-					}
-
-					hasStickyPost, _ := h.permissionDAO.HasSubforumCapabilityWithActivePseudonym(ctx, int64(userID), subforum.SubforumID, "sticky_post", activePseudonymID)
-					if hasStickyPost {
-						subforumCapabilities = append(subforumCapabilities, "sticky_post")
-					}
-
-					hasLockPost, _ := h.permissionDAO.HasSubforumCapabilityWithActivePseudonym(ctx, int64(userID), subforum.SubforumID, "lock_post", activePseudonymID)
-					if hasLockPost {
-						subforumCapabilities = append(subforumCapabilities, "lock_post")
-					}
-				} else {
-					log.Debug().
-						Int64("user_id", int64(userID)).
-						Int32("subforum_id", subforum.SubforumID).
-						Str("active_pseudonym_id", activePseudonymID).
-						Msg("No moderator record found")
-				}
+				unifiedCapabilities = append(unifiedCapabilities, "moderate_content", "ban_users", "manage_moderators", "sticky_post", "lock_post")
 			}
+
+			// Use the unified roles and capabilities
+			roles = unifiedRoles
+			subforumCapabilities = unifiedCapabilities
 		}
 	}
 
-	// Use roles and capabilities from the user context (JWT token)
-	pseudonymRoles := userCtx.Roles
-	pseudonymCapabilities := userCtx.Capabilities
-
-	// Combine pseudonym roles with subforum-specific roles
-	allRoles := append(pseudonymRoles, roles...)
-	allRoles = removeDuplicates(allRoles)
-
-	// Combine pseudonym capabilities with subforum-specific capabilities
-	allCapabilities := append(pseudonymCapabilities, subforumCapabilities...)
+	// Use the unified roles and capabilities (they already include both global and subforum-specific)
+	allRoles := roles
+	allCapabilities := subforumCapabilities
 
 	// Get user's pseudonyms for the response
 	// Use IBE-based correlation to get user's pseudonyms
@@ -1137,19 +1091,6 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
-}
-
-// removeDuplicates removes duplicate strings from a slice
-func removeDuplicates(slice []string) []string {
-	seen := make(map[string]struct{})
-	var result []string
-	for _, item := range slice {
-		if _, ok := seen[item]; !ok {
-			result = append(result, item)
-			seen[item] = struct{}{}
-		}
-	}
-	return result
 }
 
 // parseSubforumName parses a full subforum name (e.g., "t/subforum-name") into community type and name

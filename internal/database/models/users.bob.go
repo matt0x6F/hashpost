@@ -66,6 +66,7 @@ type userR struct {
 	KeyUsageAudits                 KeyUsageAuditSlice        `scan:"KeyUsageAudits" json:"KeyUsageAudits"`                                 // key_usage_audit.key_usage_audit_user_id_fkey
 	ModeratorUserModerationActions ModerationActionSlice     `scan:"ModeratorUserModerationActions" json:"ModeratorUserModerationActions"` // moderation_actions.moderation_actions_moderator_user_id_fkey
 	TargetUserModerationActions    ModerationActionSlice     `scan:"TargetUserModerationActions" json:"TargetUserModerationActions"`       // moderation_actions.moderation_actions_target_user_id_fkey
+	ForwardedByUserReports         ReportSlice               `scan:"ForwardedByUserReports" json:"ForwardedByUserReports"`                 // reports.fk_reports_forwarded_by
 	ResolvedByUserReports          ReportSlice               `scan:"ResolvedByUserReports" json:"ResolvedByUserReports"`                   // reports.reports_resolved_by_user_id_fkey
 	CreatedByRoleKeys              RoleKeySlice              `scan:"CreatedByRoleKeys" json:"CreatedByRoleKeys"`                           // role_keys.role_keys_created_by_fkey
 	CreatedByUserSubforums         SubforumSlice             `scan:"CreatedByUserSubforums" json:"CreatedByUserSubforums"`                 // subforums.subforums_created_by_user_id_fkey
@@ -851,6 +852,7 @@ type userJoins[Q dialect.Joinable] struct {
 	KeyUsageAudits                 modAs[Q, keyUsageAuditColumns]
 	ModeratorUserModerationActions modAs[Q, moderationActionColumns]
 	TargetUserModerationActions    modAs[Q, moderationActionColumns]
+	ForwardedByUserReports         modAs[Q, reportColumns]
 	ResolvedByUserReports          modAs[Q, reportColumns]
 	CreatedByRoleKeys              modAs[Q, roleKeyColumns]
 	CreatedByUserSubforums         modAs[Q, subforumColumns]
@@ -960,6 +962,20 @@ func buildUserJoins[Q dialect.Joinable](cols userColumns, typ string) userJoins[
 				{
 					mods = append(mods, dialect.Join[Q](typ, ModerationActions.Name().As(to.Alias())).On(
 						to.TargetUserID.EQ(cols.UserID),
+					))
+				}
+
+				return mods
+			},
+		},
+		ForwardedByUserReports: modAs[Q, reportColumns]{
+			c: ReportColumns,
+			f: func(to reportColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, Reports.Name().As(to.Alias())).On(
+						to.ForwardedByUserID.EQ(cols.UserID),
 					))
 				}
 
@@ -1225,6 +1241,27 @@ func (os UserSlice) TargetUserModerationActions(mods ...bob.Mod[*dialect.SelectQ
 
 	return ModerationActions.Query(append(mods,
 		sm.Where(psql.Group(ModerationActionColumns.TargetUserID).OP("IN", PKArgExpr)),
+	)...)
+}
+
+// ForwardedByUserReports starts a query for related objects on reports
+func (o *User) ForwardedByUserReports(mods ...bob.Mod[*dialect.SelectQuery]) ReportsQuery {
+	return Reports.Query(append(mods,
+		sm.Where(ReportColumns.ForwardedByUserID.EQ(psql.Arg(o.UserID))),
+	)...)
+}
+
+func (os UserSlice) ForwardedByUserReports(mods ...bob.Mod[*dialect.SelectQuery]) ReportsQuery {
+	pkUserID := make(pgtypes.Array[int64], len(os))
+	for i, o := range os {
+		pkUserID[i] = o.UserID
+	}
+	PKArgExpr := psql.Select(sm.Columns(
+		psql.F("unnest", psql.Cast(psql.Arg(pkUserID), "bigint[]")),
+	))
+
+	return Reports.Query(append(mods,
+		sm.Where(psql.Group(ReportColumns.ForwardedByUserID).OP("IN", PKArgExpr)),
 	)...)
 }
 
@@ -1500,6 +1537,20 @@ func (o *User) Preload(name string, retrieved any) error {
 			}
 		}
 		return nil
+	case "ForwardedByUserReports":
+		rels, ok := retrieved.(ReportSlice)
+		if !ok {
+			return fmt.Errorf("user cannot load %T as %q", retrieved, name)
+		}
+
+		o.R.ForwardedByUserReports = rels
+
+		for _, rel := range rels {
+			if rel != nil {
+				rel.R.ForwardedByUserUser = o
+			}
+		}
+		return nil
 	case "ResolvedByUserReports":
 		rels, ok := retrieved.(ReportSlice)
 		if !ok {
@@ -1649,6 +1700,7 @@ type userThenLoader[Q orm.Loadable] struct {
 	KeyUsageAudits                 func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	ModeratorUserModerationActions func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	TargetUserModerationActions    func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	ForwardedByUserReports         func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	ResolvedByUserReports          func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	CreatedByRoleKeys              func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	CreatedByUserSubforums         func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
@@ -1680,6 +1732,9 @@ func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
 	}
 	type TargetUserModerationActionsLoadInterface interface {
 		LoadTargetUserModerationActions(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	}
+	type ForwardedByUserReportsLoadInterface interface {
+		LoadForwardedByUserReports(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 	type ResolvedByUserReportsLoadInterface interface {
 		LoadResolvedByUserReports(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
@@ -1747,6 +1802,12 @@ func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
 			"TargetUserModerationActions",
 			func(ctx context.Context, exec bob.Executor, retrieved TargetUserModerationActionsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
 				return retrieved.LoadTargetUserModerationActions(ctx, exec, mods...)
+			},
+		),
+		ForwardedByUserReports: thenLoadBuilder[Q](
+			"ForwardedByUserReports",
+			func(ctx context.Context, exec bob.Executor, retrieved ForwardedByUserReportsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadForwardedByUserReports(ctx, exec, mods...)
 			},
 		),
 		ResolvedByUserReports: thenLoadBuilder[Q](
@@ -2158,6 +2219,58 @@ func (os UserSlice) LoadTargetUserModerationActions(ctx context.Context, exec bo
 			rel.R.TargetUserUser = o
 
 			o.R.TargetUserModerationActions = append(o.R.TargetUserModerationActions, rel)
+		}
+	}
+
+	return nil
+}
+
+// LoadForwardedByUserReports loads the user's ForwardedByUserReports into the .R struct
+func (o *User) LoadForwardedByUserReports(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if o == nil {
+		return nil
+	}
+
+	// Reset the relationship
+	o.R.ForwardedByUserReports = nil
+
+	related, err := o.ForwardedByUserReports(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, rel := range related {
+		rel.R.ForwardedByUserUser = o
+	}
+
+	o.R.ForwardedByUserReports = related
+	return nil
+}
+
+// LoadForwardedByUserReports loads the user's ForwardedByUserReports into the .R struct
+func (os UserSlice) LoadForwardedByUserReports(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if len(os) == 0 {
+		return nil
+	}
+
+	reports, err := os.ForwardedByUserReports(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range os {
+		o.R.ForwardedByUserReports = nil
+	}
+
+	for _, o := range os {
+		for _, rel := range reports {
+			if o.UserID != rel.ForwardedByUserID.V {
+				continue
+			}
+
+			rel.R.ForwardedByUserUser = o
+
+			o.R.ForwardedByUserReports = append(o.R.ForwardedByUserReports, rel)
 		}
 	}
 
@@ -3058,6 +3171,80 @@ func (user0 *User) AttachTargetUserModerationActions(ctx context.Context, exec b
 
 	for _, rel := range related {
 		rel.R.TargetUserUser = user0
+	}
+
+	return nil
+}
+
+func insertUserForwardedByUserReports0(ctx context.Context, exec bob.Executor, reports1 []*ReportSetter, user0 *User) (ReportSlice, error) {
+	for i := range reports1 {
+		reports1[i].ForwardedByUserID = func() *sql.Null[int64] {
+			v := sql.Null[int64]{V: user0.UserID, Valid: true}
+			return &v
+		}()
+	}
+
+	ret, err := Reports.Insert(bob.ToMods(reports1...)).All(ctx, exec)
+	if err != nil {
+		return ret, fmt.Errorf("insertUserForwardedByUserReports0: %w", err)
+	}
+
+	return ret, nil
+}
+
+func attachUserForwardedByUserReports0(ctx context.Context, exec bob.Executor, count int, reports1 ReportSlice, user0 *User) (ReportSlice, error) {
+	setter := &ReportSetter{
+		ForwardedByUserID: func() *sql.Null[int64] {
+			v := sql.Null[int64]{V: user0.UserID, Valid: true}
+			return &v
+		}(),
+	}
+
+	err := reports1.UpdateAll(ctx, exec, *setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachUserForwardedByUserReports0: %w", err)
+	}
+
+	return reports1, nil
+}
+
+func (user0 *User) InsertForwardedByUserReports(ctx context.Context, exec bob.Executor, related ...*ReportSetter) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+
+	reports1, err := insertUserForwardedByUserReports0(ctx, exec, related, user0)
+	if err != nil {
+		return err
+	}
+
+	user0.R.ForwardedByUserReports = append(user0.R.ForwardedByUserReports, reports1...)
+
+	for _, rel := range reports1 {
+		rel.R.ForwardedByUserUser = user0
+	}
+	return nil
+}
+
+func (user0 *User) AttachForwardedByUserReports(ctx context.Context, exec bob.Executor, related ...*Report) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+	reports1 := ReportSlice(related)
+
+	_, err = attachUserForwardedByUserReports0(ctx, exec, len(related), reports1, user0)
+	if err != nil {
+		return err
+	}
+
+	user0.R.ForwardedByUserReports = append(user0.R.ForwardedByUserReports, reports1...)
+
+	for _, rel := range related {
+		rel.R.ForwardedByUserUser = user0
 	}
 
 	return nil

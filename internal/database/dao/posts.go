@@ -621,6 +621,46 @@ func (dao *PostDAO) UpdatePost(ctx context.Context, postID int64, title, content
 	return nil
 }
 
+// GetTotalPostsCount returns the total count of posts in a subforum (no time filtering)
+func (dao *PostDAO) GetTotalPostsCount(ctx context.Context, subforumPath string) (int, error) {
+	// Parse subforum path to get community type and name
+	parts := strings.Split(subforumPath, "/")
+	if len(parts) != 2 {
+		return 0, fmt.Errorf("invalid subforum path format: %s", subforumPath)
+	}
+	communityType := parts[0]
+	subforumName := parts[1]
+
+	// First get the subforum ID
+	subforum, err := models.Subforums.Query(
+		models.SelectWhere.Subforums.CommunityType.EQ(communityType),
+		models.SelectWhere.Subforums.Name.EQ(subforumName),
+	).One(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get subforum: %w", err)
+	}
+
+	// Count all posts in the subforum (no time filtering)
+	count, err := models.Posts.Query(
+		models.SelectWhere.Posts.SubforumID.EQ(subforum.SubforumID),
+		sm.Where(psql.Group(psql.And(
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_removed").IsNull(),
+				psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
+			)),
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_deleted").IsNull(),
+				psql.Quote("posts", "is_deleted").EQ(psql.Arg(false)),
+			)),
+		))),
+	).Count(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count posts: %w", err)
+	}
+
+	return int(count), nil
+}
+
 // GetPostsCount returns the count of posts in a subforum since a given time
 func (dao *PostDAO) GetPostsCount(ctx context.Context, subforumPath string, since time.Time) (int, error) {
 	log.Debug().
@@ -658,6 +698,48 @@ func (dao *PostDAO) GetPostsCount(ctx context.Context, subforumPath string, sinc
 				psql.Quote("posts", "is_deleted").EQ(psql.Arg(false)),
 			)),
 			psql.Quote("posts", "created_at").GTE(psql.Arg(since)),
+		))),
+	).Count(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count posts: %w", err)
+	}
+
+	return int(count), nil
+}
+
+// GetPostsCountForDateRange returns the count of posts created within a specific date range
+func (dao *PostDAO) GetPostsCountForDateRange(ctx context.Context, subforumPath string, startTime, endTime time.Time) (int, error) {
+	// Parse subforum path to get community type and name
+	parts := strings.Split(subforumPath, "/")
+	if len(parts) != 2 {
+		return 0, fmt.Errorf("invalid subforum path format: %s", subforumPath)
+	}
+	communityType := parts[0]
+	subforumName := parts[1]
+
+	// First get the subforum ID
+	subforum, err := models.Subforums.Query(
+		models.SelectWhere.Subforums.CommunityType.EQ(communityType),
+		models.SelectWhere.Subforums.Name.EQ(subforumName),
+	).One(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get subforum: %w", err)
+	}
+
+	// Count posts created within the date range
+	count, err := models.Posts.Query(
+		models.SelectWhere.Posts.SubforumID.EQ(subforum.SubforumID),
+		sm.Where(psql.Group(psql.And(
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_removed").IsNull(),
+				psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
+			)),
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_deleted").IsNull(),
+				psql.Quote("posts", "is_deleted").EQ(psql.Arg(false)),
+			)),
+			psql.Quote("posts", "created_at").GTE(psql.Arg(startTime)),
+			psql.Quote("posts", "created_at").LTE(psql.Arg(endTime)),
 		))),
 	).Count(ctx, dao.db)
 	if err != nil {

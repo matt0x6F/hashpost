@@ -363,6 +363,12 @@ var ColumnNames = struct {
 		ResolvedByPseudonymID: "resolved_by_pseudonym_id",
 		ResolutionNotes:       "resolution_notes",
 		ResolvedAt:            "resolved_at",
+		RuleCode:              "rule_code",
+		RuleType:              "rule_type",
+		ForwardedToPlatform:   "forwarded_to_platform",
+		ForwardingNotes:       "forwarding_notes",
+		ForwardedByUserID:     "forwarded_by_user_id",
+		ForwardedAt:           "forwarded_at",
 	},
 	RoleDefinitions: roleDefinitionColumnNames{
 		RoleID:            "role_id",
@@ -432,6 +438,7 @@ var ColumnNames = struct {
 		CommunityType:          "community_type",
 		GovernanceStyle:        "governance_style",
 		OwnerPseudonymID:       "owner_pseudonym_id",
+		SubforumRules:          "subforum_rules",
 	},
 	SystemEvents: systemEventColumnNames{
 		EventID:         "event_id",

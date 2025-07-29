@@ -244,3 +244,39 @@ func (m *MockVoteDAO) GetCommentDownvotesCount(ctx context.Context, subforumPath
 	args := m.Called(ctx, subforumPath, since)
 	return args.Get(0).(int), args.Error(1)
 }
+
+// GetPostVotesCountForDateRange returns the count of votes on posts created within a specific date range
+func (m *MockVoteDAO) GetPostVotesCountForDateRange(ctx context.Context, subforumPath string, startTime, endTime time.Time) (int, error) {
+	args := m.Called(ctx, subforumPath, startTime, endTime)
+	return args.Get(0).(int), args.Error(1)
+}
+
+// GetCommentVotesCountForDateRange returns the count of votes on comments created within a specific date range
+func (m *MockVoteDAO) GetCommentVotesCountForDateRange(ctx context.Context, subforumPath string, startTime, endTime time.Time) (int, error) {
+	args := m.Called(ctx, subforumPath, startTime, endTime)
+	return args.Get(0).(int), args.Error(1)
+}
+
+// GetPostUpvotesCountForDateRange returns the count of upvotes on posts created within a specific date range
+func (m *MockVoteDAO) GetPostUpvotesCountForDateRange(ctx context.Context, subforumPath string, startTime, endTime time.Time) (int, error) {
+	args := m.Called(ctx, subforumPath, startTime, endTime)
+	return args.Get(0).(int), args.Error(1)
+}
+
+// GetPostDownvotesCountForDateRange returns the count of downvotes on posts created within a specific date range
+func (m *MockVoteDAO) GetPostDownvotesCountForDateRange(ctx context.Context, subforumPath string, startTime, endTime time.Time) (int, error) {
+	args := m.Called(ctx, subforumPath, startTime, endTime)
+	return args.Get(0).(int), args.Error(1)
+}
+
+// GetCommentUpvotesCountForDateRange returns the count of upvotes on comments created within a specific date range
+func (m *MockVoteDAO) GetCommentUpvotesCountForDateRange(ctx context.Context, subforumPath string, startTime, endTime time.Time) (int, error) {
+	args := m.Called(ctx, subforumPath, startTime, endTime)
+	return args.Get(0).(int), args.Error(1)
+}
+
+// GetCommentDownvotesCountForDateRange returns the count of downvotes on comments created within a specific date range
+func (m *MockVoteDAO) GetCommentDownvotesCountForDateRange(ctx context.Context, subforumPath string, startTime, endTime time.Time) (int, error) {
+	args := m.Called(ctx, subforumPath, startTime, endTime)
+	return args.Get(0).(int), args.Error(1)
+}

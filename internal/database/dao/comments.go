@@ -579,6 +579,74 @@ func (dao *CommentDAO) UpdateComment(ctx context.Context, commentID int64, conte
 	return nil
 }
 
+// GetTotalCommentsCount returns the total count of comments in a subforum (no time filtering)
+func (dao *CommentDAO) GetTotalCommentsCount(ctx context.Context, subforumPath string) (int, error) {
+	// Parse subforum path to get community type and name
+	parts := strings.Split(subforumPath, "/")
+	if len(parts) != 2 {
+		return 0, fmt.Errorf("invalid subforum path format: %s", subforumPath)
+	}
+	communityType := parts[0]
+	subforumName := parts[1]
+
+	// First get the subforum ID
+	subforum, err := models.Subforums.Query(
+		models.SelectWhere.Subforums.CommunityType.EQ(communityType),
+		models.SelectWhere.Subforums.Name.EQ(subforumName),
+	).One(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get subforum: %w", err)
+	}
+
+	// Get post IDs in the subforum (filtered like GetTotalPostsCount)
+	posts, err := models.Posts.Query(
+		models.SelectWhere.Posts.SubforumID.EQ(subforum.SubforumID),
+		sm.Where(psql.Group(psql.And(
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_removed").IsNull(),
+				psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
+			)),
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_deleted").IsNull(),
+				psql.Quote("posts", "is_deleted").EQ(psql.Arg(false)),
+			)),
+		))),
+	).All(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get posts in subforum: %w", err)
+	}
+
+	if len(posts) == 0 {
+		return 0, nil
+	}
+
+	// Extract post IDs
+	postIDs := make([]int64, len(posts))
+	for i, post := range posts {
+		postIDs[i] = post.PostID
+	}
+
+	// Count all comments in these posts (no time filtering)
+	count, err := models.Comments.Query(
+		models.SelectWhere.Comments.PostID.In(postIDs...),
+		sm.Where(psql.Group(psql.And(
+			psql.Group(psql.Or(
+				psql.Quote("comments", "is_removed").IsNull(),
+				psql.Quote("comments", "is_removed").EQ(psql.Arg(false)),
+			)),
+			psql.Group(psql.Or(
+				psql.Quote("comments", "is_deleted").IsNull(),
+				psql.Quote("comments", "is_deleted").EQ(psql.Arg(false)),
+			)),
+		))),
+	).Count(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count comments: %w", err)
+	}
+
+	return int(count), nil
+}
+
 // GetCommentsCount returns the count of comments in a subforum since a given time
 func (dao *CommentDAO) GetCommentsCount(ctx context.Context, subforumPath string, since time.Time) (int, error) {
 	log.Debug().
@@ -634,6 +702,76 @@ func (dao *CommentDAO) GetCommentsCount(ctx context.Context, subforumPath string
 				psql.Quote("comments", "is_deleted").EQ(psql.Arg(false)),
 			)),
 			psql.Quote("comments", "created_at").GTE(psql.Arg(since)),
+		))),
+	).Count(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count comments: %w", err)
+	}
+
+	return int(count), nil
+}
+
+// GetCommentsCountForDateRange returns the count of comments created within a specific date range
+func (dao *CommentDAO) GetCommentsCountForDateRange(ctx context.Context, subforumPath string, startTime, endTime time.Time) (int, error) {
+	// Parse subforum path to get community type and name
+	parts := strings.Split(subforumPath, "/")
+	if len(parts) != 2 {
+		return 0, fmt.Errorf("invalid subforum path format: %s", subforumPath)
+	}
+	communityType := parts[0]
+	subforumName := parts[1]
+
+	// First get the subforum ID
+	subforum, err := models.Subforums.Query(
+		models.SelectWhere.Subforums.CommunityType.EQ(communityType),
+		models.SelectWhere.Subforums.Name.EQ(subforumName),
+	).One(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get subforum: %w", err)
+	}
+
+	// Get post IDs in the subforum (filtered like GetTotalCommentsCount)
+	posts, err := models.Posts.Query(
+		models.SelectWhere.Posts.SubforumID.EQ(subforum.SubforumID),
+		sm.Where(psql.Group(psql.And(
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_removed").IsNull(),
+				psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
+			)),
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_deleted").IsNull(),
+				psql.Quote("posts", "is_deleted").EQ(psql.Arg(false)),
+			)),
+		))),
+	).All(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get posts in subforum: %w", err)
+	}
+
+	if len(posts) == 0 {
+		return 0, nil
+	}
+
+	// Extract post IDs
+	postIDs := make([]int64, len(posts))
+	for i, post := range posts {
+		postIDs[i] = post.PostID
+	}
+
+	// Count comments created within the date range
+	count, err := models.Comments.Query(
+		models.SelectWhere.Comments.PostID.In(postIDs...),
+		sm.Where(psql.Group(psql.And(
+			psql.Group(psql.Or(
+				psql.Quote("comments", "is_removed").IsNull(),
+				psql.Quote("comments", "is_removed").EQ(psql.Arg(false)),
+			)),
+			psql.Group(psql.Or(
+				psql.Quote("comments", "is_deleted").IsNull(),
+				psql.Quote("comments", "is_deleted").EQ(psql.Arg(false)),
+			)),
+			psql.Quote("comments", "created_at").GTE(psql.Arg(startTime)),
+			psql.Quote("comments", "created_at").LTE(psql.Arg(endTime)),
 		))),
 	).Count(ctx, dao.db)
 	if err != nil {

@@ -476,7 +476,7 @@ func TestAuthHandler_CurrentUserSession(t *testing.T) {
 		mockSecurePseudonymDAO.On("GetPseudonymsByUserID", mock.Anything, testUserID, "user", "authentication").Return([]*dbmodels.Pseudonym{mockPseudonym}, nil)
 
 		// Mock roles and capabilities for active pseudonym
-		mockPermissionDAO.On("GetActivePseudonymRolesAndCapabilities", mock.Anything, testUserID, testPseudonymID).Return([]string{"user"}, []string{"create_content", "vote", "message", "report", "create_subforum"}, nil)
+		mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities", mock.Anything, testUserID, testPseudonymID, (*int32)(nil)).Return([]string{"user"}, []string{"create_content", "vote", "message", "report", "create_subforum"}, nil)
 
 		// Create input with valid JWT token
 		userCtx := &middleware.UserContext{
@@ -1124,6 +1124,10 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 		}
 		mockSecurePseudonymDAO.On("GetPseudonymsByUserID", mock.Anything, testUserID, "user", "authentication").Return([]*dbmodels.Pseudonym{mockPseudonym}, nil)
 
+		// Mock unified roles and capabilities for active pseudonym with subforum context
+		subforumID := int32(testSubforumID)
+		mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities", mock.Anything, testUserID, testPseudonymID, &subforumID).Return([]string{"user", "moderator"}, []string{"create_content", "vote", "message", "report", "create_subforum", "moderate_content", "ban_users"}, nil)
+
 		// Create input with valid JWT token
 		userCtx := &middleware.UserContext{
 			UserID:            testUserID,
@@ -1213,6 +1217,10 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 			DisplayName: testDisplayName,
 		}
 		mockSecurePseudonymDAO.On("GetPseudonymsByUserID", mock.Anything, testUserID, "user", "authentication").Return([]*dbmodels.Pseudonym{mockPseudonym}, nil)
+
+		// Mock unified roles and capabilities for active pseudonym with subforum context
+		subforumID := int32(testSubforumID)
+		mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities", mock.Anything, testUserID, testPseudonymID, &subforumID).Return([]string{"user", "moderator"}, []string{"create_content", "vote", "message", "report", "create_subforum", "moderate_content", "ban_users"}, nil)
 
 		// Create input with valid JWT token
 		userCtx := &middleware.UserContext{
@@ -1461,7 +1469,7 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 	})
 
 	t.Run("SubforumNotFound", func(t *testing.T) {
-		handler, mockUserDAO, mockSecurePseudonymDAO, _, _, mockSubforumDAO, _ := NewAuthHandlerWithMocks()
+		handler, mockUserDAO, mockSecurePseudonymDAO, _, _, mockSubforumDAO, mockPermissionDAO := NewAuthHandlerWithMocks()
 
 		// Test data
 		testUserID := int64(1)
@@ -1492,6 +1500,9 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 			DisplayName: testDisplayName,
 		}
 		mockSecurePseudonymDAO.On("GetPseudonymsByUserID", mock.Anything, testUserID, "user", "authentication").Return([]*dbmodels.Pseudonym{mockPseudonym}, nil)
+
+		// Mock unified roles and capabilities for active pseudonym with subforum context (nil since subforum not found)
+		mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities", mock.Anything, testUserID, testPseudonymID, (*int32)(nil)).Return([]string{"user"}, []string{"create_content", "vote", "message", "report", "create_subforum"}, nil)
 
 		// Create input with valid JWT token
 		userCtx := &middleware.UserContext{
@@ -1527,8 +1538,8 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 		assert.Equal(t, int(testUserID), response.Body.UserID)
 		assert.Equal(t, testPseudonymID, response.Body.ActivePseudonymID)
 		assert.Equal(t, testDisplayName, response.Body.DisplayName)
-		// Should only have platform capabilities, no subforum capabilities
-		assert.Len(t, response.Body.Capabilities, 5)
+		// Should have no capabilities when subforum is not found
+		assert.Len(t, response.Body.Capabilities, 0)
 
 		// Verify mocks were called
 		mockUserDAO.AssertExpectations(t)
@@ -1618,6 +1629,10 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "ban_users", "pseudonym-123").Return(false, nil)
 		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "manage_moderators", "pseudonym-123").Return(false, nil)
 
+		// Mock unified roles and capabilities for active pseudonym with subforum context
+		subforumID := int32(testSubforumID)
+		mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities", mock.Anything, testUserID, "pseudonym-123", &subforumID).Return([]string{"user"}, []string{"create_content", "vote", "message", "report", "create_subforum"}, nil)
+
 		// Mock pseudonym retrieval error
 		mockSecurePseudonymDAO.On("GetPseudonymsByUserID", mock.Anything, testUserID, "user", "authentication").Return(nil, fmt.Errorf("pseudonym retrieval failed"))
 
@@ -1700,6 +1715,10 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "sticky_post", testPseudonymID).Return(false, nil)
 		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "lock_post", testPseudonymID).Return(false, nil)
 		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "manage_moderators", testPseudonymID).Return(true, nil)
+
+		// Mock unified roles and capabilities for active pseudonym with subforum context
+		subforumID := int32(testSubforumID)
+		mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities", mock.Anything, testUserID, testPseudonymID, &subforumID).Return([]string{"user", "platform_admin", "moderator"}, []string{"create_content", "vote", "message", "report", "create_subforum", "moderate_content", "ban_users", "manage_moderators"}, nil)
 
 		// Mock pseudonym retrieval (should use first role "user")
 		mockPseudonym := &dbmodels.Pseudonym{

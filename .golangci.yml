@@ -1,0 +1,144 @@
+version: "2"
+
+run:
+  timeout: 5m
+  go: "1.24"
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    # Essential error handling and code quality
+    - errcheck
+    - ineffassign
+    - staticcheck
+    - govet
+    - unused
+    
+    # Security
+    - gosec
+    
+    # Best practices
+    - gocritic
+    - revive
+    
+    # Logging (since we use zerolog)
+    - zerologlint
+    
+    # Code quality and style
+    - godot
+    - makezero
+    - nakedret
+    - nlreturn
+    - unconvert
+    - unparam
+    - wastedassign
+    - whitespace
+    - wrapcheck
+    
+    # Database and SQL
+    - rowserrcheck
+    - sqlclosecheck
+    
+    # Testing
+    - thelper
+    - tparallel
+
+  disable:
+    # Too strict for this codebase
+    - cyclop
+    - funlen
+    - gocognit
+    - gocyclo
+    - lll
+    - maintidx
+    - nestif
+    - varnamelen
+    
+    # Too pedantic - comment periods are not critical for code quality
+    - godot
+    
+    # Too noisy in test files
+    - goconst
+    - misspell
+    - usestdlibvars
+    
+    # Not applicable to this project
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - canonicalheader
+    - containedctx
+    - contextcheck
+    - copyloopvar
+    - decorder
+    - depguard
+    - dogsled
+    - dupl
+    - dupword
+    - durationcheck
+    - err113
+    - errchkjson
+    - errname
+    - errorlint
+    - exhaustive
+    - exhaustruct
+    - exptostd
+    - fatcontext
+    - forbidigo
+    - forcetypeassert
+    - funcorder
+    - ginkgolinter
+    - gocheckcompilerdirectives
+    - gochecknoglobals
+    - gochecknoinits
+    - gochecksumtype
+    - godox
+    - goheader
+    - gomoddirectives
+    - gomodguard
+    - goprintffuncname
+    - gosmopolitan
+    - grouper
+    - iface
+    - importas
+    - inamedparam
+    - interfacebloat
+    - intrange
+    - ireturn
+    - loggercheck
+    - mirror
+    - mnd
+    - musttag
+    - nilerr
+    - nilnesserr
+    - nilnil
+    - noctx
+    - nolintlint
+    - nonamedreturns
+    - nosprintfhostport
+    - paralleltest
+    - perfsprint
+    - prealloc
+    - predeclared
+    - promlinter
+    - protogetter
+    - reassign
+    - recvcheck
+    - sloglint
+    - spancheck
+    - tagalign
+    - tagliatelle
+    - testableexamples
+    - testpackage
+    - usetesting
+    - wsl
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0 

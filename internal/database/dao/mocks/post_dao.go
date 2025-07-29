@@ -286,3 +286,13 @@ func (m *MockPostDAO) GetPostsCount(ctx context.Context, subforumPath string, si
 	args := m.Called(ctx, subforumPath, since)
 	return args.Get(0).(int), args.Error(1)
 }
+
+func (m *MockPostDAO) GetPostsCountForDateRange(ctx context.Context, subforumPath string, startTime, endTime time.Time) (int, error) {
+	args := m.Called(ctx, subforumPath, startTime, endTime)
+	return args.Get(0).(int), args.Error(1)
+}
+
+func (m *MockPostDAO) GetTotalPostsCount(ctx context.Context, subforumPath string) (int, error) {
+	args := m.Called(ctx, subforumPath)
+	return args.Get(0).(int), args.Error(1)
+}

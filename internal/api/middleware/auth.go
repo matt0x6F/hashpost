@@ -472,28 +472,6 @@ func ExtractUserFromHumaInput(input *AuthInput) (*UserContext, error) {
 //     return &MyResponse{}, nil
 // }
 
-// validateAndParseJWT validates and parses a JWT token
-func validateAndParseJWT(tokenString string, jwtSecret []byte) (*JWTClaims, error) {
-	// Parse the token
-	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
-		// Validate signing method
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return jwtSecret, nil
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse JWT: %w", err)
-	}
-
-	if claims, ok := token.Claims.(*JWTClaims); ok && token.Valid {
-		return claims, nil
-	}
-
-	return nil, ErrInvalidToken
-}
-
 // RequireAuth middleware requires authentication for protected endpoints
 func (m *AuthMiddleware) RequireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

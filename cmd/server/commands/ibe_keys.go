@@ -304,19 +304,6 @@ func saveIBEConfiguration(ibeSystem *ibe.IBESystem, outputDir string) error {
 
 // Helper functions
 
-func parseDomains(domainsStr string) []string {
-	if domainsStr == "" {
-		return []string{
-			ibe.DOMAIN_USER_PSEUDONYMS,
-			ibe.DOMAIN_USER_CORRELATION,
-			ibe.DOMAIN_MOD_CORRELATION,
-			ibe.DOMAIN_ADMIN_CORRELATION,
-			ibe.DOMAIN_LEGAL_CORRELATION,
-		}
-	}
-	return strings.Split(domainsStr, ",")
-}
-
 func parseTimeWindows(timeWindowsStr string) []time.Duration {
 	if timeWindowsStr == "" {
 		return []time.Duration{
@@ -359,15 +346,31 @@ func parseDuration(s string) (time.Duration, error) {
 
 	switch {
 	case strings.HasSuffix(s, "h"):
-		return time.ParseDuration(s)
+		duration, err := time.ParseDuration(s)
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse duration '%s': %w", s, err)
+		}
+		return duration, nil
 	case strings.HasSuffix(s, "d"):
 		days := strings.TrimSuffix(s, "d")
-		return time.ParseDuration(days + "h")
+		duration, err := time.ParseDuration(days + "h")
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse duration '%s': %w", s, err)
+		}
+		return duration, nil
 	case strings.HasSuffix(s, "w"):
 		weeks := strings.TrimSuffix(s, "w")
-		return time.ParseDuration(weeks + "h")
+		duration, err := time.ParseDuration(weeks + "h")
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse duration '%s': %w", s, err)
+		}
+		return duration, nil
 	default:
-		return time.ParseDuration(s)
+		duration, err := time.ParseDuration(s)
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse duration '%s': %w", s, err)
+		}
+		return duration, nil
 	}
 }
 
@@ -393,8 +396,4 @@ func saveKeyToFile(key []byte, path string) error {
 
 func saveStringToFile(content string, path string) error {
 	return os.WriteFile(path, []byte(content), 0644)
-}
-
-func loadMasterSecretFromFile(path string) ([]byte, error) {
-	return os.ReadFile(path)
 }

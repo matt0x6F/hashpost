@@ -27,13 +27,6 @@ func NewMessagesHandlerWithMocks() (*handlers.MessagesHandler, *mocks.MockDirect
 	return handler, mockDirectMessageDAO, mockUserDAO
 }
 
-// generateTestJWT creates a test JWT token for authentication
-func generateTestJWT(t *testing.T, userID int64, email string, roles []string, capabilities []string) string {
-	// This is a simplified JWT generation for testing
-	// In a real implementation, you'd use the actual JWT signing logic
-	return "test-jwt-token"
-}
-
 // createTestContext creates a context with user information
 func createTestContext(t *testing.T, userID int64, activePseudonymID string, displayName string) context.Context {
 	user := &middleware.UserContext{

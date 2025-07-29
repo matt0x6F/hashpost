@@ -25,46 +25,18 @@ import {
   Eye
 } from 'lucide-react';
 import { toast } from 'sonner';
-
-interface Report {
-  reportId: number;
-  contentType: string;
-  contentId?: number;
-  reportedPseudonymId?: string;
-  reportReason: string;
-  reportDetails: string;
-  status: string;
-  createdAt: string;
-  resolvedBy?: {
-    pseudonymId: string;
-    displayName: string;
-  };
-  resolvedAt?: string;
-  resolutionNotes?: string;
-  reporter: {
-    pseudonymId: string;
-    displayName: string;
-  };
-  reportedUser?: {
-    pseudonymId: string;
-    displayName: string;
-  };
-  content?: {
-    title?: string;
-    content?: string;
-    contentType: string;
-  };
-}
+import type { Report } from '@/generated/api/src/models/Report';
 
 interface ReportDetailDialogProps {
   report: Report | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAction: (reportId: number, action: 'resolve' | 'dismiss' | 'remove' | 'ban', notes?: string) => Promise<void>;
+  onAction: (reportId: number, action: 'resolve' | 'dismiss' | 'remove' | 'ban_user' | 'ban_pseudonym' | 'mute_user', notes?: string, muteDuration?: number) => Promise<void>;
 }
 
 export function ReportDetailDialog({ report, open, onOpenChange, onAction }: ReportDetailDialogProps) {
-  const [action, setAction] = useState<'resolve' | 'dismiss' | 'remove' | 'ban'>('resolve');
+  const [action, setAction] = useState<'resolve' | 'dismiss' | 'remove' | 'ban_user' | 'ban_pseudonym' | 'mute_user'>('resolve');
+  const [muteDuration, setMuteDuration] = useState<number>(7);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -73,11 +45,23 @@ export function ReportDetailDialog({ report, open, onOpenChange, onAction }: Rep
 
     setLoading(true);
     try {
-      await onAction(report.reportId, action, notes);
-      toast.success(`Report ${action === 'resolve' ? 'resolved' : action === 'dismiss' ? 'dismissed' : action === 'remove' ? 'content removed' : 'user banned'} successfully.`);
+      const muteDurationParam = action === 'mute_user' ? muteDuration : undefined;
+      await onAction(report.reportId, action, notes, muteDurationParam);
+      
+      const actionMessages = {
+        resolve: 'resolved',
+        dismiss: 'dismissed', 
+        remove: 'content removed',
+        ban_user: 'user banned',
+        ban_pseudonym: 'pseudonym banned',
+        mute_user: `user muted for ${muteDuration} days`
+      };
+      
+      toast.success(`Report ${actionMessages[action]} successfully.`);
       onOpenChange(false);
       setNotes('');
       setAction('resolve');
+      setMuteDuration(7);
     } catch (error) {
       console.error('Error handling report action:', error);
       toast.error('Failed to process report action.');
@@ -116,9 +100,11 @@ export function ReportDetailDialog({ report, open, onOpenChange, onAction }: Rep
 
   if (!report) return null;
 
+  
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="!w-[95vw] !max-w-none max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {getContentTypeIcon(report.contentType)}
@@ -229,14 +215,32 @@ export function ReportDetailDialog({ report, open, onOpenChange, onAction }: Rep
                     </Button>
                   )}
                   {report.reportedPseudonymId && (
-                    <Button
-                      variant={action === 'ban' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setAction('ban')}
-                    >
-                      <Ban className="w-4 h-4 mr-2" />
-                      Ban User
-                    </Button>
+                    <>
+                      <Button
+                        variant={action === 'ban_user' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setAction('ban_user')}
+                      >
+                        <Ban className="w-4 h-4 mr-2" />
+                        Ban User
+                      </Button>
+                      <Button
+                        variant={action === 'ban_pseudonym' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setAction('ban_pseudonym')}
+                      >
+                        <User className="w-4 h-4 mr-2" />
+                        Ban Pseudonym
+                      </Button>
+                      <Button
+                        variant={action === 'mute_user' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setAction('mute_user')}
+                      >
+                        <Clock className="w-4 h-4 mr-2" />
+                        Mute User
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -251,6 +255,23 @@ export function ReportDetailDialog({ report, open, onOpenChange, onAction }: Rep
                   rows={3}
                 />
               </div>
+
+              {action === 'mute_user' && (
+                <div>
+                  <span className="text-sm font-medium">Mute Duration (days):</span>
+                  <div className="flex gap-2 mt-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max="365"
+                      value={muteDuration}
+                      onChange={(e) => setMuteDuration(parseInt(e.target.value) || 7)}
+                      className="flex h-9 w-20 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                    />
+                    <span className="text-sm text-muted-foreground self-center">days</span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -270,7 +291,9 @@ export function ReportDetailDialog({ report, open, onOpenChange, onAction }: Rep
               {action === 'resolve' && 'Resolve Report'}
               {action === 'dismiss' && 'Dismiss Report'}
               {action === 'remove' && 'Remove Content'}
-              {action === 'ban' && 'Ban User'}
+              {action === 'ban_user' && 'Ban User'}
+              {action === 'ban_pseudonym' && 'Ban Pseudonym'}
+              {action === 'mute_user' && `Mute User (${muteDuration} days)`}
             </Button>
           )}
         </DialogFooter>

@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	"github.com/matt0x6f/hashpost/internal/api/models"
@@ -13,6 +15,7 @@ import (
 	"github.com/matt0x6f/hashpost/internal/fixtures"
 	"github.com/stephenafamo/bob/types"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -52,20 +55,28 @@ func TestNewModerationHandlerWithMocks(t *testing.T) {
 
 func TestModerationHandler_ReportContent(t *testing.T) {
 	tests := []struct {
-		name          string
-		input         *models.ReportInput
+		name  string
+		input *struct {
+			middleware.AuthInput
+			models.ReportInput
+		}
 		userContext   *middleware.UserContext
 		expectedError bool
 		errorContains string
 	}{
 		{
 			name: "Successful Report",
-			input: &models.ReportInput{
-				Body: models.ReportInputBody{
-					ContentType:   "post",
-					ContentID:     &[]int{123}[0],
-					ReportReason:  "spam",
-					ReportDetails: "This post violates community guidelines",
+			input: &struct {
+				middleware.AuthInput
+				models.ReportInput
+			}{
+				ReportInput: models.ReportInput{
+					Body: models.ReportInputBody{
+						ContentType:   "post",
+						ContentID:     &[]int{123}[0],
+						ReportReason:  "spam",
+						ReportDetails: "This post violates community guidelines",
+					},
 				},
 			},
 			userContext:   createTestUserContext(),
@@ -73,11 +84,16 @@ func TestModerationHandler_ReportContent(t *testing.T) {
 		},
 		{
 			name: "Report Without Content ID",
-			input: &models.ReportInput{
-				Body: models.ReportInputBody{
-					ContentType:   "user",
-					ReportReason:  "harassment",
-					ReportDetails: "User is harassing others",
+			input: &struct {
+				middleware.AuthInput
+				models.ReportInput
+			}{
+				ReportInput: models.ReportInput{
+					Body: models.ReportInputBody{
+						ContentType:   "user",
+						ReportReason:  "harassment",
+						ReportDetails: "User is harassing others",
+					},
 				},
 			},
 			userContext:   createTestUserContext(),
@@ -85,12 +101,17 @@ func TestModerationHandler_ReportContent(t *testing.T) {
 		},
 		{
 			name: "Report With Reported Pseudonym",
-			input: &models.ReportInput{
-				Body: models.ReportInputBody{
-					ContentType:         "user",
-					ReportReason:        "harassment",
-					ReportDetails:       "User is harassing others",
-					ReportedPseudonymID: "reported-pseudonym-456",
+			input: &struct {
+				middleware.AuthInput
+				models.ReportInput
+			}{
+				ReportInput: models.ReportInput{
+					Body: models.ReportInputBody{
+						ContentType:         "user",
+						ReportReason:        "harassment",
+						ReportDetails:       "User is harassing others",
+						ReportedPseudonymID: "reported-pseudonym-456",
+					},
 				},
 			},
 			userContext:   createTestUserContext(),
@@ -98,16 +119,21 @@ func TestModerationHandler_ReportContent(t *testing.T) {
 		},
 		{
 			name: "Authentication Required",
-			input: &models.ReportInput{
-				Body: models.ReportInputBody{
-					ContentType:  "post",
-					ContentID:    &[]int{123}[0],
-					ReportReason: "spam",
+			input: &struct {
+				middleware.AuthInput
+				models.ReportInput
+			}{
+				ReportInput: models.ReportInput{
+					Body: models.ReportInputBody{
+						ContentType:  "post",
+						ContentID:    &[]int{123}[0],
+						ReportReason: "spam",
+					},
 				},
 			},
 			userContext:   nil,
 			expectedError: true,
-			errorContains: "authentication required",
+			errorContains: "Authentication required",
 		},
 	}
 
@@ -122,7 +148,32 @@ func TestModerationHandler_ReportContent(t *testing.T) {
 				ctx = context.Background()
 			}
 
-			response, err := handler.ReportContent(ctx, tt.input)
+			// Set up the input with proper authentication context
+			var authInput middleware.AuthInput
+			if tt.userContext != nil {
+				// Create a valid JWT token for testing
+				token, tokenErr := middleware.GenerateJWT(tt.userContext, "test-secret", 24*time.Hour)
+				require.NoError(t, tokenErr)
+				authInput = middleware.AuthInput{
+					Authorization: "Bearer " + token,
+					AccessToken:   "",
+				}
+			} else {
+				authInput = middleware.AuthInput{
+					Authorization: "",
+					AccessToken:   "",
+				}
+			}
+
+			inputWithAuth := &struct {
+				middleware.AuthInput
+				models.ReportInput
+			}{
+				AuthInput:   authInput,
+				ReportInput: tt.input.ReportInput,
+			}
+
+			response, err := handler.ReportContent(ctx, inputWithAuth)
 
 			if tt.expectedError {
 				assert.Error(t, err)
@@ -138,51 +189,85 @@ func TestModerationHandler_ReportContent(t *testing.T) {
 	}
 }
 
-func TestModerationHandler_GetReports(t *testing.T) {
+func TestModerationHandler_GetSubforumReports(t *testing.T) {
 	tests := []struct {
-		name          string
-		input         *models.ReportsListInput
+		name  string
+		input *struct {
+			middleware.AuthInput
+			SubforumPath string `path:"subforum_path" example:"b/hashpost"`
+			Status       string `query:"status" example:"pending"`
+			Page         int    `query:"page" example:"1"`
+			Limit        int    `query:"limit" example:"25"`
+		}
 		userContext   *middleware.UserContext
 		expectedError bool
 		errorContains string
 	}{
 		{
 			name: "Get Pending Reports",
-			input: &models.ReportsListInput{
-				Status: "pending",
-				Page:   1,
-				Limit:  25,
+			input: &struct {
+				middleware.AuthInput
+				SubforumPath string `path:"subforum_path" example:"b/hashpost"`
+				Status       string `query:"status" example:"pending"`
+				Page         int    `query:"page" example:"1"`
+				Limit        int    `query:"limit" example:"25"`
+			}{
+				SubforumPath: "b/test-subforum",
+				Status:       "pending",
+				Page:         1,
+				Limit:        25,
 			},
 			userContext:   createTestUserContext(),
 			expectedError: false,
 		},
 		{
 			name: "Get Resolved Reports",
-			input: &models.ReportsListInput{
-				Status: "resolved",
-				Page:   1,
-				Limit:  10,
+			input: &struct {
+				middleware.AuthInput
+				SubforumPath string `path:"subforum_path" example:"b/hashpost"`
+				Status       string `query:"status" example:"pending"`
+				Page         int    `query:"page" example:"1"`
+				Limit        int    `query:"limit" example:"25"`
+			}{
+				SubforumPath: "b/test-subforum",
+				Status:       "resolved",
+				Page:         1,
+				Limit:        10,
 			},
 			userContext:   createTestUserContext(),
 			expectedError: false,
 		},
 		{
 			name: "Authentication Required",
-			input: &models.ReportsListInput{
-				Status: "pending",
-				Page:   1,
-				Limit:  25,
+			input: &struct {
+				middleware.AuthInput
+				SubforumPath string `path:"subforum_path" example:"b/hashpost"`
+				Status       string `query:"status" example:"pending"`
+				Page         int    `query:"page" example:"1"`
+				Limit        int    `query:"limit" example:"25"`
+			}{
+				SubforumPath: "b/test-subforum",
+				Status:       "pending",
+				Page:         1,
+				Limit:        25,
 			},
 			userContext:   nil,
 			expectedError: true,
-			errorContains: "authentication required",
+			errorContains: "Authentication required",
 		},
 		{
 			name: "Insufficient Permissions",
-			input: &models.ReportsListInput{
-				Status: "pending",
-				Page:   1,
-				Limit:  25,
+			input: &struct {
+				middleware.AuthInput
+				SubforumPath string `path:"subforum_path" example:"b/hashpost"`
+				Status       string `query:"status" example:"pending"`
+				Page         int    `query:"page" example:"1"`
+				Limit        int    `query:"limit" example:"25"`
+			}{
+				SubforumPath: "b/test-subforum",
+				Status:       "pending",
+				Page:         1,
+				Limit:        25,
 			},
 			userContext: &middleware.UserContext{
 				UserID:            2,
@@ -194,7 +279,7 @@ func TestModerationHandler_GetReports(t *testing.T) {
 				MFAEnabled:        false,
 			},
 			expectedError: true,
-			errorContains: "insufficient permissions",
+			errorContains: "Insufficient permissions for this subforum",
 		},
 	}
 
@@ -209,7 +294,38 @@ func TestModerationHandler_GetReports(t *testing.T) {
 				ctx = context.Background()
 			}
 
-			response, err := handler.GetReports(ctx, tt.input)
+			// Set up the input with proper authentication context
+			var authInput middleware.AuthInput
+			if tt.userContext != nil {
+				// Create a valid JWT token for testing
+				token, tokenErr := middleware.GenerateJWT(tt.userContext, "test-secret", 24*time.Hour)
+				require.NoError(t, tokenErr)
+				authInput = middleware.AuthInput{
+					Authorization: "Bearer " + token,
+					AccessToken:   "",
+				}
+			} else {
+				authInput = middleware.AuthInput{
+					Authorization: "",
+					AccessToken:   "",
+				}
+			}
+
+			inputWithAuth := &struct {
+				middleware.AuthInput
+				SubforumPath string `path:"subforum_path" example:"b/hashpost"`
+				Status       string `query:"status" example:"pending"`
+				Page         int    `query:"page" example:"1"`
+				Limit        int    `query:"limit" example:"25"`
+			}{
+				AuthInput:    authInput,
+				SubforumPath: tt.input.SubforumPath,
+				Status:       tt.input.Status,
+				Page:         tt.input.Page,
+				Limit:        tt.input.Limit,
+			}
+
+			response, err := handler.GetSubforumReports(ctx, inputWithAuth)
 
 			if tt.expectedError {
 				assert.Error(t, err)
@@ -578,6 +694,10 @@ func TestModerationHandler_HelperMethods(t *testing.T) {
 
 // NewModerationHandlerWithMocks creates a new moderation handler with mock DAOs and fixture data
 func NewModerationHandlerWithMocks() *ModerationHandler {
+	// Create a mock auth middleware for testing
+	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
+	middleware.SetGlobalAuthMiddleware(authMiddleware)
+
 	// Create mock DAOs
 	mockReportDAO := mocks.NewMockReportDAO()
 	mockModerationActionDAO := mocks.NewMockModerationActionDAO()
@@ -613,6 +733,19 @@ func NewModerationHandlerWithMocks() *ModerationHandler {
 
 	// Set up mock secure pseudonym DAO with fixture data
 	mockSecurePseudonymDAO.InjectPseudonym(fixtures.CreateTestPseudonym())
+	// Inject the pseudonyms that the test reports are looking for
+	mockSecurePseudonymDAO.InjectPseudonym(&dbmodels.Pseudonym{
+		PseudonymID: "reporter-pseudonym-id",
+		DisplayName: "ReporterUser",
+	})
+	mockSecurePseudonymDAO.InjectPseudonym(&dbmodels.Pseudonym{
+		PseudonymID: "reported-pseudonym-id",
+		DisplayName: "ReportedUser",
+	})
+	mockSecurePseudonymDAO.InjectPseudonym(&dbmodels.Pseudonym{
+		PseudonymID: "moderator-pseudonym-id",
+		DisplayName: "ModeratorUser",
+	})
 	mockSecurePseudonymDAO.SetDefaultBehavior()
 
 	// Set up mock post DAO with fixture data
@@ -626,7 +759,27 @@ func NewModerationHandlerWithMocks() *ModerationHandler {
 	// Set up mock vote DAO with fixture data
 	mockVoteDAO.SetDefaultBehavior()
 
+	// Set up mock subforum DAO with fixture data
+	testSubforum := fixtures.CreateTestSubforum()
+	mockSubforumDAO.InjectSubforum(testSubforum)
+	mockSubforumDAO.InjectSubforumByCommunityTypeAndName("b", "test-subforum", testSubforum)
+	mockSubforumDAO.SetDefaultBehavior()
+
+	// Debug: Print the subforum name to verify it's set up correctly
+	fmt.Printf("DEBUG: Test subforum name: %s\n", testSubforum.Name)
+
 	// Set up mock permission DAO with fixture data
+	// Inject capability for the test user (userID=1, subforumID=1, capability="moderate_content", activePseudonymID="moderator-pseudonym-123")
+	mockPermissionDAO.InjectSubforumCapabilityWithActivePseudonym(1, 1, "moderate_content", "moderator-pseudonym-123", true)
+
+	// Set up unified capabilities for global moderation endpoints
+	mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities", mock.Anything, int64(1), "moderator-pseudonym-123", (*int32)(nil)).
+		Return([]string{"user", "moderator"}, []string{"create_content", "vote", "message", "report", "moderate_content"}, nil)
+
+	// Set up unified capabilities for regular user (userID=2)
+	mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities", mock.Anything, int64(2), "user-pseudonym-456", (*int32)(nil)).
+		Return([]string{"user"}, []string{"create_content", "vote"}, nil)
+
 	mockPermissionDAO.SetDefaultBehavior()
 
 	return &ModerationHandler{

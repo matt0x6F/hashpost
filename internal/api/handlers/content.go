@@ -60,6 +60,7 @@ type ContentHandlerConfig struct {
 	RoleKeyDAO         dao.RoleKeyDAOInterface
 	PermissionChecker  middleware.PermissionCheckerInterface
 	PermissionDAO      dao.PermissionDAOInterface
+	ReportDAO          dao.ReportDAOInterface
 }
 
 // NewContentHandlerConfig creates a new configuration for ContentHandler
@@ -85,6 +86,7 @@ type ContentHandler struct {
 	voteDAO            dao.VoteDAOInterface
 	permissionChecker  middleware.PermissionCheckerInterface
 	permissionDAO      dao.PermissionDAOInterface
+	reportDAO          dao.ReportDAOInterface
 }
 
 // NewContentHandler creates a new content handler with optional dependencies
@@ -104,6 +106,7 @@ func NewContentHandler(
 	roleKeyDAO dao.RoleKeyDAOInterface,
 	permissionChecker middleware.PermissionCheckerInterface,
 	permissionDAO dao.PermissionDAOInterface,
+	reportDAO dao.ReportDAOInterface,
 ) *ContentHandler {
 	// If db is provided, create real DAOs (production mode)
 	if db != nil {
@@ -139,6 +142,7 @@ func NewContentHandler(
 		subforumDAO = dao.NewSubforumDAO(db)
 		voteDAO = dao.NewVoteDAO(db)
 		permissionChecker = middleware.NewPermissionChecker(db)
+		reportDAO = dao.NewReportDAO(db)
 	}
 
 	return &ContentHandler{
@@ -154,6 +158,7 @@ func NewContentHandler(
 		voteDAO:            voteDAO,
 		permissionChecker:  permissionChecker,
 		permissionDAO:      permissionDAO,
+		reportDAO:          reportDAO,
 	}
 }
 
@@ -174,6 +179,7 @@ func NewContentHandlerFromConfig(cfg *ContentHandlerConfig) *ContentHandler {
 		cfg.RoleKeyDAO,
 		cfg.PermissionChecker,
 		cfg.PermissionDAO,
+		cfg.ReportDAO,
 	)
 }
 
@@ -1334,17 +1340,33 @@ func (h *ContentHandler) ReportComment(ctx context.Context, input *models.Commen
 		return nil, huma.Error400BadRequest("you cannot report your own comment")
 	}
 
-	// TODO: Create report in database
-	// For now, we'll return a mock response
-	reportID := 789 // TODO: Get from database
+	// Create report in database
+	contentIDNull := sql.Null[int64]{V: commentID, Valid: true}
+	reportDetailsNull := sql.Null[string]{V: reportDetails, Valid: true}
+	statusNull := sql.Null[string]{V: "pending", Valid: true}
 
-	response := models.NewCommentReportResponse(reportID, int(commentID), reportReason, reportDetails, pseudonymID, displayName)
+	reportSetter := &dbmodels.ReportSetter{
+		ReporterPseudonymID: &pseudonymID,
+		ContentType:         &[]string{"comment"}[0],
+		ContentID:           &contentIDNull,
+		ReportReason:        &reportReason,
+		ReportDetails:       &reportDetailsNull,
+		Status:              &statusNull,
+	}
+
+	report, err := h.reportDAO.CreateReport(ctx, reportSetter)
+	if err != nil {
+		log.Error().Err(err).Int64("comment_id", commentID).Str("pseudonym_id", pseudonymID).Msg("Failed to create report")
+		return nil, huma.Error500InternalServerError("Failed to create report")
+	}
+
+	response := models.NewCommentReportResponse(int(report.ReportID), int(commentID), reportReason, reportDetails, pseudonymID, displayName)
 
 	log.Info().
 		Str("endpoint", "comments/report").
 		Str("component", "handler").
 		Int64("comment_id", commentID).
-		Int("report_id", reportID).
+		Int64("report_id", report.ReportID).
 		Msg("Report comment completed")
 
 	return response, nil
@@ -1502,47 +1524,6 @@ func (h *ContentHandler) convertDBPostToAPIPost(ctx context.Context, dbPost *dbm
 	apiPost.Subforum.DisplayName = subforumDisplayName
 
 	return apiPost
-}
-
-// convertDBCommentToAPIComment converts a database comment to an API comment model
-func (h *ContentHandler) convertDBCommentToAPIComment(ctx context.Context, dbComment *dbmodels.Comment) models.Comment {
-	displayName := "Unknown"
-	if dbComment.R.Pseudonym != nil {
-		displayName = dbComment.R.Pseudonym.DisplayName
-	}
-
-	userVote := 0
-	userCtx, err := middleware.ExtractUserFromContext(ctx)
-	if err != nil || userCtx == nil {
-		log.Warn().Msg("User context missing in convertDBCommentToAPIComment")
-	} else {
-		log.Info().Str("pseudonym_id", userCtx.ActivePseudonymID).Msg("User context found in convertDBCommentToAPIComment")
-		vote, err := h.voteDAO.GetVoteByPseudonymAndContent(ctx, userCtx.ActivePseudonymID, "comment", dbComment.CommentID)
-		if err == nil && vote != nil {
-			userVote = int(vote.VoteValue)
-		}
-	}
-
-	var parentCommentID *int
-	if dbComment.ParentCommentID.Valid {
-		parentID := int(dbComment.ParentCommentID.V)
-		parentCommentID = &parentID
-	}
-
-	apiComment := models.Comment{
-		CommentID:       int(dbComment.CommentID),
-		Content:         dbComment.Content,
-		ParentCommentID: parentCommentID,
-		Score:           int(dbComment.Score.V),
-		CreatedAt:       dbComment.CreatedAt.V.Format("2006-01-02T15:04:05Z"),
-		UserVote:        userVote,
-		Replies:         []models.Comment{},
-	}
-
-	apiComment.Author.PseudonymID = dbComment.PseudonymID
-	apiComment.Author.DisplayName = displayName
-
-	return apiComment
 }
 
 // convertDBCommentToAPICommentWithReplies converts a database comment to an API comment model with nested replies

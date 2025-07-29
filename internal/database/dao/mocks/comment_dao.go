@@ -211,3 +211,15 @@ func (m *MockCommentDAO) GetCommentsCount(ctx context.Context, subforumPath stri
 	args := m.Called(ctx, subforumPath, since)
 	return args.Get(0).(int), args.Error(1)
 }
+
+// GetCommentsCountForDateRange returns the count of comments created within a specific date range
+func (m *MockCommentDAO) GetCommentsCountForDateRange(ctx context.Context, subforumPath string, startTime, endTime time.Time) (int, error) {
+	args := m.Called(ctx, subforumPath, startTime, endTime)
+	return args.Get(0).(int), args.Error(1)
+}
+
+// GetTotalCommentsCount returns the total count of comments in a subforum
+func (m *MockCommentDAO) GetTotalCommentsCount(ctx context.Context, subforumPath string) (int, error) {
+	args := m.Called(ctx, subforumPath)
+	return args.Get(0).(int), args.Error(1)
+}

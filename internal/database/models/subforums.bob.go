@@ -6,6 +6,7 @@ package models
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"io"
 	"time"
@@ -19,6 +20,7 @@ import (
 	"github.com/stephenafamo/bob/expr"
 	"github.com/stephenafamo/bob/mods"
 	"github.com/stephenafamo/bob/orm"
+	"github.com/stephenafamo/bob/types"
 	"github.com/stephenafamo/bob/types/pgtypes"
 )
 
@@ -50,7 +52,8 @@ type Subforum struct {
 	// Governance style: democratic=community-elected moderators, owned=owner-controlled
 	GovernanceStyle string `db:"governance_style" scan:"governance_style" json:"governance_style"`
 	// Pseudonym ID of the community owner (for owned communities)
-	OwnerPseudonymID sql.Null[string] `db:"owner_pseudonym_id" scan:"owner_pseudonym_id" json:"owner_pseudonym_id"`
+	OwnerPseudonymID sql.Null[string]                      `db:"owner_pseudonym_id" scan:"owner_pseudonym_id" json:"owner_pseudonym_id"`
+	SubforumRules    sql.Null[types.JSON[json.RawMessage]] `db:"subforum_rules" scan:"subforum_rules" json:"subforum_rules"`
 
 	R subforumR `db:"-" scan:"rel" json:"rel"`
 }
@@ -101,6 +104,7 @@ type subforumColumnNames struct {
 	CommunityType          string
 	GovernanceStyle        string
 	OwnerPseudonymID       string
+	SubforumRules          string
 }
 
 var SubforumColumns = buildSubforumColumns("subforums")
@@ -131,6 +135,7 @@ type subforumColumns struct {
 	CommunityType          psql.Expression
 	GovernanceStyle        psql.Expression
 	OwnerPseudonymID       psql.Expression
+	SubforumRules          psql.Expression
 }
 
 func (c subforumColumns) Alias() string {
@@ -168,6 +173,7 @@ func buildSubforumColumns(alias string) subforumColumns {
 		CommunityType:          psql.Quote(alias, "community_type"),
 		GovernanceStyle:        psql.Quote(alias, "governance_style"),
 		OwnerPseudonymID:       psql.Quote(alias, "owner_pseudonym_id"),
+		SubforumRules:          psql.Quote(alias, "subforum_rules"),
 	}
 }
 
@@ -196,6 +202,7 @@ type subforumWhere[Q psql.Filterable] struct {
 	CommunityType          psql.WhereMod[Q, string]
 	GovernanceStyle        psql.WhereMod[Q, string]
 	OwnerPseudonymID       psql.WhereNullMod[Q, string]
+	SubforumRules          psql.WhereNullMod[Q, types.JSON[json.RawMessage]]
 }
 
 func (subforumWhere[Q]) AliasedAs(alias string) subforumWhere[Q] {
@@ -228,6 +235,7 @@ func buildSubforumWhere[Q psql.Filterable](cols subforumColumns) subforumWhere[Q
 		CommunityType:          psql.Where[Q, string](cols.CommunityType),
 		GovernanceStyle:        psql.Where[Q, string](cols.GovernanceStyle),
 		OwnerPseudonymID:       psql.WhereNull[Q, string](cols.OwnerPseudonymID),
+		SubforumRules:          psql.WhereNull[Q, types.JSON[json.RawMessage]](cols.SubforumRules),
 	}
 }
 
@@ -257,34 +265,35 @@ type subforumErrors struct {
 // All values are optional, and do not have to be set
 // Generated columns are not included
 type SubforumSetter struct {
-	SubforumID             *int32               `db:"subforum_id,pk" scan:"subforum_id" json:"subforum_id"`
-	Name                   *string              `db:"name" scan:"name" json:"name"`
-	DisplayName            *string              `db:"display_name" scan:"display_name" json:"display_name"`
-	Description            *sql.Null[string]    `db:"description" scan:"description" json:"description"`
-	SidebarText            *sql.Null[string]    `db:"sidebar_text" scan:"sidebar_text" json:"sidebar_text"`
-	RulesText              *sql.Null[string]    `db:"rules_text" scan:"rules_text" json:"rules_text"`
-	CreatedAt              *sql.Null[time.Time] `db:"created_at" scan:"created_at" json:"created_at"`
-	CreatedByUserID        *sql.Null[int64]     `db:"created_by_user_id" scan:"created_by_user_id" json:"created_by_user_id"`
-	SubscriberCount        *sql.Null[int32]     `db:"subscriber_count" scan:"subscriber_count" json:"subscriber_count"`
-	PostCount              *sql.Null[int32]     `db:"post_count" scan:"post_count" json:"post_count"`
-	IsPrivate              *sql.Null[bool]      `db:"is_private" scan:"is_private" json:"is_private"`
-	IsRestricted           *sql.Null[bool]      `db:"is_restricted" scan:"is_restricted" json:"is_restricted"`
-	IsNSFW                 *sql.Null[bool]      `db:"is_nsfw" scan:"is_nsfw" json:"is_nsfw"`
-	IsQuarantined          *sql.Null[bool]      `db:"is_quarantined" scan:"is_quarantined" json:"is_quarantined"`
-	AllowImages            *sql.Null[bool]      `db:"allow_images" scan:"allow_images" json:"allow_images"`
-	AllowVideos            *sql.Null[bool]      `db:"allow_videos" scan:"allow_videos" json:"allow_videos"`
-	AllowPolls             *sql.Null[bool]      `db:"allow_polls" scan:"allow_polls" json:"allow_polls"`
-	RequireFlair           *sql.Null[bool]      `db:"require_flair" scan:"require_flair" json:"require_flair"`
-	MinimumAccountAgeHours *sql.Null[int32]     `db:"minimum_account_age_hours" scan:"minimum_account_age_hours" json:"minimum_account_age_hours"`
-	MinimumKarmaRequired   *sql.Null[int32]     `db:"minimum_karma_required" scan:"minimum_karma_required" json:"minimum_karma_required"`
-	UpdatedAt              *sql.Null[time.Time] `db:"updated_at" scan:"updated_at" json:"updated_at"`
-	CommunityType          *string              `db:"community_type" scan:"community_type" json:"community_type"`
-	GovernanceStyle        *string              `db:"governance_style" scan:"governance_style" json:"governance_style"`
-	OwnerPseudonymID       *sql.Null[string]    `db:"owner_pseudonym_id" scan:"owner_pseudonym_id" json:"owner_pseudonym_id"`
+	SubforumID             *int32                                 `db:"subforum_id,pk" scan:"subforum_id" json:"subforum_id"`
+	Name                   *string                                `db:"name" scan:"name" json:"name"`
+	DisplayName            *string                                `db:"display_name" scan:"display_name" json:"display_name"`
+	Description            *sql.Null[string]                      `db:"description" scan:"description" json:"description"`
+	SidebarText            *sql.Null[string]                      `db:"sidebar_text" scan:"sidebar_text" json:"sidebar_text"`
+	RulesText              *sql.Null[string]                      `db:"rules_text" scan:"rules_text" json:"rules_text"`
+	CreatedAt              *sql.Null[time.Time]                   `db:"created_at" scan:"created_at" json:"created_at"`
+	CreatedByUserID        *sql.Null[int64]                       `db:"created_by_user_id" scan:"created_by_user_id" json:"created_by_user_id"`
+	SubscriberCount        *sql.Null[int32]                       `db:"subscriber_count" scan:"subscriber_count" json:"subscriber_count"`
+	PostCount              *sql.Null[int32]                       `db:"post_count" scan:"post_count" json:"post_count"`
+	IsPrivate              *sql.Null[bool]                        `db:"is_private" scan:"is_private" json:"is_private"`
+	IsRestricted           *sql.Null[bool]                        `db:"is_restricted" scan:"is_restricted" json:"is_restricted"`
+	IsNSFW                 *sql.Null[bool]                        `db:"is_nsfw" scan:"is_nsfw" json:"is_nsfw"`
+	IsQuarantined          *sql.Null[bool]                        `db:"is_quarantined" scan:"is_quarantined" json:"is_quarantined"`
+	AllowImages            *sql.Null[bool]                        `db:"allow_images" scan:"allow_images" json:"allow_images"`
+	AllowVideos            *sql.Null[bool]                        `db:"allow_videos" scan:"allow_videos" json:"allow_videos"`
+	AllowPolls             *sql.Null[bool]                        `db:"allow_polls" scan:"allow_polls" json:"allow_polls"`
+	RequireFlair           *sql.Null[bool]                        `db:"require_flair" scan:"require_flair" json:"require_flair"`
+	MinimumAccountAgeHours *sql.Null[int32]                       `db:"minimum_account_age_hours" scan:"minimum_account_age_hours" json:"minimum_account_age_hours"`
+	MinimumKarmaRequired   *sql.Null[int32]                       `db:"minimum_karma_required" scan:"minimum_karma_required" json:"minimum_karma_required"`
+	UpdatedAt              *sql.Null[time.Time]                   `db:"updated_at" scan:"updated_at" json:"updated_at"`
+	CommunityType          *string                                `db:"community_type" scan:"community_type" json:"community_type"`
+	GovernanceStyle        *string                                `db:"governance_style" scan:"governance_style" json:"governance_style"`
+	OwnerPseudonymID       *sql.Null[string]                      `db:"owner_pseudonym_id" scan:"owner_pseudonym_id" json:"owner_pseudonym_id"`
+	SubforumRules          *sql.Null[types.JSON[json.RawMessage]] `db:"subforum_rules" scan:"subforum_rules" json:"subforum_rules"`
 }
 
 func (s SubforumSetter) SetColumns() []string {
-	vals := make([]string, 0, 24)
+	vals := make([]string, 0, 25)
 	if s.SubforumID != nil {
 		vals = append(vals, "subforum_id")
 	}
@@ -381,6 +390,10 @@ func (s SubforumSetter) SetColumns() []string {
 		vals = append(vals, "owner_pseudonym_id")
 	}
 
+	if s.SubforumRules != nil {
+		vals = append(vals, "subforum_rules")
+	}
+
 	return vals
 }
 
@@ -457,6 +470,9 @@ func (s SubforumSetter) Overwrite(t *Subforum) {
 	if s.OwnerPseudonymID != nil {
 		t.OwnerPseudonymID = *s.OwnerPseudonymID
 	}
+	if s.SubforumRules != nil {
+		t.SubforumRules = *s.SubforumRules
+	}
 }
 
 func (s *SubforumSetter) Apply(q *dialect.InsertQuery) {
@@ -465,7 +481,7 @@ func (s *SubforumSetter) Apply(q *dialect.InsertQuery) {
 	})
 
 	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
-		vals := make([]bob.Expression, 24)
+		vals := make([]bob.Expression, 25)
 		if s.SubforumID != nil {
 			vals[0] = psql.Arg(*s.SubforumID)
 		} else {
@@ -610,6 +626,12 @@ func (s *SubforumSetter) Apply(q *dialect.InsertQuery) {
 			vals[23] = psql.Raw("DEFAULT")
 		}
 
+		if s.SubforumRules != nil {
+			vals[24] = psql.Arg(*s.SubforumRules)
+		} else {
+			vals[24] = psql.Raw("DEFAULT")
+		}
+
 		return bob.ExpressSlice(ctx, w, d, start, vals, "", ", ", "")
 	}))
 }
@@ -619,7 +641,7 @@ func (s SubforumSetter) UpdateMod() bob.Mod[*dialect.UpdateQuery] {
 }
 
 func (s SubforumSetter) Expressions(prefix ...string) []bob.Expression {
-	exprs := make([]bob.Expression, 0, 24)
+	exprs := make([]bob.Expression, 0, 25)
 
 	if s.SubforumID != nil {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
@@ -786,6 +808,13 @@ func (s SubforumSetter) Expressions(prefix ...string) []bob.Expression {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "owner_pseudonym_id")...),
 			psql.Arg(s.OwnerPseudonymID),
+		}})
+	}
+
+	if s.SubforumRules != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "subforum_rules")...),
+			psql.Arg(s.SubforumRules),
 		}})
 	}
 

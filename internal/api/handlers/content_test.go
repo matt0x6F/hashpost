@@ -19,7 +19,7 @@ import (
 )
 
 // NewContentHandlerWithMocks creates a new content handler with mock DAOs and fixture data
-func NewContentHandlerWithMocks() (*ContentHandler, *mocks.MockPostDAO, *mocks.MockCommentDAO, *mocks.MockVoteDAO, *mocks.MockSubforumDAO, *mocks.MockSecurePseudonymDAO, *mocks.MockPermissionDAO) {
+func NewContentHandlerWithMocks() (*ContentHandler, *mocks.MockPostDAO, *mocks.MockCommentDAO, *mocks.MockVoteDAO, *mocks.MockSubforumDAO, *mocks.MockSecurePseudonymDAO, *mocks.MockPermissionDAO, *mocks.MockReportDAO) {
 	mockPostDAO := mocks.NewMockPostDAO()
 	mockCommentDAO := mocks.NewMockCommentDAO()
 	mockVoteDAO := mocks.NewMockVoteDAO()
@@ -30,6 +30,7 @@ func NewContentHandlerWithMocks() (*ContentHandler, *mocks.MockPostDAO, *mocks.M
 	mockUserBlocksDAO := &mocks.MockUserBlocksDAO{}
 	mockRoleKeyDAO := &mocks.MockRoleKeyDAO{}
 	mockPermissionDAO := &mocks.MockPermissionDAO{}
+	mockReportDAO := &mocks.MockReportDAO{}
 
 	ibeSystem := ibe.NewIBESystemWithOptions(ibe.IBEOptions{})
 
@@ -59,14 +60,15 @@ func NewContentHandlerWithMocks() (*ContentHandler, *mocks.MockPostDAO, *mocks.M
 		mockRoleKeyDAO,
 		permissionChecker,
 		mockPermissionDAO,
+		mockReportDAO,
 	)
 
-	return handler, mockPostDAO, mockCommentDAO, mockVoteDAO, mockSubforumDAO, mockSecurePseudonymDAO, mockPermissionDAO
+	return handler, mockPostDAO, mockCommentDAO, mockVoteDAO, mockSubforumDAO, mockSecurePseudonymDAO, mockPermissionDAO, mockReportDAO
 }
 
 // TestContentHandler_VoteOnPost_PreventsVotingOnDeletedPost tests that voting on deleted posts is prevented
 func TestContentHandler_VoteOnPost_PreventsVotingOnDeletedPost(t *testing.T) {
-	handler, mockPostDAO, _, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, _, _, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Create a deleted post
 	deletedPost := fixtures.CreateTestPost()
@@ -110,7 +112,7 @@ func TestContentHandler_VoteOnPost_PreventsVotingOnDeletedPost(t *testing.T) {
 
 // TestContentHandler_VoteOnComment_PreventsVotingOnDeletedComment tests that voting on deleted comments is prevented
 func TestContentHandler_VoteOnComment_PreventsVotingOnDeletedComment(t *testing.T) {
-	handler, _, mockCommentDAO, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, _, mockCommentDAO, _, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Create a deleted comment
 	deletedComment := fixtures.CreateTestComment()
@@ -154,7 +156,7 @@ func TestContentHandler_VoteOnComment_PreventsVotingOnDeletedComment(t *testing.
 
 // TestContentHandler_DeletePost_HandlesDeletedPostResponse tests that the delete post response has the correct structure
 func TestContentHandler_DeletePost_HandlesDeletedPostResponse(t *testing.T) {
-	handler, mockPostDAO, _, _, _, mockSecurePseudonymDAO, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, _, _, _, mockSecurePseudonymDAO, _, _ := NewContentHandlerWithMocks()
 
 	// Create a test post
 	testPost := fixtures.CreateTestPost()
@@ -216,7 +218,7 @@ func TestContentHandler_DeletePost_HandlesDeletedPostResponse(t *testing.T) {
 
 // TestContentHandler_DeleteComment_HandlesDeletedCommentResponse tests that the delete comment response has the correct structure
 func TestContentHandler_DeleteComment_HandlesDeletedCommentResponse(t *testing.T) {
-	handler, _, mockCommentDAO, _, _, mockSecurePseudonymDAO, _ := NewContentHandlerWithMocks()
+	handler, _, mockCommentDAO, _, _, mockSecurePseudonymDAO, _, _ := NewContentHandlerWithMocks()
 
 	// Create a test comment
 	testComment := fixtures.CreateTestComment()
@@ -276,7 +278,7 @@ func TestContentHandler_DeleteComment_HandlesDeletedCommentResponse(t *testing.T
 
 // TestContentHandler_GetPostDetails_FiltersDeletedPosts tests that deleted posts are filtered out
 func TestContentHandler_GetPostDetails_FiltersDeletedPosts(t *testing.T) {
-	handler, mockPostDAO, mockCommentDAO, mockVoteDAO, _, _, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, mockCommentDAO, mockVoteDAO, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Create a deleted post
 	deletedPost := fixtures.CreateTestPost()
@@ -319,7 +321,7 @@ func TestContentHandler_GetPostDetails_FiltersDeletedPosts(t *testing.T) {
 
 // TestContentHandler_GetPostBySlug_FiltersDeletedPosts tests that deleted posts are filtered out by slug
 func TestContentHandler_GetPostBySlug_FiltersDeletedPosts(t *testing.T) {
-	handler, mockPostDAO, mockCommentDAO, mockVoteDAO, mockSubforumDAO, _, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, mockCommentDAO, mockVoteDAO, mockSubforumDAO, _, _, _ := NewContentHandlerWithMocks()
 
 	// Create a test subforum
 	testSubforum := fixtures.CreateTestSubforum()
@@ -391,7 +393,7 @@ func TestContentHandler_GetPostBySlug_FiltersDeletedPosts(t *testing.T) {
 
 // TestSoftDeletion_ScorePreservation tests that scores are preserved for deleted content
 func TestSoftDeletion_ScorePreservation(t *testing.T) {
-	_, mockPostDAO, mockCommentDAO, _, _, _, _ := NewContentHandlerWithMocks()
+	_, mockPostDAO, mockCommentDAO, _, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Create a deleted post with votes
 	deletedPostWithVotes := fixtures.CreateTestPost()
@@ -426,7 +428,7 @@ func TestSoftDeletion_ScorePreservation(t *testing.T) {
 
 // TestSoftDeletion_DeletionMetadata tests that deletion metadata is properly set
 func TestSoftDeletion_DeletionMetadata(t *testing.T) {
-	_, mockPostDAO, mockCommentDAO, _, _, _, _ := NewContentHandlerWithMocks()
+	_, mockPostDAO, mockCommentDAO, _, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Create a deleted post with metadata
 	deletedPost := fixtures.CreateTestPost()
@@ -462,7 +464,7 @@ func TestSoftDeletion_DeletionMetadata(t *testing.T) {
 
 // TestContentHandler_GetPosts_Success tests successful post retrieval
 func TestContentHandler_GetPosts_Success(t *testing.T) {
-	handler, mockPostDAO, _, mockVoteDAO, mockSubforumDAO, _, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, _, mockVoteDAO, mockSubforumDAO, _, _, _ := NewContentHandlerWithMocks()
 
 	// Create test subforum
 	testSubforum := fixtures.CreateTestSubforum()
@@ -516,7 +518,7 @@ func TestContentHandler_GetPosts_Success(t *testing.T) {
 
 // TestContentHandler_GetPosts_PrivateSubforumAccess tests private subforum access
 func TestContentHandler_GetPosts_PrivateSubforumAccess(t *testing.T) {
-	handler, _, _, _, mockSubforumDAO, _, _ := NewContentHandlerWithMocks()
+	handler, _, _, _, mockSubforumDAO, _, _, _ := NewContentHandlerWithMocks()
 
 	// Create private subforum
 	privateSubforum := fixtures.CreateTestSubforum()
@@ -551,7 +553,7 @@ func TestContentHandler_GetPosts_PrivateSubforumAccess(t *testing.T) {
 
 // TestContentHandler_CreatePost_Success tests successful post creation
 func TestContentHandler_CreatePost_Success(t *testing.T) {
-	handler, mockPostDAO, _, _, mockSubforumDAO, _, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, _, _, mockSubforumDAO, _, _, _ := NewContentHandlerWithMocks()
 
 	// Create test subforum
 	testSubforum := fixtures.CreateTestSubforum()
@@ -605,7 +607,7 @@ func TestContentHandler_CreatePost_Success(t *testing.T) {
 
 // TestContentHandler_CreatePost_ValidationErrors tests post creation validation
 func TestContentHandler_CreatePost_ValidationErrors(t *testing.T) {
-	handler, _, _, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, _, _, _, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Test cases for validation errors
 	testCases := []struct {
@@ -659,7 +661,7 @@ func TestContentHandler_CreatePost_ValidationErrors(t *testing.T) {
 
 // TestContentHandler_GetPostDetails_Success tests successful post details retrieval
 func TestContentHandler_GetPostDetails_Success(t *testing.T) {
-	handler, mockPostDAO, mockCommentDAO, mockVoteDAO, _, _, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, mockCommentDAO, mockVoteDAO, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Create test post
 	testPost := fixtures.CreateTestPost()
@@ -707,7 +709,7 @@ func TestContentHandler_GetPostDetails_Success(t *testing.T) {
 
 // TestContentHandler_GetPostBySlug_Success tests successful post retrieval by slug
 func TestContentHandler_GetPostBySlug_Success(t *testing.T) {
-	handler, mockPostDAO, mockCommentDAO, mockVoteDAO, mockSubforumDAO, _, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, mockCommentDAO, mockVoteDAO, mockSubforumDAO, _, _, _ := NewContentHandlerWithMocks()
 
 	// Create test subforum
 	testSubforum := fixtures.CreateTestSubforum()
@@ -769,7 +771,7 @@ func TestContentHandler_GetPostBySlug_Success(t *testing.T) {
 
 // TestContentHandler_VoteOnPost_Success tests successful post voting
 func TestContentHandler_VoteOnPost_Success(t *testing.T) {
-	handler, mockPostDAO, _, mockVoteDAO, _, _, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, _, mockVoteDAO, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Create test post
 	testPost := fixtures.CreateTestPost()
@@ -817,7 +819,7 @@ func TestContentHandler_VoteOnPost_Success(t *testing.T) {
 
 // TestContentHandler_VoteOnPost_RemoveVote tests removing a vote
 func TestContentHandler_VoteOnPost_RemoveVote(t *testing.T) {
-	handler, mockPostDAO, _, mockVoteDAO, _, _, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, _, mockVoteDAO, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Create test post
 	testPost := fixtures.CreateTestPost()
@@ -871,7 +873,7 @@ func TestContentHandler_VoteOnPost_RemoveVote(t *testing.T) {
 
 // TestContentHandler_VoteOnPost_InvalidVoteValue tests invalid vote values
 func TestContentHandler_VoteOnPost_InvalidVoteValue(t *testing.T) {
-	handler, _, _, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, _, _, _, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Test invalid vote values
 	testCases := []struct {
@@ -908,7 +910,7 @@ func TestContentHandler_VoteOnPost_InvalidVoteValue(t *testing.T) {
 
 // TestContentHandler_VoteOnComment_Success tests successful comment voting
 func TestContentHandler_VoteOnComment_Success(t *testing.T) {
-	handler, _, mockCommentDAO, mockVoteDAO, _, _, _ := NewContentHandlerWithMocks()
+	handler, _, mockCommentDAO, mockVoteDAO, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Create test comment
 	testComment := fixtures.CreateTestComment()
@@ -956,7 +958,7 @@ func TestContentHandler_VoteOnComment_Success(t *testing.T) {
 
 // TestContentHandler_VoteOnComment_RemoveVote tests removing a comment vote
 func TestContentHandler_VoteOnComment_RemoveVote(t *testing.T) {
-	handler, _, mockCommentDAO, mockVoteDAO, _, _, _ := NewContentHandlerWithMocks()
+	handler, _, mockCommentDAO, mockVoteDAO, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Create test comment
 	testComment := fixtures.CreateTestComment()
@@ -1010,7 +1012,7 @@ func TestContentHandler_VoteOnComment_RemoveVote(t *testing.T) {
 
 // TestContentHandler_CreateComment_Success tests successful comment creation
 func TestContentHandler_CreateComment_Success(t *testing.T) {
-	handler, mockPostDAO, mockCommentDAO, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, mockCommentDAO, _, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Create test post
 	testPost := fixtures.CreateTestPost()
@@ -1060,7 +1062,7 @@ func TestContentHandler_CreateComment_Success(t *testing.T) {
 
 // TestContentHandler_CreateComment_ValidationErrors tests comment creation validation
 func TestContentHandler_CreateComment_ValidationErrors(t *testing.T) {
-	handler, _, _, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, _, _, _, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Test empty content
 	input := &apimodels.CommentInput{
@@ -1083,7 +1085,7 @@ func TestContentHandler_CreateComment_ValidationErrors(t *testing.T) {
 
 // TestContentHandler_EditPost_Success tests successful post editing
 func TestContentHandler_EditPost_Success(t *testing.T) {
-	handler, mockPostDAO, _, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, _, _, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Create test post owned by the user
 	testPost := fixtures.CreateTestPost()
@@ -1131,7 +1133,7 @@ func TestContentHandler_EditPost_Success(t *testing.T) {
 
 // TestContentHandler_EditPost_NotOwner tests editing a post the user doesn't own
 func TestContentHandler_EditPost_NotOwner(t *testing.T) {
-	handler, mockPostDAO, _, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, _, _, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Create test post owned by different user
 	testPost := fixtures.CreateTestPost()
@@ -1173,7 +1175,7 @@ func TestContentHandler_EditPost_NotOwner(t *testing.T) {
 
 // TestContentHandler_EditComment_Success tests successful comment editing
 func TestContentHandler_EditComment_Success(t *testing.T) {
-	handler, _, mockCommentDAO, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, _, mockCommentDAO, _, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Create test comment owned by the user
 	testComment := fixtures.CreateTestComment()
@@ -1218,7 +1220,7 @@ func TestContentHandler_EditComment_Success(t *testing.T) {
 
 // TestContentHandler_RemoveComment_Success tests successful comment removal
 func TestContentHandler_RemoveComment_Success(t *testing.T) {
-	handler, _, mockCommentDAO, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, _, mockCommentDAO, _, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Create test comment owned by the user
 	testComment := fixtures.CreateTestComment()
@@ -1267,7 +1269,7 @@ func TestContentHandler_RemoveComment_Success(t *testing.T) {
 
 // TestContentHandler_ReportComment_Success tests successful comment reporting
 func TestContentHandler_ReportComment_Success(t *testing.T) {
-	handler, _, mockCommentDAO, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, _, mockCommentDAO, _, _, _, _, mockReportDAO := NewContentHandlerWithMocks()
 
 	// Create test comment owned by different user
 	testComment := fixtures.CreateTestComment()
@@ -1277,6 +1279,22 @@ func TestContentHandler_ReportComment_Success(t *testing.T) {
 	mockCommentDAO.On("GetCommentByID", mock.Anything, int64(456)).Return(
 		func(ctx context.Context, commentID int64) (*dbmodels.Comment, error) {
 			return testComment, nil
+		},
+	)
+
+	// Set up mock expectation for CreateReport
+	expectedReport := &dbmodels.Report{
+		ReportID:            789,
+		ReporterPseudonymID: "test-pseudonym-id",
+		ContentType:         "comment",
+		ContentID:           sql.Null[int64]{V: 456, Valid: true},
+		ReportReason:        "spam",
+		ReportDetails:       sql.Null[string]{V: "This comment violates community guidelines", Valid: true},
+		Status:              sql.Null[string]{V: "pending", Valid: true},
+	}
+	mockReportDAO.On("CreateReport", mock.Anything, mock.AnythingOfType("*models.ReportSetter")).Return(
+		func(ctx context.Context, reportSetter *dbmodels.ReportSetter) (*dbmodels.Report, error) {
+			return expectedReport, nil
 		},
 	)
 
@@ -1309,11 +1327,12 @@ func TestContentHandler_ReportComment_Success(t *testing.T) {
 
 	// Verify DAO calls
 	mockCommentDAO.AssertExpectations(t)
+	mockReportDAO.AssertExpectations(t)
 }
 
 // TestContentHandler_ReportComment_OwnComment tests reporting own comment
 func TestContentHandler_ReportComment_OwnComment(t *testing.T) {
-	handler, _, mockCommentDAO, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, _, mockCommentDAO, _, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Create test comment owned by the user
 	testComment := fixtures.CreateTestComment()
@@ -1354,7 +1373,7 @@ func TestContentHandler_ReportComment_OwnComment(t *testing.T) {
 
 // TestContentHandler_LockPost_Success tests successful post locking
 func TestContentHandler_LockPost_Success(t *testing.T) {
-	handler, mockPostDAO, _, mockVoteDAO, _, _, mockPermissionDAO := NewContentHandlerWithMocks()
+	handler, mockPostDAO, _, mockVoteDAO, _, _, mockPermissionDAO, _ := NewContentHandlerWithMocks()
 
 	// Create test post
 	testPost := fixtures.CreateTestPost()
@@ -1404,7 +1423,7 @@ func TestContentHandler_LockPost_Success(t *testing.T) {
 
 // TestContentHandler_LockPost_NotFound tests locking a non-existent post
 func TestContentHandler_LockPost_NotFound(t *testing.T) {
-	handler, mockPostDAO, _, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, _, _, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Set up expectations for non-existent post
 	mockPostDAO.On("GetPostByID", mock.Anything, int64(999)).Return(nil, sql.ErrNoRows)
@@ -1439,7 +1458,7 @@ func TestContentHandler_LockPost_NotFound(t *testing.T) {
 
 // TestContentHandler_StickyPost_Success tests successful post stickying
 func TestContentHandler_StickyPost_Success(t *testing.T) {
-	handler, mockPostDAO, _, mockVoteDAO, _, _, mockPermissionDAO := NewContentHandlerWithMocks()
+	handler, mockPostDAO, _, mockVoteDAO, _, _, mockPermissionDAO, _ := NewContentHandlerWithMocks()
 
 	// Create test post
 	testPost := fixtures.CreateTestPost()
@@ -1482,7 +1501,7 @@ func TestContentHandler_StickyPost_Success(t *testing.T) {
 
 // TestContentHandler_StickyPost_NotFound tests stickying a non-existent post
 func TestContentHandler_StickyPost_NotFound(t *testing.T) {
-	handler, mockPostDAO, _, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, _, _, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Set up expectations for non-existent post
 	mockPostDAO.On("GetPostByID", mock.Anything, int64(999)).Return(nil, sql.ErrNoRows)
@@ -1517,7 +1536,7 @@ func TestContentHandler_StickyPost_NotFound(t *testing.T) {
 
 // TestContentHandler_RemovePost_Success tests successful post removal
 func TestContentHandler_RemovePost_Success(t *testing.T) {
-	handler, mockPostDAO, _, mockVoteDAO, _, _, mockPermissionDAO := NewContentHandlerWithMocks()
+	handler, mockPostDAO, _, mockVoteDAO, _, _, mockPermissionDAO, _ := NewContentHandlerWithMocks()
 
 	// Create test post
 	testPost := fixtures.CreateTestPost()
@@ -1560,7 +1579,7 @@ func TestContentHandler_RemovePost_Success(t *testing.T) {
 
 // TestContentHandler_RemovePost_NotFound tests removing a non-existent post
 func TestContentHandler_RemovePost_NotFound(t *testing.T) {
-	handler, mockPostDAO, _, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, _, _, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Set up expectations for non-existent post
 	mockPostDAO.On("GetPostByID", mock.Anything, int64(999)).Return(nil, sql.ErrNoRows)
@@ -1595,7 +1614,7 @@ func TestContentHandler_RemovePost_NotFound(t *testing.T) {
 
 // TestContentHandler_EditComment_NotFound tests editing a non-existent comment
 func TestContentHandler_EditComment_NotFound(t *testing.T) {
-	handler, _, mockCommentDAO, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, _, mockCommentDAO, _, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Set up expectations for non-existent comment
 	mockCommentDAO.On("GetCommentByID", mock.Anything, int64(999)).Return(nil, nil)
@@ -1629,7 +1648,7 @@ func TestContentHandler_EditComment_NotFound(t *testing.T) {
 
 // TestContentHandler_EditComment_NotOwner tests editing a comment the user doesn't own
 func TestContentHandler_EditComment_NotOwner(t *testing.T) {
-	handler, _, mockCommentDAO, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, _, mockCommentDAO, _, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Create test comment owned by different user
 	testComment := fixtures.CreateTestComment()
@@ -1671,7 +1690,7 @@ func TestContentHandler_EditComment_NotOwner(t *testing.T) {
 
 // TestContentHandler_EditComment_ValidationErrors tests comment editing validation
 func TestContentHandler_EditComment_ValidationErrors(t *testing.T) {
-	handler, _, _, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, _, _, _, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Test empty content
 	input := &apimodels.CommentEditInput{
@@ -1695,7 +1714,7 @@ func TestContentHandler_EditComment_ValidationErrors(t *testing.T) {
 
 // TestContentHandler_RemoveComment_NotFound tests removing a non-existent comment
 func TestContentHandler_RemoveComment_NotFound(t *testing.T) {
-	handler, _, mockCommentDAO, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, _, mockCommentDAO, _, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Set up expectations for non-existent comment
 	mockCommentDAO.On("GetCommentByID", mock.Anything, int64(999)).Return(nil, nil)
@@ -1732,7 +1751,7 @@ func TestContentHandler_RemoveComment_NotFound(t *testing.T) {
 
 // TestContentHandler_RemoveComment_NotOwner tests removing a comment the user doesn't own
 func TestContentHandler_RemoveComment_NotOwner(t *testing.T) {
-	handler, mockPostDAO, mockCommentDAO, _, _, _, mockPermissionDAO := NewContentHandlerWithMocks()
+	handler, mockPostDAO, mockCommentDAO, _, _, _, mockPermissionDAO, _ := NewContentHandlerWithMocks()
 
 	// Create test comment owned by different user
 	testComment := fixtures.CreateTestComment()
@@ -1777,7 +1796,7 @@ func TestContentHandler_RemoveComment_NotOwner(t *testing.T) {
 
 // TestContentHandler_ReportComment_NotFound tests reporting a non-existent comment
 func TestContentHandler_ReportComment_NotFound(t *testing.T) {
-	handler, _, mockCommentDAO, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, _, mockCommentDAO, _, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Set up expectations for non-existent comment
 	mockCommentDAO.On("GetCommentByID", mock.Anything, int64(999)).Return(nil, nil)
@@ -1811,7 +1830,7 @@ func TestContentHandler_ReportComment_NotFound(t *testing.T) {
 
 // TestContentHandler_ReportComment_ValidationErrors tests comment reporting validation
 func TestContentHandler_ReportComment_ValidationErrors(t *testing.T) {
-	handler, _, _, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, _, _, _, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Test empty report reason
 	input := &apimodels.CommentReportInput{
@@ -1834,7 +1853,7 @@ func TestContentHandler_ReportComment_ValidationErrors(t *testing.T) {
 
 // TestContentHandler_VoteOnComment_InvalidVoteValue tests invalid comment vote values
 func TestContentHandler_VoteOnComment_InvalidVoteValue(t *testing.T) {
-	handler, _, _, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, _, _, _, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Test invalid vote values
 	testCases := []struct {
@@ -1871,7 +1890,7 @@ func TestContentHandler_VoteOnComment_InvalidVoteValue(t *testing.T) {
 
 // TestContentHandler_VoteOnComment_NotFound tests voting on a non-existent comment
 func TestContentHandler_VoteOnComment_NotFound(t *testing.T) {
-	handler, _, mockCommentDAO, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, _, mockCommentDAO, _, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Set up expectations for non-existent comment
 	mockCommentDAO.On("GetCommentByID", mock.Anything, int64(999)).Return(nil, nil)
@@ -1904,7 +1923,7 @@ func TestContentHandler_VoteOnComment_NotFound(t *testing.T) {
 
 // TestContentHandler_VoteOnPost_NotFound tests voting on a non-existent post
 func TestContentHandler_VoteOnPost_NotFound(t *testing.T) {
-	handler, mockPostDAO, _, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, _, _, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Set up expectations for non-existent post
 	mockPostDAO.On("GetPostByID", mock.Anything, int64(999)).Return(nil, nil)
@@ -1937,7 +1956,7 @@ func TestContentHandler_VoteOnPost_NotFound(t *testing.T) {
 
 // TestContentHandler_CreateComment_NotFound tests creating a comment on a non-existent post
 func TestContentHandler_CreateComment_NotFound(t *testing.T) {
-	handler, mockPostDAO, _, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, _, _, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Set up expectations for non-existent post
 	mockPostDAO.On("GetPostByID", mock.Anything, int64(999)).Return(nil, nil)
@@ -1970,7 +1989,7 @@ func TestContentHandler_CreateComment_NotFound(t *testing.T) {
 
 // TestContentHandler_CreatePost_SubforumNotFound tests creating a post in a non-existent subforum
 func TestContentHandler_CreatePost_SubforumNotFound(t *testing.T) {
-	handler, _, _, _, mockSubforumDAO, _, _ := NewContentHandlerWithMocks()
+	handler, _, _, _, mockSubforumDAO, _, _, _ := NewContentHandlerWithMocks()
 
 	// Set up expectations for non-existent subforum
 	mockSubforumDAO.On("GetSubforumByCommunityTypeAndName", mock.Anything, "h", "non-existent-subforum").Return(nil, sql.ErrNoRows)
@@ -2007,7 +2026,7 @@ func TestContentHandler_CreatePost_SubforumNotFound(t *testing.T) {
 
 // TestContentHandler_GetPosts_SubforumNotFound tests getting posts from a non-existent subforum
 func TestContentHandler_GetPosts_SubforumNotFound(t *testing.T) {
-	handler, _, _, _, mockSubforumDAO, _, _ := NewContentHandlerWithMocks()
+	handler, _, _, _, mockSubforumDAO, _, _, _ := NewContentHandlerWithMocks()
 
 	// Set up expectations for non-existent subforum
 	mockSubforumDAO.On("GetSubforumByCommunityTypeAndName", mock.Anything, "h", "non-existent-subforum").Return(nil, sql.ErrNoRows)
@@ -2033,7 +2052,7 @@ func TestContentHandler_GetPosts_SubforumNotFound(t *testing.T) {
 
 // TestContentHandler_GetPostBySlug_SubforumNotFound tests getting a post by slug from a non-existent subforum
 func TestContentHandler_GetPostBySlug_SubforumNotFound(t *testing.T) {
-	handler, _, _, _, mockSubforumDAO, _, _ := NewContentHandlerWithMocks()
+	handler, _, _, _, mockSubforumDAO, _, _, _ := NewContentHandlerWithMocks()
 
 	// Set up expectations for non-existent subforum
 	mockSubforumDAO.On("GetSubforumByCommunityTypeAndName", mock.Anything, "h", "non-existent-subforum").Return(nil, sql.ErrNoRows)
@@ -2064,7 +2083,7 @@ func TestContentHandler_GetPostBySlug_SubforumNotFound(t *testing.T) {
 
 // TestContentHandler_GetPostBySlug_PostNotFound tests getting a non-existent post by slug
 func TestContentHandler_GetPostBySlug_PostNotFound(t *testing.T) {
-	handler, mockPostDAO, _, _, mockSubforumDAO, _, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, _, _, mockSubforumDAO, _, _, _ := NewContentHandlerWithMocks()
 
 	// Create test subforum
 	testSubforum := fixtures.CreateTestSubforum()
@@ -2100,7 +2119,7 @@ func TestContentHandler_GetPostBySlug_PostNotFound(t *testing.T) {
 
 // TestContentHandler_GetPostDetails_NotFound tests getting details of a non-existent post
 func TestContentHandler_GetPostDetails_NotFound(t *testing.T) {
-	handler, mockPostDAO, _, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, _, _, _, _, _, _ := NewContentHandlerWithMocks()
 
 	// Set up expectations for non-existent post
 	mockPostDAO.On("GetPostByID", mock.Anything, int64(999)).Return(nil, sql.ErrNoRows)
@@ -2139,6 +2158,7 @@ func TestContentHandler_NewContentHandler(t *testing.T) {
 		mockUserBlocksDAO := &mocks.MockUserBlocksDAO{}
 		mockRoleKeyDAO := &mocks.MockRoleKeyDAO{}
 		mockPermissionDAO := &mocks.MockPermissionDAO{}
+		mockReportDAO := &mocks.MockReportDAO{}
 
 		ibeSystem := ibe.NewIBESystemWithOptions(ibe.IBEOptions{})
 		permissionChecker := middleware.NewPermissionCheckerWithDAO(mockPermissionDAO)
@@ -2159,6 +2179,7 @@ func TestContentHandler_NewContentHandler(t *testing.T) {
 			mockRoleKeyDAO,
 			permissionChecker,
 			mockPermissionDAO,
+			mockReportDAO,
 		)
 
 		// Verify handler was created successfully

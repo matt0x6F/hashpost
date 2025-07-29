@@ -174,8 +174,8 @@ func (m *MockReportDAO) UpdateReport(ctx context.Context, reportID int64, update
 }
 
 // ResolveReport resolves a report with resolution details
-func (m *MockReportDAO) ResolveReport(ctx context.Context, reportID int64, resolverUserID int64, resolverPseudonymID string, resolutionNotes string) error {
-	args := m.Called(ctx, reportID, resolverUserID, resolverPseudonymID, resolutionNotes)
+func (m *MockReportDAO) ResolveReport(ctx context.Context, reportID int64, resolverUserID int64, resolverPseudonymID string, resolutionNotes string, action string) error {
+	args := m.Called(ctx, reportID, resolverUserID, resolverPseudonymID, resolutionNotes, action)
 	return args.Error(0)
 }
 

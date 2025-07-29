@@ -84,9 +84,15 @@ func (cmd *KeyRotationCommand) startCommand() *cobra.Command {
 	startCmd.Flags().IntVar(&newKeyVersion, "new-version", 0, "New key version to migrate to")
 	startCmd.Flags().Int64Var(&createdBy, "created-by", 1, "User ID who created the migration")
 
-	startCmd.MarkFlagRequired("domain")
-	startCmd.MarkFlagRequired("old-version")
-	startCmd.MarkFlagRequired("new-version")
+	if err := startCmd.MarkFlagRequired("domain"); err != nil {
+		log.Fatal().Err(err).Msg("failed to mark domain flag as required")
+	}
+	if err := startCmd.MarkFlagRequired("old-version"); err != nil {
+		log.Fatal().Err(err).Msg("failed to mark old-version flag as required")
+	}
+	if err := startCmd.MarkFlagRequired("new-version"); err != nil {
+		log.Fatal().Err(err).Msg("failed to mark new-version flag as required")
+	}
 
 	return startCmd
 }
@@ -127,7 +133,9 @@ func (cmd *KeyRotationCommand) statusCommand() *cobra.Command {
 	}
 
 	statusCmd.Flags().StringVar(&migrationID, "id", "", "Migration ID to check status")
-	statusCmd.MarkFlagRequired("id")
+	if err := statusCmd.MarkFlagRequired("id"); err != nil {
+		log.Fatal().Err(err).Msg("failed to mark id flag as required")
+	}
 
 	return statusCmd
 }
@@ -160,7 +168,9 @@ func (cmd *KeyRotationCommand) pauseCommand() *cobra.Command {
 	}
 
 	pauseCmd.Flags().StringVar(&migrationID, "id", "", "Migration ID to pause")
-	pauseCmd.MarkFlagRequired("id")
+	if err := pauseCmd.MarkFlagRequired("id"); err != nil {
+		log.Fatal().Err(err).Msg("failed to mark id flag as required")
+	}
 
 	return pauseCmd
 }
@@ -193,7 +203,9 @@ func (cmd *KeyRotationCommand) resumeCommand() *cobra.Command {
 	}
 
 	resumeCmd.Flags().StringVar(&migrationID, "id", "", "Migration ID to resume")
-	resumeCmd.MarkFlagRequired("id")
+	if err := resumeCmd.MarkFlagRequired("id"); err != nil {
+		log.Fatal().Err(err).Msg("failed to mark id flag as required")
+	}
 
 	return resumeCmd
 }
@@ -226,7 +238,9 @@ func (cmd *KeyRotationCommand) recoverCommand() *cobra.Command {
 	}
 
 	recoverCmd.Flags().StringVar(&migrationID, "id", "", "Migration ID to recover")
-	recoverCmd.MarkFlagRequired("id")
+	if err := recoverCmd.MarkFlagRequired("id"); err != nil {
+		log.Fatal().Err(err).Msg("failed to mark id flag as required")
+	}
 
 	return recoverCmd
 }

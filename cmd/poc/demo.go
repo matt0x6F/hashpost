@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
 	"fmt"
 	"time"
 
@@ -10,13 +9,13 @@ import (
 	"github.com/matt0x6f/hashpost/internal/poc"
 )
 
-// Demo orchestrates the IBE proof of concept demonstration
+// Demo orchestrates the IBE proof of concept demonstration.
 type Demo struct {
 	ibeSystem *ibe.IBESystem
 	db        *poc.MemoryDB
 }
 
-// NewDemo creates a new demonstration instance
+// NewDemo creates a new demonstration instance.
 func NewDemo(ibeSystem *ibe.IBESystem, db *poc.MemoryDB) *Demo {
 	return &Demo{
 		ibeSystem: ibeSystem,
@@ -24,32 +23,32 @@ func NewDemo(ibeSystem *ibe.IBESystem, db *poc.MemoryDB) *Demo {
 	}
 }
 
-// Run executes the complete demonstration
+// Run executes the complete demonstration.
 func (demo *Demo) Run() {
 	fmt.Println("🚀 Starting IBE Demonstration...")
 
-	// Step 1: Setup administrative roles
+	// Step 1: Setup administrative roles.
 	demo.setupAdminRoles()
 
-	// Step 2: Register users with multiple pseudonyms
+	// Step 2: Register users with multiple pseudonyms.
 	userMap := demo.registerUsers()
 
-	// Step 3: Create subforums
+	// Step 3: Create subforums.
 	demo.createSubforums()
 
-	// Step 4: Users make posts
+	// Step 4: Users make posts.
 	demo.usersMakePosts(userMap)
 
-	// Step 5: Demonstrate admin correlation of all pseudonyms for a user
+	// Step 5: Demonstrate admin correlation of all pseudonyms for a user.
 	demo.showUserPseudonymCorrelation(userMap)
 
-	// Step 6: Show audit trail
+	// Step 6: Show audit trail.
 	demo.showAuditTrail()
 
 	fmt.Println("✅ IBE Demonstration Complete!")
 }
 
-// setupAdminRoles creates the administrative role hierarchy
+// setupAdminRoles creates the administrative role hierarchy.
 func (demo *Demo) setupAdminRoles() {
 	fmt.Println("📋 Setting up Administrative Roles...")
 
@@ -81,11 +80,14 @@ func (demo *Demo) setupAdminRoles() {
 	}
 
 	for _, role := range roles {
-		demo.db.CreateAdminRole(role)
+		if err := demo.db.CreateAdminRole(role); err != nil {
+			fmt.Printf("  ❌ Failed to create role %s (%s): %v\n", role.RoleName, role.Scope, err)
+			continue
+		}
 		fmt.Printf("  ✅ Created role: %s (%s)\n", role.RoleName, role.Scope)
 	}
 
-	// Create admin users
+	// Create admin users.
 	admins := []*poc.AdminUser{
 		{Username: "admin_sarah", RoleID: roles[0].RoleID, IsActive: true},
 		{Username: "trust_alex", RoleID: roles[1].RoleID, IsActive: true},
@@ -94,14 +96,17 @@ func (demo *Demo) setupAdminRoles() {
 	}
 
 	for _, admin := range admins {
-		demo.db.CreateAdminUser(admin)
+		if err := demo.db.CreateAdminUser(admin); err != nil {
+			fmt.Printf("  ❌ Failed to create admin %s: %v\n", admin.Username, err)
+			continue
+		}
 		fmt.Printf("  ✅ Created admin: %s\n", admin.Username)
 	}
 
 	fmt.Println()
 }
 
-// registerUsers demonstrates user registration with multiple pseudonyms per real user
+// registerUsers demonstrates user registration with multiple pseudonyms per real user.
 func (demo *Demo) registerUsers() map[string][]*poc.User {
 	fmt.Println("👥 Registering Users with Multiple Pseudonyms...")
 
@@ -119,7 +124,10 @@ func (demo *Demo) registerUsers() map[string][]*poc.User {
 		for j := 0; j < pseudonymsPerUser; j++ {
 			// Generate user secret (in real system, this would be derived from password/2FA + pseudonym seed)
 			userSecret := make([]byte, 32)
-			rand.Read(userSecret)
+			if _, err := rand.Read(userSecret); err != nil {
+				fmt.Printf("  ❌ Failed to generate user secret: %v\n", err)
+				continue
+			}
 
 			// Generate pseudonym using IBE
 			pseudonymID := demo.ibeSystem.GeneratePseudonymFromUserSecret(userSecret)
@@ -133,7 +141,10 @@ func (demo *Demo) registerUsers() map[string][]*poc.User {
 			}
 
 			// Store user
-			demo.db.CreateUser(user)
+			if err := demo.db.CreateUser(user); err != nil {
+				fmt.Printf("  ❌ Failed to create user: %v\n", err)
+				continue
+			}
 
 			// Encrypt and store identity mapping
 			adminKey := demo.ibeSystem.GenerateRoleKey("site_admin", "full_correlation", time.Now().AddDate(1, 0, 0))
@@ -145,7 +156,10 @@ func (demo *Demo) registerUsers() map[string][]*poc.User {
 				CreatedAt:             time.Now(),
 			}
 
-			demo.db.StoreIdentityMapping(mapping)
+			if err := demo.db.StoreIdentityMapping(mapping); err != nil {
+				fmt.Printf("  ❌ Failed to store identity mapping: %v\n", err)
+				continue
+			}
 
 			fmt.Printf("  ✅ User %s registered with pseudonym: %s\n", realIdentity, pseudonymID[:8]+"...")
 			userMap[realIdentity] = append(userMap[realIdentity], user)
@@ -156,7 +170,7 @@ func (demo *Demo) registerUsers() map[string][]*poc.User {
 	return userMap
 }
 
-// createSubforums sets up community subforums
+// createSubforums sets up community subforums.
 func (demo *Demo) createSubforums() {
 	fmt.Println("🏛️  Creating Subforums...")
 
@@ -178,14 +192,17 @@ func (demo *Demo) createSubforums() {
 	}
 
 	for _, subforum := range subforums {
-		demo.db.CreateSubforum(subforum)
+		if err := demo.db.CreateSubforum(subforum); err != nil {
+			fmt.Printf("  ❌ Failed to create subforum %s: %v\n", subforum.Name, err)
+			continue
+		}
 		fmt.Printf("  ✅ Created subforum: r/%s\n", subforum.Name)
 	}
 
 	fmt.Println()
 }
 
-// usersMakePosts demonstrates users creating content
+// usersMakePosts demonstrates users creating content.
 func (demo *Demo) usersMakePosts(userMap map[string][]*poc.User) {
 	fmt.Println("📝 Users Creating Posts...")
 
@@ -214,19 +231,22 @@ func (demo *Demo) usersMakePosts(userMap map[string][]*poc.User) {
 			CreatedAt:   time.Now().Add(time.Duration(i) * time.Minute),
 		}
 
-		demo.db.CreatePost(post)
+		if err := demo.db.CreatePost(post); err != nil {
+			fmt.Printf("  ❌ Failed to create post %d: %v\n", i+1, err)
+			continue
+		}
 		fmt.Printf("  ✅ Post %d: %s (by %s)\n", i+1, postData.title, user.DisplayName)
 	}
 
 	fmt.Println()
 }
 
-// showUserPseudonymCorrelation demonstrates admin correlation of all pseudonyms for a real user
+// showUserPseudonymCorrelation demonstrates admin correlation of all pseudonyms for a real user.
 func (demo *Demo) showUserPseudonymCorrelation(userMap map[string][]*poc.User) {
 	fmt.Println("🔗 Demonstrating Admin Correlation of Multiple Pseudonyms per User...")
 
 	for realIdentity, pseudonymUsers := range userMap {
-		// Generate fingerprint for this real identity
+		// Generate fingerprint for this real identity.
 		fingerprint := demo.ibeSystem.GenerateFingerprint(realIdentity)
 
 		fmt.Printf("\n  Real Identity: %s\n", realIdentity)
@@ -235,7 +255,7 @@ func (demo *Demo) showUserPseudonymCorrelation(userMap map[string][]*poc.User) {
 
 		for _, user := range pseudonymUsers {
 			// In a real system, admin would decrypt the mapping to get the fingerprint
-			// and then use the fingerprint for lookups
+			// and then use the fingerprint for lookups.
 			fmt.Printf("    - Pseudonym: %s\n", user.PseudonymID)
 		}
 
@@ -244,7 +264,7 @@ func (demo *Demo) showUserPseudonymCorrelation(userMap map[string][]*poc.User) {
 	fmt.Println()
 }
 
-// showAuditTrail displays the correlation audit log
+// showAuditTrail displays the correlation audit log.
 func (demo *Demo) showAuditTrail() {
 	fmt.Println("📊 Correlation Audit Trail...")
 
@@ -262,10 +282,4 @@ func (demo *Demo) showAuditTrail() {
 		fmt.Printf("    Legal Basis: %s\n", audit.LegalBasis)
 		fmt.Println()
 	}
-}
-
-// generateUserSecret creates a deterministic user secret for demo purposes
-func generateUserSecret(email string) []byte {
-	hash := sha256.Sum256([]byte(email))
-	return hash[:]
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/shadcn/button';
 import { Textarea } from '@/components/shadcn/textarea';
 import { 
@@ -22,6 +22,7 @@ import { getApi } from '@/lib/api-client';
 import { ContentApi } from '@/generated/api/src/apis/ContentApi';
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 import CommentForm from './CommentForm';
+import { ReportDialog } from './ReportDialog';
 
 interface CommentProps {
   comment: CommentType;
@@ -37,7 +38,28 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
   const [showDropdown, setShowDropdown] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showReplyForm, setShowReplyForm] = useState(false);
-  const { user } = useAuth();
+  const [showReportDialog, setShowReportDialog] = useState(false);
+  const { user, isAuthenticated } = useAuth();
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      // Don't close if clicking on the dropdown itself
+      const target = event.target as Element;
+      if (target.closest('.dropdown-menu')) {
+        return;
+      }
+      
+      if (showDropdown) {
+        setShowDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDropdown]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -131,28 +153,15 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
     }
   };
 
-  const handleReport = async () => {
+  const handleReport = () => {
+
     if (isCommentAuthor) {
       toast.error('You cannot report your own comment');
       return;
     }
 
-    setIsSubmitting(true);
-    try {
-      const contentApi = getApi(ContentApi);
-      await contentApi.reportComment(comment.commentId, { 
-        reportReason: 'User reported comment',
-        reportDetails: 'User requested moderation review'
-      });
-      toast.success('Comment reported');
-    } catch (error: unknown) {
-      console.error('Error reporting comment:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to report comment';
-      toast.error('Failed to report comment', { description: errorMessage });
-    } finally {
-      setIsSubmitting(false);
-      setShowDropdown(false);
-    }
+    setShowReportDialog(true);
+    setShowDropdown(false);
   };
 
   // If comment is deleted by user, show minimal information
@@ -203,7 +212,7 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
           <span>{formatDate(comment.createdAt)}</span>
         </div>
         
-        {(isCommentAuthor || isModerator) && !isDeletedByUser && (
+        {!isDeletedByUser && (
           <div className="relative">
             <Button
               variant="ghost"
@@ -214,7 +223,7 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
               <MoreHorizontal className="w-4 h-4" />
             </Button>
             {showDropdown && (
-              <div className="absolute right-0 top-full mt-1 bg-popover border border-border rounded-md shadow-lg z-10 min-w-48">
+              <div className="absolute right-0 top-full mt-1 bg-popover border border-border rounded-md shadow-lg z-10 min-w-48 dropdown-menu">
                 <div className="p-2 space-y-1">
                   {isCommentAuthor && (
                     <>
@@ -260,14 +269,35 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="w-full justify-start"
-                      onClick={handleReport}
+                      className="w-full justify-start text-orange-600 hover:text-orange-700"
+                      onClick={() => {
+
+                        handleReport();
+                      }}
                       disabled={isSubmitting}
                     >
                       <Flag className="w-4 h-4 mr-2" />
-                      Report
+                      Report Comment
                     </Button>
                   )}
+                  
+                  {/* Report button for non-authenticated users */}
+                  {!isCommentAuthor && !isAuthenticated && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start text-muted-foreground"
+                      onClick={() => {
+                        toast.error('Please log in to report comments');
+                        setShowDropdown(false);
+                      }}
+                      disabled={isSubmitting}
+                    >
+                      <Flag className="w-4 h-4 mr-2" />
+                      Report Comment (Login Required)
+                    </Button>
+                  )}
+
                 </div>
               </div>
             )}
@@ -370,6 +400,17 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
           ))}
         </div>
       )}
+      
+      {/* Report Dialog */}
+      <ReportDialog
+        open={showReportDialog}
+        onOpenChange={setShowReportDialog}
+        contentType="comment"
+        contentId={comment.commentId}
+        reportedPseudonymId={comment.author?.pseudonymId}
+        contentPreview={comment.content}
+        reportedUserDisplayName={comment.author?.displayName}
+      />
     </div>
   );
 } 

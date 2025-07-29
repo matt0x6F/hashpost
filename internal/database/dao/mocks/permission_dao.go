@@ -43,6 +43,12 @@ func (m *MockPermissionDAO) InjectModerationAbility(userID int64, subforumID int
 	m.roles[key] = canModerate
 }
 
+// InjectSubforumCapabilityWithActivePseudonym injects a capability for a user, subforum, and active pseudonym
+func (m *MockPermissionDAO) InjectSubforumCapabilityWithActivePseudonym(userID int64, subforumID int32, capability string, activePseudonymID string, hasCapability bool) {
+	key := fmt.Sprintf("%d-%d-%s-%s", userID, subforumID, capability, activePseudonymID)
+	m.capabilities[key] = hasCapability
+}
+
 // SetDefaultBehavior sets up default mock behavior for common operations
 func (m *MockPermissionDAO) SetDefaultBehavior() {
 	// Default behavior for CanAccessPrivateSubforum
@@ -82,6 +88,17 @@ func (m *MockPermissionDAO) SetDefaultBehavior() {
 	m.On("GetUserSubforumCapabilities", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int32")).Return(
 		func(ctx context.Context, userID int64, subforumID int32) ([]string, error) {
 			return []string{}, nil
+		},
+	)
+
+	// Default behavior for HasSubforumCapabilityWithActivePseudonym
+	m.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int32"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(
+		func(ctx context.Context, userID int64, subforumID int32, capability string, activePseudonymID string) (bool, error) {
+			key := fmt.Sprintf("%d-%d-%s-%s", userID, subforumID, capability, activePseudonymID)
+			if hasCapability, exists := m.capabilities[key]; exists {
+				return hasCapability, nil
+			}
+			return false, nil
 		},
 	)
 }
@@ -197,4 +214,33 @@ func (m *MockPermissionDAO) GetActivePseudonymRolesAndCapabilities(ctx context.C
 		return []string{}, []string{}, args.Error(2)
 	}
 	return args.Get(0).([]string), args.Get(1).([]string), args.Error(2)
+}
+
+// GetUnifiedActivePseudonymRolesAndCapabilities gets the unified roles and capabilities for a specific active pseudonym
+func (m *MockPermissionDAO) GetUnifiedActivePseudonymRolesAndCapabilities(ctx context.Context, userID int64, activePseudonymID string, subforumID *int32) ([]string, []string, error) {
+	args := m.Called(ctx, userID, activePseudonymID, subforumID)
+
+	// Check if the return value is a function
+	if fn, ok := args.Get(0).(func(context.Context, int64, string, *int32) ([]string, []string, error)); ok {
+		return fn(ctx, userID, activePseudonymID, subforumID)
+	}
+
+	// Fallback to direct return values
+	if args.Get(0) == nil {
+		return []string{}, []string{}, args.Error(2)
+	}
+	return args.Get(0).([]string), args.Get(1).([]string), args.Error(2)
+}
+
+// HasUnifiedCapability checks if a user has a unified capability
+func (m *MockPermissionDAO) HasUnifiedCapability(ctx context.Context, userID int64, activePseudonymID string, capability string, subforumID *int32) (bool, error) {
+	args := m.Called(ctx, userID, activePseudonymID, capability, subforumID)
+
+	// Check if the return value is a function
+	if fn, ok := args.Get(0).(func(context.Context, int64, string, string, *int32) (bool, error)); ok {
+		return fn(ctx, userID, activePseudonymID, capability, subforumID)
+	}
+
+	// Fallback to direct return values
+	return args.Get(0).(bool), args.Error(1)
 }

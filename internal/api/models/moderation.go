@@ -70,6 +70,32 @@ type UserBanInput struct {
 	Body        UserBanInputBody `json:"body"`
 }
 
+// ReportResolutionInputBody is for Huma schema definition only. Actual requests should send flat JSON, not nested under 'body'.
+type ReportResolutionInputBody struct {
+	Action string `json:"action" example:"resolve" required:"true"`     // "resolve", "dismiss"
+	Notes  string `json:"notes" example:"Report resolved after review"` // Optional notes
+}
+
+// ReportResolutionInput represents report resolution request (for OpenAPI schema only)
+type ReportResolutionInput struct {
+	Body ReportResolutionInputBody `json:"body"`
+}
+
+// ReportResolutionResponseBody represents the body of report resolution response
+type ReportResolutionResponseBody struct {
+	ReportID   int        `json:"report_id" example:"123"`
+	Action     string     `json:"action" example:"resolve"`
+	Notes      string     `json:"notes" example:"Report resolved after review"`
+	ResolvedAt string     `json:"resolved_at" example:"2024-01-01T17:00:00Z"`
+	ResolvedBy ResolvedBy `json:"resolved_by"`
+}
+
+// ReportResolutionResponse represents report resolution response
+type ReportResolutionResponse struct {
+	Status int                          `json:"-" example:"200"`
+	Body   ReportResolutionResponseBody `json:"body"`
+}
+
 // ModerationHistoryInput represents moderation history request parameters
 type ModerationHistoryInput struct {
 	SubforumID int    `query:"subforum_id" example:"1"`           // 0 means "all subforums"
@@ -247,6 +273,23 @@ func NewModerationHistoryResponse(actions []ModerationAction, page, limit, total
 				Limit: limit,
 				Total: total,
 				Pages: pages,
+			},
+		},
+	}
+}
+
+// NewReportResolutionResponse creates a new report resolution response
+func NewReportResolutionResponse(reportID int, action, notes, moderatorPseudonymID, moderatorDisplayName string) *ReportResolutionResponse {
+	return &ReportResolutionResponse{
+		Status: 200,
+		Body: ReportResolutionResponseBody{
+			ReportID:   reportID,
+			Action:     action,
+			Notes:      notes,
+			ResolvedAt: time.Now().UTC().Format(time.RFC3339),
+			ResolvedBy: ResolvedBy{
+				PseudonymID: moderatorPseudonymID,
+				DisplayName: moderatorDisplayName,
 			},
 		},
 	}

@@ -479,3 +479,176 @@ func (dao *PermissionDAO) GetActivePseudonymRolesAndCapabilities(ctx context.Con
 
 	return roles, capabilities, nil
 }
+
+// GetUnifiedActivePseudonymRolesAndCapabilities returns the unified roles and capabilities for a specific active pseudonym
+// This combines both global pseudonym capabilities and subforum-specific moderator capabilities
+func (dao *PermissionDAO) GetUnifiedActivePseudonymRolesAndCapabilities(ctx context.Context, userID int64, activePseudonymID string, subforumID *int32) ([]string, []string, error) {
+	var roles []string
+	var capabilities []string
+
+	// Get the active pseudonym
+	pseudonym, err := models.FindPseudonym(ctx, dao.db, activePseudonymID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get pseudonym: %w", err)
+	}
+	if pseudonym == nil {
+		return nil, nil, fmt.Errorf("pseudonym not found")
+	}
+
+	// Get pseudonym roles and capabilities (global)
+	if pseudonym.Roles.Valid {
+		rawValue, err := pseudonym.Roles.V.Value()
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get pseudonym roles: %w", err)
+		}
+		if err := json.Unmarshal(rawValue.([]byte), &roles); err != nil {
+			return nil, nil, fmt.Errorf("failed to unmarshal pseudonym roles: %w", err)
+		}
+	} else {
+		// Default role for all pseudonyms
+		roles = []string{"user"}
+	}
+
+	if pseudonym.Capabilities.Valid {
+		rawValue, err := pseudonym.Capabilities.V.Value()
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get pseudonym capabilities: %w", err)
+		}
+		if err := json.Unmarshal(rawValue.([]byte), &capabilities); err != nil {
+			return nil, nil, fmt.Errorf("failed to unmarshal pseudonym capabilities: %w", err)
+		}
+	} else {
+		// Default capabilities for all pseudonyms
+		capabilities = []string{"create_content", "vote", "message", "report"}
+	}
+
+	// If subforumID is provided, add subforum-specific capabilities
+	if subforumID != nil {
+		subforumCapabilities, err := dao.getSubforumCapabilitiesForPseudonym(ctx, *subforumID, activePseudonymID)
+		if err != nil {
+			log.Warn().Err(err).Int32("subforum_id", *subforumID).Str("pseudonym_id", activePseudonymID).Msg("Failed to get subforum capabilities")
+		} else {
+			// Add subforum-specific capabilities
+			capabilities = append(capabilities, subforumCapabilities...)
+
+			// Add "moderator" role if the pseudonym has subforum-specific capabilities
+			if len(subforumCapabilities) > 0 {
+				// Check if "moderator" role is not already present
+				hasModeratorRole := false
+				for _, role := range roles {
+					if role == "moderator" {
+						hasModeratorRole = true
+						break
+					}
+				}
+				if !hasModeratorRole {
+					roles = append(roles, "moderator")
+				}
+			}
+		}
+	}
+
+	// Remove duplicates from capabilities
+	capabilities = dao.removeDuplicateCapabilities(capabilities)
+
+	return roles, capabilities, nil
+}
+
+// HasUnifiedCapability checks if the active pseudonym has a specific capability
+// This combines both global pseudonym capabilities and subforum-specific moderator capabilities
+func (dao *PermissionDAO) HasUnifiedCapability(ctx context.Context, userID int64, activePseudonymID string, capability string, subforumID *int32) (bool, error) {
+	log.Debug().
+		Int64("user_id", userID).
+		Str("pseudonym_id", activePseudonymID).
+		Str("capability", capability).
+		Interface("subforum_id", subforumID).
+		Msg("Checking unified capability")
+
+	// Get unified roles and capabilities
+	_, capabilities, err := dao.GetUnifiedActivePseudonymRolesAndCapabilities(ctx, userID, activePseudonymID, subforumID)
+	if err != nil {
+		return false, fmt.Errorf("failed to get unified roles and capabilities: %w", err)
+	}
+
+	// Check if the capability is present
+	for _, cap := range capabilities {
+		if cap == capability {
+			log.Debug().
+				Int64("user_id", userID).
+				Str("pseudonym_id", activePseudonymID).
+				Str("capability", capability).
+				Interface("subforum_id", subforumID).
+				Msg("Active pseudonym has unified capability")
+			return true, nil
+		}
+	}
+
+	log.Debug().
+		Int64("user_id", userID).
+		Str("pseudonym_id", activePseudonymID).
+		Str("capability", capability).
+		Interface("subforum_id", subforumID).
+		Msg("Active pseudonym does not have unified capability")
+	return false, nil
+}
+
+// getSubforumCapabilitiesForPseudonym gets subforum-specific capabilities for a specific pseudonym
+func (dao *PermissionDAO) getSubforumCapabilitiesForPseudonym(ctx context.Context, subforumID int32, pseudonymID string) ([]string, error) {
+	var capabilities []string
+
+	// Check if database is available
+	if dao.db == nil {
+		return nil, fmt.Errorf("database not initialized")
+	}
+
+	// Check if the pseudonym is a moderator of this subforum
+	moderator, err := models.SubforumModerators.Query(
+		models.SelectWhere.SubforumModerators.SubforumID.EQ(subforumID),
+		models.SelectWhere.SubforumModerators.PseudonymID.EQ(pseudonymID),
+	).One(ctx, dao.db)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to query moderator record: %w", err)
+	}
+
+	if moderator != nil {
+		log.Debug().
+			Int32("subforum_id", subforumID).
+			Str("pseudonym_id", pseudonymID).
+			Str("role", moderator.Role).
+			Msg("Found moderator record for subforum capabilities")
+
+		// Add role-based capabilities
+		roleCaps := dao.getRoleCapabilities(moderator.Role)
+		capabilities = append(capabilities, roleCaps...)
+
+		// Add specific permissions from JSON
+		if moderator.Permissions.Valid {
+			rawValue, err := moderator.Permissions.V.Value()
+			if err != nil {
+				return nil, fmt.Errorf("failed to get moderator permissions value: %w", err)
+			}
+			var permissions []string
+			if err := json.Unmarshal(rawValue.([]byte), &permissions); err == nil {
+				capabilities = append(capabilities, permissions...)
+			}
+		}
+	}
+
+	return capabilities, nil
+}
+
+// removeDuplicateCapabilities removes duplicate capabilities from a slice
+func (dao *PermissionDAO) removeDuplicateCapabilities(capabilities []string) []string {
+	seen := make(map[string]bool)
+	result := []string{}
+
+	for _, cap := range capabilities {
+		if !seen[cap] {
+			seen[cap] = true
+			result = append(result, cap)
+		}
+	}
+
+	return result
+}
