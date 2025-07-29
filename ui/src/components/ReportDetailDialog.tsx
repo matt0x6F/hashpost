@@ -100,13 +100,7 @@ export function ReportDetailDialog({ report, open, onOpenChange, onAction }: Rep
 
   if (!report) return null;
 
-  // Debug logging for resolution information
-  console.log('ReportDetailDialog: report data:', {
-    status: report.status,
-    resolvedBy: report.resolvedBy,
-    resolvedAt: report.resolvedAt,
-    resolutionNotes: report.resolutionNotes
-  });
+  
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

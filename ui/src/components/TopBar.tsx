@@ -29,20 +29,7 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
   // AND we're in a subforum context where the role would be assigned
   const isModerator = (hasModeratorRole || hasModerateContent) && isInSubforumContext;
 
-  // Debug logging
-  console.log('TopBar Debug:', {
-    isLoading,
-    isAuthenticated,
-    pathname,
-    isInSubforumContext,
-    user: user ? {
-      userId: user.userId,
-      capabilities: user.capabilities,
-      roles: user.roles,
-      activePseudonymId: user.activePseudonymId
-    } : null,
-    isModerator
-  });
+
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => {

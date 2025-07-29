@@ -41,7 +41,7 @@ export function ReportsList({ subforumPath, initialStatus = 'pending' }: Reports
   
   // Update status filter when initialStatus prop changes (from URL)
   useEffect(() => {
-    console.log('ReportsList: initialStatus changed to:', initialStatus);
+
     setStatusFilter(initialStatus);
     setPage(1); // Reset to first page when status changes
   }, [initialStatus]);
@@ -53,7 +53,7 @@ export function ReportsList({ subforumPath, initialStatus = 'pending' }: Reports
   const moderationApi = getApi(ModerationApi);
 
   const loadReports = async () => {
-    console.log('ReportsList: loadReports called with statusFilter:', statusFilter, 'page:', page);
+
     setLoading(true);
     try {
       const response = await moderationApi.getSubforumReports(
@@ -65,9 +65,7 @@ export function ReportsList({ subforumPath, initialStatus = 'pending' }: Reports
         25 // limit
       );
 
-      console.log('Reports API response:', response);
-      console.log('Status filter:', statusFilter);
-      console.log('Reports found:', response.reports?.length || 0);
+      
 
       if (response.reports) {
         setReports(response.reports);
@@ -98,10 +96,8 @@ export function ReportsList({ subforumPath, initialStatus = 'pending' }: Reports
         }, '', ''); // authorization and accessToken parameters
       } else if (action === 'remove') {
         // TODO: Implement content removal
-        console.log('Content removal not yet implemented');
       } else if (action === 'ban_user' || action === 'ban_pseudonym' || action === 'mute_user') {
         // TODO: Implement user banning
-        console.log('User banning not yet implemented');
       }
       
       // Reload reports to show updated status

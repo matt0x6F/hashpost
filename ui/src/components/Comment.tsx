@@ -154,12 +154,12 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
   };
 
   const handleReport = () => {
-    console.log('handleReport called', { isCommentAuthor, isAuthenticated });
+
     if (isCommentAuthor) {
       toast.error('You cannot report your own comment');
       return;
     }
-    console.log('Setting showReportDialog to true');
+
     setShowReportDialog(true);
     setShowDropdown(false);
   };
@@ -271,7 +271,7 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
                       size="sm"
                       className="w-full justify-start text-orange-600 hover:text-orange-700"
                       onClick={() => {
-                        console.log('Report button clicked');
+
                         handleReport();
                       }}
                       disabled={isSubmitting}

@@ -76,7 +76,7 @@ export function ReportDialog({
   contentPreview, 
   reportedUserDisplayName 
 }: ReportDialogProps) {
-  console.log('ReportDialog props:', { open, contentType, contentId, reportedPseudonymId, contentTitle, contentPreview, reportedUserDisplayName });
+
   const [reportReason, setReportReason] = useState('');
   const [reportDetails, setReportDetails] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
