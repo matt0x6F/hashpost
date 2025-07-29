@@ -451,7 +451,7 @@ func (dao *PseudonymDAO) CreatePseudonymWithIdentityMapping(ctx context.Context,
 		EncryptedPseudonymMapping: &authenticationFingerprint,
 		KeyVersion:                &[]int32{int32(dao.ibeSystem.GetKeyVersion())}[0],
 		UserID:                    &userID,
-		KeyScope:                  &[]string{"authentication"}[0],
+		KeyScope:                  &[]string{constants.ScopeAuthentication}[0],
 	}
 
 	_, err = models.IdentityMappings.Insert(authenticationMapping).One(ctx, dao.db)
@@ -460,7 +460,7 @@ func (dao *PseudonymDAO) CreatePseudonymWithIdentityMapping(ctx context.Context,
 	}
 
 	// Get self-correlation role key from the database
-	selfCorrelationKeyData, err := dao.roleKeyDAO.GetPerUserKeyData(ctx, userRole, "self_correlation", userID)
+	selfCorrelationKeyData, err := dao.roleKeyDAO.GetPerUserKeyData(ctx, userRole, constants.ScopeSelfCorrelation, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get self-correlation role key: %w", err)
 	}
@@ -479,7 +479,7 @@ func (dao *PseudonymDAO) CreatePseudonymWithIdentityMapping(ctx context.Context,
 		EncryptedPseudonymMapping: &selfCorrelationFingerprint,
 		KeyVersion:                &[]int32{int32(dao.ibeSystem.GetKeyVersion())}[0],
 		UserID:                    &userID,
-		KeyScope:                  &[]string{"self_correlation"}[0],
+		KeyScope:                  &[]string{constants.ScopeSelfCorrelation}[0],
 	}
 
 	_, err = models.IdentityMappings.Insert(selfCorrelationMapping).One(ctx, dao.db)
@@ -499,7 +499,7 @@ func (dao *PseudonymDAO) CreatePseudonymWithIdentityMapping(ctx context.Context,
 
 	if isAdminRole {
 		// Get correlation key for admin role
-		correlationKeyData, err := dao.roleKeyDAO.GetPerUserKeyData(ctx, userRole, "correlation", userID)
+		correlationKeyData, err := dao.roleKeyDAO.GetPerUserKeyData(ctx, userRole, constants.ScopeCorrelation, userID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get correlation role key: %w", err)
 		}
@@ -518,7 +518,7 @@ func (dao *PseudonymDAO) CreatePseudonymWithIdentityMapping(ctx context.Context,
 			EncryptedPseudonymMapping: &correlationFingerprint,
 			KeyVersion:                &[]int32{int32(dao.ibeSystem.GetKeyVersion())}[0],
 			UserID:                    &userID,
-			KeyScope:                  &[]string{"correlation"}[0],
+			KeyScope:                  &[]string{constants.ScopeCorrelation}[0],
 		}
 
 		_, err = models.IdentityMappings.Insert(correlationMapping).One(ctx, dao.db)

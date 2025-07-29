@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/shadcn/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/shadcn/select';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, Area, AreaChart } from 'recharts';
-import { Calendar, MessageSquare, ThumbsUp, TrendingUp, Activity } from 'lucide-react';
+import { Activity } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area, BarChart, Bar } from 'recharts';
 import { getApi } from '@/lib/api-client';
 import { ModerationApi, EngagementDataPoint, GetEngagementAnalyticsTimeRangeEnum } from '@/generated/api/src';
 
@@ -13,13 +13,17 @@ interface EngagementAnalyticsProps {
   timeRange?: '7d' | '14d' | '30d';
 }
 
-export function EngagementAnalytics({ subforumPath, timeRange = '14d' }: EngagementAnalyticsProps) {
+export function EngagementAnalytics({ subforumPath, timeRange = '30d' }: EngagementAnalyticsProps) {
   const [data, setData] = useState<EngagementDataPoint[]>([]);
-  const [selectedTimeRange, setSelectedTimeRange] = useState<'7d' | '14d' | '30d'>(timeRange || '14d');
+  const [selectedTimeRange, setSelectedTimeRange] = useState<'7d' | '14d' | '30d'>(timeRange || '30d');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const lastFetchKey = useRef<string>('');
 
   useEffect(() => {
+    const fetchKey = `${subforumPath}-${selectedTimeRange}`;
+    if (lastFetchKey.current === fetchKey) return;
+    
     const fetchData = async () => {
       setIsLoading(true);
       setError(null);
@@ -29,6 +33,7 @@ export function EngagementAnalytics({ subforumPath, timeRange = '14d' }: Engagem
         const timeRangeEnum = selectedTimeRange as GetEngagementAnalyticsTimeRangeEnum;
         const response = await moderationApi.getEngagementAnalytics(subforumPath, timeRangeEnum);
         setData(response.dataPoints || []);
+        lastFetchKey.current = fetchKey;
       } catch (err) {
         console.error('Failed to fetch engagement analytics:', err);
         setError('Failed to load engagement analytics. Please try again.');
@@ -39,11 +44,6 @@ export function EngagementAnalytics({ subforumPath, timeRange = '14d' }: Engagem
 
     fetchData();
   }, [selectedTimeRange, subforumPath]);
-
-  const totalPosts = data.reduce((sum, point) => sum + point.posts, 0);
-  const totalComments = data.reduce((sum, point) => sum + point.comments, 0);
-  const totalVotes = data.reduce((sum, point) => sum + point.totalVotes, 0);
-  const avgEngagement = data.length > 0 ? Math.round((totalPosts + totalComments + totalVotes) / data.length) : 0;
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -109,62 +109,7 @@ export function EngagementAnalytics({ subforumPath, timeRange = '14d' }: Engagem
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Posts</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalPosts}</div>
-            <p className="text-xs text-muted-foreground">
-              Last {selectedTimeRange}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Comments</CardTitle>
-            <MessageSquare className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalComments}</div>
-            <p className="text-xs text-muted-foreground">
-              Last {selectedTimeRange}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Votes</CardTitle>
-            <ThumbsUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalVotes}</div>
-            <p className="text-xs text-muted-foreground">
-              Last {selectedTimeRange}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg Engagement</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{avgEngagement}</div>
-            <p className="text-xs text-muted-foreground">
-              Per day
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Time Range Selector */}
+      {/* Chart Section */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">

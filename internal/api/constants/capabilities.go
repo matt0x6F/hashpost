@@ -55,6 +55,15 @@ const (
 
 	// ManageModerators allows managing moderator assignments
 	CapabilityManageModerators = "manage_moderators"
+
+	// ReviewReports allows reviewing and resolving reports within a subforum
+	CapabilityReviewReports = "review_reports"
+
+	// ForwardReports allows forwarding reports to platform-level moderators
+	CapabilityForwardReports = "forward_reports"
+
+	// ManageSubforumRules allows creating, updating, and deleting subforum rules
+	CapabilityManageSubforumRules = "manage_subforum_rules"
 )
 
 // Platform-wide capabilities - used for system administration
@@ -108,21 +117,30 @@ func GetCapabilitiesByScope(scope string) []string {
 			CapabilityManageOwnProfile,
 			CapabilityManageOwnPseudonyms,
 		}
+	case ScopeModeration:
+		return []string{
+			CapabilityModerateContent,
+			CapabilityBanUsers,
+			CapabilityRemoveContent,
+			CapabilityManageModerators,
+			CapabilityReviewReports,
+			CapabilityForwardReports,
+			CapabilityManageSubforumRules,
+		}
+	case ScopeAdministration:
+		return []string{
+			CapabilityModeration,
+			CapabilityCompliance,
+			CapabilityLegalRequests,
+			CapabilitySystemAdmin,
+			CapabilityUserManagement,
+		}
 	case ScopeCorrelation:
 		return []string{
 			CapabilityAccessAllPseudonyms,
 			CapabilityAccessSubforumPseudonyms,
 			CapabilityCrossUserCorrelation,
 			CapabilityCorrelateFingerprints,
-			CapabilityModerateContent,
-			CapabilityBanUsers,
-			CapabilityRemoveContent,
-			CapabilityManageModerators,
-			CapabilityModeration,
-			CapabilityCompliance,
-			CapabilityLegalRequests,
-			CapabilitySystemAdmin,
-			CapabilityUserManagement,
 		}
 	default:
 		return []string{}
@@ -164,6 +182,9 @@ func GetAllCapabilities() []string {
 		CapabilityBanUsers,
 		CapabilityRemoveContent,
 		CapabilityManageModerators,
+		CapabilityReviewReports,
+		CapabilityForwardReports,
+		CapabilityManageSubforumRules,
 
 		// Platform-wide capabilities
 		CapabilityModeration,

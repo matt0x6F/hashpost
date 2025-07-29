@@ -93,6 +93,8 @@ type PostDAOInterface interface {
 	UpdatePost(ctx context.Context, postID int64, title, content string) error
 	// Moderation dashboard methods
 	GetPostsCount(ctx context.Context, subforumPath string, since time.Time) (int, error)
+	GetTotalPostsCount(ctx context.Context, subforumPath string) (int, error)
+	GetPostsCountForDateRange(ctx context.Context, subforumPath string, startTime, endTime time.Time) (int, error)
 }
 
 // CommentDAOInterface defines the interface for comment data access operations
@@ -113,6 +115,8 @@ type CommentDAOInterface interface {
 	UpdateComment(ctx context.Context, commentID int64, content, editReason string) error
 	// Moderation dashboard methods
 	GetCommentsCount(ctx context.Context, subforumPath string, since time.Time) (int, error)
+	GetTotalCommentsCount(ctx context.Context, subforumPath string) (int, error)
+	GetCommentsCountForDateRange(ctx context.Context, subforumPath string, startTime, endTime time.Time) (int, error)
 }
 
 // VoteDAOInterface defines the interface for vote data access operations
@@ -133,6 +137,13 @@ type VoteDAOInterface interface {
 	GetPostDownvotesCount(ctx context.Context, subforumPath string, since time.Time) (int, error)
 	GetCommentUpvotesCount(ctx context.Context, subforumPath string, since time.Time) (int, error)
 	GetCommentDownvotesCount(ctx context.Context, subforumPath string, since time.Time) (int, error)
+	// Daily activity methods
+	GetPostVotesCountForDateRange(ctx context.Context, subforumPath string, startTime, endTime time.Time) (int, error)
+	GetCommentVotesCountForDateRange(ctx context.Context, subforumPath string, startTime, endTime time.Time) (int, error)
+	GetPostUpvotesCountForDateRange(ctx context.Context, subforumPath string, startTime, endTime time.Time) (int, error)
+	GetPostDownvotesCountForDateRange(ctx context.Context, subforumPath string, startTime, endTime time.Time) (int, error)
+	GetCommentUpvotesCountForDateRange(ctx context.Context, subforumPath string, startTime, endTime time.Time) (int, error)
+	GetCommentDownvotesCountForDateRange(ctx context.Context, subforumPath string, startTime, endTime time.Time) (int, error)
 }
 
 // APIKeyDAOInterface defines the interface for API key data access operations
@@ -186,6 +197,13 @@ type ReportDAOInterface interface {
 	GetPendingReportsCount(ctx context.Context, subforumPath string) (int, error)
 }
 
+// SystemSettingsDAOInterface defines the interface for system settings data access operations
+type SystemSettingsDAOInterface interface {
+	GetSetting(ctx context.Context, settingKey string) (*models.SystemSetting, error)
+	SetSetting(ctx context.Context, settingKey, settingValue, settingType string, updatedBy int64) error
+	GetAllSettings(ctx context.Context) ([]*models.SystemSetting, error)
+}
+
 // ModerationActionDAOInterface defines the interface for moderation action data access operations
 type ModerationActionDAOInterface interface {
 	CreateModerationAction(ctx context.Context, action *models.ModerationActionSetter) (*models.ModerationAction, error)
@@ -233,6 +251,9 @@ type PermissionDAOInterface interface {
 	GetUserSubforumRoles(ctx context.Context, userID int64, subforumID int32) ([]string, error)
 	GetUserSubforumCapabilities(ctx context.Context, userID int64, subforumID int32) ([]string, error)
 	GetActivePseudonymRolesAndCapabilities(ctx context.Context, userID int64, activePseudonymID string) ([]string, []string, error)
+	// Unified permission methods that combine global and subforum-specific capabilities
+	GetUnifiedActivePseudonymRolesAndCapabilities(ctx context.Context, userID int64, activePseudonymID string, subforumID *int32) ([]string, []string, error)
+	HasUnifiedCapability(ctx context.Context, userID int64, activePseudonymID string, capability string, subforumID *int32) (bool, error)
 }
 
 // SubforumModeratorDAOInterface defines the interface for subforum moderator data access operations

@@ -900,6 +900,13 @@ func (c *ModerationCache) Set(key string, value interface{}, ttl time.Duration) 
 	}
 }
 
+// Clear clears the entire cache
+func (c *ModerationCache) Clear() {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.cache = make(map[string]CacheEntry)
+}
+
 // Global cache instance
 var moderationCache = NewModerationCache(100)
 
@@ -933,55 +940,63 @@ func (h *ModerationHandler) GetModerationStats(ctx context.Context, input *Moder
 		}
 	}
 
-	// Calculate time range
-	days := 7
+	log.Info().
+		Msg("No cached stats found, calculating fresh stats")
+
+	// Parse time range parameter and calculate since date
+	var since time.Time
+	var days int
 	switch input.TimeRange {
+	case "7d":
+		since = time.Now().AddDate(0, 0, -7)
+		days = 7
 	case "14d":
+		since = time.Now().AddDate(0, 0, -14)
 		days = 14
 	case "30d":
+		since = time.Now().AddDate(0, 0, -30)
+		days = 30
+	default:
+		// Default to 30 days if invalid time range
+		since = time.Now().AddDate(0, 0, -30)
 		days = 30
 	}
 
-	since := time.Now().AddDate(0, 0, -days)
-
-	// Get statistics using handler's DAOs
+	// Get moderation statistics
 	pendingReports, err := h.reportDAO.GetPendingReportsCount(ctx, input.SubforumPath)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to get pending reports count")
-		pendingReports = 0
+		return nil, fmt.Errorf("failed to get pending reports count: %w", err)
 	}
 
 	bannedUsers, err := h.userBanDAO.GetBannedUsersCount(ctx, input.SubforumPath)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to get banned users count")
-		bannedUsers = 0
+		return nil, fmt.Errorf("failed to get banned users count: %w", err)
 	}
 
 	modActions, err := h.moderationActionDAO.GetModActionsCount(ctx, input.SubforumPath, since)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to get mod actions count")
-		modActions = 0
+		return nil, fmt.Errorf("failed to get moderation actions count: %w", err)
 	}
 
 	totalPosts, err := h.postDAO.GetPostsCount(ctx, input.SubforumPath, since)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to get posts count")
-		totalPosts = 0
+		return nil, fmt.Errorf("failed to get posts count: %w", err)
 	}
 
 	totalComments, err := h.commentDAO.GetCommentsCount(ctx, input.SubforumPath, since)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to get comments count")
-		totalComments = 0
+		return nil, fmt.Errorf("failed to get comments count: %w", err)
 	}
 
-	// For now, we'll use a placeholder for votes since VoteDAO is not in the handler
-	// TODO: Add VoteDAO to the handler
-	totalVotes := 0
+	totalVotes, err := h.voteDAO.GetVotesCount(ctx, input.SubforumPath, since)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get votes count: %w", err)
+	}
 
+	// Calculate average engagement (posts + comments + votes) over the specified time range
 	avgEngagement := 0
-	if days > 0 {
-		avgEngagement = (totalPosts + totalComments + totalVotes) / days
+	if totalPosts+totalComments+totalVotes > 0 {
+		avgEngagement = (totalPosts + totalComments + totalVotes) / days // Average per day over the time range
 	}
 
 	stats := ModerationStats{
@@ -1046,18 +1061,19 @@ func (h *ModerationHandler) GetEngagementAnalytics(ctx context.Context, input *M
 	for i := 0; i < days; i++ {
 		date := today.AddDate(0, 0, -i)
 		startOfDay := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+		endOfDay := time.Date(date.Year(), date.Month(), date.Day(), 23, 59, 59, 999999999, date.Location())
 
-		// Get data for this day using handler's DAOs
-		posts, _ := h.postDAO.GetPostsCount(ctx, input.SubforumPath, startOfDay)
-		comments, _ := h.commentDAO.GetCommentsCount(ctx, input.SubforumPath, startOfDay)
-		postVotes, _ := h.voteDAO.GetPostVotesCount(ctx, input.SubforumPath, startOfDay)
-		commentVotes, _ := h.voteDAO.GetCommentVotesCount(ctx, input.SubforumPath, startOfDay)
+		// Get data for this specific day (not cumulative)
+		posts, _ := h.postDAO.GetPostsCountForDateRange(ctx, input.SubforumPath, startOfDay, endOfDay)
+		comments, _ := h.commentDAO.GetCommentsCountForDateRange(ctx, input.SubforumPath, startOfDay, endOfDay)
+		postVotes, _ := h.voteDAO.GetPostVotesCountForDateRange(ctx, input.SubforumPath, startOfDay, endOfDay)
+		commentVotes, _ := h.voteDAO.GetCommentVotesCountForDateRange(ctx, input.SubforumPath, startOfDay, endOfDay)
 
-		// Get upvote/downvote breakdown
-		postUpvotes, _ := h.voteDAO.GetPostUpvotesCount(ctx, input.SubforumPath, startOfDay)
-		postDownvotes, _ := h.voteDAO.GetPostDownvotesCount(ctx, input.SubforumPath, startOfDay)
-		commentUpvotes, _ := h.voteDAO.GetCommentUpvotesCount(ctx, input.SubforumPath, startOfDay)
-		commentDownvotes, _ := h.voteDAO.GetCommentDownvotesCount(ctx, input.SubforumPath, startOfDay)
+		// Get upvote/downvote breakdown for this specific day
+		postUpvotes, _ := h.voteDAO.GetPostUpvotesCountForDateRange(ctx, input.SubforumPath, startOfDay, endOfDay)
+		postDownvotes, _ := h.voteDAO.GetPostDownvotesCountForDateRange(ctx, input.SubforumPath, startOfDay, endOfDay)
+		commentUpvotes, _ := h.voteDAO.GetCommentUpvotesCountForDateRange(ctx, input.SubforumPath, startOfDay, endOfDay)
+		commentDownvotes, _ := h.voteDAO.GetCommentDownvotesCountForDateRange(ctx, input.SubforumPath, startOfDay, endOfDay)
 
 		dataPoints[days-1-i] = EngagementDataPoint{
 			Date:             startOfDay.Format("2006-01-02"),

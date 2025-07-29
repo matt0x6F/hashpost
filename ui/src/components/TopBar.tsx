@@ -79,7 +79,7 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
       <div className="flex items-center gap-4">
         {/* Moderator Dashboard Link */}
         {!isLoading && isAuthenticated && isModerator && (
-          <Link href={`${pathname}/moderation`}>
+          <Link href={`/${pathname?.split('/').slice(1, 3).join('/')}/moderation`}>
             <Button variant="ghost" size="sm" className="flex items-center gap-2">
               <Shield className="w-4 h-4" />
               <span className="hidden sm:inline">Moderation</span>

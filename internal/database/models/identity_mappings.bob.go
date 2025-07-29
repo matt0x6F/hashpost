@@ -160,21 +160,12 @@ var IdentityMappingErrors = &identityMappingErrors{
 		columns: []string{"fingerprint", "pseudonym_id", "key_scope"},
 		s:       "unique_fingerprint_pseudonym_key_scope",
 	},
-
-	ErrUniqueUniqueFingerprintPseudonymScope: &UniqueConstraintError{
-		schema:  "",
-		table:   "identity_mappings",
-		columns: []string{"fingerprint", "pseudonym_id", "key_scope"},
-		s:       "unique_fingerprint_pseudonym_scope",
-	},
 }
 
 type identityMappingErrors struct {
 	ErrUniqueIdentityMappingsPkey *UniqueConstraintError
 
 	ErrUniqueUniqueFingerprintPseudonymKeyScope *UniqueConstraintError
-
-	ErrUniqueUniqueFingerprintPseudonymScope *UniqueConstraintError
 }
 
 // IdentityMappingSetter is used for insert/upsert/update operations

@@ -198,3 +198,32 @@ func (m *MockPermissionDAO) GetActivePseudonymRolesAndCapabilities(ctx context.C
 	}
 	return args.Get(0).([]string), args.Get(1).([]string), args.Error(2)
 }
+
+// GetUnifiedActivePseudonymRolesAndCapabilities gets the unified roles and capabilities for a specific active pseudonym
+func (m *MockPermissionDAO) GetUnifiedActivePseudonymRolesAndCapabilities(ctx context.Context, userID int64, activePseudonymID string, subforumID *int32) ([]string, []string, error) {
+	args := m.Called(ctx, userID, activePseudonymID, subforumID)
+
+	// Check if the return value is a function
+	if fn, ok := args.Get(0).(func(context.Context, int64, string, *int32) ([]string, []string, error)); ok {
+		return fn(ctx, userID, activePseudonymID, subforumID)
+	}
+
+	// Fallback to direct return values
+	if args.Get(0) == nil {
+		return []string{}, []string{}, args.Error(2)
+	}
+	return args.Get(0).([]string), args.Get(1).([]string), args.Error(2)
+}
+
+// HasUnifiedCapability checks if a user has a unified capability
+func (m *MockPermissionDAO) HasUnifiedCapability(ctx context.Context, userID int64, activePseudonymID string, capability string, subforumID *int32) (bool, error) {
+	args := m.Called(ctx, userID, activePseudonymID, capability, subforumID)
+
+	// Check if the return value is a function
+	if fn, ok := args.Get(0).(func(context.Context, int64, string, string, *int32) (bool, error)); ok {
+		return fn(ctx, userID, activePseudonymID, capability, subforumID)
+	}
+
+	// Fallback to direct return values
+	return args.Get(0).(bool), args.Error(1)
+}

@@ -298,7 +298,46 @@ func (dao *RoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interfac
 		})
 	}
 
-	// Add admin-specific correlation keys for admin roles
+	// Add moderation and correlation keys for moderator roles
+	moderatorRoles := []string{constants.RoleModerator, constants.RoleSubforumOwner}
+	for _, userRole := range userRoles {
+		for _, moderatorRole := range moderatorRoles {
+			if userRole == moderatorRole {
+				// Get the role definition to get the correct capabilities
+				roleDef := constants.GetRoleDefinition(userRole)
+				if roleDef != nil {
+					// Add moderation scope capabilities
+					if moderationCaps, exists := roleDef.Capabilities[constants.ScopeModeration]; exists {
+						defaultKeys = append(defaultKeys, struct {
+							roleName     string
+							scope        string
+							capabilities []string
+						}{
+							roleName:     userRole,
+							scope:        constants.ScopeModeration,
+							capabilities: moderationCaps,
+						})
+					}
+
+					// Add correlation scope capabilities
+					if correlationCaps, exists := roleDef.Capabilities[constants.ScopeCorrelation]; exists {
+						defaultKeys = append(defaultKeys, struct {
+							roleName     string
+							scope        string
+							capabilities []string
+						}{
+							roleName:     userRole,
+							scope:        constants.ScopeCorrelation,
+							capabilities: correlationCaps,
+						})
+					}
+				}
+				break
+			}
+		}
+	}
+
+	// Add administration and correlation keys for admin roles
 	adminRoles := []string{constants.RolePlatformAdmin, constants.RoleTrustSafety, constants.RoleLegalTeam}
 	for _, userRole := range userRoles {
 		for _, adminRole := range adminRoles {
@@ -306,16 +345,44 @@ func (dao *RoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interfac
 				// Get the role definition to get the correct capabilities
 				roleDef := constants.GetRoleDefinition(userRole)
 				if roleDef != nil {
-					correlationCaps := roleDef.Capabilities[constants.ScopeCorrelation]
-					defaultKeys = append(defaultKeys, struct {
-						roleName     string
-						scope        string
-						capabilities []string
-					}{
-						roleName:     userRole,
-						scope:        constants.ScopeCorrelation,
-						capabilities: correlationCaps,
-					})
+					// Add moderation scope capabilities
+					if moderationCaps, exists := roleDef.Capabilities[constants.ScopeModeration]; exists {
+						defaultKeys = append(defaultKeys, struct {
+							roleName     string
+							scope        string
+							capabilities []string
+						}{
+							roleName:     userRole,
+							scope:        constants.ScopeModeration,
+							capabilities: moderationCaps,
+						})
+					}
+
+					// Add administration scope capabilities
+					if adminCaps, exists := roleDef.Capabilities[constants.ScopeAdministration]; exists {
+						defaultKeys = append(defaultKeys, struct {
+							roleName     string
+							scope        string
+							capabilities []string
+						}{
+							roleName:     userRole,
+							scope:        constants.ScopeAdministration,
+							capabilities: adminCaps,
+						})
+					}
+
+					// Add correlation scope capabilities
+					if correlationCaps, exists := roleDef.Capabilities[constants.ScopeCorrelation]; exists {
+						defaultKeys = append(defaultKeys, struct {
+							roleName     string
+							scope        string
+							capabilities []string
+						}{
+							roleName:     userRole,
+							scope:        constants.ScopeCorrelation,
+							capabilities: correlationCaps,
+						})
+					}
 				}
 				break
 			}

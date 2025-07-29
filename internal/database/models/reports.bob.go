@@ -37,6 +37,12 @@ type Report struct {
 	ResolvedByPseudonymID sql.Null[string]    `db:"resolved_by_pseudonym_id" scan:"resolved_by_pseudonym_id" json:"resolved_by_pseudonym_id"`
 	ResolutionNotes       sql.Null[string]    `db:"resolution_notes" scan:"resolution_notes" json:"resolution_notes"`
 	ResolvedAt            sql.Null[time.Time] `db:"resolved_at" scan:"resolved_at" json:"resolved_at"`
+	RuleCode              sql.Null[string]    `db:"rule_code" scan:"rule_code" json:"rule_code"`
+	RuleType              sql.Null[string]    `db:"rule_type" scan:"rule_type" json:"rule_type"`
+	ForwardedToPlatform   sql.Null[bool]      `db:"forwarded_to_platform" scan:"forwarded_to_platform" json:"forwarded_to_platform"`
+	ForwardingNotes       sql.Null[string]    `db:"forwarding_notes" scan:"forwarding_notes" json:"forwarding_notes"`
+	ForwardedByUserID     sql.Null[int64]     `db:"forwarded_by_user_id" scan:"forwarded_by_user_id" json:"forwarded_by_user_id"`
+	ForwardedAt           sql.Null[time.Time] `db:"forwarded_at" scan:"forwarded_at" json:"forwarded_at"`
 
 	R reportR `db:"-" scan:"rel" json:"rel"`
 }
@@ -53,6 +59,7 @@ type ReportsQuery = *psql.ViewQuery[*Report, ReportSlice]
 
 // reportR is where relationships are stored.
 type reportR struct {
+	ForwardedByUserUser          *User      `scan:"ForwardedByUserUser" json:"ForwardedByUserUser"`                   // reports.fk_reports_forwarded_by
 	ReportedPseudonymPseudonym   *Pseudonym `scan:"ReportedPseudonymPseudonym" json:"ReportedPseudonymPseudonym"`     // reports.reports_reported_pseudonym_id_fkey
 	ReporterPseudonymPseudonym   *Pseudonym `scan:"ReporterPseudonymPseudonym" json:"ReporterPseudonymPseudonym"`     // reports.reports_reporter_pseudonym_id_fkey
 	ResolvedByPseudonymPseudonym *Pseudonym `scan:"ResolvedByPseudonymPseudonym" json:"ResolvedByPseudonymPseudonym"` // reports.reports_resolved_by_pseudonym_id_fkey
@@ -73,6 +80,12 @@ type reportColumnNames struct {
 	ResolvedByPseudonymID string
 	ResolutionNotes       string
 	ResolvedAt            string
+	RuleCode              string
+	RuleType              string
+	ForwardedToPlatform   string
+	ForwardingNotes       string
+	ForwardedByUserID     string
+	ForwardedAt           string
 }
 
 var ReportColumns = buildReportColumns("reports")
@@ -92,6 +105,12 @@ type reportColumns struct {
 	ResolvedByPseudonymID psql.Expression
 	ResolutionNotes       psql.Expression
 	ResolvedAt            psql.Expression
+	RuleCode              psql.Expression
+	RuleType              psql.Expression
+	ForwardedToPlatform   psql.Expression
+	ForwardingNotes       psql.Expression
+	ForwardedByUserID     psql.Expression
+	ForwardedAt           psql.Expression
 }
 
 func (c reportColumns) Alias() string {
@@ -118,6 +137,12 @@ func buildReportColumns(alias string) reportColumns {
 		ResolvedByPseudonymID: psql.Quote(alias, "resolved_by_pseudonym_id"),
 		ResolutionNotes:       psql.Quote(alias, "resolution_notes"),
 		ResolvedAt:            psql.Quote(alias, "resolved_at"),
+		RuleCode:              psql.Quote(alias, "rule_code"),
+		RuleType:              psql.Quote(alias, "rule_type"),
+		ForwardedToPlatform:   psql.Quote(alias, "forwarded_to_platform"),
+		ForwardingNotes:       psql.Quote(alias, "forwarding_notes"),
+		ForwardedByUserID:     psql.Quote(alias, "forwarded_by_user_id"),
+		ForwardedAt:           psql.Quote(alias, "forwarded_at"),
 	}
 }
 
@@ -135,6 +160,12 @@ type reportWhere[Q psql.Filterable] struct {
 	ResolvedByPseudonymID psql.WhereNullMod[Q, string]
 	ResolutionNotes       psql.WhereNullMod[Q, string]
 	ResolvedAt            psql.WhereNullMod[Q, time.Time]
+	RuleCode              psql.WhereNullMod[Q, string]
+	RuleType              psql.WhereNullMod[Q, string]
+	ForwardedToPlatform   psql.WhereNullMod[Q, bool]
+	ForwardingNotes       psql.WhereNullMod[Q, string]
+	ForwardedByUserID     psql.WhereNullMod[Q, int64]
+	ForwardedAt           psql.WhereNullMod[Q, time.Time]
 }
 
 func (reportWhere[Q]) AliasedAs(alias string) reportWhere[Q] {
@@ -156,6 +187,12 @@ func buildReportWhere[Q psql.Filterable](cols reportColumns) reportWhere[Q] {
 		ResolvedByPseudonymID: psql.WhereNull[Q, string](cols.ResolvedByPseudonymID),
 		ResolutionNotes:       psql.WhereNull[Q, string](cols.ResolutionNotes),
 		ResolvedAt:            psql.WhereNull[Q, time.Time](cols.ResolvedAt),
+		RuleCode:              psql.WhereNull[Q, string](cols.RuleCode),
+		RuleType:              psql.WhereNull[Q, string](cols.RuleType),
+		ForwardedToPlatform:   psql.WhereNull[Q, bool](cols.ForwardedToPlatform),
+		ForwardingNotes:       psql.WhereNull[Q, string](cols.ForwardingNotes),
+		ForwardedByUserID:     psql.WhereNull[Q, int64](cols.ForwardedByUserID),
+		ForwardedAt:           psql.WhereNull[Q, time.Time](cols.ForwardedAt),
 	}
 }
 
@@ -189,10 +226,16 @@ type ReportSetter struct {
 	ResolvedByPseudonymID *sql.Null[string]    `db:"resolved_by_pseudonym_id" scan:"resolved_by_pseudonym_id" json:"resolved_by_pseudonym_id"`
 	ResolutionNotes       *sql.Null[string]    `db:"resolution_notes" scan:"resolution_notes" json:"resolution_notes"`
 	ResolvedAt            *sql.Null[time.Time] `db:"resolved_at" scan:"resolved_at" json:"resolved_at"`
+	RuleCode              *sql.Null[string]    `db:"rule_code" scan:"rule_code" json:"rule_code"`
+	RuleType              *sql.Null[string]    `db:"rule_type" scan:"rule_type" json:"rule_type"`
+	ForwardedToPlatform   *sql.Null[bool]      `db:"forwarded_to_platform" scan:"forwarded_to_platform" json:"forwarded_to_platform"`
+	ForwardingNotes       *sql.Null[string]    `db:"forwarding_notes" scan:"forwarding_notes" json:"forwarding_notes"`
+	ForwardedByUserID     *sql.Null[int64]     `db:"forwarded_by_user_id" scan:"forwarded_by_user_id" json:"forwarded_by_user_id"`
+	ForwardedAt           *sql.Null[time.Time] `db:"forwarded_at" scan:"forwarded_at" json:"forwarded_at"`
 }
 
 func (s ReportSetter) SetColumns() []string {
-	vals := make([]string, 0, 13)
+	vals := make([]string, 0, 19)
 	if s.ReportID != nil {
 		vals = append(vals, "report_id")
 	}
@@ -245,6 +288,30 @@ func (s ReportSetter) SetColumns() []string {
 		vals = append(vals, "resolved_at")
 	}
 
+	if s.RuleCode != nil {
+		vals = append(vals, "rule_code")
+	}
+
+	if s.RuleType != nil {
+		vals = append(vals, "rule_type")
+	}
+
+	if s.ForwardedToPlatform != nil {
+		vals = append(vals, "forwarded_to_platform")
+	}
+
+	if s.ForwardingNotes != nil {
+		vals = append(vals, "forwarding_notes")
+	}
+
+	if s.ForwardedByUserID != nil {
+		vals = append(vals, "forwarded_by_user_id")
+	}
+
+	if s.ForwardedAt != nil {
+		vals = append(vals, "forwarded_at")
+	}
+
 	return vals
 }
 
@@ -288,6 +355,24 @@ func (s ReportSetter) Overwrite(t *Report) {
 	if s.ResolvedAt != nil {
 		t.ResolvedAt = *s.ResolvedAt
 	}
+	if s.RuleCode != nil {
+		t.RuleCode = *s.RuleCode
+	}
+	if s.RuleType != nil {
+		t.RuleType = *s.RuleType
+	}
+	if s.ForwardedToPlatform != nil {
+		t.ForwardedToPlatform = *s.ForwardedToPlatform
+	}
+	if s.ForwardingNotes != nil {
+		t.ForwardingNotes = *s.ForwardingNotes
+	}
+	if s.ForwardedByUserID != nil {
+		t.ForwardedByUserID = *s.ForwardedByUserID
+	}
+	if s.ForwardedAt != nil {
+		t.ForwardedAt = *s.ForwardedAt
+	}
 }
 
 func (s *ReportSetter) Apply(q *dialect.InsertQuery) {
@@ -296,7 +381,7 @@ func (s *ReportSetter) Apply(q *dialect.InsertQuery) {
 	})
 
 	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
-		vals := make([]bob.Expression, 13)
+		vals := make([]bob.Expression, 19)
 		if s.ReportID != nil {
 			vals[0] = psql.Arg(*s.ReportID)
 		} else {
@@ -375,6 +460,42 @@ func (s *ReportSetter) Apply(q *dialect.InsertQuery) {
 			vals[12] = psql.Raw("DEFAULT")
 		}
 
+		if s.RuleCode != nil {
+			vals[13] = psql.Arg(*s.RuleCode)
+		} else {
+			vals[13] = psql.Raw("DEFAULT")
+		}
+
+		if s.RuleType != nil {
+			vals[14] = psql.Arg(*s.RuleType)
+		} else {
+			vals[14] = psql.Raw("DEFAULT")
+		}
+
+		if s.ForwardedToPlatform != nil {
+			vals[15] = psql.Arg(*s.ForwardedToPlatform)
+		} else {
+			vals[15] = psql.Raw("DEFAULT")
+		}
+
+		if s.ForwardingNotes != nil {
+			vals[16] = psql.Arg(*s.ForwardingNotes)
+		} else {
+			vals[16] = psql.Raw("DEFAULT")
+		}
+
+		if s.ForwardedByUserID != nil {
+			vals[17] = psql.Arg(*s.ForwardedByUserID)
+		} else {
+			vals[17] = psql.Raw("DEFAULT")
+		}
+
+		if s.ForwardedAt != nil {
+			vals[18] = psql.Arg(*s.ForwardedAt)
+		} else {
+			vals[18] = psql.Raw("DEFAULT")
+		}
+
 		return bob.ExpressSlice(ctx, w, d, start, vals, "", ", ", "")
 	}))
 }
@@ -384,7 +505,7 @@ func (s ReportSetter) UpdateMod() bob.Mod[*dialect.UpdateQuery] {
 }
 
 func (s ReportSetter) Expressions(prefix ...string) []bob.Expression {
-	exprs := make([]bob.Expression, 0, 13)
+	exprs := make([]bob.Expression, 0, 19)
 
 	if s.ReportID != nil {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
@@ -474,6 +595,48 @@ func (s ReportSetter) Expressions(prefix ...string) []bob.Expression {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "resolved_at")...),
 			psql.Arg(s.ResolvedAt),
+		}})
+	}
+
+	if s.RuleCode != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "rule_code")...),
+			psql.Arg(s.RuleCode),
+		}})
+	}
+
+	if s.RuleType != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "rule_type")...),
+			psql.Arg(s.RuleType),
+		}})
+	}
+
+	if s.ForwardedToPlatform != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "forwarded_to_platform")...),
+			psql.Arg(s.ForwardedToPlatform),
+		}})
+	}
+
+	if s.ForwardingNotes != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "forwarding_notes")...),
+			psql.Arg(s.ForwardingNotes),
+		}})
+	}
+
+	if s.ForwardedByUserID != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "forwarded_by_user_id")...),
+			psql.Arg(s.ForwardedByUserID),
+		}})
+	}
+
+	if s.ForwardedAt != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "forwarded_at")...),
+			psql.Arg(s.ForwardedAt),
 		}})
 	}
 
@@ -705,6 +868,7 @@ func (o ReportSlice) ReloadAll(ctx context.Context, exec bob.Executor) error {
 
 type reportJoins[Q dialect.Joinable] struct {
 	typ                          string
+	ForwardedByUserUser          modAs[Q, userColumns]
 	ReportedPseudonymPseudonym   modAs[Q, pseudonymColumns]
 	ReporterPseudonymPseudonym   modAs[Q, pseudonymColumns]
 	ResolvedByPseudonymPseudonym modAs[Q, pseudonymColumns]
@@ -718,6 +882,20 @@ func (j reportJoins[Q]) aliasedAs(alias string) reportJoins[Q] {
 func buildReportJoins[Q dialect.Joinable](cols reportColumns, typ string) reportJoins[Q] {
 	return reportJoins[Q]{
 		typ: typ,
+		ForwardedByUserUser: modAs[Q, userColumns]{
+			c: UserColumns,
+			f: func(to userColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, Users.Name().As(to.Alias())).On(
+						to.UserID.EQ(cols.ForwardedByUserID),
+					))
+				}
+
+				return mods
+			},
+		},
 		ReportedPseudonymPseudonym: modAs[Q, pseudonymColumns]{
 			c: PseudonymColumns,
 			f: func(to pseudonymColumns) bob.Mod[Q] {
@@ -775,6 +953,27 @@ func buildReportJoins[Q dialect.Joinable](cols reportColumns, typ string) report
 			},
 		},
 	}
+}
+
+// ForwardedByUserUser starts a query for related objects on users
+func (o *Report) ForwardedByUserUser(mods ...bob.Mod[*dialect.SelectQuery]) UsersQuery {
+	return Users.Query(append(mods,
+		sm.Where(UserColumns.UserID.EQ(psql.Arg(o.ForwardedByUserID))),
+	)...)
+}
+
+func (os ReportSlice) ForwardedByUserUser(mods ...bob.Mod[*dialect.SelectQuery]) UsersQuery {
+	pkForwardedByUserID := make(pgtypes.Array[sql.Null[int64]], len(os))
+	for i, o := range os {
+		pkForwardedByUserID[i] = o.ForwardedByUserID
+	}
+	PKArgExpr := psql.Select(sm.Columns(
+		psql.F("unnest", psql.Cast(psql.Arg(pkForwardedByUserID), "bigint[]")),
+	))
+
+	return Users.Query(append(mods,
+		sm.Where(psql.Group(UserColumns.UserID).OP("IN", PKArgExpr)),
+	)...)
 }
 
 // ReportedPseudonymPseudonym starts a query for related objects on pseudonyms
@@ -867,6 +1066,18 @@ func (o *Report) Preload(name string, retrieved any) error {
 	}
 
 	switch name {
+	case "ForwardedByUserUser":
+		rel, ok := retrieved.(*User)
+		if !ok {
+			return fmt.Errorf("report cannot load %T as %q", retrieved, name)
+		}
+
+		o.R.ForwardedByUserUser = rel
+
+		if rel != nil {
+			rel.R.ForwardedByUserReports = ReportSlice{o}
+		}
+		return nil
 	case "ReportedPseudonymPseudonym":
 		rel, ok := retrieved.(*Pseudonym)
 		if !ok {
@@ -921,6 +1132,7 @@ func (o *Report) Preload(name string, retrieved any) error {
 }
 
 type reportPreloader struct {
+	ForwardedByUserUser          func(...psql.PreloadOption) psql.Preloader
 	ReportedPseudonymPseudonym   func(...psql.PreloadOption) psql.Preloader
 	ReporterPseudonymPseudonym   func(...psql.PreloadOption) psql.Preloader
 	ResolvedByPseudonymPseudonym func(...psql.PreloadOption) psql.Preloader
@@ -929,6 +1141,23 @@ type reportPreloader struct {
 
 func buildReportPreloader() reportPreloader {
 	return reportPreloader{
+		ForwardedByUserUser: func(opts ...psql.PreloadOption) psql.Preloader {
+			return psql.Preload[*User, UserSlice](orm.Relationship{
+				Name: "ForwardedByUserUser",
+				Sides: []orm.RelSide{
+					{
+						From: TableNames.Reports,
+						To:   TableNames.Users,
+						FromColumns: []string{
+							ColumnNames.Reports.ForwardedByUserID,
+						},
+						ToColumns: []string{
+							ColumnNames.Users.UserID,
+						},
+					},
+				},
+			}, Users.Columns().Names(), opts...)
+		},
 		ReportedPseudonymPseudonym: func(opts ...psql.PreloadOption) psql.Preloader {
 			return psql.Preload[*Pseudonym, PseudonymSlice](orm.Relationship{
 				Name: "ReportedPseudonymPseudonym",
@@ -1001,6 +1230,7 @@ func buildReportPreloader() reportPreloader {
 }
 
 type reportThenLoader[Q orm.Loadable] struct {
+	ForwardedByUserUser          func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	ReportedPseudonymPseudonym   func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	ReporterPseudonymPseudonym   func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	ResolvedByPseudonymPseudonym func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
@@ -1008,6 +1238,9 @@ type reportThenLoader[Q orm.Loadable] struct {
 }
 
 func buildReportThenLoader[Q orm.Loadable]() reportThenLoader[Q] {
+	type ForwardedByUserUserLoadInterface interface {
+		LoadForwardedByUserUser(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	}
 	type ReportedPseudonymPseudonymLoadInterface interface {
 		LoadReportedPseudonymPseudonym(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
@@ -1022,6 +1255,12 @@ func buildReportThenLoader[Q orm.Loadable]() reportThenLoader[Q] {
 	}
 
 	return reportThenLoader[Q]{
+		ForwardedByUserUser: thenLoadBuilder[Q](
+			"ForwardedByUserUser",
+			func(ctx context.Context, exec bob.Executor, retrieved ForwardedByUserUserLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadForwardedByUserUser(ctx, exec, mods...)
+			},
+		),
 		ReportedPseudonymPseudonym: thenLoadBuilder[Q](
 			"ReportedPseudonymPseudonym",
 			func(ctx context.Context, exec bob.Executor, retrieved ReportedPseudonymPseudonymLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
@@ -1047,6 +1286,53 @@ func buildReportThenLoader[Q orm.Loadable]() reportThenLoader[Q] {
 			},
 		),
 	}
+}
+
+// LoadForwardedByUserUser loads the report's ForwardedByUserUser into the .R struct
+func (o *Report) LoadForwardedByUserUser(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if o == nil {
+		return nil
+	}
+
+	// Reset the relationship
+	o.R.ForwardedByUserUser = nil
+
+	related, err := o.ForwardedByUserUser(mods...).One(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	related.R.ForwardedByUserReports = ReportSlice{o}
+
+	o.R.ForwardedByUserUser = related
+	return nil
+}
+
+// LoadForwardedByUserUser loads the report's ForwardedByUserUser into the .R struct
+func (os ReportSlice) LoadForwardedByUserUser(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if len(os) == 0 {
+		return nil
+	}
+
+	users, err := os.ForwardedByUserUser(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range os {
+		for _, rel := range users {
+			if o.ForwardedByUserID.V != rel.UserID {
+				continue
+			}
+
+			rel.R.ForwardedByUserReports = append(rel.R.ForwardedByUserReports, o)
+
+			o.R.ForwardedByUserUser = rel
+			break
+		}
+	}
+
+	return nil
 }
 
 // LoadReportedPseudonymPseudonym loads the report's ReportedPseudonymPseudonym into the .R struct
@@ -1233,6 +1519,55 @@ func (os ReportSlice) LoadResolvedByUserUser(ctx context.Context, exec bob.Execu
 			break
 		}
 	}
+
+	return nil
+}
+
+func attachReportForwardedByUserUser0(ctx context.Context, exec bob.Executor, count int, report0 *Report, user1 *User) (*Report, error) {
+	setter := &ReportSetter{
+		ForwardedByUserID: func() *sql.Null[int64] {
+			v := sql.Null[int64]{V: user1.UserID, Valid: true}
+			return &v
+		}(),
+	}
+
+	err := report0.Update(ctx, exec, setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachReportForwardedByUserUser0: %w", err)
+	}
+
+	return report0, nil
+}
+
+func (report0 *Report) InsertForwardedByUserUser(ctx context.Context, exec bob.Executor, related *UserSetter) error {
+	user1, err := Users.Insert(related).One(ctx, exec)
+	if err != nil {
+		return fmt.Errorf("inserting related objects: %w", err)
+	}
+
+	_, err = attachReportForwardedByUserUser0(ctx, exec, 1, report0, user1)
+	if err != nil {
+		return err
+	}
+
+	report0.R.ForwardedByUserUser = user1
+
+	user1.R.ForwardedByUserReports = append(user1.R.ForwardedByUserReports, report0)
+
+	return nil
+}
+
+func (report0 *Report) AttachForwardedByUserUser(ctx context.Context, exec bob.Executor, user1 *User) error {
+	var err error
+
+	_, err = attachReportForwardedByUserUser0(ctx, exec, 1, report0, user1)
+	if err != nil {
+		return err
+	}
+
+	report0.R.ForwardedByUserUser = user1
+
+	user1.R.ForwardedByUserReports = append(user1.R.ForwardedByUserReports, report0)
 
 	return nil
 }

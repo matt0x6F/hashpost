@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Button } from './shadcn/button';
 import Link from 'next/link';
 import { 
@@ -21,7 +21,6 @@ import { ContentApi } from '@/generated/api/src/apis/ContentApi';
 import { toast } from 'sonner';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { PostBadges } from './PostBadges';
-import { authenticateUserForSubforum } from '@/lib/auth-utils';
 
 interface PostCardProps {
   post: {
@@ -52,7 +51,7 @@ interface PostCardProps {
 export function PostCard({ post, subforumName }: PostCardProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [localPost, setLocalPost] = useState(post);
-  const { user, isAuthenticated, login } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [showModeratorControls, setShowModeratorControls] = useState(false);
 
   // Update local post when prop changes
@@ -60,24 +59,8 @@ export function PostCard({ post, subforumName }: PostCardProps) {
     setLocalPost(post);
   }, [post]);
 
-  // Load subforum-specific user context if subforumName is provided
-  useEffect(() => {
-    if (subforumName && isAuthenticated) {
-      loadSubforumUserContext();
-    }
-  }, [subforumName, isAuthenticated]);
-
-  const loadSubforumUserContext = async () => {
-    try {
-      const userData = await authenticateUserForSubforum(subforumName!);
-      if (userData) {
-        login(userData);
-      }
-    } catch (error) {
-      console.error('Error loading subforum user context:', error);
-      // Don't show error toast for this - it's not critical
-    }
-  };
+  // Remove the useEffect that calls authenticateUserForSubforum
+  // This should be handled at a higher level to avoid multiple API calls
 
   const isModerator = user?.roles?.includes('moderator') || user?.capabilities?.includes('moderate_content');
 
