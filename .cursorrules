@@ -1,107 +1,139 @@
 # HashPost Cursor Rules
 
-## Huma Framework Patterns
+## Development Environment
 
-### Request Inputs
-When working with Huma request inputs, follow these patterns from the [Huma Request Inputs documentation](https://huma.rocks/features/request-inputs/):
+### Always Running Services
+- **Backend**: Always running with hot reload via `make dev`
+- **Frontend**: Always running with hot reload via `cd ui && npm run dev`
+- **Database**: Always running via Docker Compose
+- **Never ask to start services** - they're always on and have hot reloading enabled
 
-1. **Input Structs**: Use Go structs with special tags for parameters and body
-2. **Parameter Tags**:
-   - `path:"param-name"` for path parameters
-   - `query:"param-name"` for query string parameters  
-   - `header:"Header-Name"` for HTTP headers
-   - `cookie:"cookie-name"` for cookies
-   - `required:"true"` for required query/header params (use sparingly)
+### Hot Reloading
+- Backend automatically restarts on Go file changes
+- Frontend automatically reloads on TypeScript/React changes
+- No manual restarts needed for development
 
-3. **Body Handling**:
-   - Use `Body` field for structured request bodies
-   - Use `RawBody []byte` for raw/unstructured data
-   - Use `contentType:"application/type"` to override content type
+## Permission Systems
 
-4. **Input Composition**: Compose reusable input structs by embedding them:
-   ```go
-   type AuthParam struct {
-       Authorization string `header:"Authorization"`
-   }
-   
-   type MyInput struct {
-       AuthParam
-       ID   string `path:"id"`
-       Body MyBody
-   }
-   ```
+### Two Distinct Permission Systems
 
-### Response Outputs
-When working with Huma response outputs, follow the [Huma Response Outputs documentation](https://huma.rocks/features/response-outputs/):
+#### 1. Global Permissions (User Context)
+- **Used for**: Global site-wide permissions (create content, vote, etc.)
+- **Method**: `userCtx.HasCapability(capability)`
+- **Source**: JWT token cached capabilities
+- **Example**: User can create posts, vote, etc. across all subforums
 
-1. **Output Structs**: Use Go structs with special fields for responses
-2. **Status Code**: Use `Status` field with integer value (e.g., `Status: 201`)
-3. **Headers**: Use `header:"Header-Name"` tags for response headers
-4. **Cookies**: Use `http.Cookie` type with `header:"Set-Cookie"` tag
-5. **Body**: Use `Body` field for structured response bodies
-6. **Raw Responses**: Use `[]byte` type to bypass serialization
+#### 2. Subforum-Specific Permissions (Unified System)
+- **Used for**: Subforum-specific permissions (moderation, settings, etc.)
+- **Method**: `permissionDAO.HasUnifiedCapability(ctx, userID, pseudonymID, capability, &subforumID)`
+- **Source**: Database role assignments and specific permissions
+- **Example**: User can moderate specific subforum, manage settings, etc.
 
-### Huma Input Schema vs. Actual Requests
-- The `Body` field in Huma input structs is for schema definition and OpenAPI documentation only.
-- Actual API requests and integration tests should send payloads as flat JSON objects, not nested under a `body` key.
+### When to Use Which System
+
+#### Use Global Permissions For:
+- Content creation (`create_content`)
+- Voting (`vote`)
+- User management (`manage_users`)
+- Site-wide actions
+
+#### Use Unified Permissions For:
+- Subforum moderation (`moderate_content`, `ban_users`)
+- Subforum settings (`manage_subforum_settings`)
+- Subforum rules (`manage_subforum_rules`)
+- Subforum-specific actions
+
+### Permission Checking Patterns
+
+```go
+// Global permission check
+if !userCtx.HasCapability(constants.CapabilityCreateContent) {
+    return huma.Error403Forbidden("insufficient permissions")
+}
+
+// Subforum-specific permission check
+hasCapability, err := h.permissionDAO.HasUnifiedCapability(ctx, userCtx.UserID, userCtx.ActivePseudonymID, constants.CapabilityManageSubforumSettings, &subforum.SubforumID)
+if err != nil {
+    return fmt.Errorf("failed to check permissions: %w", err)
+}
+if !hasCapability {
+    return huma.Error403Forbidden("insufficient permissions")
+}
+```
+
+## Handler Patterns
+
+### Handler Structure
+All handlers follow this pattern:
+```go
+type HandlerName struct {
+    // DAO dependencies
+    someDAO dao.SomeDAOInterface
+    // ... other dependencies
+}
+
+func NewHandlerName(dependencies...) *HandlerName {
+    return &HandlerName{
+        // Initialize dependencies
+    }
+}
+
+func (h *HandlerName) MethodName(ctx context.Context, input *models.InputType) (*models.ResponseType, error) {
+    // 1. Extract user context
+    userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+    if err != nil {
+        return nil, huma.Error401Unauthorized("authentication required")
+    }
+    
+    // 2. Permission check (global or unified)
+    // 3. Business logic
+    // 4. Return response
+}
+```
+
+### Input/Output Models
+- Use Huma struct tags for parameters: `path:"param"`, `query:"param"`, `header:"Header"`
+- Embed `middleware.AuthInput` for authenticated endpoints
+- Use `Body` field for request/response bodies
 
 ## Database Operations
 
 ### Migrations
-Follow this workflow for database schema changes:
-
-1. **Create Migration**: `make migrate-create name=descriptive_migration_name`
-2. **Edit Migration**: Modify the generated file in `internal/database/migrations/`
-3. **Apply Migration**: `make migrate-up`
-4. **Verify Status**: `make migrate-status`
-5. **Generate Models**: `make generate` (regenerates Bob models)
-6. **Test Compilation**: `go build ./...`
+```bash
+make migrate-create name=descriptive_name
+# Edit migration file in internal/database/migrations/
+make migrate-up
+make migrate-status
+make generate  # Regenerate Bob models
+```
 
 ### Bob Model Generation
-After applying migrations, always regenerate the Bob models:
-- **Generate**: `make generate`
-- **Clean**: `make clean` (if needed)
+- Always run `make generate` after migrations
+- Models are in `internal/database/models/`
+- DAOs are in `internal/database/dao/`
 
-## Testing
+## Testing Patterns
 
 ### Unit Tests
-- Run with: `make test`
-- Use table-driven tests where appropriate
-- Mock external dependencies
+- Use table-driven tests for comprehensive coverage
+- Mock DAO interfaces for isolation
 - Test both success and error cases
-- Write comprehensive tests for all new functionality
 
-### Testing Patterns
+### Integration Tests
+- Run individual test suites: `make test-integration-local TESTS=./path/to/test.go`
+- Each test creates its own `IntegrationTestSuite` with `defer suite.Cleanup()`
+- This ensures isolation and prevents data collisions
 
-#### Table-Driven Tests
-Use table-driven tests for comprehensive coverage of different scenarios:
-
+### Test Structure
 ```go
-func TestUserHandler_BlockUser(t *testing.T) {
+func TestHandler_Method(t *testing.T) {
     tests := []struct {
         name           string
-        blockedPseudonymID string
+        input          *models.Input
         wantErr        bool
         expectedStatus int
     }{
-        {
-            name: "BlockPseudonymLevel",
-            blockedPseudonymID: "blocked-pseudonym-456",
-            wantErr: false,
-            expectedStatus: 200,
-        },
-        {
-            name: "BlockFingerprintLevel", 
-            blockedPseudonymID: "blocked-pseudonym-456",
-            wantErr: false,
-            expectedStatus: 200,
-        },
-        {
-            name: "BlockSelfPrevention",
-            blockedPseudonymID: "self-pseudonym-123",
-            wantErr: true,
-            expectedStatus: 400,
-        },
+        // Test cases
     }
     
     for _, tt := range tests {
@@ -112,155 +144,7 @@ func TestUserHandler_BlockUser(t *testing.T) {
 }
 ```
 
-#### Authentication Testing
-Use JWT tokens for authentication in tests:
-
-```go
-// Generate test JWT token
-jwtToken := generateTestJWT(t, userID, email, roles, capabilities)
-
-// Use in requests
-req.Header.Set("Authorization", "Bearer "+jwtToken)
-```
-
-#### Logging in Tests
-Tests include structured logging with zerolog:
-
-```go
-// Debug logging shows token extraction
-{"level":"debug","Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...","time":"2025-07-19T14:32:12-07:00","message":"Extracting token from Huma input"}
-
-// Info logging shows business operations
-{"level":"info","endpoint":"users/block","component":"handler","user_id":1,"blocked_pseudonym_id":"blocked-pseudonym-456","time":"2025-07-19T14:32:12-07:00","message":"Block user requested"}
-```
-
-#### Error Testing
-Test both success and error cases with proper error messages:
-
-```go
-// Test error cases
-t.Run("BlockNonExistentPseudonym", func(t *testing.T) {
-    // Should return appropriate error
-    // Verify error message and status code
-})
-
-t.Run("BlockSelfPrevention", func(t *testing.T) {
-    // Should prevent self-blocking
-    // Verify warning message and status code
-})
-```
-
-#### Permission Testing
-Test role-based access control thoroughly:
-
-```go
-func TestUserContext_HasCapability(t *testing.T) {
-    tests := []struct {
-        name       string
-        capability string
-        hasCap     bool
-    }{
-        {"has_create_content", "create_content", true},
-        {"has_vote", "vote", true},
-        {"does_not_have_admin", "admin", false},
-    }
-    
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            // Test capability checking
-        })
-    }
-}
-```
-
-#### MFA Testing
-Test multi-factor authentication requirements:
-
-```go
-func TestUserContext_RequiresMFA(t *testing.T) {
-    tests := []struct {
-        name    string
-        action  string
-        requiresMFA bool
-    }{
-        {"correlate_identities_requires_MFA", "correlate_identities", true},
-        {"create_content_does_not_require_MFA", "create_content", false},
-    }
-    
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            // Test MFA requirement logic
-        })
-    }
-}
-```
-
-## Development Workflow
-
-### Environment Setup
-1. **Start Development**: `make dev` (starts Docker Compose with hot reload)
-2. **Database Operations**: Use Makefile targets for migrations
-3. **Code Generation**: Run `make generate` after schema changes
-
-### Configuration
-- The application uses environment variables for configuration
-- `DATABASE_URL` takes precedence over individual DB_* variables
-- Test database runs on port 5433 (vs 5432 for development)
-
-### Code Style
-- Use explicit keys on all models across the codebase
-- Use zerolog for logging instead of Go standard logger
-- Follow Go naming conventions
-- Use proper error handling with wrapped errors
-- Include comprehensive tests for new functionality
-
-### API Development
-- Use Huma's struct-based input/output patterns
-- Leverage input composition for reusable patterns
-- Use proper HTTP status codes and headers
-- Document APIs with meaningful operation IDs and summaries
-
-### Authentication
-The system supports two authentication methods:
-
-1. **JWT Tokens** - For user sessions (stored in cookies)
-   - JWTs are transmitted via HTTP cookies for security (prevents XSS attacks)
-   - The auth middleware automatically extracts JWT tokens from cookies
-   - For API clients that can't use cookies, JWT tokens can be passed in Authorization header: `Authorization: Bearer <jwt_token>`
-   - JWT tokens contain user context and permissions
-   - Tokens are automatically refreshed via refresh tokens
-
-2. **API Keys (Bot Tokens)** - For programmatic access
-   - Stored statically in the database with associated permissions
-   - Passed in Authorization header: `Authorization: Bearer <api_key>`
-   - Each API key is associated with a specific pseudonym
-   - API keys have granular permissions (roles and capabilities)
-   - Keys are hashed with SHA-256 before storage
-
-**Implementation Notes:**
-- The auth middleware automatically detects the token type and validates accordingly
-- JWT tokens take precedence over API keys when both are present
-- When creating API endpoints, the middleware automatically injects user context into the request
-
-**Security Considerations:**
-- JWT cookies should use `httpOnly` and `secure` flags in production
-- API keys should be rotated regularly
-- Both authentication methods support role-based access control (RBAC)
-- Failed authentication attempts are logged for security monitoring
-
-### Database Operations
-- All development is done in Docker Compose
-- Database migrations are automatically run on container startup
-- Use the Makefile targets for database operations
-- Always test migrations in development before applying to production
-
 ## Common Commands
-
-### Development
-- `make dev` - Start development environment
-- `make build` - Build application
-- `make run` - Run locally (without Docker)
-- `make clean` - Clean build artifacts
 
 ### Database
 - `make migrate-up` - Apply pending migrations
@@ -270,196 +154,87 @@ The system supports two authentication methods:
 
 ### Testing
 - `make test` - Run unit tests
+- `make test-integration-local TESTS=./path/to/test.go` - Run specific integration tests
 
 ### Code Quality
 - `make fmt` - Format code
 - `make lint` - Lint code
 
-## Best Practices
+## Database Debugging
 
-1. **Always run unit tests before committing**
-2. **Follow Huma patterns for request/response handling**
-3. **Keep migrations small and focused**
-4. **Regenerate Bob models after schema changes**
-5. **Use proper error handling and logging**
-6. **Write comprehensive tests for new functionality**
-7. **Use environment variables for configuration**
-8. **Follow Go naming conventions and style guidelines**
+### Connect to Database
+```bash
+docker-compose exec postgres psql -U hashpost -d hashpost
+```
 
-## Common Operations
+### Common Queries
+```sql
+-- Check user roles
+SELECT * FROM subforum_moderators WHERE subforum_id = (SELECT subforum_id FROM subforums WHERE name = 'subforum_name');
 
-### Database Migrations
+-- Check user capabilities
+SELECT * FROM users WHERE email = 'user@example.com';
 
-When working with database migrations, follow this workflow:
+-- Check role assignments
+SELECT sm.role, sm.permissions, s.name as subforum_name 
+FROM subforum_moderators sm 
+JOIN subforums s ON sm.subforum_id = s.subforum_id;
+```
 
-1. **Create a new migration:**
-   ```bash
-   make migrate-create name=descriptive_migration_name
-   ```
+## Error Handling
 
-2. **Apply migrations:**
-   ```bash
-   make migrate-up
-   ```
+### Structured Error Wrapping
+```go
+if err != nil {
+    return fmt.Errorf("failed to check permissions: %w", err)
+}
+```
 
-3. **Check migration status:**
-   ```bash
-   make migrate-status
-   ```
+### HTTP Error Responses
+```go
+return nil, huma.Error403Forbidden("insufficient permissions")
+return nil, huma.Error404NotFound("subforum not found")
+return nil, huma.Error401Unauthorized("authentication required")
+```
 
-4. **Rollback migrations (if needed):**
-   ```bash
-   make migrate-down
-   ```
+### Logging
+```go
+log.Info().Str("endpoint", "subforums").Msg("Get subforums requested")
+log.Error().Err(err).Msg("Failed to get subforums from database")
+log.Warn().Int64("user_id", userCtx.UserID).Msg("User lacks capability")
+```
 
-### Bob Model Generation
+## Role System
 
-After applying database migrations, always regenerate the Bob models:
+### Role Constants
+- `RoleUser` = "user"
+- `RoleModerator` = "moderator" 
+- `RoleSubforumOwner` = "subforum_owner"
+- `RolePlatformAdmin` = "platform_admin"
 
-1. **Generate models:**
-   ```bash
-   make generate
-   ```
+### Role Capabilities
+- Moderator: `moderate_content`, `ban_users`, `remove_content`, `review_reports`, `manage_subforum_settings`
+- SubforumOwner: All moderator capabilities + `manage_moderators`
 
-2. **Clean generated files (if needed):**
-   ```bash
-   make clean
-   ```
-
-### Complete Migration Workflow
-
-When making database schema changes:
-
-1. Create migration: `make migrate-create name=your_migration_name`
-2. Edit the generated migration file in `internal/database/migrations/`
-3. Apply migration: `make migrate-up`
-4. Verify status: `make migrate-status`
-5. Generate models: `make generate`
-6. Test that everything compiles: `go build ./...`
-
-### Development Commands
-
-- **Start development environment:** `make dev`
-- **Run tests:** `make test`
-- **Build application:** `make build`
-- **Clean build artifacts:** `make clean`
-- **Format code:** `make fmt`
-- **Lint code:** `make lint`
-
-### API Key Management
-
-When working with API keys:
-
-- API keys are now associated with pseudonyms via `pseudonym_id`
-- Use the `APIKeyDAO` for all API key operations
-- API keys are hashed with SHA-256 before storage
-- Permissions are stored as JSON with roles and capabilities
-- Always validate API keys through the DAO, not directly
-
-### Authentication
-
-The system supports two authentication methods:
-
-1. **JWT Tokens** - For user sessions (stored in cookies)
-2. **API Keys** - For programmatic access (passed in Authorization header)
-
-Both are handled by the auth middleware automatically.
-
-### Code Style
-
-- Use explicit keys on all models across the codebase
-- Use zerolog for logging instead of the Go standard logger
-- Follow Go naming conventions
-- Use proper error handling with wrapped errors
-- Include comprehensive tests for new functionality
-
-### Database Operations
-
-- All development is done in Docker Compose
-- Database migrations are automatically run on container startup
-- Use the Makefile targets for database operations
-- Always test migrations in development before applying to production
-
-### Testing
-
-- Write tests for all new functionality
-- Use table-driven tests where appropriate
-- Mock external dependencies
-- Test both success and error cases
-- Run tests before committing: `make test`
-
-## Test Payloads
-
-- When writing tests, always send request payloads as flat JSON objects.
-- Do NOT nest payloads under a 'body' key in test requests.
-- The 'body' key is only used in Huma input schemas to delineate body fields, not in actual API requests.
-- Example:
-  ```go
-  // Correct:
-  payload := map[string]string{
-      "display_name": "TestPseudonym",
-      "bio": "Test bio",
-  }
-  // Incorrect:
-  payload := map[string]interface{}{
-      "body": map[string]string{
-          "display_name": "TestPseudonym",
-          "bio": "Test bio",
-      },
-  }
-  ```
+### Database Role Names
+- Use exact role constants in database: `"subforum_owner"` not `"owner"`
+- Role names must match constants exactly for permission checking to work
 
 ## UI Development
 
 ### Technology Stack
-The UI in the `@/ui` directory uses:
-
-1. **Next.js** - React framework for production
-   - Use App Router (not Pages Router)
-   - Follow Next.js 13+ conventions
-   - Use TypeScript for all components
-   - Implement proper error boundaries and loading states
-
-2. **ShadCN/UI** - Component library
-   - Use ShadCN components for consistent design
-   - Follow ShadCN patterns and conventions
-   - Customize components through CSS variables when needed
-   - Use the `components.json` configuration for theming
-
-### UI Development Guidelines
-
-1. **Component Structure**:
-   - Use functional components with TypeScript
-   - Implement proper prop interfaces
-   - Use React hooks appropriately
-   - Follow ShadCN component patterns
-
-2. **Styling**:
-   - Use Tailwind CSS for styling
-   - Leverage ShadCN's design system
-   - Maintain consistent spacing and typography
-   - Use CSS variables for theming
-
-3. **State Management**:
-   - Use React hooks for local state
-   - Consider context for global state when needed
-   - Implement proper loading and error states
-
-4. **API Integration**:
-   - Use the API client in `lib/api.ts`
-   - Handle authentication properly
-   - Implement proper error handling
-   - Use optimistic updates where appropriate
-
-5. **Performance**:
-   - Use Next.js Image component for images
-   - Implement proper loading states
-   - Use React.memo for expensive components
-   - Follow Next.js best practices for optimization
+- **Next.js** with App Router
+- **TypeScript** for all components
+- **ShadCN/UI** for components
+- **Tailwind CSS** for styling
 
 ### UI Commands
+- `cd ui && npm run dev` - Start UI development server
+- `cd ui && npm run build` - Build UI
+- `cd ui && npm run lint` - Lint UI
+- `cd ui && npm run type-check` - Type check
 
-- **Start UI development server**: `cd ui && npm run dev`
-- **Build UI**: `cd ui && npm run build`
-- **Lint UI**: `cd ui && npm run lint`
-- **Type check**: `cd ui && npm run type-check` 
+### API Integration
+- Use generated API client in `ui/lib/api-client.ts`
+- Handle authentication via cookies
+- Use optimistic updates where appropriate 

@@ -53,7 +53,7 @@ const (
 	// RemoveContent allows removing content from a subforum
 	CapabilityRemoveContent = "remove_content"
 
-	// ManageModerators allows managing moderator assignments
+	// ManageModerators allows managing moderator assignments and team permissions
 	CapabilityManageModerators = "manage_moderators"
 
 	// ReviewReports allows reviewing and resolving reports within a subforum
@@ -64,6 +64,9 @@ const (
 
 	// ManageSubforumRules allows creating, updating, and deleting subforum rules
 	CapabilityManageSubforumRules = "manage_subforum_rules"
+
+	// ManageSubforumSettings allows managing subforum settings and configuration
+	CapabilityManageSubforumSettings = "manage_subforum_settings"
 )
 
 // Platform-wide capabilities - used for system administration
@@ -126,6 +129,7 @@ func GetCapabilitiesByScope(scope string) []string {
 			CapabilityReviewReports,
 			CapabilityForwardReports,
 			CapabilityManageSubforumRules,
+			CapabilityManageSubforumSettings,
 		}
 	case ScopeAdministration:
 		return []string{
@@ -185,6 +189,7 @@ func GetAllCapabilities() []string {
 		CapabilityReviewReports,
 		CapabilityForwardReports,
 		CapabilityManageSubforumRules,
+		CapabilityManageSubforumSettings,
 
 		// Platform-wide capabilities
 		CapabilityModeration,

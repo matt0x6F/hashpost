@@ -20,7 +20,7 @@ type SearchHandler struct {
 	postDAO      dao.PostDAOInterface
 	userDAO      dao.UserDAOInterface
 	subforumDAO  dao.SubforumDAOInterface
-	pseudonymDAO dao.SecurePseudonymDAOInterface
+	pseudonymDAO dao.PseudonymDAOInterface
 	ibeSystem    *ibe.IBESystem
 }
 
@@ -32,7 +32,7 @@ func NewSearchHandler(
 	postDAO dao.PostDAOInterface,
 	userDAO dao.UserDAOInterface,
 	subforumDAO dao.SubforumDAOInterface,
-	pseudonymDAO dao.SecurePseudonymDAOInterface,
+	pseudonymDAO dao.PseudonymDAOInterface,
 ) *SearchHandler {
 	if db != nil {
 		// Production mode - create real DAOs

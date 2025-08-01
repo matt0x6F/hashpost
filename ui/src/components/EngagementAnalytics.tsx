@@ -57,6 +57,33 @@ export function EngagementAnalytics({ subforumPath, timeRange = '30d' }: Engagem
     date: formatDate(point.date),
   }));
 
+  // Dark mode chart styling
+  const isDarkMode = typeof window !== 'undefined' && document.documentElement.classList.contains('dark');
+  
+  const chartColors = {
+    posts: isDarkMode ? '#8884d8' : '#8884d8',
+    comments: isDarkMode ? '#82ca9d' : '#82ca9d',
+    votes: isDarkMode ? '#ffc658' : '#ffc658',
+    postVotes: isDarkMode ? '#8884d8' : '#8884d8',
+    commentVotes: isDarkMode ? '#82ca9d' : '#82ca9d',
+    postUpvotes: isDarkMode ? '#22c55e' : '#22c55e',
+    postDownvotes: isDarkMode ? '#ef4444' : '#ef4444',
+    commentUpvotes: isDarkMode ? '#10b981' : '#10b981',
+    commentDownvotes: isDarkMode ? '#f87171' : '#f87171',
+  };
+
+  const chartStyle = {
+    backgroundColor: isDarkMode ? 'transparent' : 'white',
+    color: isDarkMode ? '#f5f7fa' : '#0a0a0a',
+  };
+
+  const tooltipStyle = {
+    backgroundColor: isDarkMode ? 'oklch(0.21 0.006 285.885)' : 'white',
+    border: isDarkMode ? '1px solid oklch(1 0 0 / 10%)' : '1px solid #e5e5e5',
+    borderRadius: '6px',
+    color: isDarkMode ? '#f5f7fa' : '#0a0a0a',
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -139,15 +166,46 @@ export function EngagementAnalytics({ subforumPath, timeRange = '30d' }: Engagem
           <div>
             <h3 className="text-lg font-semibold mb-4">Combined Activity</h3>
             <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
+              <AreaChart data={chartData} style={chartStyle}>
+                <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#323846' : '#e5e5e5'} />
+                <XAxis 
+                  dataKey="date" 
+                  tick={{ fill: isDarkMode ? '#f5f7fa' : '#0a0a0a' }}
+                  axisLine={{ stroke: isDarkMode ? '#323846' : '#e5e5e5' }}
+                />
+                <YAxis 
+                  tick={{ fill: isDarkMode ? '#f5f7fa' : '#0a0a0a' }}
+                  axisLine={{ stroke: isDarkMode ? '#323846' : '#e5e5e5' }}
+                />
+                <Tooltip 
+                  contentStyle={tooltipStyle}
+                  labelStyle={{ color: isDarkMode ? '#f5f7fa' : '#0a0a0a' }}
+                />
                 <Legend />
-                <Area type="monotone" dataKey="posts" stackId="1" stroke="#8884d8" fill="#8884d8" name="Posts" />
-                <Area type="monotone" dataKey="comments" stackId="1" stroke="#82ca9d" fill="#82ca9d" name="Comments" />
-                <Area type="monotone" dataKey="totalVotes" stackId="1" stroke="#ffc658" fill="#ffc658" name="Votes" />
+                <Area 
+                  type="monotone" 
+                  dataKey="posts" 
+                  stackId="1" 
+                  stroke={chartColors.posts} 
+                  fill={chartColors.posts} 
+                  name="Posts" 
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="comments" 
+                  stackId="1" 
+                  stroke={chartColors.comments} 
+                  fill={chartColors.comments} 
+                  name="Comments" 
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="totalVotes" 
+                  stackId="1" 
+                  stroke={chartColors.votes} 
+                  fill={chartColors.votes} 
+                  name="Votes" 
+                />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -156,14 +214,34 @@ export function EngagementAnalytics({ subforumPath, timeRange = '30d' }: Engagem
           <div>
             <h3 className="text-lg font-semibold mb-4">Voting Activity</h3>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
+              <BarChart data={chartData} style={chartStyle}>
+                <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#323846' : '#e5e5e5'} />
+                <XAxis 
+                  dataKey="date" 
+                  tick={{ fill: isDarkMode ? '#f5f7fa' : '#0a0a0a' }}
+                  axisLine={{ stroke: isDarkMode ? '#323846' : '#e5e5e5' }}
+                />
+                <YAxis 
+                  tick={{ fill: isDarkMode ? '#f5f7fa' : '#0a0a0a' }}
+                  axisLine={{ stroke: isDarkMode ? '#323846' : '#e5e5e5' }}
+                />
+                <Tooltip 
+                  contentStyle={tooltipStyle}
+                  labelStyle={{ color: isDarkMode ? '#f5f7fa' : '#0a0a0a' }}
+                />
                 <Legend />
-                <Bar dataKey="postVotes" fill="#8884d8" name="Post Votes" />
-                <Bar dataKey="commentVotes" fill="#82ca9d" name="Comment Votes" />
+                <Bar 
+                  dataKey="postVotes" 
+                  fill={chartColors.postVotes} 
+                  name="Post Votes"
+                  radius={[2, 2, 0, 0]}
+                />
+                <Bar 
+                  dataKey="commentVotes" 
+                  fill={chartColors.commentVotes} 
+                  name="Comment Votes"
+                  radius={[2, 2, 0, 0]}
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -172,14 +250,36 @@ export function EngagementAnalytics({ subforumPath, timeRange = '30d' }: Engagem
           <div>
             <h3 className="text-lg font-semibold mb-4">Content Creation Trend</h3>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
+              <LineChart data={chartData} style={chartStyle}>
+                <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#323846' : '#e5e5e5'} />
+                <XAxis 
+                  dataKey="date" 
+                  tick={{ fill: isDarkMode ? '#f5f7fa' : '#0a0a0a' }}
+                  axisLine={{ stroke: isDarkMode ? '#323846' : '#e5e5e5' }}
+                />
+                <YAxis 
+                  tick={{ fill: isDarkMode ? '#f5f7fa' : '#0a0a0a' }}
+                  axisLine={{ stroke: isDarkMode ? '#323846' : '#e5e5e5' }}
+                />
+                <Tooltip 
+                  contentStyle={tooltipStyle}
+                  labelStyle={{ color: isDarkMode ? '#f5f7fa' : '#0a0a0a' }}
+                />
                 <Legend />
-                <Line type="monotone" dataKey="posts" stroke="#8884d8" strokeWidth={2} name="Posts" />
-                <Line type="monotone" dataKey="comments" stroke="#82ca9d" strokeWidth={2} name="Comments" />
+                <Line 
+                  type="monotone" 
+                  dataKey="posts" 
+                  stroke={chartColors.posts} 
+                  strokeWidth={2} 
+                  name="Posts" 
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="comments" 
+                  stroke={chartColors.comments} 
+                  strokeWidth={2} 
+                  name="Comments" 
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -188,16 +288,50 @@ export function EngagementAnalytics({ subforumPath, timeRange = '30d' }: Engagem
           <div>
             <h3 className="text-lg font-semibold mb-4">Voting Sentiment</h3>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
+              <BarChart data={chartData} style={chartStyle}>
+                <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#323846' : '#e5e5e5'} />
+                <XAxis 
+                  dataKey="date" 
+                  tick={{ fill: isDarkMode ? '#f5f7fa' : '#0a0a0a' }}
+                  axisLine={{ stroke: isDarkMode ? '#323846' : '#e5e5e5' }}
+                />
+                <YAxis 
+                  tick={{ fill: isDarkMode ? '#f5f7fa' : '#0a0a0a' }}
+                  axisLine={{ stroke: isDarkMode ? '#323846' : '#e5e5e5' }}
+                />
+                <Tooltip 
+                  contentStyle={tooltipStyle}
+                  labelStyle={{ color: isDarkMode ? '#f5f7fa' : '#0a0a0a' }}
+                />
                 <Legend />
-                <Bar dataKey="postUpvotes" stackId="posts" fill="#22c55e" name="Post Upvotes" />
-                <Bar dataKey="postDownvotes" stackId="posts" fill="#ef4444" name="Post Downvotes" />
-                <Bar dataKey="commentUpvotes" stackId="comments" fill="#10b981" name="Comment Upvotes" />
-                <Bar dataKey="commentDownvotes" stackId="comments" fill="#f87171" name="Comment Downvotes" />
+                <Bar 
+                  dataKey="postUpvotes" 
+                  stackId="posts" 
+                  fill={chartColors.postUpvotes} 
+                  name="Post Upvotes"
+                  radius={[2, 2, 0, 0]}
+                />
+                <Bar 
+                  dataKey="postDownvotes" 
+                  stackId="posts" 
+                  fill={chartColors.postDownvotes} 
+                  name="Post Downvotes"
+                  radius={[2, 2, 0, 0]}
+                />
+                <Bar 
+                  dataKey="commentUpvotes" 
+                  stackId="comments" 
+                  fill={chartColors.commentUpvotes} 
+                  name="Comment Upvotes"
+                  radius={[2, 2, 0, 0]}
+                />
+                <Bar 
+                  dataKey="commentDownvotes" 
+                  stackId="comments" 
+                  fill={chartColors.commentDownvotes} 
+                  name="Comment Downvotes"
+                  radius={[2, 2, 0, 0]}
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>

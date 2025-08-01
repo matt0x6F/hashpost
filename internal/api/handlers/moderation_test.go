@@ -19,19 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// createTestUserContext creates a test user context with moderation capabilities
-func createTestUserContext() *middleware.UserContext {
-	return &middleware.UserContext{
-		UserID:            1,
-		Email:             "moderator@example.com",
-		ActivePseudonymID: "moderator-pseudonym-123",
-		DisplayName:       "TestModerator",
-		Roles:             []string{"user", "moderator"},
-		Capabilities:      []string{"create_content", "vote", "message", "report", "create_subforum", "moderate_content"},
-		MFAEnabled:        false,
-	}
-}
-
 // createTestContextWithUser creates a context with user information
 func createTestContextWithUser(userCtx *middleware.UserContext) context.Context {
 	ctx := context.Background()
@@ -79,7 +66,7 @@ func TestModerationHandler_ReportContent(t *testing.T) {
 					},
 				},
 			},
-			userContext:   createTestUserContext(),
+			userContext:   fixtures.CreateTestUserContext(),
 			expectedError: false,
 		},
 		{
@@ -96,7 +83,7 @@ func TestModerationHandler_ReportContent(t *testing.T) {
 					},
 				},
 			},
-			userContext:   createTestUserContext(),
+			userContext:   fixtures.CreateTestUserContext(),
 			expectedError: false,
 		},
 		{
@@ -114,7 +101,7 @@ func TestModerationHandler_ReportContent(t *testing.T) {
 					},
 				},
 			},
-			userContext:   createTestUserContext(),
+			userContext:   fixtures.CreateTestUserContext(),
 			expectedError: false,
 		},
 		{
@@ -217,7 +204,7 @@ func TestModerationHandler_GetSubforumReports(t *testing.T) {
 				Page:         1,
 				Limit:        25,
 			},
-			userContext:   createTestUserContext(),
+			userContext:   fixtures.CreateTestModeratorContext(),
 			expectedError: false,
 		},
 		{
@@ -234,7 +221,7 @@ func TestModerationHandler_GetSubforumReports(t *testing.T) {
 				Page:         1,
 				Limit:        10,
 			},
-			userContext:   createTestUserContext(),
+			userContext:   fixtures.CreateTestModeratorContext(),
 			expectedError: false,
 		},
 		{
@@ -360,7 +347,7 @@ func TestModerationHandler_RemoveContent(t *testing.T) {
 					RemovalReason: "violates community guidelines",
 				},
 			},
-			userContext:   createTestUserContext(),
+			userContext:   fixtures.CreateTestModeratorContext(),
 			expectedError: false,
 		},
 		{
@@ -372,7 +359,7 @@ func TestModerationHandler_RemoveContent(t *testing.T) {
 					RemovalReason: "harassment",
 				},
 			},
-			userContext:   createTestUserContext(),
+			userContext:   fixtures.CreateTestModeratorContext(),
 			expectedError: false,
 		},
 		{
@@ -418,7 +405,7 @@ func TestModerationHandler_RemoveContent(t *testing.T) {
 					RemovalReason: "test",
 				},
 			},
-			userContext:   createTestUserContext(),
+			userContext:   fixtures.CreateTestModeratorContext(),
 			expectedError: true,
 			errorContains: "unsupported content type",
 		},
@@ -475,7 +462,7 @@ func TestModerationHandler_BanUser(t *testing.T) {
 					DurationDays: &durationDays,
 				},
 			},
-			userContext:   createTestUserContext(),
+			userContext:   fixtures.CreateTestModeratorContext(),
 			expectedError: false,
 		},
 		{
@@ -488,7 +475,7 @@ func TestModerationHandler_BanUser(t *testing.T) {
 					IsPermanent: true,
 				},
 			},
-			userContext:   createTestUserContext(),
+			userContext:   fixtures.CreateTestModeratorContext(),
 			expectedError: false,
 		},
 		{
@@ -577,7 +564,7 @@ func TestModerationHandler_GetModerationHistory(t *testing.T) {
 				Page:       1,
 				Limit:      25,
 			},
-			userContext:   createTestUserContext(),
+			userContext:   fixtures.CreateTestUserContext(),
 			expectedError: false,
 		},
 		{
@@ -587,7 +574,7 @@ func TestModerationHandler_GetModerationHistory(t *testing.T) {
 				Page:       1,
 				Limit:      10,
 			},
-			userContext:   createTestUserContext(),
+			userContext:   fixtures.CreateTestUserContext(),
 			expectedError: false,
 		},
 		{
@@ -653,7 +640,7 @@ func TestModerationHandler_GetModerationHistory(t *testing.T) {
 
 func TestModerationHandler_HelperMethods(t *testing.T) {
 	handler := NewModerationHandlerWithMocks()
-	userCtx := createTestUserContext()
+	userCtx := fixtures.CreateTestUserContext()
 
 	t.Run("ExtractUserFromContext", func(t *testing.T) {
 		ctx := createTestContextWithUser(userCtx)
@@ -769,11 +756,11 @@ func NewModerationHandlerWithMocks() *ModerationHandler {
 	fmt.Printf("DEBUG: Test subforum name: %s\n", testSubforum.Name)
 
 	// Set up mock permission DAO with fixture data
-	// Inject capability for the test user (userID=1, subforumID=1, capability="moderate_content", activePseudonymID="moderator-pseudonym-123")
-	mockPermissionDAO.InjectSubforumCapabilityWithActivePseudonym(1, 1, "moderate_content", "moderator-pseudonym-123", true)
+	// Inject capability for the test user (userID=1, subforumID=1, capability="moderate_content", activePseudonymID="test-pseudonym-id")
+	mockPermissionDAO.InjectSubforumCapabilityWithActivePseudonym(1, 1, "moderate_content", "test-pseudonym-id", true)
 
 	// Set up unified capabilities for global moderation endpoints
-	mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities", mock.Anything, int64(1), "moderator-pseudonym-123", (*int32)(nil)).
+	mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities", mock.Anything, int64(1), "test-pseudonym-id", (*int32)(nil)).
 		Return([]string{"user", "moderator"}, []string{"create_content", "vote", "message", "report", "moderate_content"}, nil)
 
 	// Set up unified capabilities for regular user (userID=2)

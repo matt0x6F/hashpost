@@ -44,7 +44,7 @@ type SubforumDetails struct {
 type SubforumListInput struct {
 	Page  int    `query:"page" example:"1"`
 	Limit int    `query:"limit" example:"25"`
-	Sort  string `query:"sort" example:"subscribers"`
+	Sort  string `query:"sort" example:"name"`
 }
 
 // SubforumSubscriptionInput represents subforum subscription request
@@ -181,4 +181,117 @@ type SubforumSubscriptionsResponse struct {
 // PseudonymSubscriptionsInput represents the input for pseudonym subscriptions endpoint
 type PseudonymSubscriptionsInput struct {
 	PseudonymID string `path:"pseudonym_id" example:"abc123"`
+}
+
+// SubforumSettings represents subforum settings configuration
+type SubforumSettings struct {
+	// Content settings
+	AllowImages            bool `json:"allow_images" example:"true"`
+	AllowVideos            bool `json:"allow_videos" example:"true"`
+	AllowPolls             bool `json:"allow_polls" example:"true"`
+	RequireFlair           bool `json:"require_flair" example:"false"`
+	MinimumAccountAgeHours int  `json:"minimum_account_age_hours" example:"0"`
+	MinimumKarmaRequired   int  `json:"minimum_karma_required" example:"0"`
+
+	// Privacy settings
+	IsPrivate    bool `json:"is_private" example:"false"`
+	IsRestricted bool `json:"is_restricted" example:"false"`
+	IsNSFW       bool `json:"is_nsfw" example:"false"`
+
+	// Moderation settings
+	AutoModerationEnabled bool `json:"auto_moderation_enabled" example:"false"`
+	RequireApproval       bool `json:"require_approval" example:"false"`
+	AllowCrossposts       bool `json:"allow_crossposts" example:"true"`
+
+	// Community settings
+	Description string `json:"description" example:"The Go programming language"`
+	SidebarText string `json:"sidebar_text" example:"Welcome to our community..."`
+}
+
+// SubforumSettingsGetInput represents subforum settings get request
+type SubforumSettingsGetInput struct {
+	Type string `path:"type" example:"t"`
+	Name string `path:"name" example:"golang"`
+}
+
+// SubforumSettingsInput represents subforum settings update request
+type SubforumSettingsInput struct {
+	Type string `path:"type" example:"t"`
+	Name string `path:"name" example:"golang"`
+	Body SubforumSettings
+}
+
+// SubforumSettingsResponse represents subforum settings response
+type SubforumSettingsResponse struct {
+	Status int `json:"status" example:"200"`
+	Body   struct {
+		SubforumID int32            `json:"subforum_id" example:"123"`
+		Name       string           `json:"name" example:"golang"`
+		Settings   SubforumSettings `json:"settings"`
+		UpdatedAt  string           `json:"updated_at" example:"2023-01-01T00:00:00Z"`
+	} `json:"body"`
+}
+
+// ModeratorTeamMember represents a member of the moderator team
+type ModeratorTeamMember struct {
+	PseudonymID  string   `json:"pseudonym_id" example:"abc123"`
+	DisplayName  string   `json:"display_name" example:"moderator1"`
+	Role         string   `json:"role" example:"moderator"`
+	Capabilities []string `json:"capabilities" example:"moderate_content,ban_users"`
+	AddedAt      string   `json:"added_at" example:"2023-01-01T00:00:00Z"`
+	AddedBy      string   `json:"added_by" example:"owner123"`
+	IsActive     bool     `json:"is_active" example:"true"`
+}
+
+// ModeratorTeamInput represents moderator team management request
+type ModeratorTeamInput struct {
+	Type string `path:"type" example:"t"`
+	Name string `path:"name" example:"golang"`
+}
+
+// ModeratorTeamResponse represents moderator team response
+type ModeratorTeamResponse struct {
+	Status int `json:"status" example:"200"`
+	Body   struct {
+		SubforumID int32                 `json:"subforum_id" example:"123"`
+		Name       string                `json:"name" example:"golang"`
+		Members    []ModeratorTeamMember `json:"members"`
+		Owner      ModeratorTeamMember   `json:"owner"`
+	} `json:"body"`
+}
+
+// AddModeratorInput represents add moderator request
+type AddModeratorInput struct {
+	Type string `path:"type" example:"t"`
+	Name string `path:"name" example:"golang"`
+	Body struct {
+		PseudonymID  string   `json:"pseudonym_id" example:"abc123"`
+		Role         string   `json:"role" example:"moderator"`
+		Capabilities []string `json:"capabilities" example:"moderate_content,ban_users"`
+	} `json:"body"`
+}
+
+// UpdateModeratorInput represents update moderator request
+type UpdateModeratorInput struct {
+	Type        string `path:"type" example:"t"`
+	Name        string `path:"name" example:"golang"`
+	PseudonymID string `path:"pseudonym_id" example:"abc123"`
+	Body        struct {
+		Role         string   `json:"role" example:"moderator"`
+		Capabilities []string `json:"capabilities" example:"moderate_content,ban_users"`
+		IsActive     bool     `json:"is_active" example:"true"`
+	} `json:"body"`
+}
+
+// RemoveModeratorInput represents remove moderator request
+type RemoveModeratorInput struct {
+	Type        string `path:"type" example:"t"`
+	Name        string `path:"name" example:"golang"`
+	PseudonymID string `path:"pseudonym_id" example:"abc123"`
+}
+
+// RemoveModeratorResponse represents remove moderator response
+type RemoveModeratorResponse struct {
+	Success bool   `json:"success" example:"true"`
+	Message string `json:"message" example:"Moderator removed successfully"`
 }

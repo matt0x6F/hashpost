@@ -55,7 +55,7 @@ func NewServer() *Server {
 	identityMappingDAO := dao.NewIdentityMappingDAO(db)
 	roleKeyDAO := dao.NewRoleKeyDAO(db)
 	userBlocksDAO := dao.NewUserBlocksDAO(db)
-	securePseudonymDAO := dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
+	pseudonymDAO := dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
 	postDAO := dao.NewPostDAO(db)
 	commentDAO := dao.NewCommentDAO(db)
 	voteDAO := dao.NewVoteDAO(db)
@@ -98,13 +98,14 @@ func NewServer() *Server {
 	// Register routes
 	routes.RegisterHealthRoutes(api)
 	routes.RegisterAuthRoutes(api, cfg, db, rawDB, ibeSystem)
-	routes.RegisterUserRoutes(api, userDAO, securePseudonymDAO, userPreferencesDAO, userBlocksDAO, postDAO, commentDAO, ibeSystem)
-	routes.RegisterSubforumRoutes(api, db)
+	routes.RegisterUserRoutes(api, userDAO, pseudonymDAO, userPreferencesDAO, userBlocksDAO, postDAO, commentDAO, ibeSystem)
+	routes.RegisterSubforumRoutes(api, db, pseudonymDAO)
 	routes.RegisterMessagesRoutes(api, db)
 	routes.RegisterSearchRoutes(api, db)
-	routes.RegisterModerationRoutes(api, reportDAO, moderationActionDAO, userBanDAO, securePseudonymDAO, subforumDAO, postDAO, commentDAO, voteDAO, permissionDAO)
+	routes.RegisterModerationRoutes(api, reportDAO, moderationActionDAO, userBanDAO, pseudonymDAO, subforumDAO, postDAO, commentDAO, voteDAO, permissionDAO)
+	routes.RegisterRulesRoutes(api, db)
 	routes.RegisterContentRoutes(api, db, rawDB, ibeSystem, identityMappingDAO, userDAO)
-	routes.RegisterCorrelationRoutes(api, db, ibeSystem, securePseudonymDAO, identityMappingDAO, postDAO, commentDAO, subforumDAO)
+	routes.RegisterCorrelationRoutes(api, db, ibeSystem, pseudonymDAO, identityMappingDAO, postDAO, commentDAO, subforumDAO)
 
 	return &Server{
 		API:       api,

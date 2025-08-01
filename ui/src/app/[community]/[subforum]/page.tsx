@@ -9,6 +9,7 @@ import { getApi } from '@/lib/api-client';
 import { SubforumsApi } from '@/generated/api/src/apis/SubforumsApi';
 import type { SubforumDetailsResponseBody, SubforumModerator } from '@/generated/api/src/models';
 import { PostList } from '@/components/PostList';
+import { SubforumRulesDisplay } from '@/components/SubforumRulesDisplay';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth-context';
 import { authenticateUserForSubforum } from '@/lib/auth-utils';
@@ -162,6 +163,16 @@ export default function SubforumPage() {
         >
           <div className="sticky top-8">
             <h2 className="text-lg font-semibold mb-4 text-foreground">{communityType}/{forum.subforum.name}</h2>
+            
+            {/* Sidebar Text */}
+            {forum.subforum.sidebarText && (
+              <div className="mb-6">
+                <div className="text-sm text-muted-foreground whitespace-pre-wrap">
+                  {forum.subforum.sidebarText}
+                </div>
+              </div>
+            )}
+            
             <div className="space-y-3 text-sm mb-8">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Subscribers</span>
@@ -189,6 +200,13 @@ export default function SubforumPage() {
                 </ul>
               </div>
             )}
+            {/* Subforum Rules */}
+            <div className="mt-6">
+              <SubforumRulesDisplay 
+                communityType={communityType} 
+                subforumName={subforumName} 
+              />
+            </div>
           </div>
         </aside>
       </div>

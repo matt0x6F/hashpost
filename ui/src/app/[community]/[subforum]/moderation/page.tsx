@@ -1,18 +1,17 @@
 'use client';
 
-import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { useEffect, useState, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/shadcn/card';
 import { Badge } from '@/components/shadcn/badge';
 import { Button } from '@/components/shadcn/button';
-import { Shield, Users, Flag, Settings, LayoutDashboard } from 'lucide-react';
+import { Shield, Users, Flag, Settings, LayoutDashboard, ArrowLeft } from 'lucide-react';
 import { DebugUserInfo } from '@/components/DebugUserInfo';
 import { EngagementAnalytics } from '@/components/EngagementAnalytics';
 import { ModerationStats } from '@/components/ModerationStats';
 import { COMMUNITY_CONFIG, type CommunityType } from '@/lib/community-config';
 import { useAuth } from '@/lib/auth-context';
 import { authenticateUserForSubforum } from '@/lib/auth-utils';
-import { toast } from 'sonner';
 import Link from 'next/link';
 import {
   NavigationMenu,
@@ -25,78 +24,98 @@ import {
 
 export default function SubforumModerationPage() {
   const params = useParams();
-  const router = useRouter();
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading, updateUserWithSubforumData } = useAuth();
+  const [subforumContextLoaded, setSubforumContextLoaded] = useState(false);
+  const hasLoadedContext = useRef(false);
+
+  // Extract community type and subforum name from params
   const communityType = params.community as CommunityType;
   const subforumName = params.subforum as string;
   const fullSubforumPath = `${communityType}/${subforumName}`;
-
   const communityConfig = COMMUNITY_CONFIG[communityType];
-  const { login } = useAuth();
-  const [subforumContextLoaded, setSubforumContextLoaded] = useState(false);
 
   // Load subforum-specific user context
-  useEffect(() => {
-    if (fullSubforumPath && isAuthenticated) {
-      loadSubforumUserContext();
-    }
-  }, [fullSubforumPath, isAuthenticated]);
-
   const loadSubforumUserContext = async () => {
-    try {
-      const userData = await authenticateUserForSubforum(fullSubforumPath);
-      if (userData) {
-        login(userData);
+    if (isAuthenticated && user && subforumName && !hasLoadedContext.current) {
+      hasLoadedContext.current = true;
+      try {
+        const subforumUserData = await authenticateUserForSubforum(fullSubforumPath);
+        if (subforumUserData) {
+          // Update the user context with subforum-specific capabilities
+          updateUserWithSubforumData(subforumUserData);
+        }
+      } catch (error) {
+        console.error('Error loading subforum user context:', error);
+      } finally {
+        setSubforumContextLoaded(true);
       }
+    } else if (!subforumContextLoaded) {
       setSubforumContextLoaded(true);
-    } catch (error) {
-      console.error('Error loading subforum user context:', error);
-      setSubforumContextLoaded(true); // Mark as loaded even on error
     }
   };
 
-  // Check if user has moderator permissions and redirect if not
   useEffect(() => {
-    if (!isLoading && isAuthenticated && user && subforumContextLoaded) {
-      const hasModerateContent = user.capabilities?.includes('moderate_content');
-      const hasModeratorRole = user.roles?.includes('moderator') || user.roles?.includes('admin');
-      const isModerator = hasModeratorRole || hasModerateContent;
-      
-      if (!isModerator) {
-        toast.error('You do not have moderator permissions for this subforum');
-        router.push(`/${fullSubforumPath}`);
-      }
-    } else if (!isLoading && !isAuthenticated) {
-      // Redirect unauthenticated users
-      toast.error('You must be logged in to access the moderation dashboard');
-      router.push(`/${fullSubforumPath}`);
-    }
-  }, [user, isAuthenticated, isLoading, subforumContextLoaded, fullSubforumPath, router]);
+    loadSubforumUserContext();
+  }, [isAuthenticated, user, subforumName]);
 
   // Show loading state while checking permissions or loading subforum context
-  if (isLoading || (isAuthenticated && !subforumContextLoaded)) {
+  if (isLoading || !user || (isAuthenticated && !subforumContextLoaded)) {
+    console.log('Loading state:', { isLoading, user: !!user, isAuthenticated, subforumContextLoaded });
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Checking permissions...</p>
+          <p className="text-muted-foreground">Loading...</p>
         </div>
       </div>
     );
   }
 
-  // Check if user has moderator permissions
+  // Check if user has moderator permissions - only after everything is loaded
   const hasModerateContent = user?.capabilities?.includes('moderate_content');
   const hasModeratorRole = user?.roles?.includes('moderator') || user?.roles?.includes('admin');
   const isModerator = hasModeratorRole || hasModerateContent;
 
-  // Don't render the page if user doesn't have permissions (redirect will happen)
+  // Debug logging
+  console.log('Permission check:', {
+    user: user?.email,
+    roles: user?.roles,
+    capabilities: user?.capabilities,
+    hasModerateContent,
+    hasModeratorRole,
+    isModerator,
+    isAuthenticated,
+    subforumContextLoaded,
+    userExists: !!user
+  });
+
+  // Don't render the page if user doesn't have permissions
   if (!isAuthenticated || !isModerator) {
-    return null;
+    console.log('Permission denied:', { isAuthenticated, isModerator, user: user?.email });
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">You do not have permission to access this page.</p>
+          <p className="text-sm text-muted-foreground mt-2">
+            Debug: Auth={isAuthenticated}, Mod={isModerator}, Roles={user?.roles?.join(', ')}, Caps={user?.capabilities?.filter(c => c.includes('moderate')).join(', ')}
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="container mx-auto px-4 py-8">
+      {/* Back to Forum Button */}
+      <div className="flex items-center gap-4 mb-6">
+        <Link href={`/${fullSubforumPath}`}>
+          <Button variant="outline" size="sm">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Forum
+          </Button>
+        </Link>
+      </div>
+
       {/* Navigation Menu */}
       <div className="mb-6">
         <NavigationMenu viewport={false}>
@@ -112,14 +131,13 @@ export default function SubforumModerationPage() {
                 <Shield className="w-4 h-4" />
                 Reports
               </NavigationMenuTrigger>
-              <NavigationMenuContent className="absolute top-full left-0 mt-1">
+              <NavigationMenuContent className="absolute top-full left-0 mt-1 bg-popover border border-border rounded-md shadow-lg">
                 <div className="p-4 w-48">
-                  <div className="text-sm font-medium mb-2">Report Management</div>
-                  <div className="space-y-1 text-sm text-muted-foreground">
+                  <div className="text-sm font-medium mb-2 text-popover-foreground">Report Management</div>
+                  <div className="space-y-1 text-sm">
                     <Link href={`/${fullSubforumPath}/moderation/reports`}>
-                      <div className="p-2 hover:bg-accent rounded cursor-pointer">View All Reports</div>
+                      <div className="p-2 hover:bg-accent hover:text-accent-foreground rounded cursor-pointer transition-colors text-popover-foreground">View All Reports</div>
                     </Link>
-                    <div className="p-2 hover:bg-accent rounded cursor-pointer">Report Settings</div>
                   </div>
                 </div>
               </NavigationMenuContent>
@@ -129,13 +147,13 @@ export default function SubforumModerationPage() {
                 <Users className="w-4 h-4" />
                 Users
               </NavigationMenuTrigger>
-              <NavigationMenuContent className="absolute top-full left-0 mt-1">
+              <NavigationMenuContent className="absolute top-full left-0 mt-1 bg-popover border border-border rounded-md shadow-lg">
                 <div className="p-4 w-48">
-                  <div className="text-sm font-medium mb-2">User Management</div>
-                  <div className="space-y-1 text-sm text-muted-foreground">
-                    <div className="p-2 hover:bg-accent rounded cursor-pointer">Active Users</div>
-                    <div className="p-2 hover:bg-accent rounded cursor-pointer">Banned Users</div>
-                    <div className="p-2 hover:bg-accent rounded cursor-pointer">User Permissions</div>
+                  <div className="text-sm font-medium mb-2 text-popover-foreground">User Management</div>
+                  <div className="space-y-1 text-sm">
+                    <div className="p-2 hover:bg-accent hover:text-accent-foreground rounded cursor-pointer transition-colors text-popover-foreground">Active Users</div>
+                    <div className="p-2 hover:bg-accent hover:text-accent-foreground rounded cursor-pointer transition-colors text-popover-foreground">Banned Users</div>
+                    <div className="p-2 hover:bg-accent hover:text-accent-foreground rounded cursor-pointer transition-colors text-popover-foreground">User Permissions</div>
                   </div>
                 </div>
               </NavigationMenuContent>
@@ -145,13 +163,23 @@ export default function SubforumModerationPage() {
                 <Settings className="w-4 h-4" />
                 Settings
               </NavigationMenuTrigger>
-              <NavigationMenuContent className="absolute top-full left-0 mt-1">
+              <NavigationMenuContent className="absolute top-full left-0 mt-1 bg-popover border border-border rounded-md shadow-lg">
                 <div className="p-4 w-48">
-                  <div className="text-sm font-medium mb-2">Moderation Settings</div>
-                  <div className="space-y-1 text-sm text-muted-foreground">
-                    <div className="p-2 hover:bg-accent rounded cursor-pointer">Content Rules</div>
-                    <div className="p-2 hover:bg-accent rounded cursor-pointer">Auto-moderation</div>
-                    <div className="p-2 hover:bg-accent rounded cursor-pointer">Notification Settings</div>
+                  <div className="text-sm font-medium mb-2 text-popover-foreground">Moderation Settings</div>
+                  <div className="space-y-1 text-sm">
+                    <Link href={`/${fullSubforumPath}/moderation/settings`}>
+                      <div className="p-2 hover:bg-accent hover:text-accent-foreground rounded cursor-pointer transition-colors text-popover-foreground">Subforum Settings</div>
+                    </Link>
+                    <Link href={`/${fullSubforumPath}/moderation/moderators`}>
+                      <div className="p-2 hover:bg-accent hover:text-accent-foreground rounded cursor-pointer transition-colors text-popover-foreground">Moderator Team</div>
+                    </Link>
+                    <Link href={`/${fullSubforumPath}/moderation/content-rules`}>
+                      <div className="p-2 hover:bg-accent hover:text-accent-foreground rounded cursor-pointer transition-colors text-popover-foreground">Content Rules</div>
+                    </Link>
+                    <Link href={`/${fullSubforumPath}/moderation/moderation-settings`}>
+                      <div className="p-2 hover:bg-accent hover:text-accent-foreground rounded cursor-pointer transition-colors text-popover-foreground">Moderation Settings</div>
+                    </Link>
+                    <div className="p-2 hover:bg-accent hover:text-accent-foreground rounded cursor-pointer transition-colors text-popover-foreground">Auto-moderation</div>
                   </div>
                 </div>
               </NavigationMenuContent>
@@ -195,14 +223,18 @@ export default function SubforumModerationPage() {
                 <Users className="w-4 h-4 mr-2" />
                 Manage Bans
               </Button>
-              <Button variant="outline" className="justify-start">
-                <Shield className="w-4 h-4 mr-2" />
-                Add Moderator
-              </Button>
-              <Button variant="outline" className="justify-start">
-                <Settings className="w-4 h-4 mr-2" />
-                Subforum Settings
-              </Button>
+              <Link href={`/${fullSubforumPath}/moderation/moderators`}>
+                <Button variant="outline" className="justify-start w-full">
+                  <Shield className="w-4 h-4 mr-2" />
+                  Manage Moderators
+                </Button>
+              </Link>
+              <Link href={`/${fullSubforumPath}/moderation/settings`}>
+                <Button variant="outline" className="justify-start w-full">
+                  <Settings className="w-4 h-4 mr-2" />
+                  Subforum Settings
+                </Button>
+              </Link>
             </div>
           </CardContent>
         </Card>

@@ -54,7 +54,7 @@ type ContentHandlerConfig struct {
 	PostDAO            dao.PostDAOInterface
 	CommentDAO         dao.CommentDAOInterface
 	SubforumDAO        dao.SubforumDAOInterface
-	SecurePseudonymDAO dao.SecurePseudonymDAOInterface
+	SecurePseudonymDAO dao.PseudonymDAOInterface
 	VoteDAO            dao.VoteDAOInterface
 	UserBlocksDAO      dao.UserBlocksDAOInterface
 	RoleKeyDAO         dao.RoleKeyDAOInterface
@@ -82,7 +82,7 @@ type ContentHandler struct {
 	postDAO            dao.PostDAOInterface
 	commentDAO         dao.CommentDAOInterface
 	subforumDAO        dao.SubforumDAOInterface
-	securePseudonymDAO dao.SecurePseudonymDAOInterface
+	securePseudonymDAO dao.PseudonymDAOInterface
 	voteDAO            dao.VoteDAOInterface
 	permissionChecker  middleware.PermissionCheckerInterface
 	permissionDAO      dao.PermissionDAOInterface
@@ -100,7 +100,7 @@ func NewContentHandler(
 	postDAO dao.PostDAOInterface,
 	commentDAO dao.CommentDAOInterface,
 	subforumDAO dao.SubforumDAOInterface,
-	securePseudonymDAO dao.SecurePseudonymDAOInterface,
+	securePseudonymDAO dao.PseudonymDAOInterface,
 	voteDAO dao.VoteDAOInterface,
 	userBlocksDAO dao.UserBlocksDAOInterface,
 	roleKeyDAO dao.RoleKeyDAOInterface,

@@ -5,13 +5,86 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/matt0x6f/hashpost/internal/api/handlers"
+	"github.com/matt0x6f/hashpost/internal/database/dao"
 	"github.com/stephenafamo/bob"
 )
 
 // RegisterSubforumRoutes registers subforum-related routes
-func RegisterSubforumRoutes(api huma.API, db bob.Executor) {
-	subforumHandler := handlers.NewSubforumHandler(db, nil, nil, nil, nil, nil, nil)
+func RegisterSubforumRoutes(api huma.API, db bob.Executor, pseudonymDAO dao.PseudonymDAOInterface) {
+	// Create DAOs needed for the subforum handler
+	subforumDAO := dao.NewSubforumDAO(db)
+	subforumSubscriptionDAO := dao.NewSubforumSubscriptionDAO(db)
+	permissionDAO := dao.NewPermissionDAO(db)
+	subforumModeratorDAO := dao.NewSubforumModeratorDAO(db)
+	identityMappingDAO := dao.NewIdentityMappingDAO(db)
+	postDAO := dao.NewPostDAO(db)
 
+	subforumHandler := handlers.NewSubforumHandler(db, subforumDAO, subforumSubscriptionDAO, permissionDAO, subforumModeratorDAO, identityMappingDAO, pseudonymDAO, postDAO)
+
+	// Admin routes (more specific) - register first to avoid conflicts
+	// Subforum settings routes
+	huma.Register(api, huma.Operation{
+		OperationID: "get-subforum-settings",
+		Method:      http.MethodGet,
+		Path:        "/subforums/{type}/{name}/admin/settings",
+		Summary:     "Get subforum settings",
+		Description: "Retrieves settings for a specific subforum. Requires manage_subforum_settings capability.",
+		Tags:        []string{"Subforums"},
+		Security:    []map[string][]string{{"jwt": {}}},
+	}, subforumHandler.GetSubforumSettings)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "update-subforum-settings",
+		Method:      http.MethodPut,
+		Path:        "/subforums/{type}/{name}/admin/settings",
+		Summary:     "Update subforum settings",
+		Description: "Updates settings for a specific subforum. Requires manage_subforum_settings capability.",
+		Tags:        []string{"Subforums"},
+		Security:    []map[string][]string{{"jwt": {}}},
+	}, subforumHandler.UpdateSubforumSettings)
+
+	// Moderator team management routes
+	huma.Register(api, huma.Operation{
+		OperationID: "get-moderator-team",
+		Method:      http.MethodGet,
+		Path:        "/subforums/{type}/{name}/admin/moderators",
+		Summary:     "Get moderator team",
+		Description: "Retrieves the moderator team for a specific subforum. Requires manage_moderators capability.",
+		Tags:        []string{"Subforums"},
+		Security:    []map[string][]string{{"jwt": {}}},
+	}, subforumHandler.GetModeratorTeam)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "add-moderator",
+		Method:      http.MethodPost,
+		Path:        "/subforums/{type}/{name}/admin/moderators",
+		Summary:     "Add moderator",
+		Description: "Adds a new moderator to the subforum. Requires manage_moderators capability.",
+		Tags:        []string{"Subforums"},
+		Security:    []map[string][]string{{"jwt": {}}},
+	}, subforumHandler.AddModerator)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "update-moderator",
+		Method:      http.MethodPut,
+		Path:        "/subforums/{type}/{name}/admin/moderators/{pseudonym_id}",
+		Summary:     "Update moderator",
+		Description: "Updates a moderator's role and permissions. Requires manage_moderators capability.",
+		Tags:        []string{"Subforums"},
+		Security:    []map[string][]string{{"jwt": {}}},
+	}, subforumHandler.UpdateModerator)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "remove-moderator",
+		Method:      http.MethodDelete,
+		Path:        "/subforums/{type}/{name}/admin/moderators/{pseudonym_id}",
+		Summary:     "Remove moderator",
+		Description: "Removes a moderator from the subforum. Requires manage_moderators capability.",
+		Tags:        []string{"Subforums"},
+		Security:    []map[string][]string{{"jwt": {}}},
+	}, subforumHandler.RemoveModerator)
+
+	// General subforum routes (less specific) - register after admin routes
 	// Get subforums
 	huma.Register(api, huma.Operation{
 		OperationID: "get-subforums",
