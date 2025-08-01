@@ -168,15 +168,15 @@ export default function SubscriptionsPage() {
                     </CardDescription>
                   </div>
                   <div className="ml-4">
-                                         <SubscribeButton
-                       communityType={subforum.communityType as CommunityType}
-                       subforumName={subforum.name}
-                       isSubscribed={true}
-                       subscriberCount={subforum.subscriberCount || 0}
-                       onSubscriptionChange={(isSubscribed) => 
-                         handleSubscriptionChange(subforum.name, isSubscribed)
-                       }
-                     />
+                    <SubscribeButton
+                      communityType={subforum.communityType as CommunityType}
+                      subforumName={subforum.name}
+                      isSubscribed={true}
+                      subscriberCount={subforum.subscriberCount || 0}
+                      onSubscriptionChange={(isSubscribed) => 
+                        handleSubscriptionChange(subforum.name, isSubscribed)
+                      }
+                    />
                   </div>
                 </div>
               </CardHeader>
