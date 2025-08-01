@@ -14,6 +14,7 @@ import (
 	"github.com/matt0x6f/hashpost/internal/database/dao"
 	dbmodels "github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/rs/zerolog/log"
+	"github.com/stephenafamo/bob"
 	"github.com/stephenafamo/bob/types"
 )
 
@@ -23,6 +24,7 @@ type RulesHandler struct {
 	subforumDAO       dao.SubforumDAOInterface
 	systemSettingsDAO dao.SystemSettingsDAOInterface
 	permissionDAO     dao.PermissionDAOInterface
+	db                bob.Executor
 }
 
 // NewRulesHandler creates a new rules handler
@@ -31,12 +33,14 @@ func NewRulesHandler(
 	subforumDAO dao.SubforumDAOInterface,
 	systemSettingsDAO dao.SystemSettingsDAOInterface,
 	permissionDAO dao.PermissionDAOInterface,
+	db bob.Executor,
 ) *RulesHandler {
 	return &RulesHandler{
 		reportDAO:         reportDAO,
 		subforumDAO:       subforumDAO,
 		systemSettingsDAO: systemSettingsDAO,
 		permissionDAO:     permissionDAO,
+		db:                db,
 	}
 }
 
@@ -51,7 +55,14 @@ func (h *RulesHandler) GetPlatformRules(ctx context.Context, input *apimodels.Pl
 
 	if setting == nil {
 		// Return empty rules if no platform rules are configured
-		return &apimodels.PlatformRulesResponse{Rules: []apimodels.Rule{}}, nil
+		return &apimodels.PlatformRulesResponse{
+			Status: 200,
+			Body: struct {
+				Rules []apimodels.Rule `json:"rules"`
+			}{
+				Rules: []apimodels.Rule{},
+			},
+		}, nil
 	}
 
 	// Parse JSON rules
@@ -72,15 +83,22 @@ func (h *RulesHandler) GetPlatformRules(ctx context.Context, input *apimodels.Pl
 		rules = activeRules
 	}
 
-	return &apimodels.PlatformRulesResponse{Rules: rules}, nil
+	return &apimodels.PlatformRulesResponse{
+		Status: 200,
+		Body: struct {
+			Rules []apimodels.Rule `json:"rules"`
+		}{
+			Rules: rules,
+		},
+	}, nil
 }
 
 // GetSubforumRules returns rules for a specific subforum
 func (h *RulesHandler) GetSubforumRules(ctx context.Context, input *apimodels.SubforumRulesInput) (*apimodels.SubforumRulesResponse, error) {
-	// Get subforum
-	subforum, err := h.subforumDAO.GetSubforumByID(ctx, input.SubforumID)
+	// Get subforum by name and community type
+	subforum, err := h.subforumDAO.GetSubforumByName(ctx, input.SubforumName)
 	if err != nil {
-		log.Error().Err(err).Int32("subforum_id", input.SubforumID).Msg("Failed to get subforum")
+		log.Error().Err(err).Str("subforum_name", input.SubforumName).Msg("Failed to get subforum")
 		return nil, fmt.Errorf("subforum not found: %w", err)
 	}
 
@@ -94,19 +112,19 @@ func (h *RulesHandler) GetSubforumRules(ctx context.Context, input *apimodels.Su
 		// Get the raw bytes from the JSON type
 		value, err := subforum.SubforumRules.V.Value()
 		if err != nil {
-			log.Error().Err(err).Int32("subforum_id", input.SubforumID).Msg("Failed to get subforum rules value")
+			log.Error().Err(err).Str("subforum_name", input.SubforumName).Msg("Failed to get subforum rules value")
 			return nil, fmt.Errorf("failed to parse subforum rules: %w", err)
 		}
 
 		// Convert to bytes
 		bytes, ok := value.([]byte)
 		if !ok {
-			log.Error().Int32("subforum_id", input.SubforumID).Msg("Subforum rules value is not bytes")
+			log.Error().Str("subforum_name", input.SubforumName).Msg("Subforum rules value is not bytes")
 			return nil, fmt.Errorf("failed to parse subforum rules: %w", err)
 		}
 
 		if err := json.Unmarshal(bytes, &rules); err != nil {
-			log.Error().Err(err).Int32("subforum_id", input.SubforumID).Msg("Failed to parse subforum rules JSON")
+			log.Error().Err(err).Str("subforum_name", input.SubforumName).Msg("Failed to parse subforum rules JSON")
 			return nil, fmt.Errorf("failed to parse subforum rules: %w", err)
 		}
 	}
@@ -123,31 +141,32 @@ func (h *RulesHandler) GetSubforumRules(ctx context.Context, input *apimodels.Su
 	}
 
 	return &apimodels.SubforumRulesResponse{
-		SubforumID: subforum.SubforumID,
-		Name:       subforum.Name,
-		Rules:      rules,
+		Status: 200,
+		Body: struct {
+			SubforumID int32            `json:"subforum_id" example:"1"`
+			Name       string           `json:"name" example:"golang"`
+			Rules      []apimodels.Rule `json:"rules"`
+		}{
+			SubforumID: subforum.SubforumID,
+			Name:       subforum.Name,
+			Rules:      rules,
+		},
 	}, nil
 }
 
 // CreateSubforumRule creates a new rule for a subforum
 func (h *RulesHandler) CreateSubforumRule(ctx context.Context, input *apimodels.RuleCreateInput) (*apimodels.Rule, error) {
 	// Extract user from context
-	userCtx, err := h.extractUserFromContext(ctx)
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to extract user from context")
 		return nil, fmt.Errorf("authentication required")
 	}
 
 	// Validate moderator permissions for the subforum
-	if err := h.validateModeratorPermissionsForSubforum(ctx, userCtx, input.SubforumPath); err != nil {
+	if err := h.validateModeratorPermissionsForSubforum(ctx, userCtx, input.CommunityType, input.SubforumName); err != nil {
 		log.Error().Err(err).Int("user_id", int(userCtx.UserID)).Msg("User lacks moderation permissions")
 		return nil, fmt.Errorf("insufficient permissions: %w", err)
-	}
-
-	// Check specific capability for managing subforum rules
-	if !userCtx.HasCapability(constants.CapabilityManageSubforumRules) {
-		log.Error().Int("user_id", int(userCtx.UserID)).Msg("User lacks manage_subforum_rules capability")
-		return nil, fmt.Errorf("insufficient permissions: manage_subforum_rules capability required")
 	}
 
 	// Get subforum
@@ -225,7 +244,7 @@ func (h *RulesHandler) CreateSubforumRule(ctx context.Context, input *apimodels.
 	updateSetter.SubforumRules = &sql.Null[types.JSON[json.RawMessage]]{V: jsonValue, Valid: true}
 
 	// Use the Update method on the subforum model
-	if err := subforum.Update(ctx, nil, updateSetter); err != nil {
+	if err := subforum.Update(ctx, h.db, updateSetter); err != nil {
 		log.Error().Err(err).Msg("Failed to update subforum rules")
 		return nil, fmt.Errorf("failed to save rule: %w", err)
 	}
@@ -244,22 +263,16 @@ func (h *RulesHandler) CreateSubforumRule(ctx context.Context, input *apimodels.
 // UpdateSubforumRule updates an existing rule for a subforum
 func (h *RulesHandler) UpdateSubforumRule(ctx context.Context, input *apimodels.RuleUpdateInput) (*apimodels.Rule, error) {
 	// Extract user from context
-	userCtx, err := h.extractUserFromContext(ctx)
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to extract user from context")
 		return nil, fmt.Errorf("authentication required")
 	}
 
 	// Validate moderator permissions for the subforum
-	if err := h.validateModeratorPermissionsForSubforum(ctx, userCtx, input.SubforumPath); err != nil {
+	if err := h.validateModeratorPermissionsForSubforum(ctx, userCtx, input.CommunityType, input.SubforumName); err != nil {
 		log.Error().Err(err).Int("user_id", int(userCtx.UserID)).Msg("User lacks moderation permissions")
 		return nil, fmt.Errorf("insufficient permissions: %w", err)
-	}
-
-	// Check specific capability for managing subforum rules
-	if !userCtx.HasCapability(constants.CapabilityManageSubforumRules) {
-		log.Error().Int("user_id", int(userCtx.UserID)).Msg("User lacks manage_subforum_rules capability")
-		return nil, fmt.Errorf("insufficient permissions: manage_subforum_rules capability required")
 	}
 
 	// Get subforum
@@ -347,7 +360,7 @@ func (h *RulesHandler) UpdateSubforumRule(ctx context.Context, input *apimodels.
 	updateSetter.SubforumRules = &sql.Null[types.JSON[json.RawMessage]]{V: jsonValue, Valid: true}
 
 	// Use the Update method on the subforum model
-	if err := subforum.Update(ctx, nil, updateSetter); err != nil {
+	if err := subforum.Update(ctx, h.db, updateSetter); err != nil {
 		log.Error().Err(err).Msg("Failed to update subforum rules")
 		return nil, fmt.Errorf("failed to save rule: %w", err)
 	}
@@ -366,22 +379,16 @@ func (h *RulesHandler) UpdateSubforumRule(ctx context.Context, input *apimodels.
 // DeleteSubforumRule deletes a rule from a subforum
 func (h *RulesHandler) DeleteSubforumRule(ctx context.Context, input *apimodels.RuleDeleteInput) (*apimodels.RuleDeleteResponse, error) {
 	// Extract user from context
-	userCtx, err := h.extractUserFromContext(ctx)
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to extract user from context")
 		return nil, fmt.Errorf("authentication required")
 	}
 
 	// Validate moderator permissions for the subforum
-	if err := h.validateModeratorPermissionsForSubforum(ctx, userCtx, input.SubforumPath); err != nil {
+	if err := h.validateModeratorPermissionsForSubforum(ctx, userCtx, input.CommunityType, input.SubforumName); err != nil {
 		log.Error().Err(err).Int("user_id", int(userCtx.UserID)).Msg("User lacks moderation permissions")
 		return nil, fmt.Errorf("insufficient permissions: %w", err)
-	}
-
-	// Check specific capability for managing subforum rules
-	if !userCtx.HasCapability(constants.CapabilityManageSubforumRules) {
-		log.Error().Int("user_id", int(userCtx.UserID)).Msg("User lacks manage_subforum_rules capability")
-		return nil, fmt.Errorf("insufficient permissions: manage_subforum_rules capability required")
 	}
 
 	// Get subforum
@@ -454,7 +461,7 @@ func (h *RulesHandler) DeleteSubforumRule(ctx context.Context, input *apimodels.
 	updateSetter.SubforumRules = &sql.Null[types.JSON[json.RawMessage]]{V: jsonValue, Valid: true}
 
 	// Use the Update method on the subforum model
-	if err := subforum.Update(ctx, nil, updateSetter); err != nil {
+	if err := subforum.Update(ctx, h.db, updateSetter); err != nil {
 		log.Error().Err(err).Msg("Failed to update subforum rules")
 		return nil, fmt.Errorf("failed to delete rule: %w", err)
 	}
@@ -477,7 +484,7 @@ func (h *RulesHandler) DeleteSubforumRule(ctx context.Context, input *apimodels.
 // ReportRuleViolation reports a violation of a specific rule
 func (h *RulesHandler) ReportRuleViolation(ctx context.Context, input *apimodels.RuleViolationInput) (*apimodels.RuleViolationResponse, error) {
 	// Extract user from context
-	userCtx, err := h.extractUserFromContext(ctx)
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to extract user from context")
 		return nil, fmt.Errorf("authentication required")
@@ -566,11 +573,11 @@ func (h *RulesHandler) ReportRuleViolation(ctx context.Context, input *apimodels
 	}
 
 	response := &apimodels.RuleViolationResponse{
-		ReportID:  int(report.ReportID),
-		RuleCode:  input.Body.RuleCode,
-		RuleType:  input.Body.RuleType,
-		Status:    "pending",
-		CreatedAt: time.Now().Format(time.RFC3339),
+		ReportID:     int(report.ReportID),
+		RuleCode:     input.Body.RuleCode,
+		RuleType:     input.Body.RuleType,
+		ReportStatus: "pending",
+		CreatedAt:    time.Now().Format(time.RFC3339),
 	}
 
 	log.Info().
@@ -586,7 +593,7 @@ func (h *RulesHandler) ReportRuleViolation(ctx context.Context, input *apimodels
 // ForwardReportToPlatform forwards a report to platform-level moderators
 func (h *RulesHandler) ForwardReportToPlatform(ctx context.Context, input *apimodels.ReportForwardInput) (*apimodels.ReportForwardResponse, error) {
 	// Extract user from context
-	userCtx, err := h.extractUserFromContext(ctx)
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to extract user from context")
 		return nil, fmt.Errorf("authentication required")
@@ -657,21 +664,28 @@ func (h *RulesHandler) ForwardReportToPlatform(ctx context.Context, input *apimo
 	return response, nil
 }
 
-// Helper methods
-func (h *RulesHandler) extractUserFromContext(ctx context.Context) (*middleware.UserContext, error) {
-	// Try to get user context from middleware (header-based auth)
-	userCtx, err := middleware.ExtractUserFromContext(ctx)
+func (h *RulesHandler) validateModeratorPermissionsForSubforum(ctx context.Context, userCtx *middleware.UserContext, communityType, subforumName string) error {
+	// Get subforum by community type and name
+	subforum, err := h.subforumDAO.GetSubforumByCommunityTypeAndName(ctx, communityType, subforumName)
 	if err != nil {
-		return nil, fmt.Errorf("authentication required: %w", err)
+		log.Error().Err(err).Str("community_type", communityType).Str("subforum_name", subforumName).Msg("Failed to get subforum")
+		return fmt.Errorf("subforum not found: %w", err)
 	}
-	return userCtx, nil
-}
 
-func (h *RulesHandler) validateModeratorPermissionsForSubforum(ctx context.Context, userCtx *middleware.UserContext, subforumPath string) error {
-	// This is a simplified check - in practice you'd need to validate
-	// that the user has moderation permissions for the specific subforum
-	if !userCtx.HasCapability("moderate_content") {
-		return fmt.Errorf("moderation permissions required")
+	if subforum == nil {
+		return fmt.Errorf("subforum not found")
 	}
+
+	// Check capability for managing subforum rules using unified permission system
+	hasCapability, err := h.permissionDAO.HasUnifiedCapability(ctx, userCtx.UserID, userCtx.ActivePseudonymID, constants.CapabilityManageSubforumRules, &subforum.SubforumID)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to check unified capability")
+		return fmt.Errorf("failed to check permissions: %w", err)
+	}
+	if !hasCapability {
+		log.Warn().Int64("user_id", userCtx.UserID).Msg("User lacks manage_subforum_rules capability")
+		return fmt.Errorf("insufficient permissions to manage subforum rules")
+	}
+
 	return nil
 }

@@ -25,7 +25,7 @@ type ModerationHandler struct {
 	reportDAO           dao.ReportDAOInterface
 	moderationActionDAO dao.ModerationActionDAOInterface
 	userBanDAO          dao.UserBanDAOInterface
-	securePseudonymDAO  dao.SecurePseudonymDAOInterface
+	securePseudonymDAO  dao.PseudonymDAOInterface
 	subforumDAO         dao.SubforumDAOInterface
 	postDAO             dao.PostDAOInterface
 	commentDAO          dao.CommentDAOInterface
@@ -38,7 +38,7 @@ func NewModerationHandler(
 	reportDAO dao.ReportDAOInterface,
 	moderationActionDAO dao.ModerationActionDAOInterface,
 	userBanDAO dao.UserBanDAOInterface,
-	securePseudonymDAO dao.SecurePseudonymDAOInterface,
+	securePseudonymDAO dao.PseudonymDAOInterface,
 	subforumDAO dao.SubforumDAOInterface,
 	postDAO dao.PostDAOInterface,
 	commentDAO dao.CommentDAOInterface,

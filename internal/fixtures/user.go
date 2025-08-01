@@ -36,6 +36,19 @@ func CreateTestUserContextForBlocking(userID int64, activePseudonymID string) *m
 	}
 }
 
+// CreateTestModeratorContext creates a test user context with moderation capabilities
+func CreateTestModeratorContext() *middleware.UserContext {
+	return &middleware.UserContext{
+		UserID:            1,
+		Email:             "moderator@example.com",
+		ActivePseudonymID: "test-pseudonym-id",
+		DisplayName:       "TestModerator",
+		Roles:             []string{"user", "moderator"},
+		Capabilities:      []string{"create_content", "vote", "message", "report", "create_subforum", "moderate_content"},
+		TokenType:         "jwt",
+	}
+}
+
 // CreateTestPseudonym creates a test pseudonym
 func CreateTestPseudonym() *models.Pseudonym {
 	return &models.Pseudonym{

@@ -286,7 +286,7 @@ setup-dev: install-tools
 .DEFAULT_GOAL := help
 
 generate:
-	cd internal/database && go run github.com/stephenafamo/bob/gen/bobgen-psql@latest -c ../../bobgen.yaml
+	cd internal/database && go run github.com/stephenafamo/bob/gen/bobgen-psql@v0.38.0 -c ../../bobgen.yaml
 
 # UI Development commands
 ui-install:

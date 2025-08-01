@@ -17,7 +17,7 @@ func RegisterRulesRoutes(api huma.API, db bob.Executor) {
 	systemSettingsDAO := dao.NewSystemSettingsDAO(db)
 	permissionDAO := dao.NewPermissionDAO(db)
 
-	rulesHandler := handlers.NewRulesHandler(reportsDAO, subforumDAO, systemSettingsDAO, permissionDAO)
+	rulesHandler := handlers.NewRulesHandler(reportsDAO, subforumDAO, systemSettingsDAO, permissionDAO, db)
 
 	// Platform rules routes
 	huma.Register(api, huma.Operation{
@@ -33,7 +33,7 @@ func RegisterRulesRoutes(api huma.API, db bob.Executor) {
 	huma.Register(api, huma.Operation{
 		OperationID: "get-subforum-rules",
 		Method:      http.MethodGet,
-		Path:        "/subforums/{subforum_id}/rules",
+		Path:        "/rules/subforums/{community_type}/{subforum_name}",
 		Summary:     "Get subforum rules",
 		Description: "Retrieves all rules for a specific subforum.",
 		Tags:        []string{"Rules"},
@@ -43,7 +43,7 @@ func RegisterRulesRoutes(api huma.API, db bob.Executor) {
 	huma.Register(api, huma.Operation{
 		OperationID: "create-subforum-rule",
 		Method:      http.MethodPost,
-		Path:        "/{community_type}/{subforum_name}/rules",
+		Path:        "/rules/subforums/{community_type}/{subforum_name}",
 		Summary:     "Create a new subforum rule",
 		Description: "Creates a new rule for a subforum. Requires moderator permissions.",
 		Tags:        []string{"Rules"},
@@ -53,7 +53,7 @@ func RegisterRulesRoutes(api huma.API, db bob.Executor) {
 	huma.Register(api, huma.Operation{
 		OperationID: "update-subforum-rule",
 		Method:      http.MethodPut,
-		Path:        "/{community_type}/{subforum_name}/rules/{rule_code}",
+		Path:        "/rules/subforums/{community_type}/{subforum_name}/{rule_code}",
 		Summary:     "Update a subforum rule",
 		Description: "Updates an existing rule for a subforum. Requires moderator permissions.",
 		Tags:        []string{"Rules"},
@@ -63,7 +63,7 @@ func RegisterRulesRoutes(api huma.API, db bob.Executor) {
 	huma.Register(api, huma.Operation{
 		OperationID: "delete-subforum-rule",
 		Method:      http.MethodDelete,
-		Path:        "/{community_type}/{subforum_name}/rules/{rule_code}",
+		Path:        "/rules/subforums/{community_type}/{subforum_name}/{rule_code}",
 		Summary:     "Delete a subforum rule",
 		Description: "Deletes a rule from a subforum. Requires moderator permissions.",
 		Tags:        []string{"Rules"},

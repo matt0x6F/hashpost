@@ -21,7 +21,7 @@ import (
 // UserHandler handles user management requests
 type UserHandler struct {
 	userDAO            dao.UserDAOInterface
-	securePseudonymDAO dao.SecurePseudonymDAOInterface
+	securePseudonymDAO dao.PseudonymDAOInterface
 	userPreferencesDAO dao.UserPreferencesDAOInterface
 	userBlocksDAO      dao.UserBlocksDAOInterface
 	postDAO            dao.PostDAOInterface
@@ -34,7 +34,7 @@ type UserHandler struct {
 func NewUserHandler(
 	db bob.Executor,
 	userDAO dao.UserDAOInterface,
-	securePseudonymDAO dao.SecurePseudonymDAOInterface,
+	securePseudonymDAO dao.PseudonymDAOInterface,
 	userPreferencesDAO dao.UserPreferencesDAOInterface,
 	userBlocksDAO dao.UserBlocksDAOInterface,
 	postDAO dao.PostDAOInterface,

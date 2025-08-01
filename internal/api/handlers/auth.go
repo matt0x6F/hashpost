@@ -27,7 +27,7 @@ type AuthHandler struct {
 	config             *config.Config
 	db                 bob.Executor
 	userDAO            dao.UserDAOInterface
-	securePseudonymDAO dao.SecurePseudonymDAOInterface
+	securePseudonymDAO dao.PseudonymDAOInterface
 	identityMappingDAO dao.IdentityMappingDAOInterface
 	roleKeyDAO         dao.RoleKeyDAOInterface
 	ibeSystem          *ibe.IBESystem
@@ -41,7 +41,7 @@ func NewAuthHandler(
 	cfg *config.Config,
 	db bob.Executor,
 	userDAO dao.UserDAOInterface,
-	securePseudonymDAO dao.SecurePseudonymDAOInterface,
+	securePseudonymDAO dao.PseudonymDAOInterface,
 	identityMappingDAO dao.IdentityMappingDAOInterface,
 	roleKeyDAO dao.RoleKeyDAOInterface,
 	ibeSystem *ibe.IBESystem,

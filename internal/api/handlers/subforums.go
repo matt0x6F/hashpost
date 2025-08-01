@@ -6,7 +6,11 @@ import (
 	"sort"
 	"time"
 
+	"database/sql"
+	"encoding/json"
+
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/matt0x6f/hashpost/internal/api/constants"
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	"github.com/matt0x6f/hashpost/internal/api/models"
 	"github.com/matt0x6f/hashpost/internal/database/dao"
@@ -23,6 +27,7 @@ type SubforumHandler struct {
 	permissionDAO           dao.PermissionDAOInterface
 	subforumModeratorDAO    dao.SubforumModeratorDAOInterface
 	identityMappingDAO      dao.IdentityMappingDAOInterface
+	pseudonymDAO            dao.PseudonymDAOInterface
 	postDAO                 dao.PostDAOInterface
 	db                      bob.Executor
 }
@@ -36,6 +41,7 @@ func NewSubforumHandler(
 	permissionDAO dao.PermissionDAOInterface,
 	subforumModeratorDAO dao.SubforumModeratorDAOInterface,
 	identityMappingDAO dao.IdentityMappingDAOInterface,
+	pseudonymDAO dao.PseudonymDAOInterface,
 	postDAO dao.PostDAOInterface,
 ) *SubforumHandler {
 	// If db is provided, create real DAOs (production mode)
@@ -45,6 +51,7 @@ func NewSubforumHandler(
 		permissionDAO = dao.NewPermissionDAO(db)
 		subforumModeratorDAO = dao.NewSubforumModeratorDAO(db)
 		identityMappingDAO = dao.NewIdentityMappingDAO(db)
+		// Note: pseudonymDAO requires additional dependencies, so it should be passed in
 		postDAO = dao.NewPostDAO(db)
 	}
 
@@ -54,6 +61,7 @@ func NewSubforumHandler(
 		permissionDAO:           permissionDAO,
 		subforumModeratorDAO:    subforumModeratorDAO,
 		identityMappingDAO:      identityMappingDAO,
+		pseudonymDAO:            pseudonymDAO,
 		postDAO:                 postDAO,
 		db:                      db,
 	}
@@ -631,6 +639,471 @@ func (h *SubforumHandler) CreateSubforum(ctx context.Context, input *models.Subf
 
 	// For now, moderators, isSubscribed, isFavorite are empty/default
 	return models.NewSubforumDetailsResponse(apiSubforum, nil, false, false), nil
+}
+
+// GetSubforumSettings returns the settings for a specific subforum
+func (h *SubforumHandler) GetSubforumSettings(ctx context.Context, input *struct {
+	middleware.AuthInput
+	models.SubforumSettingsGetInput
+}) (*models.SubforumSettingsResponse, error) {
+	log.Info().Str("endpoint", "subforums/settings").Str("component", "handler").Msg("Get subforum settings requested")
+
+	// Extract user from AuthInput
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+	if err != nil {
+		log.Error().Err(err).Msg("Authentication required for subforum settings")
+		return nil, huma.Error401Unauthorized("authentication required")
+	}
+
+	// Get subforum first
+	subforum, err := h.subforumDAO.GetSubforumByCommunityTypeAndName(ctx, input.Type, input.Name)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to get subforum")
+		return nil, fmt.Errorf("subforum not found: %w", err)
+	}
+
+	if subforum == nil {
+		return nil, huma.Error404NotFound("subforum not found")
+	}
+
+	// Check capability for managing subforum settings using unified permission system
+	hasCapability, err := h.permissionDAO.HasUnifiedCapability(ctx, userCtx.UserID, userCtx.ActivePseudonymID, constants.CapabilityManageSubforumSettings, &subforum.SubforumID)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to check unified capability")
+		return nil, fmt.Errorf("failed to check permissions: %w", err)
+	}
+	if !hasCapability {
+		log.Warn().Int64("user_id", userCtx.UserID).Msg("User lacks manage_subforum_settings capability")
+		return nil, huma.Error403Forbidden("insufficient permissions to view subforum settings")
+	}
+
+	// Convert database model to settings
+	settings := models.SubforumSettings{
+		AllowImages:  subforum.AllowImages.Valid && subforum.AllowImages.V,
+		AllowVideos:  subforum.AllowVideos.Valid && subforum.AllowVideos.V,
+		AllowPolls:   subforum.AllowPolls.Valid && subforum.AllowPolls.V,
+		RequireFlair: subforum.RequireFlair.Valid && subforum.RequireFlair.V,
+		MinimumAccountAgeHours: func() int {
+			if subforum.MinimumAccountAgeHours.Valid {
+				return int(subforum.MinimumAccountAgeHours.V)
+			}
+			return 0
+		}(),
+		MinimumKarmaRequired: func() int {
+			if subforum.MinimumKarmaRequired.Valid {
+				return int(subforum.MinimumKarmaRequired.V)
+			}
+			return 0
+		}(),
+		IsPrivate:             subforum.IsPrivate.Valid && subforum.IsPrivate.V,
+		IsRestricted:          subforum.IsRestricted.Valid && subforum.IsRestricted.V,
+		IsNSFW:                subforum.IsNSFW.Valid && subforum.IsNSFW.V,
+		AutoModerationEnabled: false, // TODO: Add to database schema
+		RequireApproval:       false, // TODO: Add to database schema
+		AllowCrossposts:       true,  // TODO: Add to database schema
+		Description: func() string {
+			if subforum.Description.Valid {
+				return subforum.Description.V
+			}
+			return ""
+		}(),
+		SidebarText: func() string {
+			if subforum.SidebarText.Valid {
+				return subforum.SidebarText.V
+			}
+			return ""
+		}(),
+	}
+
+	updatedAt := time.Now()
+	if subforum.UpdatedAt.Valid {
+		updatedAt = subforum.UpdatedAt.V
+	}
+
+	return &models.SubforumSettingsResponse{
+		Status: 200,
+		Body: struct {
+			SubforumID int32                   `json:"subforum_id" example:"123"`
+			Name       string                  `json:"name" example:"golang"`
+			Settings   models.SubforumSettings `json:"settings"`
+			UpdatedAt  string                  `json:"updated_at" example:"2023-01-01T00:00:00Z"`
+		}{
+			SubforumID: subforum.SubforumID,
+			Name:       subforum.Name,
+			Settings:   settings,
+			UpdatedAt:  updatedAt.Format(time.RFC3339),
+		},
+	}, nil
+}
+
+// UpdateSubforumSettings updates the settings for a specific subforum
+func (h *SubforumHandler) UpdateSubforumSettings(ctx context.Context, input *struct {
+	middleware.AuthInput
+	models.SubforumSettingsInput
+}) (*models.SubforumSettingsResponse, error) {
+	log.Info().Str("endpoint", "subforums/settings").Str("component", "handler").Msg("Update subforum settings requested")
+
+	// Extract user from AuthInput
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+	if err != nil {
+		log.Error().Err(err).Msg("Authentication required for subforum settings")
+		return nil, huma.Error401Unauthorized("authentication required")
+	}
+
+	// Get subforum first
+	subforum, err := h.subforumDAO.GetSubforumByCommunityTypeAndName(ctx, input.Type, input.Name)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to get subforum")
+		return nil, fmt.Errorf("subforum not found: %w", err)
+	}
+
+	if subforum == nil {
+		return nil, huma.Error404NotFound("subforum not found")
+	}
+
+	// Check capability for managing subforum settings using unified permission system
+	hasCapability, err := h.permissionDAO.HasUnifiedCapability(ctx, userCtx.UserID, userCtx.ActivePseudonymID, constants.CapabilityManageSubforumSettings, &subforum.SubforumID)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to check unified capability")
+		return nil, fmt.Errorf("failed to check permissions: %w", err)
+	}
+	if !hasCapability {
+		log.Warn().Int64("user_id", userCtx.UserID).Msg("User lacks manage_subforum_settings capability")
+		return nil, huma.Error403Forbidden("insufficient permissions to update subforum settings")
+	}
+
+	// Update subforum settings
+	updateSetter := &dbmodels.SubforumSetter{
+		AllowImages:            &sql.Null[bool]{V: input.Body.AllowImages, Valid: true},
+		AllowVideos:            &sql.Null[bool]{V: input.Body.AllowVideos, Valid: true},
+		AllowPolls:             &sql.Null[bool]{V: input.Body.AllowPolls, Valid: true},
+		RequireFlair:           &sql.Null[bool]{V: input.Body.RequireFlair, Valid: true},
+		MinimumAccountAgeHours: &sql.Null[int32]{V: int32(input.Body.MinimumAccountAgeHours), Valid: true},
+		MinimumKarmaRequired:   &sql.Null[int32]{V: int32(input.Body.MinimumKarmaRequired), Valid: true},
+		IsPrivate:              &sql.Null[bool]{V: input.Body.IsPrivate, Valid: true},
+		IsRestricted:           &sql.Null[bool]{V: input.Body.IsRestricted, Valid: true},
+		IsNSFW:                 &sql.Null[bool]{V: input.Body.IsNSFW, Valid: true},
+		Description:            &sql.Null[string]{V: input.Body.Description, Valid: true},
+		SidebarText:            &sql.Null[string]{V: input.Body.SidebarText, Valid: true},
+		UpdatedAt:              &sql.Null[time.Time]{V: time.Now(), Valid: true},
+	}
+
+	if err := subforum.Update(ctx, h.db, updateSetter); err != nil {
+		log.Error().Err(err).Msg("Failed to update subforum settings")
+		return nil, fmt.Errorf("failed to update subforum settings: %w", err)
+	}
+
+	log.Info().
+		Str("endpoint", "subforums/settings").
+		Str("component", "handler").
+		Int("user_id", int(userCtx.UserID)).
+		Int32("subforum_id", subforum.SubforumID).
+		Msg("Subforum settings updated")
+
+	return &models.SubforumSettingsResponse{
+		Status: 200,
+		Body: struct {
+			SubforumID int32                   `json:"subforum_id" example:"123"`
+			Name       string                  `json:"name" example:"golang"`
+			Settings   models.SubforumSettings `json:"settings"`
+			UpdatedAt  string                  `json:"updated_at" example:"2023-01-01T00:00:00Z"`
+		}{
+			SubforumID: subforum.SubforumID,
+			Name:       subforum.Name,
+			Settings:   input.Body,
+			UpdatedAt:  time.Now().Format(time.RFC3339),
+		},
+	}, nil
+}
+
+// GetModeratorTeam returns the moderator team for a specific subforum
+func (h *SubforumHandler) GetModeratorTeam(ctx context.Context, input *struct {
+	middleware.AuthInput
+	models.ModeratorTeamInput
+}) (*models.ModeratorTeamResponse, error) {
+	log.Info().Str("endpoint", "subforums/moderator-team").Str("component", "handler").Msg("Get moderator team requested")
+
+	// Extract user from AuthInput
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+	if err != nil {
+		log.Error().Err(err).Msg("Authentication required for moderator team")
+		return nil, huma.Error401Unauthorized("authentication required")
+	}
+
+	// Get subforum first
+	subforum, err := h.subforumDAO.GetSubforumByCommunityTypeAndName(ctx, input.Type, input.Name)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to get subforum")
+		return nil, fmt.Errorf("subforum not found: %w", err)
+	}
+
+	if subforum == nil {
+		return nil, huma.Error404NotFound("subforum not found")
+	}
+
+	// Check capability for managing moderators using unified permission system
+	hasCapability, err := h.permissionDAO.HasUnifiedCapability(ctx, userCtx.UserID, userCtx.ActivePseudonymID, constants.CapabilityManageModerators, &subforum.SubforumID)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to check unified capability")
+		return nil, fmt.Errorf("failed to check permissions: %w", err)
+	}
+	if !hasCapability {
+		log.Warn().Int64("user_id", userCtx.UserID).Msg("User lacks manage_moderators capability")
+		return nil, huma.Error403Forbidden("insufficient permissions to view moderator team")
+	}
+
+	// Get moderator team
+	moderators, err := h.subforumModeratorDAO.GetModeratorsBySubforum(ctx, subforum.SubforumID)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to get moderator team")
+		return nil, fmt.Errorf("failed to get moderator team: %w", err)
+	}
+
+	// Convert to API models
+	var members []models.ModeratorTeamMember
+	var owner models.ModeratorTeamMember
+
+	for _, mod := range moderators {
+		// Get pseudonym details to get display name
+		pseudonym, err := h.pseudonymDAO.GetPseudonymByID(ctx, mod.PseudonymID)
+		displayName := ""
+		if err == nil && pseudonym != nil {
+			displayName = pseudonym.DisplayName
+		}
+
+		member := models.ModeratorTeamMember{
+			PseudonymID:  mod.PseudonymID,
+			DisplayName:  displayName,
+			Role:         mod.Role,
+			Capabilities: []string{}, // TODO: Parse from permissions JSON
+			AddedAt: func() string {
+				if mod.AddedAt.Valid {
+					return mod.AddedAt.V.Format(time.RFC3339)
+				}
+				return ""
+			}(),
+			AddedBy: func() string {
+				if mod.AddedByPseudonymID.Valid {
+					return mod.AddedByPseudonymID.V
+				}
+				return ""
+			}(),
+			IsActive: true, // TODO: Add active field to database
+		}
+
+		// Parse capabilities from permissions JSON
+		if mod.Permissions.Valid {
+			rawValue, err := mod.Permissions.V.Value()
+			if err == nil {
+				if bytes, ok := rawValue.([]byte); ok {
+					var permissions []string
+					if err := json.Unmarshal(bytes, &permissions); err == nil {
+						member.Capabilities = permissions
+					}
+				}
+			}
+		}
+
+		// Determine if this is the owner
+		if subforum.OwnerPseudonymID.Valid && mod.PseudonymID == subforum.OwnerPseudonymID.V {
+			owner = member
+		} else {
+			members = append(members, member)
+		}
+	}
+
+	return &models.ModeratorTeamResponse{
+		Status: 200,
+		Body: struct {
+			SubforumID int32                        `json:"subforum_id" example:"123"`
+			Name       string                       `json:"name" example:"golang"`
+			Members    []models.ModeratorTeamMember `json:"members"`
+			Owner      models.ModeratorTeamMember   `json:"owner"`
+		}{
+			SubforumID: subforum.SubforumID,
+			Name:       subforum.Name,
+			Members:    members,
+			Owner:      owner,
+		},
+	}, nil
+}
+
+// AddModerator adds a new moderator to the subforum
+func (h *SubforumHandler) AddModerator(ctx context.Context, input *struct {
+	middleware.AuthInput
+	models.AddModeratorInput
+}) (*models.ModeratorTeamMember, error) {
+	log.Info().Str("endpoint", "subforums/add-moderator").Str("component", "handler").Msg("Add moderator requested")
+
+	// Extract user from AuthInput
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+	if err != nil {
+		log.Error().Err(err).Msg("Authentication required for adding moderator")
+		return nil, huma.Error401Unauthorized("authentication required")
+	}
+
+	// Get subforum first
+	subforum, err := h.subforumDAO.GetSubforumByCommunityTypeAndName(ctx, input.Type, input.Name)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to get subforum")
+		return nil, fmt.Errorf("subforum not found: %w", err)
+	}
+
+	if subforum == nil {
+		return nil, huma.Error404NotFound("subforum not found")
+	}
+
+	// Check capability for managing moderators using unified permission system
+	hasCapability, err := h.permissionDAO.HasUnifiedCapability(ctx, userCtx.UserID, userCtx.ActivePseudonymID, constants.CapabilityManageModerators, &subforum.SubforumID)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to check unified capability")
+		return nil, fmt.Errorf("failed to check permissions: %w", err)
+	}
+	if !hasCapability {
+		log.Warn().Int64("user_id", userCtx.UserID).Msg("User lacks manage_moderators capability")
+		return nil, huma.Error403Forbidden("insufficient permissions to add moderator")
+	}
+
+	// Add moderator
+	if _, err := h.subforumModeratorDAO.CreateModerator(ctx, subforum.SubforumID, input.Body.PseudonymID, input.Body.Role, userCtx.ActivePseudonymID); err != nil {
+		log.Error().Err(err).Msg("Failed to add moderator")
+		return nil, fmt.Errorf("failed to add moderator: %w", err)
+	}
+
+	log.Info().
+		Str("endpoint", "subforums/add-moderator").
+		Str("component", "handler").
+		Int("user_id", int(userCtx.UserID)).
+		Int32("subforum_id", subforum.SubforumID).
+		Str("moderator_id", input.Body.PseudonymID).
+		Msg("Moderator added")
+
+	return &models.ModeratorTeamMember{
+		PseudonymID:  input.Body.PseudonymID,
+		DisplayName:  "", // TODO: Get from pseudonym table
+		Role:         input.Body.Role,
+		Capabilities: input.Body.Capabilities,
+		AddedAt:      time.Now().Format(time.RFC3339),
+		AddedBy:      userCtx.ActivePseudonymID,
+		IsActive:     true,
+	}, nil
+}
+
+// UpdateModerator updates an existing moderator's permissions
+func (h *SubforumHandler) UpdateModerator(ctx context.Context, input *struct {
+	middleware.AuthInput
+	models.UpdateModeratorInput
+}) (*models.ModeratorTeamMember, error) {
+	log.Info().Str("endpoint", "subforums/update-moderator").Str("component", "handler").Msg("Update moderator requested")
+
+	// Extract user from AuthInput
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+	if err != nil {
+		log.Error().Err(err).Msg("Authentication required for updating moderator")
+		return nil, huma.Error401Unauthorized("authentication required")
+	}
+
+	// Get subforum first
+	subforum, err := h.subforumDAO.GetSubforumByCommunityTypeAndName(ctx, input.Type, input.Name)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to get subforum")
+		return nil, fmt.Errorf("subforum not found: %w", err)
+	}
+
+	if subforum == nil {
+		return nil, huma.Error404NotFound("subforum not found")
+	}
+
+	// Check capability for managing moderators using unified permission system
+	hasCapability, err := h.permissionDAO.HasUnifiedCapability(ctx, userCtx.UserID, userCtx.ActivePseudonymID, constants.CapabilityManageModerators, &subforum.SubforumID)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to check unified capability")
+		return nil, fmt.Errorf("failed to check permissions: %w", err)
+	}
+	if !hasCapability {
+		log.Warn().Int64("user_id", userCtx.UserID).Msg("User lacks manage_moderators capability")
+		return nil, huma.Error403Forbidden("insufficient permissions to update moderator")
+	}
+
+	// Update moderator role
+	if err := h.subforumModeratorDAO.UpdateModeratorRole(ctx, input.PseudonymID, subforum.SubforumID, input.Body.Role); err != nil {
+		log.Error().Err(err).Msg("Failed to update moderator")
+		return nil, fmt.Errorf("failed to update moderator: %w", err)
+	}
+
+	log.Info().
+		Str("endpoint", "subforums/update-moderator").
+		Str("component", "handler").
+		Int("user_id", int(userCtx.UserID)).
+		Int32("subforum_id", subforum.SubforumID).
+		Str("moderator_id", input.PseudonymID).
+		Msg("Moderator updated")
+
+	return &models.ModeratorTeamMember{
+		PseudonymID:  input.PseudonymID,
+		DisplayName:  "", // TODO: Get from pseudonym table
+		Role:         input.Body.Role,
+		Capabilities: input.Body.Capabilities,
+		AddedAt:      "", // TODO: Get from existing record
+		AddedBy:      "", // TODO: Get from existing record
+		IsActive:     input.Body.IsActive,
+	}, nil
+}
+
+// RemoveModerator removes a moderator from the subforum
+func (h *SubforumHandler) RemoveModerator(ctx context.Context, input *struct {
+	middleware.AuthInput
+	models.RemoveModeratorInput
+}) (*models.RemoveModeratorResponse, error) {
+	log.Info().Str("endpoint", "subforums/remove-moderator").Str("component", "handler").Msg("Remove moderator requested")
+
+	// Extract user from AuthInput
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+	if err != nil {
+		log.Error().Err(err).Msg("Authentication required for removing moderator")
+		return nil, huma.Error401Unauthorized("authentication required")
+	}
+
+	// Get subforum first
+	subforum, err := h.subforumDAO.GetSubforumByCommunityTypeAndName(ctx, input.Type, input.Name)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to get subforum")
+		return nil, fmt.Errorf("subforum not found: %w", err)
+	}
+
+	if subforum == nil {
+		return nil, huma.Error404NotFound("subforum not found")
+	}
+
+	// Check capability for managing moderators using unified permission system
+	hasCapability, err := h.permissionDAO.HasUnifiedCapability(ctx, userCtx.UserID, userCtx.ActivePseudonymID, constants.CapabilityManageModerators, &subforum.SubforumID)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to check unified capability")
+		return nil, fmt.Errorf("failed to check permissions: %w", err)
+	}
+	if !hasCapability {
+		log.Warn().Int64("user_id", userCtx.UserID).Msg("User lacks manage_moderators capability")
+		return nil, huma.Error403Forbidden("insufficient permissions to remove moderator")
+	}
+
+	// Remove moderator
+	if err := h.subforumModeratorDAO.DeleteModerator(ctx, input.PseudonymID, subforum.SubforumID); err != nil {
+		log.Error().Err(err).Msg("Failed to remove moderator")
+		return nil, fmt.Errorf("failed to remove moderator: %w", err)
+	}
+
+	log.Info().
+		Str("endpoint", "subforums/remove-moderator").
+		Str("component", "handler").
+		Int("user_id", int(userCtx.UserID)).
+		Int32("subforum_id", subforum.SubforumID).
+		Str("moderator_id", input.PseudonymID).
+		Msg("Moderator removed")
+
+	return &models.RemoveModeratorResponse{
+		Success: true,
+		Message: "Moderator removed successfully",
+	}, nil
 }
 
 // GetPseudonymSubscriptions handles GET /pseudonyms/{pseudonym_id}/subscriptions

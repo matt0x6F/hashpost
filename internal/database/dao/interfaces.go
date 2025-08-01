@@ -21,8 +21,8 @@ type UserDAOInterface interface {
 	UnsuspendUser(ctx context.Context, userID int64) error
 }
 
-// SecurePseudonymDAOInterface defines the interface for secure pseudonym data access operations
-type SecurePseudonymDAOInterface interface {
+// PseudonymDAOInterface defines the interface for secure pseudonym data access operations
+type PseudonymDAOInterface interface {
 	CreatePseudonymWithIdentityMapping(ctx context.Context, userID int64, displayName string) (*models.Pseudonym, error)
 	GetPseudonymByID(ctx context.Context, pseudonymID string) (*models.Pseudonym, error)
 	GetPseudonymByDisplayName(ctx context.Context, displayName string) (*models.Pseudonym, error)

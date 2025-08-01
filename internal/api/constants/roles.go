@@ -67,6 +67,7 @@ func GetRoleDefinitions() []RoleDefinition {
 					CapabilityReviewReports,
 					CapabilityForwardReports,
 					CapabilityManageSubforumRules,
+					CapabilityManageSubforumSettings,
 				},
 				ScopeCorrelation: {
 					CapabilityAccessSubforumPseudonyms,
@@ -95,6 +96,7 @@ func GetRoleDefinitions() []RoleDefinition {
 					CapabilityReviewReports,
 					CapabilityForwardReports,
 					CapabilityManageSubforumRules,
+					CapabilityManageSubforumSettings,
 				},
 				ScopeCorrelation: {
 					CapabilityAccessSubforumPseudonyms,

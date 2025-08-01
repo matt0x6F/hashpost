@@ -147,3 +147,31 @@ h1, h2, h3, h4, h5, h6, .font-display {
 code, pre, .font-mono {
   font-family: var(--font-ibm-plex-mono);
 }
+
+/* Recharts hover effects for both light and dark modes */
+.recharts-wrapper:hover .recharts-cartesian-grid-horizontal,
+.recharts-wrapper:hover .recharts-cartesian-grid-vertical {
+  background-color: rgba(128, 128, 128, 0.1) !important;
+}
+
+.recharts-wrapper {
+  transition: background-color 0.2s ease;
+}
+
+.recharts-tooltip-cursor {
+  fill: transparent !important;
+}
+
+/* Dark mode specific fixes for Recharts */
+.dark .recharts-cartesian-grid-horizontal line,
+.dark .recharts-cartesian-grid-vertical line {
+  stroke: #323846 !important;
+}
+
+.dark .recharts-cartesian-axis-tick-value {
+  fill: #f5f7fa !important;
+}
+
+.dark .recharts-cartesian-axis-line {
+  stroke: #323846 !important;
+}
