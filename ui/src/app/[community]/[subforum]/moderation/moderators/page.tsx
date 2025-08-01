@@ -20,6 +20,7 @@ import { getApi } from '@/lib/api-client';
 import { SubforumsApi } from '@/generated/api/src/apis/SubforumsApi';
 import type { ModeratorTeamMember } from '@/generated/api/src/models/ModeratorTeamMember';
 import type { ModeratorTeamResponseBody } from '@/generated/api/src/models/ModeratorTeamResponseBody';
+import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 
 // Use the generated types
 type ModeratorTeam = ModeratorTeamResponseBody;
@@ -39,6 +40,8 @@ export default function ModeratorTeamPage() {
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingModerator, setEditingModerator] = useState<string | null>(null);
+  const [showRemoveDialog, setShowRemoveDialog] = useState(false);
+  const [moderatorToRemove, setModeratorToRemove] = useState<string | null>(null);
 
   // Form state for adding/editing moderators
   const [formData, setFormData] = useState({
@@ -162,14 +165,17 @@ export default function ModeratorTeamPage() {
   };
 
   const removeModerator = async (pseudonymId: string) => {
-    if (!confirm('Are you sure you want to remove this moderator?')) {
-      return;
-    }
+    setModeratorToRemove(pseudonymId);
+    setShowRemoveDialog(true);
+  };
+
+  const handleRemoveModerator = async () => {
+    if (!moderatorToRemove) return;
 
     try {
       const subforumsApi = getApi(SubforumsApi);
       
-      await subforumsApi.removeModerator(communityType, subforumName, pseudonymId);
+      await subforumsApi.removeModerator(communityType, subforumName, moderatorToRemove);
 
       toast.success('Moderator removed successfully');
       loadModeratorTeam();
@@ -444,6 +450,18 @@ export default function ModeratorTeamPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Confirmation Dialog for Removing Moderators */}
+        <ConfirmationDialog
+          open={showRemoveDialog}
+          onOpenChange={setShowRemoveDialog}
+          title="Remove Moderator"
+          description="Are you sure you want to remove this moderator? This action cannot be undone."
+          confirmText="Remove Moderator"
+          cancelText="Cancel"
+          onConfirm={handleRemoveModerator}
+          variant="destructive"
+        />
       </div>
     </div>
   );

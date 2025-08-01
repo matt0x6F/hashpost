@@ -147,6 +147,10 @@ func TestSubforumHandler_GetSubforums(t *testing.T) {
 }
 
 func TestSubforumHandler_GetSubforumDetails(t *testing.T) {
+	// Initialize global auth middleware for testing
+	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
+	middleware.SetGlobalAuthMiddleware(authMiddleware)
+
 	tests := []struct {
 		name           string
 		input          *models.SubforumSubscriptionInput
@@ -246,7 +250,21 @@ func TestSubforumHandler_GetSubforumDetails(t *testing.T) {
 			}
 
 			// Call method
-			response, err := handler.GetSubforumDetails(ctx, tt.input)
+			input := &struct {
+				middleware.AuthInput
+				models.SubforumSubscriptionInput
+			}{
+				AuthInput: middleware.AuthInput{
+					Authorization: func() string {
+						if tt.userCtx != nil {
+							return "Bearer " + generateJWTWithCapabilities(tt.userCtx.UserID, tt.userCtx.ActivePseudonymID, tt.userCtx.Capabilities)
+						}
+						return ""
+					}(),
+				},
+				SubforumSubscriptionInput: *tt.input,
+			}
+			response, err := handler.GetSubforumDetails(ctx, input)
 
 			// Assertions
 			if tt.wantErr {
@@ -261,6 +279,10 @@ func TestSubforumHandler_GetSubforumDetails(t *testing.T) {
 }
 
 func TestSubforumHandler_SubscribeToSubforum(t *testing.T) {
+	// Initialize global auth middleware for testing
+	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
+	middleware.SetGlobalAuthMiddleware(authMiddleware)
+
 	tests := []struct {
 		name           string
 		input          *models.SubforumSubscriptionInput
@@ -343,7 +365,21 @@ func TestSubforumHandler_SubscribeToSubforum(t *testing.T) {
 			}
 
 			// Call method
-			response, err := handler.SubscribeToSubforum(ctx, tt.input)
+			input := &struct {
+				middleware.AuthInput
+				models.SubforumSubscriptionInput
+			}{
+				AuthInput: middleware.AuthInput{
+					Authorization: func() string {
+						if tt.userCtx != nil {
+							return "Bearer " + generateJWTWithCapabilities(tt.userCtx.UserID, tt.userCtx.ActivePseudonymID, tt.userCtx.Capabilities)
+						}
+						return ""
+					}(),
+				},
+				SubforumSubscriptionInput: *tt.input,
+			}
+			response, err := handler.SubscribeToSubforum(ctx, input)
 
 			// Assertions
 			if tt.wantErr {
@@ -358,6 +394,10 @@ func TestSubforumHandler_SubscribeToSubforum(t *testing.T) {
 }
 
 func TestSubforumHandler_UnsubscribeFromSubforum(t *testing.T) {
+	// Initialize global auth middleware for testing
+	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
+	middleware.SetGlobalAuthMiddleware(authMiddleware)
+
 	tests := []struct {
 		name           string
 		input          *models.SubforumSubscriptionInput
@@ -449,7 +489,21 @@ func TestSubforumHandler_UnsubscribeFromSubforum(t *testing.T) {
 			}
 
 			// Call method
-			response, err := handler.UnsubscribeFromSubforum(ctx, tt.input)
+			input := &struct {
+				middleware.AuthInput
+				models.SubforumSubscriptionInput
+			}{
+				AuthInput: middleware.AuthInput{
+					Authorization: func() string {
+						if tt.userCtx != nil {
+							return "Bearer " + generateJWTWithCapabilities(tt.userCtx.UserID, tt.userCtx.ActivePseudonymID, tt.userCtx.Capabilities)
+						}
+						return ""
+					}(),
+				},
+				SubforumSubscriptionInput: *tt.input,
+			}
+			response, err := handler.UnsubscribeFromSubforum(ctx, input)
 
 			// Assertions
 			if tt.wantErr {
@@ -2053,6 +2107,3 @@ func TestSubforumHandler_RemoveModerator(t *testing.T) {
 		})
 	}
 }
-
-
-
