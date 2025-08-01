@@ -57,8 +57,28 @@ export function EngagementAnalytics({ subforumPath, timeRange = '30d' }: Engagem
     date: formatDate(point.date),
   }));
 
-  // Dark mode chart styling
-  const isDarkMode = typeof window !== 'undefined' && document.documentElement.classList.contains('dark');
+  // Dark mode chart styling - use a more reliable theme detection method
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  
+  useEffect(() => {
+    const checkTheme = () => {
+      // Check if the document has the 'dark' class
+      const isDark = document.documentElement.classList.contains('dark');
+      setIsDarkMode(isDark);
+    };
+
+    // Check on mount
+    checkTheme();
+
+    // Listen for theme changes
+    const observer = new MutationObserver(checkTheme);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
+
+    return () => observer.disconnect();
+  }, []);
   
   const chartColors = {
     posts: isDarkMode ? '#8884d8' : '#8884d8',

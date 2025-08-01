@@ -10,6 +10,7 @@ import { SubforumsApi } from '@/generated/api/src/apis/SubforumsApi';
 import type { SubforumDetailsResponseBody, SubforumModerator } from '@/generated/api/src/models';
 import { PostList } from '@/components/PostList';
 import { SubforumRulesDisplay } from '@/components/SubforumRulesDisplay';
+import { SubscribeButton } from '@/components/SubscribeButton';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth-context';
 import { authenticateUserForSubforum } from '@/lib/auth-utils';
@@ -27,6 +28,19 @@ export default function SubforumPage() {
   const [error, setError] = useState<string | null>(null);
   const { login } = useAuth();
   const hasLoaded = useRef(false);
+
+  const handleSubscriptionChange = (isSubscribed: boolean, newCount: number) => {
+    if (forum) {
+      setForum({
+        ...forum,
+        isSubscribed,
+        subforum: {
+          ...forum.subforum,
+          subscriberCount: newCount,
+        },
+      });
+    }
+  };
 
   const loadSubforumUserContext = useCallback(async () => {
     try {
@@ -128,18 +142,27 @@ export default function SubforumPage() {
         {/* Main content */}
         <div className="flex-1 lg:pr-80">
           <div className="mb-8">
-            <div className="flex items-center gap-2 mb-2">
-              <h1 className="text-3xl font-bold">{communityType}/{forum.subforum.name}</h1>
-              {forum.subforum.isPrivate && (
-                <span className="text-xs bg-secondary text-secondary-foreground px-2 py-1 rounded">
-                  Private
-                </span>
-              )}
-              {forum.subforum.isNsfw && (
-                <span className="text-xs bg-destructive/10 text-destructive px-2 py-1 rounded">
-                  NSFW
-                </span>
-              )}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <h1 className="text-3xl font-bold">{communityType}/{forum.subforum.name}</h1>
+                {forum.subforum.isPrivate && (
+                  <span className="text-xs bg-secondary text-secondary-foreground px-2 py-1 rounded">
+                    Private
+                  </span>
+                )}
+                {forum.subforum.isNsfw && (
+                  <span className="text-xs bg-destructive/10 text-destructive px-2 py-1 rounded">
+                    NSFW
+                  </span>
+                )}
+              </div>
+              <SubscribeButton
+                communityType={communityType}
+                subforumName={subforumName}
+                isSubscribed={forum.isSubscribed}
+                subscriberCount={forum.subforum.subscriberCount || 0}
+                onSubscriptionChange={handleSubscriptionChange}
+              />
             </div>
             <p className="text-muted-foreground mb-4">
               {forum.subforum.description}
@@ -173,7 +196,7 @@ export default function SubforumPage() {
               </div>
             )}
             
-            <div className="space-y-3 text-sm mb-8">
+            <div className="space-y-3 text-sm mb-6">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Subscribers</span>
                 <span className="font-medium text-foreground">{forum.subforum.subscriberCount?.toLocaleString() || 0}</span>
@@ -186,6 +209,17 @@ export default function SubforumPage() {
                 <span className="text-muted-foreground">Created</span>
                 <span className="font-medium text-foreground">{new Date(forum.subforum.createdAt).toLocaleDateString()}</span>
               </div>
+            </div>
+            
+            {/* Subscription Button in Sidebar */}
+            <div className="mb-6">
+              <SubscribeButton
+                communityType={communityType}
+                subforumName={subforumName}
+                isSubscribed={forum.isSubscribed}
+                subscriberCount={forum.subforum.subscriberCount || 0}
+                onSubscriptionChange={handleSubscriptionChange}
+              />
             </div>
             {/* Moderators List */}
             {forum.moderators && forum.moderators.length > 0 && (

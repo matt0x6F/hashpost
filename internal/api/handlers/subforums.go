@@ -285,9 +285,12 @@ func (h *SubforumHandler) convertSubforumToAPIModel(subforum *dbmodels.Subforum)
 }
 
 // GetSubforumDetails handles getting detailed information about a specific subforum
-func (h *SubforumHandler) GetSubforumDetails(ctx context.Context, input *models.SubforumSubscriptionInput) (*models.SubforumDetailsResponse, error) {
-	communityType := input.CommunityType
-	subforumName := input.SubforumName
+func (h *SubforumHandler) GetSubforumDetails(ctx context.Context, input *struct {
+	middleware.AuthInput
+	models.SubforumSubscriptionInput
+}) (*models.SubforumDetailsResponse, error) {
+	communityType := input.SubforumSubscriptionInput.CommunityType
+	subforumName := input.SubforumSubscriptionInput.SubforumName
 
 	log.Info().
 		Str("endpoint", "subforums/details").
@@ -296,10 +299,17 @@ func (h *SubforumHandler) GetSubforumDetails(ctx context.Context, input *models.
 		Str("subforum_name", subforumName).
 		Msg("Get subforum details requested")
 
-	// Extract user context for permission checks
-	userCtx, err := middleware.ExtractUserFromContext(ctx)
-	if err != nil {
-		log.Debug().Msg("No user context found, proceeding as anonymous user")
+	// Try to extract user context for subscription checks
+	var userCtx *middleware.UserContext
+	var err error
+	if input.AuthInput.Authorization != "" || input.AuthInput.AccessToken != "" {
+		// If Authorization header or AccessToken cookie is present, try to extract user context
+		userCtx, err = middleware.ExtractUserFromHumaInput(&input.AuthInput)
+		if err != nil {
+			log.Debug().Msg("Failed to extract user context from auth input, proceeding as anonymous user")
+		}
+	} else {
+		log.Debug().Msg("No auth token found, proceeding as anonymous user")
 	}
 
 	// Get subforum details from database using community type and name
@@ -406,15 +416,18 @@ func (h *SubforumHandler) convertModeratorsToAPIModels(moderators []*dbmodels.Su
 }
 
 // SubscribeToSubforum handles subscribing to a subforum
-func (h *SubforumHandler) SubscribeToSubforum(ctx context.Context, input *models.SubforumSubscriptionInput) (*models.SubforumSubscriptionResponse, error) {
-	// Extract user from context
-	userCtx, err := middleware.ExtractUserFromContext(ctx)
+func (h *SubforumHandler) SubscribeToSubforum(ctx context.Context, input *struct {
+	middleware.AuthInput
+	models.SubforumSubscriptionInput
+}) (*models.SubforumSubscriptionResponse, error) {
+	// Extract user from input
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
 	if err != nil {
 		log.Error().Err(err).Msg("Authentication required for subscription")
 		return nil, huma.Error401Unauthorized("authentication required")
 	}
 
-	subforumName := input.SubforumName
+	subforumName := input.SubforumSubscriptionInput.SubforumName
 
 	log.Info().
 		Str("endpoint", "subforums/subscribe").
@@ -425,7 +438,7 @@ func (h *SubforumHandler) SubscribeToSubforum(ctx context.Context, input *models
 		Msg("Subscribe to subforum requested")
 
 	// Get subforum by community type and name
-	subforum, err := h.subforumDAO.GetSubforumByCommunityTypeAndName(ctx, input.CommunityType, subforumName)
+	subforum, err := h.subforumDAO.GetSubforumByCommunityTypeAndName(ctx, input.SubforumSubscriptionInput.CommunityType, subforumName)
 	if err != nil {
 		log.Error().Err(err).Str("subforum_name", subforumName).Msg("Failed to get subforum")
 		return nil, fmt.Errorf("failed to get subforum: %w", err)
@@ -479,15 +492,18 @@ func (h *SubforumHandler) SubscribeToSubforum(ctx context.Context, input *models
 }
 
 // UnsubscribeFromSubforum handles unsubscribing from a subforum
-func (h *SubforumHandler) UnsubscribeFromSubforum(ctx context.Context, input *models.SubforumSubscriptionInput) (*models.SubforumSubscriptionResponse, error) {
-	// Extract user from context
-	userCtx, err := middleware.ExtractUserFromContext(ctx)
+func (h *SubforumHandler) UnsubscribeFromSubforum(ctx context.Context, input *struct {
+	middleware.AuthInput
+	models.SubforumSubscriptionInput
+}) (*models.SubforumSubscriptionResponse, error) {
+	// Extract user from input
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
 	if err != nil {
 		log.Error().Err(err).Msg("Authentication required for unsubscription")
 		return nil, huma.Error401Unauthorized("authentication required")
 	}
 
-	subforumName := input.SubforumName
+	subforumName := input.SubforumSubscriptionInput.SubforumName
 
 	log.Info().
 		Str("endpoint", "subforums/unsubscribe").
@@ -498,7 +514,7 @@ func (h *SubforumHandler) UnsubscribeFromSubforum(ctx context.Context, input *mo
 		Msg("Unsubscribe from subforum requested")
 
 	// Get subforum by community type and name
-	subforum, err := h.subforumDAO.GetSubforumByCommunityTypeAndName(ctx, input.CommunityType, subforumName)
+	subforum, err := h.subforumDAO.GetSubforumByCommunityTypeAndName(ctx, input.SubforumSubscriptionInput.CommunityType, subforumName)
 	if err != nil {
 		log.Error().Err(err).Str("subforum_name", subforumName).Msg("Failed to get subforum")
 		return nil, fmt.Errorf("failed to get subforum: %w", err)
@@ -695,12 +711,14 @@ func (h *SubforumHandler) GetSubforumSettings(ctx context.Context, input *struct
 			}
 			return 0
 		}(),
-		IsPrivate:             subforum.IsPrivate.Valid && subforum.IsPrivate.V,
-		IsRestricted:          subforum.IsRestricted.Valid && subforum.IsRestricted.V,
-		IsNSFW:                subforum.IsNSFW.Valid && subforum.IsNSFW.V,
-		AutoModerationEnabled: false, // TODO: Add to database schema
-		RequireApproval:       false, // TODO: Add to database schema
-		AllowCrossposts:       true,  // TODO: Add to database schema
+		IsPrivate:    subforum.IsPrivate.Valid && subforum.IsPrivate.V,
+		IsRestricted: subforum.IsRestricted.Valid && subforum.IsRestricted.V,
+		IsNSFW:       subforum.IsNSFW.Valid && subforum.IsNSFW.V,
+		// Note: These fields need to be added to the database schema in a future migration
+		// For now, using sensible defaults until the schema is updated
+		AutoModerationEnabled: false,
+		RequireApproval:       false,
+		AllowCrossposts:       true,
 		Description: func() string {
 			if subforum.Description.Valid {
 				return subforum.Description.V
@@ -875,7 +893,7 @@ func (h *SubforumHandler) GetModeratorTeam(ctx context.Context, input *struct {
 			PseudonymID:  mod.PseudonymID,
 			DisplayName:  displayName,
 			Role:         mod.Role,
-			Capabilities: []string{}, // TODO: Parse from permissions JSON
+			Capabilities: []string{}, // Will be populated from permissions JSON below
 			AddedAt: func() string {
 				if mod.AddedAt.Valid {
 					return mod.AddedAt.V.Format(time.RFC3339)
@@ -888,7 +906,9 @@ func (h *SubforumHandler) GetModeratorTeam(ctx context.Context, input *struct {
 				}
 				return ""
 			}(),
-			IsActive: true, // TODO: Add active field to database
+			// Note: IsActive field needs to be added to the database schema in a future migration
+			// For now, assuming all moderators are active
+			IsActive: true,
 		}
 
 		// Parse capabilities from permissions JSON
