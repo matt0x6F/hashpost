@@ -62,7 +62,7 @@ export default function SubforumModerationPage() {
   if (isLoading || !user || (isAuthenticated && !subforumContextLoaded)) {
     console.log('Loading state:', { isLoading, user: !!user, isAuthenticated, subforumContextLoaded });
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto p-4">
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading...</p>
@@ -93,7 +93,7 @@ export default function SubforumModerationPage() {
   if (!isAuthenticated || !isModerator) {
     console.log('Permission denied:', { isAuthenticated, isModerator, user: user?.email });
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto p-4">
         <div className="text-center py-12">
           <p className="text-muted-foreground">You do not have permission to access this page.</p>
           <p className="text-sm text-muted-foreground mt-2">
@@ -241,7 +241,9 @@ export default function SubforumModerationPage() {
       </div>
 
       {/* Engagement Analytics */}
-      <EngagementAnalytics subforumPath={fullSubforumPath} />
+      <div className="mt-8">
+        <EngagementAnalytics subforumPath={fullSubforumPath} />
+      </div>
     </div>
   );
 } 

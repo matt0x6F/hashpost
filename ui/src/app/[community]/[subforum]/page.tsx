@@ -85,7 +85,7 @@ export default function SubforumPage() {
 
   if (isLoading) {
     return (
-      <div className="max-w-6xl mx-auto p-6">
+      <div className="max-w-7xl mx-auto p-4">
         <div className="flex items-center gap-4 mb-8">
           <div className="h-8 w-8 bg-muted animate-pulse rounded" />
           <div className="h-8 w-32 bg-muted animate-pulse rounded" />
@@ -101,7 +101,7 @@ export default function SubforumPage() {
 
   if (error || !forum) {
     return (
-      <div className="max-w-6xl mx-auto p-6">
+      <div className="max-w-7xl mx-auto p-4">
         <div className="flex items-center gap-4 mb-8">
           <Link href="/forums">
             <Button variant="outline" size="sm">
@@ -127,7 +127,7 @@ export default function SubforumPage() {
   }
 
   return (
-    <div className="relative max-w-7xl mx-auto p-6">
+    <div className="relative max-w-7xl mx-auto p-4">
       <div className="flex items-center gap-4 mb-8">
         <Link href="/forums">
           <Button variant="outline" size="sm">

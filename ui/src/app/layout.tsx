@@ -34,7 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <TopBar />
                 <div className="flex flex-1 overflow-hidden">
                   <AppSidebar />
-                  <main className="flex-1 p-6 md:p-10 bg-background overflow-y-auto">
+                  <main className="flex-1 p-4 md:p-6 bg-background overflow-y-auto">
                     <SidebarTrigger />
                     {children}
                   </main>
