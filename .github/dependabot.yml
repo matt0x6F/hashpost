@@ -7,17 +7,17 @@ version: 2
 updates:
   - package-ecosystem: "npm" # See documentation for possible values
     directory: "/ui" # Location of package manifests
-    assigness: @matt0x6f
+    assignees: @matt0x6f
     schedule:
       interval: "monthly"
   - package-ecosystem: "gomod" # See documentation for possible values
     directory: "/" # Location of package manifests
-    assigness: @matt0x6f
+    assignees: @matt0x6f
     schedule:
       interval: "monthly"
   - package-ecosystem: "github-actions" # See documentation for possible values
     directory: "/" # Location of package manifests
-    assigness: @matt0x6f
+    assignees: @matt0x6f
     schedule:
       interval: "monthly"
       
