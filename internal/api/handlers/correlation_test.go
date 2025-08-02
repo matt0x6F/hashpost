@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -74,8 +75,11 @@ func setupTestAuthMiddleware() {
 
 // createAuthenticatedIdentityInput creates an input with a valid JWT token for identity correlation testing
 func createAuthenticatedIdentityInput(userID int64, email string, capabilities []string, activePseudonymID string, displayName string) *apimodels.IdentityCorrelationInput {
-	// Create a simple JWT token for testing
-	token := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJyb2xlcyI6WyJ1c2VyIl0sImNhcGFiaWxpdGllcyI6WyJjb3JyZWxhdGVfaWRlbnRpdGllcyJdLCJtZmFfZW5hYmxlZCI6ZmFsc2UsImFjdGl2ZV9wc2V1ZG9ueW1faWQiOiJ0ZXN0LXBzZXVkb255bS0xMjMiLCJkaXNwbGF5X25hbWUiOiJUZXN0VXNlciIsImV4cCI6MTc1NDEwNjA1OCwibmJmIjoxNzU0MTAyNDU4LCJpYXQiOjE3NTQxMDI0NTh9.test_signature"
+	// Generate a valid JWT token for testing
+	token, err := fixtures.GenerateTestJWTToken(userID, activePseudonymID, displayName, email, []string{"user"}, capabilities)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to generate test JWT token: %v", err))
+	}
 
 	return &apimodels.IdentityCorrelationInput{
 		AuthInput: middleware.AuthInput{
@@ -91,8 +95,11 @@ func createAuthenticatedIdentityInput(userID int64, email string, capabilities [
 
 // createAuthenticatedHistoryInput creates an input with a valid JWT token for correlation history testing
 func createAuthenticatedHistoryInput(userID int64, email string, capabilities []string, activePseudonymID string, displayName string) *apimodels.CorrelationHistoryInput {
-	// Create a simple JWT token for testing
-	token := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJyb2xlcyI6WyJ1c2VyIl0sImNhcGFiaWxpdGllcyI6WyJ2aWV3X2NvcnJlbGF0aW9uX2hpc3RvcnkiXSwibWZhX2VuYWJsZWQiOmZhbHNlLCJhY3RpdmVfcHNldWRvbnltX2lkIjoidGVzdC1wc2V1ZG9ueW0tMTIzIiwiZGlzcGxheV9uYW1lIjoiVGVzdFVzZXIiLCJleHAiOjE3NTQxMDYwNTgsIm5iZiI6MTc1NDEwMjQ1OCwiaWF0IjoxNzU0MTAyNDU4fQ.test_signature"
+	// Generate a valid JWT token for testing
+	token, err := fixtures.GenerateTestJWTToken(userID, activePseudonymID, displayName, email, []string{"user"}, capabilities)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to generate test JWT token: %v", err))
+	}
 
 	return &apimodels.CorrelationHistoryInput{
 		AuthInput: middleware.AuthInput{
