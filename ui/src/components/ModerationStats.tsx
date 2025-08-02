@@ -30,7 +30,7 @@ export function ModerationStats({ subforumPath, timeRange = '30d' }: ModerationS
       try {
         const moderationApi = getApi(ModerationApi);
         const timeRangeEnum = timeRange as GetModerationStatsTimeRangeEnum;
-        const response = await moderationApi.getModerationStats(subforumPath, timeRangeEnum);
+        const response = await moderationApi.getModerationStats(subforumPath, undefined, undefined, timeRangeEnum);
         setStats(response);
         lastFetchKey.current = fetchKey;
       } catch (err) {

@@ -31,7 +31,7 @@ export function EngagementAnalytics({ subforumPath, timeRange = '30d' }: Engagem
       try {
         const moderationApi = getApi(ModerationApi);
         const timeRangeEnum = selectedTimeRange as GetEngagementAnalyticsTimeRangeEnum;
-        const response = await moderationApi.getEngagementAnalytics(subforumPath, timeRangeEnum);
+        const response = await moderationApi.getEngagementAnalytics(subforumPath, undefined, undefined, timeRangeEnum);
         setData(response.dataPoints || []);
         lastFetchKey.current = fetchKey;
       } catch (err) {
