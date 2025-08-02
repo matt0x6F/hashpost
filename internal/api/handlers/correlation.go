@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofrs/uuid/v5"
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	"github.com/matt0x6f/hashpost/internal/api/models"
@@ -48,11 +49,11 @@ func NewCorrelationHandler(db bob.Executor, ibeSystem *ibe.IBESystem, securePseu
 
 // RequestFingerprintCorrelation handles fingerprint-based correlation for moderation
 func (h *CorrelationHandler) RequestFingerprintCorrelation(ctx context.Context, input *models.FingerprintCorrelationInput) (*models.FingerprintCorrelationResponse, error) {
-	// Extract admin from context (from admin JWT token)
-	userCtx, err := middleware.ExtractUserFromContext(ctx)
+	// Extract admin from Huma input
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to extract user from context")
-		return nil, fmt.Errorf("authentication required: %w", err)
+		log.Error().Err(err).Msg("Failed to extract user from Huma input")
+		return nil, huma.Error401Unauthorized("authentication required")
 	}
 
 	adminID := userCtx.UserID
@@ -260,11 +261,11 @@ func (h *CorrelationHandler) RequestFingerprintCorrelation(ctx context.Context, 
 
 // RequestIdentityCorrelation handles identity-based correlation for platform-wide investigations
 func (h *CorrelationHandler) RequestIdentityCorrelation(ctx context.Context, input *models.IdentityCorrelationInput) (*models.IdentityCorrelationResponse, error) {
-	// Extract admin from context (from admin JWT token)
-	userCtx, err := middleware.ExtractUserFromContext(ctx)
+	// Extract admin from Huma input
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to extract user from context")
-		return nil, fmt.Errorf("authentication required: %w", err)
+		log.Error().Err(err).Msg("Failed to extract user from Huma input")
+		return nil, huma.Error401Unauthorized("authentication required")
 	}
 
 	adminID := userCtx.UserID
@@ -532,11 +533,11 @@ func (h *CorrelationHandler) RequestIdentityCorrelation(ctx context.Context, inp
 
 // GetCorrelationHistory handles getting correlation request history
 func (h *CorrelationHandler) GetCorrelationHistory(ctx context.Context, input *models.CorrelationHistoryInput) (*models.CorrelationHistoryResponse, error) {
-	// Extract admin from context (from admin JWT token)
-	userCtx, err := middleware.ExtractUserFromContext(ctx)
+	// Extract admin from Huma input
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to extract user from context")
-		return nil, fmt.Errorf("authentication required: %w", err)
+		log.Error().Err(err).Msg("Failed to extract user from Huma input")
+		return nil, huma.Error401Unauthorized("authentication required")
 	}
 
 	adminID := userCtx.UserID

@@ -1,6 +1,10 @@
 package models
 
-import "time"
+import (
+	"time"
+
+	"github.com/matt0x6f/hashpost/internal/api/middleware"
+)
 
 // DirectMessageInputBody is for Huma schema definition only. Actual requests should send flat JSON, not nested under 'body'.
 type DirectMessageInputBody struct {
@@ -10,11 +14,13 @@ type DirectMessageInputBody struct {
 
 // DirectMessageInput represents direct message request (for OpenAPI schema only)
 type DirectMessageInput struct {
+	middleware.AuthInput
 	Body DirectMessageInputBody `json:"body"`
 }
 
 // DirectMessageListInput represents direct message list request parameters
 type DirectMessageListInput struct {
+	middleware.AuthInput
 	Page  int `query:"page" example:"1"`
 	Limit int `query:"limit" example:"25"`
 }

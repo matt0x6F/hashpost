@@ -1,5 +1,7 @@
 package models
 
+import "github.com/matt0x6f/hashpost/internal/api/middleware"
+
 // FingerprintCorrelationInputBody is for Huma schema definition only. Actual requests should send flat JSON, not nested under 'body'.
 type FingerprintCorrelationInputBody struct {
 	RequestedPseudonym   string `json:"requested_pseudonym" example:"abc123def456..." required:"true"`
@@ -11,6 +13,7 @@ type FingerprintCorrelationInputBody struct {
 
 // FingerprintCorrelationInput represents fingerprint correlation request (for OpenAPI schema only)
 type FingerprintCorrelationInput struct {
+	middleware.AuthInput
 	Body FingerprintCorrelationInputBody `json:"body"`
 }
 
@@ -26,11 +29,13 @@ type IdentityCorrelationInputBody struct {
 
 // IdentityCorrelationInput represents identity correlation request (for OpenAPI schema only)
 type IdentityCorrelationInput struct {
+	middleware.AuthInput
 	Body IdentityCorrelationInputBody `json:"body"`
 }
 
 // CorrelationHistoryInput represents correlation history request parameters
 type CorrelationHistoryInput struct {
+	middleware.AuthInput
 	CorrelationType string `query:"correlation_type" example:"fingerprint"` // "fingerprint", "identity"
 	Page            int    `query:"page" example:"1"`
 	Limit           int    `query:"limit" example:"25"`

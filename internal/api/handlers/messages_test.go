@@ -9,6 +9,7 @@ import (
 	"github.com/matt0x6f/hashpost/internal/api/handlers"
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	"github.com/matt0x6f/hashpost/internal/api/models"
+	"github.com/matt0x6f/hashpost/internal/config"
 	"github.com/matt0x6f/hashpost/internal/database/dao/mocks"
 	dbmodels "github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/stretchr/testify/assert"
@@ -27,6 +28,18 @@ func NewMessagesHandlerWithMocks() (*handlers.MessagesHandler, *mocks.MockDirect
 	return handler, mockDirectMessageDAO, mockUserDAO
 }
 
+// setupTestAuthMiddleware sets up the global auth middleware for testing
+func setupTestAuthMiddleware() {
+	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, &config.JWTConfig{
+		Secret:      "test-secret",
+		Expiration:  time.Hour,
+		Development: true,
+	}, &config.SecurityConfig{
+		EnableMFA: false,
+	})
+	middleware.SetGlobalAuthMiddleware(authMiddleware)
+}
+
 // createTestContext creates a context with user information
 func createTestContext(t *testing.T, userID int64, activePseudonymID string, displayName string) context.Context {
 	user := &middleware.UserContext{
@@ -41,8 +54,55 @@ func createTestContext(t *testing.T, userID int64, activePseudonymID string, dis
 	return context.WithValue(context.Background(), middleware.UserContextKeyValue, user)
 }
 
+// createAuthenticatedInput creates an input with a valid JWT token for testing
+func createAuthenticatedInput(userID int64, activePseudonymID string, displayName string) *models.DirectMessageInput {
+	// Create a user context
+	user := &middleware.UserContext{
+		UserID:            userID,
+		Email:             "test@example.com",
+		ActivePseudonymID: activePseudonymID,
+		DisplayName:       displayName,
+		Roles:             []string{"user"},
+		Capabilities:      []string{"send_messages"},
+	}
+
+	// Generate a JWT token
+	token, _ := middleware.GenerateJWT(user, "test-secret", time.Hour)
+
+	return &models.DirectMessageInput{
+		AuthInput: middleware.AuthInput{
+			Authorization: "Bearer " + token,
+		},
+	}
+}
+
+// createAuthenticatedListInput creates an input with a valid JWT token for testing
+func createAuthenticatedListInput(userID int64, activePseudonymID string, displayName string) *models.DirectMessageListInput {
+	// Create a user context
+	user := &middleware.UserContext{
+		UserID:            userID,
+		Email:             "test@example.com",
+		ActivePseudonymID: activePseudonymID,
+		DisplayName:       displayName,
+		Roles:             []string{"user"},
+		Capabilities:      []string{"send_messages"},
+	}
+
+	// Generate a JWT token
+	token, _ := middleware.GenerateJWT(user, "test-secret", time.Hour)
+
+	return &models.DirectMessageListInput{
+		AuthInput: middleware.AuthInput{
+			Authorization: "Bearer " + token,
+		},
+	}
+}
+
 // TestMessagesHandler_SendDirectMessage tests the send direct message functionality
 func TestMessagesHandler_SendDirectMessage(t *testing.T) {
+	// Set up global auth middleware for testing
+	setupTestAuthMiddleware()
+
 	t.Run("SendDirectMessageSuccess", func(t *testing.T) {
 		handler, mockDirectMessageDAO, _ := NewMessagesHandlerWithMocks()
 
@@ -53,8 +113,8 @@ func TestMessagesHandler_SendDirectMessage(t *testing.T) {
 		content := "Hello! This is a test message."
 		displayName := "TestSender"
 
-		// Create context with user
-		ctx := createTestContext(t, userID, activePseudonymID, displayName)
+		// Create context
+		ctx := context.Background()
 
 		// Mock direct message creation
 		expectedMessage := &dbmodels.DirectMessage{
@@ -66,12 +126,11 @@ func TestMessagesHandler_SendDirectMessage(t *testing.T) {
 		}
 		mockDirectMessageDAO.On("CreateDirectMessage", mock.Anything, activePseudonymID, recipientPseudonymID, content).Return(expectedMessage, nil)
 
-		// Create input
-		input := &models.DirectMessageInput{
-			Body: models.DirectMessageInputBody{
-				RecipientPseudonymID: recipientPseudonymID,
-				Content:              content,
-			},
+		// Create authenticated input
+		input := createAuthenticatedInput(userID, activePseudonymID, displayName)
+		input.Body = models.DirectMessageInputBody{
+			RecipientPseudonymID: recipientPseudonymID,
+			Content:              content,
 		}
 
 		// Call handler
@@ -92,10 +151,10 @@ func TestMessagesHandler_SendDirectMessage(t *testing.T) {
 	t.Run("SendDirectMessageNoAuthentication", func(t *testing.T) {
 		handler, _, _ := NewMessagesHandlerWithMocks()
 
-		// Create context without user
+		// Create context
 		ctx := context.Background()
 
-		// Create input
+		// Create input without authentication
 		input := &models.DirectMessageInput{
 			Body: models.DirectMessageInputBody{
 				RecipientPseudonymID: "recipient-pseudonym-456",
@@ -122,18 +181,17 @@ func TestMessagesHandler_SendDirectMessage(t *testing.T) {
 		content := "Hello! This is a test message."
 		displayName := "TestSender"
 
-		// Create context with user
-		ctx := createTestContext(t, userID, activePseudonymID, displayName)
+		// Create context
+		ctx := context.Background()
 
 		// Mock database error
 		mockDirectMessageDAO.On("CreateDirectMessage", mock.Anything, activePseudonymID, recipientPseudonymID, content).Return(nil, assert.AnError)
 
-		// Create input
-		input := &models.DirectMessageInput{
-			Body: models.DirectMessageInputBody{
-				RecipientPseudonymID: recipientPseudonymID,
-				Content:              content,
-			},
+		// Create authenticated input
+		input := createAuthenticatedInput(userID, activePseudonymID, displayName)
+		input.Body = models.DirectMessageInputBody{
+			RecipientPseudonymID: recipientPseudonymID,
+			Content:              content,
 		}
 
 		// Call handler
@@ -150,6 +208,9 @@ func TestMessagesHandler_SendDirectMessage(t *testing.T) {
 
 // TestMessagesHandler_GetDirectMessages tests the get direct messages functionality
 func TestMessagesHandler_GetDirectMessages(t *testing.T) {
+	// Set up global auth middleware for testing
+	setupTestAuthMiddleware()
+
 	t.Run("GetDirectMessagesSuccess", func(t *testing.T) {
 		handler, mockDirectMessageDAO, _ := NewMessagesHandlerWithMocks()
 
@@ -160,8 +221,8 @@ func TestMessagesHandler_GetDirectMessages(t *testing.T) {
 		page := 1
 		limit := 25
 
-		// Create context with user
-		ctx := createTestContext(t, userID, activePseudonymID, displayName)
+		// Create context
+		ctx := context.Background()
 
 		// Mock messages
 		now := time.Now()
@@ -188,11 +249,10 @@ func TestMessagesHandler_GetDirectMessages(t *testing.T) {
 		mockDirectMessageDAO.On("GetDirectMessagesByPseudonym", mock.Anything, activePseudonymID, page, limit).Return(mockMessages, nil)
 		mockDirectMessageDAO.On("CountDirectMessagesByPseudonym", mock.Anything, activePseudonymID).Return(int64(2), nil)
 
-		// Create input
-		input := &models.DirectMessageListInput{
-			Page:  page,
-			Limit: limit,
-		}
+		// Create authenticated input
+		input := createAuthenticatedListInput(userID, activePseudonymID, displayName)
+		input.Page = page
+		input.Limit = limit
 
 		// Call handler
 		response, err := handler.GetDirectMessages(ctx, input)
@@ -229,10 +289,10 @@ func TestMessagesHandler_GetDirectMessages(t *testing.T) {
 	t.Run("GetDirectMessagesNoAuthentication", func(t *testing.T) {
 		handler, _, _ := NewMessagesHandlerWithMocks()
 
-		// Create context without user
+		// Create context
 		ctx := context.Background()
 
-		// Create input
+		// Create input without authentication
 		input := &models.DirectMessageListInput{
 			Page:  1,
 			Limit: 25,
@@ -257,17 +317,16 @@ func TestMessagesHandler_GetDirectMessages(t *testing.T) {
 		page := 1
 		limit := 25
 
-		// Create context with user
-		ctx := createTestContext(t, userID, activePseudonymID, displayName)
+		// Create context
+		ctx := context.Background()
 
 		// Mock database error
 		mockDirectMessageDAO.On("GetDirectMessagesByPseudonym", mock.Anything, activePseudonymID, page, limit).Return(nil, assert.AnError)
 
-		// Create input
-		input := &models.DirectMessageListInput{
-			Page:  page,
-			Limit: limit,
-		}
+		// Create authenticated input
+		input := createAuthenticatedListInput(userID, activePseudonymID, displayName)
+		input.Page = page
+		input.Limit = limit
 
 		// Call handler
 		response, err := handler.GetDirectMessages(ctx, input)
@@ -290,19 +349,18 @@ func TestMessagesHandler_GetDirectMessages(t *testing.T) {
 		page := 1
 		limit := 25
 
-		// Create context with user
-		ctx := createTestContext(t, userID, activePseudonymID, displayName)
+		// Create context
+		ctx := context.Background()
 
 		// Mock successful messages retrieval but failed count
 		mockMessages := []*dbmodels.DirectMessage{}
 		mockDirectMessageDAO.On("GetDirectMessagesByPseudonym", mock.Anything, activePseudonymID, page, limit).Return(mockMessages, nil)
 		mockDirectMessageDAO.On("CountDirectMessagesByPseudonym", mock.Anything, activePseudonymID).Return(int64(0), assert.AnError)
 
-		// Create input
-		input := &models.DirectMessageListInput{
-			Page:  page,
-			Limit: limit,
-		}
+		// Create authenticated input
+		input := createAuthenticatedListInput(userID, activePseudonymID, displayName)
+		input.Page = page
+		input.Limit = limit
 
 		// Call handler
 		response, err := handler.GetDirectMessages(ctx, input)
@@ -325,8 +383,8 @@ func TestMessagesHandler_GetDirectMessages(t *testing.T) {
 		page := 1
 		limit := 25
 
-		// Create context with user
-		ctx := createTestContext(t, userID, activePseudonymID, displayName)
+		// Create context
+		ctx := context.Background()
 
 		// Mock messages with null fields
 		mockMessages := []*dbmodels.DirectMessage{
@@ -344,11 +402,10 @@ func TestMessagesHandler_GetDirectMessages(t *testing.T) {
 		mockDirectMessageDAO.On("GetDirectMessagesByPseudonym", mock.Anything, activePseudonymID, page, limit).Return(mockMessages, nil)
 		mockDirectMessageDAO.On("CountDirectMessagesByPseudonym", mock.Anything, activePseudonymID).Return(int64(1), nil)
 
-		// Create input
-		input := &models.DirectMessageListInput{
-			Page:  page,
-			Limit: limit,
-		}
+		// Create authenticated input
+		input := createAuthenticatedListInput(userID, activePseudonymID, displayName)
+		input.Page = page
+		input.Limit = limit
 
 		// Call handler
 		response, err := handler.GetDirectMessages(ctx, input)

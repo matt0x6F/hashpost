@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	"github.com/matt0x6f/hashpost/internal/api/models"
 	"github.com/matt0x6f/hashpost/internal/database/dao"
@@ -38,10 +39,10 @@ func NewMessagesHandler(
 
 // SendDirectMessage handles sending a direct message to another user
 func (h *MessagesHandler) SendDirectMessage(ctx context.Context, input *models.DirectMessageInput) (*models.DirectMessageResponse, error) {
-	// Extract user from context
-	user, err := middleware.ExtractUserFromContext(ctx)
+	// Extract user from Huma input
+	user, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
 	if err != nil {
-		return nil, fmt.Errorf("authentication required: %w", err)
+		return nil, huma.Error401Unauthorized("authentication required")
 	}
 
 	log.Info().
@@ -81,10 +82,10 @@ func (h *MessagesHandler) SendDirectMessage(ctx context.Context, input *models.D
 
 // GetDirectMessages handles getting direct messages for the current user
 func (h *MessagesHandler) GetDirectMessages(ctx context.Context, input *models.DirectMessageListInput) (*models.DirectMessageListResponse, error) {
-	// Extract user from context
-	user, err := middleware.ExtractUserFromContext(ctx)
+	// Extract user from Huma input
+	user, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
 	if err != nil {
-		return nil, fmt.Errorf("authentication required: %w", err)
+		return nil, huma.Error401Unauthorized("authentication required")
 	}
 
 	log.Info().

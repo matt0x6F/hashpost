@@ -4,12 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	apimodels "github.com/matt0x6f/hashpost/internal/api/models"
+	"github.com/matt0x6f/hashpost/internal/config"
 	"github.com/matt0x6f/hashpost/internal/database/dao/mocks"
 	dbmodels "github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/matt0x6f/hashpost/internal/fixtures"
@@ -59,10 +61,59 @@ func createTestIdentityMapping(pseudonymID string, encryptedIdentity []byte) *db
 	}
 }
 
-func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
-	// Set up global auth middleware for tests
-	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
+// setupTestAuthMiddleware sets up the global auth middleware for testing
+func setupTestAuthMiddleware() {
+	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, &config.JWTConfig{
+		Secret:      "test-secret",
+		Expiration:  time.Hour,
+		Development: true,
+	}, &config.SecurityConfig{
+		EnableMFA: false,
+	})
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
+}
+
+// createAuthenticatedIdentityInput creates an input with a valid JWT token for identity correlation testing
+func createAuthenticatedIdentityInput(userID int64, email string, capabilities []string, activePseudonymID string, displayName string) *apimodels.IdentityCorrelationInput {
+	// Generate a valid JWT token for testing
+	token, err := fixtures.GenerateTestJWTToken(userID, activePseudonymID, displayName, email, []string{"user"}, capabilities)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to generate test JWT token: %v", err))
+	}
+
+	return &apimodels.IdentityCorrelationInput{
+		AuthInput: middleware.AuthInput{
+			Authorization: "Bearer " + token,
+		},
+		Body: apimodels.IdentityCorrelationInputBody{
+			RequestedPseudonym:   "target-pseudonym-123",
+			RequestedFingerprint: "test-fingerprint-456",
+			Justification:        "Investigation of identity correlation",
+		},
+	}
+}
+
+// createAuthenticatedHistoryInput creates an input with a valid JWT token for correlation history testing
+func createAuthenticatedHistoryInput(userID int64, email string, capabilities []string, activePseudonymID string, displayName string) *apimodels.CorrelationHistoryInput {
+	// Generate a valid JWT token for testing
+	token, err := fixtures.GenerateTestJWTToken(userID, activePseudonymID, displayName, email, []string{"user"}, capabilities)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to generate test JWT token: %v", err))
+	}
+
+	return &apimodels.CorrelationHistoryInput{
+		AuthInput: middleware.AuthInput{
+			Authorization: "Bearer " + token,
+		},
+		CorrelationType: "fingerprint",
+		Page:            1,
+		Limit:           25,
+	}
+}
+
+func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
+	// Set up global auth middleware for testing
+	setupTestAuthMiddleware()
 
 	t.Run("Success", func(t *testing.T) {
 		handler, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockPostDAO, mockCommentDAO, _, mockCorrelationAuditDAO := NewCorrelationHandlerWithMocks()
@@ -148,8 +199,15 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 		// Mock the correlation audit DAO
 		mockCorrelationAuditDAO.On("CreateCorrelationAudit", mock.Anything, mock.AnythingOfType("*models.CorrelationAuditSetter")).Return(nil).Maybe()
 
-		// Create input
+		// Create authenticated input
+		// Create authenticated input with correlation capability
+		token, err := fixtures.GenerateTestJWTToken(adminUserID, "test-pseudonym-123", "TestUser", "admin@example.com", []string{"user"}, []string{"correlate_fingerprints"})
+		require.NoError(t, err)
+
 		input := &apimodels.FingerprintCorrelationInput{
+			AuthInput: middleware.AuthInput{
+				Authorization: "Bearer " + token,
+			},
 			Body: apimodels.FingerprintCorrelationInputBody{
 				RequestedPseudonym: requestedPseudonymID,
 				Justification:      "Investigation of ban evasion",
@@ -158,11 +216,8 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 			},
 		}
 
-		// Inject user context into context
-		ctx := context.WithValue(context.Background(), middleware.UserContextKeyValue, userCtx)
-
 		// Call the method
-		result, err := handler.RequestFingerprintCorrelation(ctx, input)
+		result, err := handler.RequestFingerprintCorrelation(context.Background(), input)
 
 		// Assertions
 		require.NoError(t, err)
@@ -190,24 +245,25 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 	t.Run("InsufficientPermissions", func(t *testing.T) {
 		handler, _, _, _, _, _, _ := NewCorrelationHandlerWithMocks()
 
-		// Create user context without correlation capability
-		userCtx := fixtures.CreateTestUserContext()
-		userCtx.Capabilities = []string{"create_content"}
+		// Create input without correlation capability
+		// Create input with insufficient capabilities
+		token, err := fixtures.GenerateTestJWTToken(1, "test-pseudonym-123", "TestUser", "user@example.com", []string{"user"}, []string{"create_content"})
+		require.NoError(t, err)
 
-		// Create input
 		input := &apimodels.FingerprintCorrelationInput{
+			AuthInput: middleware.AuthInput{
+				Authorization: "Bearer " + token,
+			},
 			Body: apimodels.FingerprintCorrelationInputBody{
 				RequestedPseudonym: "target-pseudonym-123",
-				Justification:      "Investigation",
+				Justification:      "Investigation of ban evasion",
 				SubforumID:         1,
-				IncidentID:         "test_123",
+				IncidentID:         "ban_evasion_123",
 			},
 		}
 
-		ctx := context.WithValue(context.Background(), middleware.UserContextKeyValue, userCtx)
-
 		// Call the method
-		result, err := handler.RequestFingerprintCorrelation(ctx, input)
+		result, err := handler.RequestFingerprintCorrelation(context.Background(), input)
 
 		// Assertions
 		require.Error(t, err)
@@ -219,27 +275,28 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 	t.Run("PseudonymNotFound", func(t *testing.T) {
 		handler, mockSecurePseudonymDAO, _, _, _, _, _ := NewCorrelationHandlerWithMocks()
 
-		// Create user context with correlation capability
-		userCtx := fixtures.CreateTestUserContext()
-		userCtx.Capabilities = []string{"correlate_fingerprints"}
-
 		// Mock pseudonym not found
 		mockSecurePseudonymDAO.On("GetPseudonymByID", mock.Anything, "nonexistent-pseudonym").Return(nil, nil).Maybe()
 
-		// Create input
+		// Create authenticated input with correlation capability
+		// Create input with correlation capability
+		token, err := fixtures.GenerateTestJWTToken(1, "test-pseudonym-123", "TestUser", "admin@example.com", []string{"user"}, []string{"correlate_fingerprints"})
+		require.NoError(t, err)
+
 		input := &apimodels.FingerprintCorrelationInput{
+			AuthInput: middleware.AuthInput{
+				Authorization: "Bearer " + token,
+			},
 			Body: apimodels.FingerprintCorrelationInputBody{
 				RequestedPseudonym: "nonexistent-pseudonym",
-				Justification:      "Investigation",
+				Justification:      "Investigation of ban evasion",
 				SubforumID:         1,
-				IncidentID:         "test_123",
+				IncidentID:         "ban_evasion_123",
 			},
 		}
 
-		ctx := context.WithValue(context.Background(), middleware.UserContextKeyValue, userCtx)
-
 		// Call the method
-		result, err := handler.RequestFingerprintCorrelation(ctx, input)
+		result, err := handler.RequestFingerprintCorrelation(context.Background(), input)
 
 		// Assertions
 		require.Error(t, err)
@@ -252,9 +309,8 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 }
 
 func TestCorrelationHandler_RequestIdentityCorrelation(t *testing.T) {
-	// Set up global auth middleware for tests
-	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
-	middleware.SetGlobalAuthMiddleware(authMiddleware)
+	// Set up global auth middleware for testing
+	setupTestAuthMiddleware()
 
 	t.Run("Success", func(t *testing.T) {
 		handler, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockPostDAO, mockCommentDAO, mockSubforumDAO, mockCorrelationAuditDAO := NewCorrelationHandlerWithMocks()
@@ -262,12 +318,6 @@ func TestCorrelationHandler_RequestIdentityCorrelation(t *testing.T) {
 		// Test data
 		adminUserID := int64(1)
 		requestedPseudonymID := "target-pseudonym-123"
-
-		// Create test user context with identity correlation capability
-		userCtx := fixtures.CreateTestUserContext()
-		userCtx.UserID = adminUserID
-		userCtx.Email = "admin@example.com"
-		userCtx.Capabilities = []string{"correlate_identities"}
 
 		// Mock pseudonym retrieval
 		testPseudonym := fixtures.CreateTestPseudonym()
@@ -334,21 +384,23 @@ func TestCorrelationHandler_RequestIdentityCorrelation(t *testing.T) {
 		// Mock the correlation audit DAO
 		mockCorrelationAuditDAO.On("CreateCorrelationAudit", mock.Anything, mock.AnythingOfType("*models.CorrelationAuditSetter")).Return(nil).Maybe()
 
-		// Create input
+		// Create authenticated input with identity correlation capability
+		token, err := fixtures.GenerateTestJWTToken(adminUserID, "test-pseudonym-123", "TestUser", "admin@example.com", []string{"user"}, []string{"correlate_identities"})
+		require.NoError(t, err)
+
 		input := &apimodels.IdentityCorrelationInput{
+			AuthInput: middleware.AuthInput{
+				Authorization: "Bearer " + token,
+			},
 			Body: apimodels.IdentityCorrelationInputBody{
-				RequestedPseudonym: requestedPseudonymID,
-				Justification:      "Investigation of harassment across subforums",
-				LegalBasis:         "Platform Terms of Service",
-				IncidentID:         "harassment_case_123",
-				Scope:              "platform_wide",
+				RequestedPseudonym:   requestedPseudonymID,
+				RequestedFingerprint: "test-fingerprint-456",
+				Justification:        "Investigation of identity correlation",
 			},
 		}
 
-		ctx := context.WithValue(context.Background(), middleware.UserContextKeyValue, userCtx)
-
 		// Call the method
-		result, err := handler.RequestIdentityCorrelation(ctx, input)
+		result, err := handler.RequestIdentityCorrelation(context.Background(), input)
 
 		// Assertions
 		require.NoError(t, err)
@@ -377,25 +429,23 @@ func TestCorrelationHandler_RequestIdentityCorrelation(t *testing.T) {
 	t.Run("InsufficientPermissions", func(t *testing.T) {
 		handler, _, _, _, _, _, _ := NewCorrelationHandlerWithMocks()
 
-		// Create user context without identity correlation capability
-		userCtx := fixtures.CreateTestUserContext()
-		userCtx.Capabilities = []string{"correlate_fingerprints"}
+		// Create input with insufficient capabilities
+		token, err := fixtures.GenerateTestJWTToken(1, "test-pseudonym-123", "TestUser", "user@example.com", []string{"user"}, []string{"correlate_fingerprints"})
+		require.NoError(t, err)
 
-		// Create input
 		input := &apimodels.IdentityCorrelationInput{
+			AuthInput: middleware.AuthInput{
+				Authorization: "Bearer " + token,
+			},
 			Body: apimodels.IdentityCorrelationInputBody{
-				RequestedPseudonym: "target-pseudonym-123",
-				Justification:      "Investigation",
-				LegalBasis:         "Platform Terms",
-				IncidentID:         "test_123",
-				Scope:              "platform_wide",
+				RequestedPseudonym:   "target-pseudonym-123",
+				RequestedFingerprint: "test-fingerprint-456",
+				Justification:        "Investigation of identity correlation",
 			},
 		}
 
-		ctx := context.WithValue(context.Background(), middleware.UserContextKeyValue, userCtx)
-
 		// Call the method
-		result, err := handler.RequestIdentityCorrelation(ctx, input)
+		result, err := handler.RequestIdentityCorrelation(context.Background(), input)
 
 		// Assertions
 		require.Error(t, err)
@@ -406,18 +456,11 @@ func TestCorrelationHandler_RequestIdentityCorrelation(t *testing.T) {
 }
 
 func TestCorrelationHandler_GetCorrelationHistory(t *testing.T) {
-	// Set up global auth middleware for tests
-	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
-	middleware.SetGlobalAuthMiddleware(authMiddleware)
+	// Set up global auth middleware for testing
+	setupTestAuthMiddleware()
 
 	t.Run("Success", func(t *testing.T) {
 		handler, _, _, _, _, _, mockCorrelationAuditDAO := NewCorrelationHandlerWithMocks()
-
-		// Create test user context with history capability
-		userCtx := fixtures.CreateTestUserContext()
-		userCtx.UserID = 1
-		userCtx.Email = "admin@example.com"
-		userCtx.Capabilities = []string{"view_correlation_history"}
 
 		// Mock the correlation audit DAO
 		fakeAudits := dbmodels.CorrelationAuditSlice{
@@ -439,16 +482,21 @@ func TestCorrelationHandler_GetCorrelationHistory(t *testing.T) {
 		}
 		mockCorrelationAuditDAO.On("GetCorrelationHistory", mock.Anything, "fingerprint", 1, 25).Return(fakeAudits, nil).Maybe()
 
+		// Create authenticated input with history viewing capability
+		token, err := fixtures.GenerateTestJWTToken(1, "test-pseudonym-123", "TestUser", "admin@example.com", []string{"user"}, []string{"view_correlation_history"})
+		require.NoError(t, err)
+
 		input := &apimodels.CorrelationHistoryInput{
+			AuthInput: middleware.AuthInput{
+				Authorization: "Bearer " + token,
+			},
 			CorrelationType: "fingerprint",
 			Page:            1,
 			Limit:           25,
 		}
 
-		ctx := context.WithValue(context.Background(), middleware.UserContextKeyValue, userCtx)
-
 		// Call the method
-		result, err := handler.GetCorrelationHistory(ctx, input)
+		result, err := handler.GetCorrelationHistory(context.Background(), input)
 
 		// Assertions
 		require.NoError(t, err)
@@ -464,21 +512,21 @@ func TestCorrelationHandler_GetCorrelationHistory(t *testing.T) {
 	t.Run("InsufficientPermissions", func(t *testing.T) {
 		handler, _, _, _, _, _, _ := NewCorrelationHandlerWithMocks()
 
-		// Create user context without history viewing capability
-		userCtx := fixtures.CreateTestUserContext()
-		userCtx.Capabilities = []string{"create_content"}
+		// Create input with insufficient capabilities
+		token, err := fixtures.GenerateTestJWTToken(1, "test-pseudonym-123", "TestUser", "user@example.com", []string{"user"}, []string{"create_content"})
+		require.NoError(t, err)
 
-		// Create input
 		input := &apimodels.CorrelationHistoryInput{
+			AuthInput: middleware.AuthInput{
+				Authorization: "Bearer " + token,
+			},
 			CorrelationType: "fingerprint",
 			Page:            1,
 			Limit:           25,
 		}
 
-		ctx := context.WithValue(context.Background(), middleware.UserContextKeyValue, userCtx)
-
 		// Call the method
-		result, err := handler.GetCorrelationHistory(ctx, input)
+		result, err := handler.GetCorrelationHistory(context.Background(), input)
 
 		// Assertions
 		require.Error(t, err)

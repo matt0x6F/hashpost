@@ -216,7 +216,7 @@ func TestRulesHandler_CreateSubforumRule(t *testing.T) {
 			name: "CreateSubforumRuleSuccess",
 			input: &apimodels.RuleCreateInput{
 				AuthInput: middleware.AuthInput{
-					Authorization: "Bearer test-token",
+					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "test-pseudonym-id"),
 				},
 				CommunityType: "t",
 				SubforumName:  "golang",
@@ -244,7 +244,7 @@ func TestRulesHandler_CreateSubforumRule(t *testing.T) {
 			name: "CreateSubforumRuleInsufficientPermissions",
 			input: &apimodels.RuleCreateInput{
 				AuthInput: middleware.AuthInput{
-					Authorization: "Bearer test-token",
+					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "test-pseudonym-id"),
 				},
 				CommunityType: "t",
 				SubforumName:  "golang",
@@ -347,7 +347,7 @@ func TestRulesHandler_UpdateSubforumRule(t *testing.T) {
 			name: "UpdateSubforumRuleSuccess",
 			input: &apimodels.RuleUpdateInput{
 				AuthInput: middleware.AuthInput{
-					Authorization: "Bearer test-token",
+					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "test-pseudonym-id"),
 				},
 				CommunityType: "t",
 				SubforumName:  "golang",
@@ -373,7 +373,7 @@ func TestRulesHandler_UpdateSubforumRule(t *testing.T) {
 			name: "UpdateSubforumRuleRuleNotFound",
 			input: &apimodels.RuleUpdateInput{
 				AuthInput: middleware.AuthInput{
-					Authorization: "Bearer test-token",
+					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "test-pseudonym-id"),
 				},
 				CommunityType: "t",
 				SubforumName:  "golang",
@@ -449,7 +449,7 @@ func TestRulesHandler_DeleteSubforumRule(t *testing.T) {
 			name: "DeleteSubforumRuleSuccess",
 			input: &apimodels.RuleDeleteInput{
 				AuthInput: middleware.AuthInput{
-					Authorization: "Bearer test-token",
+					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "test-pseudonym-id"),
 				},
 				CommunityType: "t",
 				SubforumName:  "golang",
@@ -470,7 +470,7 @@ func TestRulesHandler_DeleteSubforumRule(t *testing.T) {
 			name: "DeleteSubforumRuleRuleNotFound",
 			input: &apimodels.RuleDeleteInput{
 				AuthInput: middleware.AuthInput{
-					Authorization: "Bearer test-token",
+					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "test-pseudonym-id"),
 				},
 				CommunityType: "t",
 				SubforumName:  "golang",
@@ -542,7 +542,7 @@ func TestRulesHandler_ReportRuleViolation(t *testing.T) {
 			name: "ReportRuleViolationSuccess",
 			input: &apimodels.RuleViolationInput{
 				AuthInput: middleware.AuthInput{
-					Authorization: "Bearer test-token",
+					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "test-pseudonym-id"),
 				},
 				Body: apimodels.RuleViolationInputBody{
 					ContentType:         "post",
@@ -560,7 +560,7 @@ func TestRulesHandler_ReportRuleViolation(t *testing.T) {
 			name: "ReportRuleViolationSubforumRule",
 			input: &apimodels.RuleViolationInput{
 				AuthInput: middleware.AuthInput{
-					Authorization: "Bearer test-token",
+					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "test-pseudonym-id"),
 				},
 				Body: apimodels.RuleViolationInputBody{
 					ContentType:         "comment",
