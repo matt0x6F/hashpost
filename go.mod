@@ -10,14 +10,13 @@ require (
 	github.com/rs/zerolog v1.34.0
 	github.com/shopspring/decimal v1.4.0
 	github.com/spf13/cobra v1.9.1
-	github.com/stephenafamo/bob v0.38.0
+	github.com/stephenafamo/bob v0.39.0
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/term v0.33.0
 )
 
 require (
-	github.com/aarondl/json v0.0.0-20221020222930-8b0db17ef1bf // indirect
-	github.com/aarondl/opt v0.0.0-20230114172057-b91f370c41f0 // indirect
+	github.com/aarondl/opt v0.0.0-20250607033636-982744e1bd65 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
