@@ -233,7 +233,7 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
                     <option value="t">Topical (t/) - Generic subjects like programming, cooking (Democratic governance)</option>
                     <option value="g">Geographic (g/) - Location-based like Seattle, Tacoma (Democratic governance)</option>
                     <option value="b">Branded (b/) - Company/brand-owned like Apple, Minecraft (Owned governance)</option>
-                    <option value="c">Creator (c/) - Individual creator-owned like Joe Rogan (Owned governance)</option>
+                    <option value="c">Creator (c/) - Individual creator-owned communities (Owned governance)</option>
                   </select>
                 </div>
 

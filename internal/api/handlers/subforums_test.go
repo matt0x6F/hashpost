@@ -588,9 +588,9 @@ func TestSubforumHandler_CreateSubforum(t *testing.T) {
 			input: &models.SubforumCreateInput{
 				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "test-pseudonym-id"),
 				Body: models.SubforumCreateBody{
-					Slug:          "joerogan",
-					Name:          "Joe Rogan",
-					Description:   "Joe Rogan discussions",
+					Slug:          "creator",
+					Name:          "Creator Community",
+					Description:   "Creator community discussions",
 					CommunityType: "c",
 					IsNSFW:        false,
 					IsPrivate:     false,

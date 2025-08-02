@@ -127,7 +127,7 @@ export default function SubforumPage() {
   }
 
   return (
-    <div className="relative max-w-7xl mx-auto p-6">
+    <div className="relative max-w-7xl mx-auto p-4">
       <div className="flex items-center gap-4 mb-8">
         <Link href="/forums">
           <Button variant="outline" size="sm">
