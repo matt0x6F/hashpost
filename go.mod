@@ -3,7 +3,7 @@ module github.com/matt0x6f/hashpost
 go 1.24.3
 
 require (
-	github.com/danielgtaylor/huma/v2 v2.33.0
+	github.com/danielgtaylor/huma/v2 v2.34.1
 	github.com/gofrs/uuid/v5 v5.3.2
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/lib/pq v1.10.9
