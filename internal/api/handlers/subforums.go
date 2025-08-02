@@ -1131,7 +1131,7 @@ func (h *SubforumHandler) GetPseudonymSubscriptions(ctx context.Context, input *
 	middleware.AuthInput
 	models.PseudonymSubscriptionsInput
 }) (*models.SubforumSubscriptionsResponse, error) {
-	userCtx, err := middleware.ExtractUserFromContext(ctx)
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
 	if err != nil {
 		log := zerolog.Ctx(ctx)
 		log.Error().Err(err).Msg("Failed to extract user from context in GetPseudonymSubscriptions")
@@ -1179,73 +1179,9 @@ func (h *SubforumHandler) GetPseudonymSubscriptions(ctx context.Context, input *
 			continue
 		}
 
-		// Handle nullable fields
-		description := ""
-		if subforum.Description.Valid {
-			description = subforum.Description.V
-		}
-
-		sidebarText := ""
-		if subforum.SidebarText.Valid {
-			sidebarText = subforum.SidebarText.V
-		}
-
-		rulesText := ""
-		if subforum.RulesText.Valid {
-			rulesText = subforum.RulesText.V
-		}
-
-		isNSFW := false
-		if subforum.IsNSFW.Valid {
-			isNSFW = subforum.IsNSFW.V
-		}
-
-		isPrivate := false
-		if subforum.IsPrivate.Valid {
-			isPrivate = subforum.IsPrivate.V
-		}
-
-		isRestricted := false
-		if subforum.IsRestricted.Valid {
-			isRestricted = subforum.IsRestricted.V
-		}
-
-		subscriberCount := 0
-		if subforum.SubscriberCount.Valid {
-			subscriberCount = int(subforum.SubscriberCount.V)
-		}
-
-		// Get actual post count from database
-		postCount, err := h.postDAO.CountPostsBySubforum(ctx, subforum.SubforumID)
-		if err != nil {
-			log.Warn().Err(err).Int32("subforum_id", subforum.SubforumID).Msg("Failed to get post count")
-			postCount = 0
-		}
-
-		createdAt := time.Now()
-		if subforum.CreatedAt.Valid {
-			createdAt = subforum.CreatedAt.V
-		}
-
-		updatedAt := time.Now()
-		if subforum.UpdatedAt.Valid {
-			updatedAt = subforum.UpdatedAt.V
-		}
-
-		apiSubforums = append(apiSubforums, models.Subforum{
-			Name:            subforum.Name,
-			DisplayName:     subforum.DisplayName,
-			Description:     description,
-			SidebarText:     sidebarText,
-			RulesText:       rulesText,
-			IsNSFW:          isNSFW,
-			IsPrivate:       isPrivate,
-			IsRestricted:    isRestricted,
-			SubscriberCount: subscriberCount,
-			PostCount:       int(postCount),
-			CreatedAt:       createdAt,
-			UpdatedAt:       updatedAt,
-		})
+		// Use the existing conversion function to ensure all fields are properly set
+		apiSubforum := h.convertSubforumToAPIModel(subforum)
+		apiSubforums = append(apiSubforums, apiSubforum)
 	}
 
 	log.Info().

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Menu, Sun, Moon, Shield, Bell } from "lucide-react";
+import { Menu, Sun, Moon, Shield } from "lucide-react";
 import Image from "next/image";
 import { Button } from "./shadcn/button";
 import { LoginDialog } from "./LoginDialog";
@@ -64,16 +64,6 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
         <span className="text-xs text-muted-foreground ml-2">alpha</span>
       </div>
       <div className="flex items-center gap-4">
-        {/* Subscriptions Link */}
-        {!isLoading && isAuthenticated && (
-          <Link href="/subscriptions">
-            <Button variant="ghost" size="sm" className="flex items-center gap-2">
-              <Bell className="w-4 h-4" />
-              <span className="hidden sm:inline">Subscriptions</span>
-            </Button>
-          </Link>
-        )}
-
         {/* Moderator Dashboard Link */}
         {!isLoading && isAuthenticated && isModerator && (
           <Link href={`/${pathname?.split('/').slice(1, 3).join('/')}/moderation`}>

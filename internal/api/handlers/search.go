@@ -64,7 +64,7 @@ func NewSearchHandler(
 
 // SearchPosts handles searching for posts across all subforums
 func (h *SearchHandler) SearchPosts(ctx context.Context, input *models.SearchPostsInput) (*models.SearchPostsResponse, error) {
-	// Extract user from context
+	// Extract user from context (search can work anonymously, so we don't embed AuthInput)
 	user, err := middleware.ExtractUserFromContext(ctx)
 	if err != nil {
 		// Search can work for anonymous users, so we'll continue without user context

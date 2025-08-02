@@ -110,7 +110,14 @@ func (uc *UserContext) RequiresMFA(action string) bool {
 	return mfaRequiredActions[action]
 }
 
-// ExtractUserFromContext extracts user context from the request context
+// ExtractUserFromContext extracts user context from the request context.
+//
+// This should be used when:
+// - You're in a context where you don't have Huma input structs (background jobs, utility functions, etc.)
+// - You already have a context.Context and the user context has been set in it
+// - You're working with standard Go HTTP handlers (not Huma handlers)
+//
+// For Huma handlers, prefer ExtractUserFromHumaInput instead.
 func ExtractUserFromContext(ctx context.Context) (*UserContext, error) {
 	userCtx, ok := ctx.Value(UserContextKeyValue).(*UserContext)
 	if !ok {
@@ -119,7 +126,12 @@ func ExtractUserFromContext(ctx context.Context) (*UserContext, error) {
 	return userCtx, nil
 }
 
-// ExtractUserFromRequest extracts user context from the HTTP request
+// ExtractUserFromRequest extracts user context from the HTTP request.
+//
+// This should ONLY be used in HTTP middleware (like RequireAuth, RequireCapability, etc.)
+// because it's designed for standard HTTP middleware chains.
+//
+// For Huma handlers, prefer ExtractUserFromHumaInput instead.
 func ExtractUserFromRequest(r *http.Request) (*UserContext, error) {
 	ctx := r.Context()
 	return ExtractUserFromContext(ctx)

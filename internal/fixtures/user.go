@@ -95,17 +95,17 @@ func CreateTestUserBlock(blockID int64, blockerPseudonymID, blockedPseudonymID s
 }
 
 // GenerateTestJWTToken generates a valid JWT token for testing
-func GenerateTestJWTToken(userID int64, activePseudonymID string) (string, error) {
+func GenerateTestJWTToken(userID int64, activePseudonymID string, displayName string, email string, roles, capabilities []string) (string, error) {
 	// Create a JWT token using the actual JWT generation logic
 	// This ensures the token is valid for the test environment
 	claims := &middleware.JWTClaims{
 		UserID:            userID,
-		Email:             "test@example.com",
-		Roles:             []string{"user"},
-		Capabilities:      []string{"create_content", "vote", "message", "report", "create_subforum"},
+		Email:             email,
+		Roles:             roles,
+		Capabilities:      capabilities,
 		MFAEnabled:        false,
 		ActivePseudonymID: activePseudonymID,
-		DisplayName:       "TestUser",
+		DisplayName:       displayName,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -125,7 +125,7 @@ func GenerateTestJWTToken(userID int64, activePseudonymID string) (string, error
 // MustGenerateTestJWTToken generates a test JWT token and panics if it fails
 // This is a convenience function for tests where token generation failure should cause the test to fail
 func MustGenerateTestJWTToken(userID int64, activePseudonymID string) string {
-	token, err := GenerateTestJWTToken(userID, activePseudonymID)
+	token, err := GenerateTestJWTToken(userID, activePseudonymID, "TestUser", "test@example.com", []string{"user"}, []string{"create_content", "vote", "message", "report", "create_subforum"})
 	if err != nil {
 		panic(fmt.Sprintf("Failed to generate test JWT token: %v", err))
 	}
