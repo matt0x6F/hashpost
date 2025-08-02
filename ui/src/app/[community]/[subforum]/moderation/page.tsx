@@ -241,7 +241,9 @@ export default function SubforumModerationPage() {
       </div>
 
       {/* Engagement Analytics */}
-      <EngagementAnalytics subforumPath={fullSubforumPath} />
+      <div className="mt-8">
+        <EngagementAnalytics subforumPath={fullSubforumPath} />
+      </div>
     </div>
   );
 } 

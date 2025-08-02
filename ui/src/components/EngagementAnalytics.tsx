@@ -88,8 +88,8 @@ export function EngagementAnalytics({ subforumPath, timeRange = '30d' }: Engagem
     commentVotes: isDarkMode ? '#82ca9d' : '#82ca9d',
     postUpvotes: isDarkMode ? '#22c55e' : '#22c55e',
     postDownvotes: isDarkMode ? '#ef4444' : '#ef4444',
-    commentUpvotes: isDarkMode ? '#10b981' : '#10b981',
-    commentDownvotes: isDarkMode ? '#f87171' : '#f87171',
+    commentUpvotes: isDarkMode ? '#8b5cf6' : '#8b5cf6',
+    commentDownvotes: isDarkMode ? '#f59e0b' : '#f59e0b',
   };
 
   const chartStyle = {
