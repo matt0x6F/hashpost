@@ -6,7 +6,6 @@ package models
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"io"
 	"time"
@@ -20,26 +19,23 @@ import (
 	"github.com/stephenafamo/bob/expr"
 	"github.com/stephenafamo/bob/mods"
 	"github.com/stephenafamo/bob/orm"
-	"github.com/stephenafamo/bob/types"
 	"github.com/stephenafamo/bob/types/pgtypes"
 )
 
 // Pseudonym is an object representing the database table.
 type Pseudonym struct {
-	PseudonymID         string                                `db:"pseudonym_id,pk" scan:"pseudonym_id" json:"pseudonym_id"`
-	DisplayName         string                                `db:"display_name" scan:"display_name" json:"display_name"`
-	KarmaScore          sql.Null[int32]                       `db:"karma_score" scan:"karma_score" json:"karma_score"`
-	CreatedAt           sql.Null[time.Time]                   `db:"created_at" scan:"created_at" json:"created_at"`
-	LastActiveAt        sql.Null[time.Time]                   `db:"last_active_at" scan:"last_active_at" json:"last_active_at"`
-	IsActive            sql.Null[bool]                        `db:"is_active" scan:"is_active" json:"is_active"`
-	Bio                 sql.Null[string]                      `db:"bio" scan:"bio" json:"bio"`
-	AvatarURL           sql.Null[string]                      `db:"avatar_url" scan:"avatar_url" json:"avatar_url"`
-	WebsiteURL          sql.Null[string]                      `db:"website_url" scan:"website_url" json:"website_url"`
-	ShowKarma           sql.Null[bool]                        `db:"show_karma" scan:"show_karma" json:"show_karma"`
-	AllowDirectMessages sql.Null[bool]                        `db:"allow_direct_messages" scan:"allow_direct_messages" json:"allow_direct_messages"`
-	IsDefault           bool                                  `db:"is_default" scan:"is_default" json:"is_default"`
-	Roles               sql.Null[types.JSON[json.RawMessage]] `db:"roles" scan:"roles" json:"roles"`
-	Capabilities        sql.Null[types.JSON[json.RawMessage]] `db:"capabilities" scan:"capabilities" json:"capabilities"`
+	PseudonymID         string              `db:"pseudonym_id,pk" scan:"pseudonym_id" json:"pseudonym_id"`
+	DisplayName         string              `db:"display_name" scan:"display_name" json:"display_name"`
+	KarmaScore          sql.Null[int32]     `db:"karma_score" scan:"karma_score" json:"karma_score"`
+	CreatedAt           sql.Null[time.Time] `db:"created_at" scan:"created_at" json:"created_at"`
+	LastActiveAt        sql.Null[time.Time] `db:"last_active_at" scan:"last_active_at" json:"last_active_at"`
+	IsActive            sql.Null[bool]      `db:"is_active" scan:"is_active" json:"is_active"`
+	Bio                 sql.Null[string]    `db:"bio" scan:"bio" json:"bio"`
+	AvatarURL           sql.Null[string]    `db:"avatar_url" scan:"avatar_url" json:"avatar_url"`
+	WebsiteURL          sql.Null[string]    `db:"website_url" scan:"website_url" json:"website_url"`
+	ShowKarma           sql.Null[bool]      `db:"show_karma" scan:"show_karma" json:"show_karma"`
+	AllowDirectMessages sql.Null[bool]      `db:"allow_direct_messages" scan:"allow_direct_messages" json:"allow_direct_messages"`
+	IsDefault           bool                `db:"is_default" scan:"is_default" json:"is_default"`
 
 	R pseudonymR `db:"-" scan:"rel" json:"rel"`
 }
@@ -94,8 +90,6 @@ type pseudonymColumnNames struct {
 	ShowKarma           string
 	AllowDirectMessages string
 	IsDefault           string
-	Roles               string
-	Capabilities        string
 }
 
 var PseudonymColumns = buildPseudonymColumns("pseudonyms")
@@ -114,8 +108,6 @@ type pseudonymColumns struct {
 	ShowKarma           psql.Expression
 	AllowDirectMessages psql.Expression
 	IsDefault           psql.Expression
-	Roles               psql.Expression
-	Capabilities        psql.Expression
 }
 
 func (c pseudonymColumns) Alias() string {
@@ -141,8 +133,6 @@ func buildPseudonymColumns(alias string) pseudonymColumns {
 		ShowKarma:           psql.Quote(alias, "show_karma"),
 		AllowDirectMessages: psql.Quote(alias, "allow_direct_messages"),
 		IsDefault:           psql.Quote(alias, "is_default"),
-		Roles:               psql.Quote(alias, "roles"),
-		Capabilities:        psql.Quote(alias, "capabilities"),
 	}
 }
 
@@ -159,8 +149,6 @@ type pseudonymWhere[Q psql.Filterable] struct {
 	ShowKarma           psql.WhereNullMod[Q, bool]
 	AllowDirectMessages psql.WhereNullMod[Q, bool]
 	IsDefault           psql.WhereMod[Q, bool]
-	Roles               psql.WhereNullMod[Q, types.JSON[json.RawMessage]]
-	Capabilities        psql.WhereNullMod[Q, types.JSON[json.RawMessage]]
 }
 
 func (pseudonymWhere[Q]) AliasedAs(alias string) pseudonymWhere[Q] {
@@ -181,8 +169,6 @@ func buildPseudonymWhere[Q psql.Filterable](cols pseudonymColumns) pseudonymWher
 		ShowKarma:           psql.WhereNull[Q, bool](cols.ShowKarma),
 		AllowDirectMessages: psql.WhereNull[Q, bool](cols.AllowDirectMessages),
 		IsDefault:           psql.Where[Q, bool](cols.IsDefault),
-		Roles:               psql.WhereNull[Q, types.JSON[json.RawMessage]](cols.Roles),
-		Capabilities:        psql.WhereNull[Q, types.JSON[json.RawMessage]](cols.Capabilities),
 	}
 }
 
@@ -212,24 +198,22 @@ type pseudonymErrors struct {
 // All values are optional, and do not have to be set
 // Generated columns are not included
 type PseudonymSetter struct {
-	PseudonymID         *string                                `db:"pseudonym_id,pk" scan:"pseudonym_id" json:"pseudonym_id"`
-	DisplayName         *string                                `db:"display_name" scan:"display_name" json:"display_name"`
-	KarmaScore          *sql.Null[int32]                       `db:"karma_score" scan:"karma_score" json:"karma_score"`
-	CreatedAt           *sql.Null[time.Time]                   `db:"created_at" scan:"created_at" json:"created_at"`
-	LastActiveAt        *sql.Null[time.Time]                   `db:"last_active_at" scan:"last_active_at" json:"last_active_at"`
-	IsActive            *sql.Null[bool]                        `db:"is_active" scan:"is_active" json:"is_active"`
-	Bio                 *sql.Null[string]                      `db:"bio" scan:"bio" json:"bio"`
-	AvatarURL           *sql.Null[string]                      `db:"avatar_url" scan:"avatar_url" json:"avatar_url"`
-	WebsiteURL          *sql.Null[string]                      `db:"website_url" scan:"website_url" json:"website_url"`
-	ShowKarma           *sql.Null[bool]                        `db:"show_karma" scan:"show_karma" json:"show_karma"`
-	AllowDirectMessages *sql.Null[bool]                        `db:"allow_direct_messages" scan:"allow_direct_messages" json:"allow_direct_messages"`
-	IsDefault           *bool                                  `db:"is_default" scan:"is_default" json:"is_default"`
-	Roles               *sql.Null[types.JSON[json.RawMessage]] `db:"roles" scan:"roles" json:"roles"`
-	Capabilities        *sql.Null[types.JSON[json.RawMessage]] `db:"capabilities" scan:"capabilities" json:"capabilities"`
+	PseudonymID         *string              `db:"pseudonym_id,pk" scan:"pseudonym_id" json:"pseudonym_id"`
+	DisplayName         *string              `db:"display_name" scan:"display_name" json:"display_name"`
+	KarmaScore          *sql.Null[int32]     `db:"karma_score" scan:"karma_score" json:"karma_score"`
+	CreatedAt           *sql.Null[time.Time] `db:"created_at" scan:"created_at" json:"created_at"`
+	LastActiveAt        *sql.Null[time.Time] `db:"last_active_at" scan:"last_active_at" json:"last_active_at"`
+	IsActive            *sql.Null[bool]      `db:"is_active" scan:"is_active" json:"is_active"`
+	Bio                 *sql.Null[string]    `db:"bio" scan:"bio" json:"bio"`
+	AvatarURL           *sql.Null[string]    `db:"avatar_url" scan:"avatar_url" json:"avatar_url"`
+	WebsiteURL          *sql.Null[string]    `db:"website_url" scan:"website_url" json:"website_url"`
+	ShowKarma           *sql.Null[bool]      `db:"show_karma" scan:"show_karma" json:"show_karma"`
+	AllowDirectMessages *sql.Null[bool]      `db:"allow_direct_messages" scan:"allow_direct_messages" json:"allow_direct_messages"`
+	IsDefault           *bool                `db:"is_default" scan:"is_default" json:"is_default"`
 }
 
 func (s PseudonymSetter) SetColumns() []string {
-	vals := make([]string, 0, 14)
+	vals := make([]string, 0, 12)
 	if s.PseudonymID != nil {
 		vals = append(vals, "pseudonym_id")
 	}
@@ -278,14 +262,6 @@ func (s PseudonymSetter) SetColumns() []string {
 		vals = append(vals, "is_default")
 	}
 
-	if s.Roles != nil {
-		vals = append(vals, "roles")
-	}
-
-	if s.Capabilities != nil {
-		vals = append(vals, "capabilities")
-	}
-
 	return vals
 }
 
@@ -326,12 +302,6 @@ func (s PseudonymSetter) Overwrite(t *Pseudonym) {
 	if s.IsDefault != nil {
 		t.IsDefault = *s.IsDefault
 	}
-	if s.Roles != nil {
-		t.Roles = *s.Roles
-	}
-	if s.Capabilities != nil {
-		t.Capabilities = *s.Capabilities
-	}
 }
 
 func (s *PseudonymSetter) Apply(q *dialect.InsertQuery) {
@@ -340,7 +310,7 @@ func (s *PseudonymSetter) Apply(q *dialect.InsertQuery) {
 	})
 
 	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
-		vals := make([]bob.Expression, 14)
+		vals := make([]bob.Expression, 12)
 		if s.PseudonymID != nil {
 			vals[0] = psql.Arg(*s.PseudonymID)
 		} else {
@@ -413,18 +383,6 @@ func (s *PseudonymSetter) Apply(q *dialect.InsertQuery) {
 			vals[11] = psql.Raw("DEFAULT")
 		}
 
-		if s.Roles != nil {
-			vals[12] = psql.Arg(*s.Roles)
-		} else {
-			vals[12] = psql.Raw("DEFAULT")
-		}
-
-		if s.Capabilities != nil {
-			vals[13] = psql.Arg(*s.Capabilities)
-		} else {
-			vals[13] = psql.Raw("DEFAULT")
-		}
-
 		return bob.ExpressSlice(ctx, w, d, start, vals, "", ", ", "")
 	}))
 }
@@ -434,7 +392,7 @@ func (s PseudonymSetter) UpdateMod() bob.Mod[*dialect.UpdateQuery] {
 }
 
 func (s PseudonymSetter) Expressions(prefix ...string) []bob.Expression {
-	exprs := make([]bob.Expression, 0, 14)
+	exprs := make([]bob.Expression, 0, 12)
 
 	if s.PseudonymID != nil {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
@@ -517,20 +475,6 @@ func (s PseudonymSetter) Expressions(prefix ...string) []bob.Expression {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "is_default")...),
 			psql.Arg(s.IsDefault),
-		}})
-	}
-
-	if s.Roles != nil {
-		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
-			psql.Quote(append(prefix, "roles")...),
-			psql.Arg(s.Roles),
-		}})
-	}
-
-	if s.Capabilities != nil {
-		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
-			psql.Quote(append(prefix, "capabilities")...),
-			psql.Arg(s.Capabilities),
 		}})
 	}
 

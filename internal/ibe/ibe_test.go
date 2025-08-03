@@ -116,10 +116,10 @@ func TestIBESystem_EnhancedArchitecture(t *testing.T) {
 			// Load domain key from file
 			data, err := os.ReadFile(keyPath)
 			require.NoError(t, err, "Should read domain key file for %s", domain)
-			
+
 			// Expect hex-encoded 32-byte secret
 			require.Len(t, data, 64, "Domain key file should contain exactly 64 hex characters")
-			
+
 			domainKeyBytes, err := hex.DecodeString(string(data))
 			require.NoError(t, err, "Should decode domain key for %s", domain)
 			assert.Len(t, domainKeyBytes, 32, "Domain key should be 32 bytes")

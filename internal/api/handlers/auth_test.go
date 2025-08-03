@@ -327,6 +327,9 @@ func TestAuthHandler_Registration(t *testing.T) {
 		// Mock role key creation
 		mockRoleKeyDAO.On("EnsureDefaultKeys", mock.Anything, mock.Anything, "default-pseudonym-123", []string{"user"}).Return(nil)
 
+		// Mock role keys for pseudonym capabilities
+		mockRoleKeyDAO.On("ListRoleKeysByPseudonym", mock.Anything, testPseudonymID).Return([]*dbmodels.RoleKey{}, nil)
+
 		// Create registration input
 		input := &apimodels.UserRegistrationInput{
 			Body: apimodels.UserRegistrationBody{

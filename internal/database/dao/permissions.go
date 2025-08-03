@@ -13,13 +13,15 @@ import (
 
 // PermissionDAO provides data access operations for permission checking
 type PermissionDAO struct {
-	db bob.Executor
+	db         bob.Executor
+	roleKeyDAO *RoleKeyDAO
 }
 
 // NewPermissionDAO creates a new PermissionDAO
 func NewPermissionDAO(db bob.Executor) *PermissionDAO {
 	return &PermissionDAO{
-		db: db,
+		db:         db,
+		roleKeyDAO: NewRoleKeyDAO(db),
 	}
 }
 
@@ -289,31 +291,36 @@ func (dao *PermissionDAO) HasSubforumCapabilityWithActivePseudonym(ctx context.C
 			Msg("No moderator role key found")
 	}
 
-	// Check if the active pseudonym has platform-wide capabilities
-	pseudonym, err := models.FindPseudonym(ctx, dao.db, activePseudonymID)
+	// Check if the active pseudonym has platform-wide capabilities through role keys
+	roleKeys, err := dao.roleKeyDAO.ListRoleKeysByPseudonym(ctx, activePseudonymID)
 	if err != nil {
-		return false, fmt.Errorf("failed to get pseudonym: %w", err)
-	}
-	if pseudonym == nil {
-		return false, fmt.Errorf("pseudonym not found")
+		return false, fmt.Errorf("failed to get role keys for pseudonym: %w", err)
 	}
 
-	if pseudonym.Capabilities.Valid {
-		rawValue, err := pseudonym.Capabilities.V.Value()
-		if err != nil {
-			return false, fmt.Errorf("failed to get pseudonym capabilities: %w", err)
+	for _, roleKey := range roleKeys {
+		// Skip subforum-specific keys (we already checked those above)
+		if roleKey.SubforumID.Valid {
+			continue
 		}
-		var capabilities []string
-		if err := json.Unmarshal(rawValue.([]byte), &capabilities); err == nil {
-			for _, cap := range capabilities {
-				if cap == capability {
-					log.Debug().
-						Int64("user_id", userID).
-						Int32("subforum_id", subforumID).
-						Str("pseudonym_id", activePseudonymID).
-						Str("capability", capability).
-						Msg("Active pseudonym has platform-wide capability")
-					return true, nil
+
+		// Check capabilities from this role key
+		capabilitiesBytes, err := roleKey.Capabilities.Value()
+		if err == nil && capabilitiesBytes != nil {
+			if bytes, ok := capabilitiesBytes.([]byte); ok {
+				var capabilities []string
+				if err := json.Unmarshal(bytes, &capabilities); err == nil {
+					for _, cap := range capabilities {
+						if cap == capability {
+							log.Debug().
+								Int64("user_id", userID).
+								Int32("subforum_id", subforumID).
+								Str("pseudonym_id", activePseudonymID).
+								Str("capability", capability).
+								Str("role", roleKey.RoleName).
+								Msg("Active pseudonym has platform-wide capability through role key")
+							return true, nil
+						}
+					}
 				}
 			}
 		}
@@ -448,42 +455,52 @@ func (dao *PermissionDAO) getRoleCapabilities(role string) []string {
 
 // GetActivePseudonymRolesAndCapabilities returns the roles and capabilities for a specific active pseudonym
 func (dao *PermissionDAO) GetActivePseudonymRolesAndCapabilities(ctx context.Context, userID int64, activePseudonymID string) ([]string, []string, error) {
-	var roles []string
-	var capabilities []string
-
-	// Get the active pseudonym
-	pseudonym, err := models.FindPseudonym(ctx, dao.db, activePseudonymID)
+	// Get role keys for the pseudonym
+	roleKeys, err := dao.roleKeyDAO.ListRoleKeysByPseudonym(ctx, activePseudonymID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get pseudonym: %w", err)
-	}
-	if pseudonym == nil {
-		return nil, nil, fmt.Errorf("pseudonym not found")
+		return nil, nil, fmt.Errorf("failed to get role keys: %w", err)
 	}
 
-	// Get pseudonym roles and capabilities
-	if pseudonym.Roles.Valid {
-		rawValue, err := pseudonym.Roles.V.Value()
+	// Extract unique roles and capabilities from role keys
+	roleSet := make(map[string]bool)
+	capabilitySet := make(map[string]bool)
+
+	for _, roleKey := range roleKeys {
+		// Add role name
+		roleSet[roleKey.RoleName] = true
+
+		// Extract capabilities from JSON
+		var capabilities []string
+		rawValue, err := roleKey.Capabilities.Value()
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get pseudonym roles: %w", err)
+			continue
 		}
-		if err := json.Unmarshal(rawValue.([]byte), &roles); err != nil {
-			return nil, nil, fmt.Errorf("failed to unmarshal pseudonym roles: %w", err)
+		if err := json.Unmarshal(rawValue.([]byte), &capabilities); err != nil {
+			continue
 		}
-	} else {
-		// Default role for all pseudonyms
+		for _, capability := range capabilities {
+			capabilitySet[capability] = true
+		}
+	}
+
+	// Convert sets to slices
+	var roles []string
+	for role := range roleSet {
+		roles = append(roles, role)
+	}
+
+	var capabilities []string
+	for capability := range capabilitySet {
+		capabilities = append(capabilities, capability)
+	}
+
+	// If no roles found, default to "user"
+	if len(roles) == 0 {
 		roles = []string{"user"}
 	}
 
-	if pseudonym.Capabilities.Valid {
-		rawValue, err := pseudonym.Capabilities.V.Value()
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get pseudonym capabilities: %w", err)
-		}
-		if err := json.Unmarshal(rawValue.([]byte), &capabilities); err != nil {
-			return nil, nil, fmt.Errorf("failed to unmarshal pseudonym capabilities: %w", err)
-		}
-	} else {
-		// Default capabilities for all pseudonyms
+	// If no capabilities found, provide default capabilities
+	if len(capabilities) == 0 {
 		capabilities = []string{"create_content", "vote", "message", "report"}
 	}
 
@@ -493,42 +510,52 @@ func (dao *PermissionDAO) GetActivePseudonymRolesAndCapabilities(ctx context.Con
 // GetUnifiedActivePseudonymRolesAndCapabilities returns the unified roles and capabilities for a specific active pseudonym
 // This combines both global pseudonym capabilities and subforum-specific moderator capabilities
 func (dao *PermissionDAO) GetUnifiedActivePseudonymRolesAndCapabilities(ctx context.Context, userID int64, activePseudonymID string, subforumID *int32) ([]string, []string, error) {
-	var roles []string
-	var capabilities []string
-
-	// Get the active pseudonym
-	pseudonym, err := models.FindPseudonym(ctx, dao.db, activePseudonymID)
+	// Get role keys for the pseudonym
+	roleKeys, err := dao.roleKeyDAO.ListRoleKeysByPseudonym(ctx, activePseudonymID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get pseudonym: %w", err)
-	}
-	if pseudonym == nil {
-		return nil, nil, fmt.Errorf("pseudonym not found")
+		return nil, nil, fmt.Errorf("failed to get role keys: %w", err)
 	}
 
-	// Get pseudonym roles and capabilities (global)
-	if pseudonym.Roles.Valid {
-		rawValue, err := pseudonym.Roles.V.Value()
+	// Extract unique roles and capabilities from role keys
+	roleSet := make(map[string]bool)
+	capabilitySet := make(map[string]bool)
+
+	for _, roleKey := range roleKeys {
+		// Add role name
+		roleSet[roleKey.RoleName] = true
+
+		// Extract capabilities from JSON
+		var capabilities []string
+		rawValue, err := roleKey.Capabilities.Value()
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get pseudonym roles: %w", err)
+			continue
 		}
-		if err := json.Unmarshal(rawValue.([]byte), &roles); err != nil {
-			return nil, nil, fmt.Errorf("failed to unmarshal pseudonym roles: %w", err)
+		if err := json.Unmarshal(rawValue.([]byte), &capabilities); err != nil {
+			continue
 		}
-	} else {
-		// Default role for all pseudonyms
+		for _, capability := range capabilities {
+			capabilitySet[capability] = true
+		}
+	}
+
+	// Convert sets to slices
+	var roles []string
+	for role := range roleSet {
+		roles = append(roles, role)
+	}
+
+	var capabilities []string
+	for capability := range capabilitySet {
+		capabilities = append(capabilities, capability)
+	}
+
+	// If no roles found, default to "user"
+	if len(roles) == 0 {
 		roles = []string{"user"}
 	}
 
-	if pseudonym.Capabilities.Valid {
-		rawValue, err := pseudonym.Capabilities.V.Value()
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get pseudonym capabilities: %w", err)
-		}
-		if err := json.Unmarshal(rawValue.([]byte), &capabilities); err != nil {
-			return nil, nil, fmt.Errorf("failed to unmarshal pseudonym capabilities: %w", err)
-		}
-	} else {
-		// Default capabilities for all pseudonyms
+	// If no capabilities found, provide default capabilities
+	if len(capabilities) == 0 {
 		capabilities = []string{"create_content", "vote", "message", "report"}
 	}
 
