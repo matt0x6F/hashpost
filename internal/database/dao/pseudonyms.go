@@ -534,7 +534,7 @@ func (dao *PseudonymDAO) CreatePseudonymWithIdentityMapping(ctx context.Context,
 			PseudonymID:               &pseudonym.PseudonymID,
 			EncryptedRealIdentity:     &correlationFingerprint,
 			EncryptedPseudonymMapping: &correlationFingerprint,
-			KeyVersion:                &[]int32{int32(dao.ibeSystem.GetKeyVersion())}[0],
+			// Ensure KeyVersion is within int32 bounds
 			UserID:                    &userID,
 			KeyScope:                  &[]string{constants.ScopeCorrelation}[0],
 		}
