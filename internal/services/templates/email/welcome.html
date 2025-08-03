@@ -24,27 +24,27 @@
             <h2>{{.Subject}}</h2>
             <p>Hello {{.ToName}},</p>
             
-            {{if eq .TemplateName "welcome"}}
+            {{if eq .Data.TemplateName "welcome"}}
             <p>Welcome to HashPost! We're excited to have you join our community.</p>
             <p>Get started by exploring our forums and connecting with other users.</p>
             <a href="{{.SiteURL}}" class="button">Visit HashPost</a>
             
-            {{else if eq .TemplateName "password_reset"}}
+            {{else if eq .Data.TemplateName "password_reset"}}
             <p>We received a request to reset your password. Click the button below to create a new password:</p>
             <a href="{{.Data.reset_url}}" class="button">Reset Password</a>
             <p>If you didn't request this, you can safely ignore this email.</p>
             
-            {{else if eq .TemplateName "email_verification"}}
+            {{else if eq .Data.TemplateName "email_verification"}}
             <p>Please verify your email address by clicking the button below:</p>
             <a href="{{.Data.verification_url}}" class="button">Verify Email</a>
             
-            {{else if eq .TemplateName "notification"}}
+            {{else if eq .Data.TemplateName "notification"}}
             <p>{{.Data.message}}</p>
             {{if .Data.action_url}}
             <a href="{{.Data.action_url}}" class="button">View Details</a>
             {{end}}
             
-            {{else if eq .TemplateName "moderation_alert"}}
+            {{else if eq .Data.TemplateName "moderation_alert"}}
             <p>A moderation action has been taken on your content:</p>
             <p><strong>Action:</strong> {{.Data.action}}</p>
             <p><strong>Reason:</strong> {{.Data.reason}}</p>
