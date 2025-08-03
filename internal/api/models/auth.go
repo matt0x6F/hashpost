@@ -410,3 +410,67 @@ func NewDeactivatePseudonymResponse() *DeactivatePseudonymResponse {
 		},
 	}
 }
+
+// EmailVerificationBody represents the body of email verification request
+type EmailVerificationBody struct {
+	Token string `json:"token" example:"verification_token_here"`
+}
+
+// EmailVerificationInput represents email verification request
+type EmailVerificationInput struct {
+	Body EmailVerificationBody `json:"body"`
+}
+
+// EmailVerificationResponseBody represents the body of email verification response
+type EmailVerificationResponseBody struct {
+	Message string `json:"message" example:"Email verified successfully"`
+}
+
+// EmailVerificationResponse represents email verification response
+type EmailVerificationResponse struct {
+	Status int                           `json:"-" example:"200"`
+	Body   EmailVerificationResponseBody `json:"body"`
+}
+
+// PasswordResetRequestBody represents the body of password reset request
+type PasswordResetRequestBody struct {
+	Email string `json:"email" example:"user@example.com"`
+}
+
+// PasswordResetRequestInput represents password reset request
+type PasswordResetRequestInput struct {
+	Body PasswordResetRequestBody `json:"body"`
+}
+
+// PasswordResetRequestResponseBody represents the body of password reset request response
+type PasswordResetRequestResponseBody struct {
+	Message string `json:"message" example:"Password reset email sent"`
+}
+
+// PasswordResetRequestResponse represents password reset request response
+type PasswordResetRequestResponse struct {
+	Status int                              `json:"-" example:"200"`
+	Body   PasswordResetRequestResponseBody `json:"body"`
+}
+
+// PasswordResetBody represents the body of password reset
+type PasswordResetBody struct {
+	Token    string `json:"token" example:"reset_token_here"`
+	Password string `json:"password" example:"new_secure_password"`
+}
+
+// PasswordResetInput represents password reset request
+type PasswordResetInput struct {
+	Body PasswordResetBody `json:"body"`
+}
+
+// PasswordResetResponseBody represents the body of password reset response
+type PasswordResetResponseBody struct {
+	Message string `json:"message" example:"Password reset successfully"`
+}
+
+// PasswordResetResponse represents password reset response
+type PasswordResetResponse struct {
+	Status int                       `json:"-" example:"200"`
+	Body   PasswordResetResponseBody `json:"body"`
+}

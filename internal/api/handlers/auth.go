@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -13,26 +15,31 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/matt0x6f/hashpost/internal/api/constants"
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
-	"github.com/matt0x6f/hashpost/internal/api/models"
+	apimodels "github.com/matt0x6f/hashpost/internal/api/models"
 	"github.com/matt0x6f/hashpost/internal/api/validation"
 	"github.com/matt0x6f/hashpost/internal/config"
 	"github.com/matt0x6f/hashpost/internal/database/dao"
+	"github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/matt0x6f/hashpost/internal/ibe"
+	"github.com/matt0x6f/hashpost/internal/services"
 	"github.com/rs/zerolog/log"
 	"github.com/stephenafamo/bob"
 )
 
 // AuthHandler handles authentication requests
 type AuthHandler struct {
-	config             *config.Config
-	db                 bob.Executor
-	userDAO            dao.UserDAOInterface
-	securePseudonymDAO dao.PseudonymDAOInterface
-	identityMappingDAO dao.IdentityMappingDAOInterface
-	roleKeyDAO         dao.RoleKeyDAOInterface
-	ibeSystem          *ibe.IBESystem
-	subforumDAO        dao.SubforumDAOInterface
-	permissionDAO      dao.PermissionDAOInterface
+	config                    *config.Config
+	db                        bob.Executor
+	userDAO                   dao.UserDAOInterface
+	securePseudonymDAO        dao.PseudonymDAOInterface
+	identityMappingDAO        dao.IdentityMappingDAOInterface
+	roleKeyDAO                dao.RoleKeyDAOInterface
+	ibeSystem                 *ibe.IBESystem
+	subforumDAO               dao.SubforumDAOInterface
+	permissionDAO             dao.PermissionDAOInterface
+	emailService              *services.EmailService
+	emailVerificationTokenDAO dao.EmailVerificationTokenDAOInterface
+	passwordResetTokenDAO     dao.PasswordResetTokenDAOInterface
 }
 
 // NewAuthHandler creates a new authentication handler with optional dependencies
@@ -47,6 +54,9 @@ func NewAuthHandler(
 	ibeSystem *ibe.IBESystem,
 	subforumDAO dao.SubforumDAOInterface,
 	permissionDAO dao.PermissionDAOInterface,
+	emailService *services.EmailService,
+	emailVerificationTokenDAO dao.EmailVerificationTokenDAOInterface,
+	passwordResetTokenDAO dao.PasswordResetTokenDAOInterface,
 ) *AuthHandler {
 	// If db is provided, create real DAOs (production mode)
 	if db != nil {
@@ -78,20 +88,32 @@ func NewAuthHandler(
 	}
 
 	return &AuthHandler{
-		config:             cfg,
-		db:                 db,
-		userDAO:            userDAO,
-		securePseudonymDAO: securePseudonymDAO,
-		identityMappingDAO: identityMappingDAO,
-		roleKeyDAO:         roleKeyDAO,
-		ibeSystem:          ibeSystem,
-		subforumDAO:        subforumDAO,
-		permissionDAO:      permissionDAO,
+		config:                    cfg,
+		db:                        db,
+		userDAO:                   userDAO,
+		securePseudonymDAO:        securePseudonymDAO,
+		identityMappingDAO:        identityMappingDAO,
+		roleKeyDAO:                roleKeyDAO,
+		ibeSystem:                 ibeSystem,
+		subforumDAO:               subforumDAO,
+		permissionDAO:             permissionDAO,
+		emailService:              emailService,
+		emailVerificationTokenDAO: emailVerificationTokenDAO,
+		passwordResetTokenDAO:     passwordResetTokenDAO,
 	}
 }
 
+// generateToken generates a random token for email verification and password reset
+func (h *AuthHandler) generateToken() (string, error) {
+	bytes := make([]byte, 32)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bytes), nil
+}
+
 // RegisterUser handles user registration
-func (h *AuthHandler) RegisterUser(ctx context.Context, input *models.UserRegistrationInput) (*models.UserRegistrationResponse, error) {
+func (h *AuthHandler) RegisterUser(ctx context.Context, input *apimodels.UserRegistrationInput) (*apimodels.UserRegistrationResponse, error) {
 	log.Info().
 		Str("endpoint", "auth/register").
 		Str("component", "auth_handler").
@@ -122,7 +144,17 @@ func (h *AuthHandler) RegisterUser(ctx context.Context, input *models.UserRegist
 	// Hash password
 	hashedPassword := h.hashPassword(input.Body.Password)
 
-	// Create user
+	// Generate email verification token
+	verificationToken, err := h.generateToken()
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("email", input.Body.Email).
+			Msg("Failed to generate verification token")
+		return nil, fmt.Errorf("failed to generate verification token: %w", err)
+	}
+
+	// Create user with email verification pending
 	user, err := h.userDAO.CreateUser(ctx, input.Body.Email, hashedPassword)
 	if err != nil {
 		log.Error().
@@ -130,6 +162,34 @@ func (h *AuthHandler) RegisterUser(ctx context.Context, input *models.UserRegist
 			Str("email", input.Body.Email).
 			Msg("Failed to create user")
 		return nil, fmt.Errorf("failed to create user: %w", err)
+	}
+
+	// Store verification token
+	if h.emailVerificationTokenDAO != nil {
+		expiresAt := time.Now().Add(24 * time.Hour) // 24 hour expiration
+		err = h.emailVerificationTokenDAO.CreateToken(ctx, user.UserID, verificationToken, expiresAt)
+		if err != nil {
+			log.Error().
+				Err(err).
+				Int64("user_id", user.UserID).
+				Msg("Failed to store verification token")
+			// Don't fail registration if token storage fails, just log it
+		}
+	}
+
+	// Send verification email
+	if h.emailService != nil {
+		verificationURL := fmt.Sprintf("%s/verify-email?token=%s", h.config.Server.SiteURL, verificationToken)
+		err = h.emailService.SendEmail(ctx, "email_verification", input.Body.Email, input.Body.DisplayName, map[string]interface{}{
+			"verification_url": verificationURL,
+		})
+		if err != nil {
+			log.Error().
+				Err(err).
+				Str("email", input.Body.Email).
+				Msg("Failed to send verification email")
+			// Don't fail registration if email fails, just log it
+		}
 	}
 
 	// Create default role keys for the user
@@ -178,57 +238,268 @@ func (h *AuthHandler) RegisterUser(ctx context.Context, input *models.UserRegist
 		}
 	}
 
-	// Create user context for JWT generation
-	userCtx := &middleware.UserContext{
-		UserID:            user.UserID,
-		Email:             user.Email,
-		Roles:             roles,
-		Capabilities:      capabilities,
-		MFAEnabled:        false, // TODO: Implement MFA
-		ActivePseudonymID: pseudonym.PseudonymID,
-		DisplayName:       pseudonym.DisplayName,
-	}
-
-	// Generate JWT tokens
-	accessToken, err := middleware.GenerateJWT(userCtx, h.config.JWT.Secret, h.config.JWT.Expiration)
-	if err != nil {
-		log.Error().
-			Err(err).
-			Int64("user_id", user.UserID).
-			Msg("Failed to generate access token")
-		return nil, fmt.Errorf("failed to generate access token: %w", err)
-	}
-
-	// Generate refresh token (longer expiration)
-	refreshToken, err := middleware.GenerateJWT(userCtx, h.config.JWT.Secret, 7*24*time.Hour) // 7 days
-	if err != nil {
-		log.Error().
-			Err(err).
-			Int64("user_id", user.UserID).
-			Msg("Failed to generate refresh token")
-		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
-	}
-
 	log.Info().
 		Int64("user_id", user.UserID).
 		Str("email", input.Body.Email).
 		Str("pseudonym_id", pseudonym.PseudonymID).
 		Msg("User registered successfully")
 
-	return models.NewUserRegistrationResponse(
-		int(user.UserID),
-		user.Email,
-		roles,
-		capabilities,
-		pseudonym.PseudonymID,
-		pseudonym.DisplayName,
-		accessToken,
-		refreshToken,
-	), nil
+	// Return registration response without JWT tokens since email verification is required
+	return &apimodels.UserRegistrationResponse{
+		Status: 200,
+		Body: apimodels.UserRegistrationResponseBody{
+			UserID:       int(user.UserID),
+			Email:        user.Email,
+			CreatedAt:    time.Now().Format(time.RFC3339),
+			LastActiveAt: time.Now().Format(time.RFC3339),
+			IsActive:     true,
+			IsSuspended:  false,
+			Roles:        roles,
+			Capabilities: capabilities,
+			PseudonymID:  pseudonym.PseudonymID,
+			DisplayName:  pseudonym.DisplayName,
+			KarmaScore:   0,
+			// No JWT tokens - user must verify email first
+			AccessToken:  "",
+			RefreshToken: "",
+			ExpiresIn:    0,
+		},
+	}, nil
+}
+
+// VerifyEmail handles email verification
+func (h *AuthHandler) VerifyEmail(ctx context.Context, input *apimodels.EmailVerificationInput) (*apimodels.EmailVerificationResponse, error) {
+	log.Info().
+		Str("endpoint", "auth/verify-email").
+		Str("component", "auth_handler").
+		Msg("Processing email verification request")
+
+	// Get the token from database
+	token, err := h.emailVerificationTokenDAO.GetToken(ctx, input.Body.Token)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("token", input.Body.Token).
+			Msg("Failed to get verification token")
+		return nil, fmt.Errorf("invalid verification token")
+	}
+
+	if token == nil {
+		log.Warn().
+			Str("token", input.Body.Token).
+			Msg("Verification token not found")
+		return nil, huma.Error400BadRequest("invalid verification token")
+	}
+
+	// Check if token is expired
+	if time.Now().After(token.ExpiresAt) {
+		log.Warn().
+			Str("token", input.Body.Token).
+			Time("expires_at", token.ExpiresAt).
+			Msg("Verification token expired")
+		return nil, huma.Error400BadRequest("verification token expired")
+	}
+
+	// Check if token is already used
+	if token.UsedAt.Valid {
+		log.Warn().
+			Str("token", input.Body.Token).
+			Msg("Verification token already used")
+		return nil, huma.Error400BadRequest("verification token already used")
+	}
+
+	// Mark token as used
+	err = h.emailVerificationTokenDAO.MarkTokenAsUsed(ctx, input.Body.Token)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("token", input.Body.Token).
+			Msg("Failed to mark token as used")
+		return nil, fmt.Errorf("failed to mark token as used: %w", err)
+	}
+
+	// Mark user's email as verified
+	emailVerified := sql.Null[bool]{}
+	emailVerified.Scan(true)
+
+	userUpdates := &models.UserSetter{
+		EmailVerified: &emailVerified,
+	}
+
+	err = h.userDAO.UpdateUser(ctx, token.UserID, userUpdates)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Int64("user_id", token.UserID).
+			Msg("Failed to mark user email as verified")
+		return nil, fmt.Errorf("failed to mark email as verified: %w", err)
+	}
+
+	log.Info().
+		Str("token", input.Body.Token).
+		Int64("user_id", token.UserID).
+		Msg("Email verification completed")
+
+	return &apimodels.EmailVerificationResponse{
+		Status: 200,
+		Body: apimodels.EmailVerificationResponseBody{
+			Message: "Email verified successfully",
+		},
+	}, nil
+}
+
+// RequestPasswordReset handles password reset requests
+func (h *AuthHandler) RequestPasswordReset(ctx context.Context, input *apimodels.PasswordResetRequestInput) (*apimodels.PasswordResetRequestResponse, error) {
+	log.Info().
+		Str("endpoint", "auth/request-password-reset").
+		Str("component", "auth_handler").
+		Msg("Processing password reset request")
+
+	// Validate email
+	if err := validation.ValidateEmail(input.Body.Email); err != nil {
+		return nil, huma.Error422UnprocessableEntity(err.Error())
+	}
+
+	// Check if user exists
+	user, err := h.userDAO.GetUserByEmail(ctx, input.Body.Email)
+	if err != nil || user == nil {
+		// Don't reveal if user exists or not for security
+		log.Info().
+			Str("email", input.Body.Email).
+			Msg("Password reset requested for non-existent user")
+		return &apimodels.PasswordResetRequestResponse{
+			Status: 200,
+			Body: apimodels.PasswordResetRequestResponseBody{
+				Message: "If an account with this email exists, a password reset link has been sent",
+			},
+		}, nil
+	}
+
+	// Generate reset token
+	resetToken, err := h.generateToken()
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("email", input.Body.Email).
+			Msg("Failed to generate reset token")
+		return nil, fmt.Errorf("failed to generate reset token: %w", err)
+	}
+
+	// Store reset token in database with expiration
+	expiresAt := time.Now().Add(1 * time.Hour) // Token expires in 1 hour
+	err = h.passwordResetTokenDAO.CreateToken(ctx, user.UserID, resetToken, expiresAt)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("email", input.Body.Email).
+			Msg("Failed to store reset token")
+		return nil, fmt.Errorf("failed to store reset token: %w", err)
+	}
+
+	// Send password reset email
+	if h.emailService != nil {
+		resetURL := fmt.Sprintf("%s/reset-password/confirm?token=%s", h.config.Server.SiteURL, resetToken)
+		err = h.emailService.SendEmail(ctx, "password_reset", input.Body.Email, user.Email, map[string]interface{}{
+			"reset_url": resetURL,
+		})
+		if err != nil {
+			log.Error().
+				Err(err).
+				Str("email", input.Body.Email).
+				Msg("Failed to send password reset email")
+			return nil, fmt.Errorf("failed to send password reset email: %w", err)
+		}
+	}
+
+	log.Info().
+		Str("email", input.Body.Email).
+		Msg("Password reset email sent")
+
+	return &apimodels.PasswordResetRequestResponse{
+		Status: 200,
+		Body: apimodels.PasswordResetRequestResponseBody{
+			Message: "If an account with this email exists, a password reset link has been sent",
+		},
+	}, nil
+}
+
+// ResetPassword handles password reset
+func (h *AuthHandler) ResetPassword(ctx context.Context, input *apimodels.PasswordResetInput) (*apimodels.PasswordResetResponse, error) {
+	log.Info().
+		Str("endpoint", "auth/reset-password").
+		Str("component", "auth_handler").
+		Msg("Processing password reset")
+
+	// Validate new password
+	if err := validation.ValidatePassword(input.Body.Password, h.config.Security.PasswordValidation); err != nil {
+		return nil, huma.Error422UnprocessableEntity(err.Error())
+	}
+
+	// Verify and get the reset token
+	resetToken, err := h.passwordResetTokenDAO.GetToken(ctx, input.Body.Token)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("token", input.Body.Token).
+			Msg("Failed to retrieve reset token")
+		return nil, fmt.Errorf("failed to verify reset token: %w", err)
+	}
+
+	if resetToken == nil {
+		return nil, huma.Error400BadRequest("Invalid or expired reset token")
+	}
+
+	// Check if token has expired
+	if time.Now().After(resetToken.ExpiresAt) {
+		return nil, huma.Error400BadRequest("Reset token has expired")
+	}
+
+	// Check if token has already been used
+	if resetToken.UsedAt.Valid {
+		return nil, huma.Error400BadRequest("Reset token has already been used")
+	}
+
+	// Hash the new password
+	hashedPassword := h.hashPassword(input.Body.Password)
+
+	// Update user's password
+	userUpdates := &models.UserSetter{
+		PasswordHash: &hashedPassword,
+	}
+	err = h.userDAO.UpdateUser(ctx, resetToken.UserID, userUpdates)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Int64("user_id", resetToken.UserID).
+			Msg("Failed to update user password")
+		return nil, fmt.Errorf("failed to update password: %w", err)
+	}
+
+	// Mark token as used
+	err = h.passwordResetTokenDAO.MarkTokenAsUsed(ctx, input.Body.Token)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("token", input.Body.Token).
+			Msg("Failed to mark reset token as used")
+		// Don't fail the request if marking as used fails
+	}
+
+	log.Info().
+		Str("token", input.Body.Token).
+		Int64("user_id", resetToken.UserID).
+		Msg("Password reset completed")
+
+	return &apimodels.PasswordResetResponse{
+		Status: 200,
+		Body: apimodels.PasswordResetResponseBody{
+			Message: "Password reset successfully",
+		},
+	}, nil
 }
 
 // LoginUser handles user login
-func (h *AuthHandler) LoginUser(ctx context.Context, input *models.UserLoginInput) (*models.UserLoginResponse, error) {
+func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginInput) (*apimodels.UserLoginResponse, error) {
 	log.Info().
 		Str("endpoint", "auth/login").
 		Str("component", "auth_handler").
@@ -280,6 +551,15 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *models.UserLoginInpu
 			Int64("user_id", user.UserID).
 			Msg("User account is suspended")
 		return nil, fmt.Errorf("account suspended")
+	}
+
+	// Check if email is verified
+	if !user.EmailVerified.Valid || !user.EmailVerified.V {
+		log.Warn().
+			Int64("user_id", user.UserID).
+			Str("email", user.Email).
+			Msg("User attempted to login with unverified email")
+		return nil, fmt.Errorf("email not verified. Please check your email and click the verification link before logging in")
 	}
 
 	// Verify password (in a real app, you'd use bcrypt.CompareHashAndPassword)
@@ -353,7 +633,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *models.UserLoginInpu
 	}
 
 	// Convert to API models
-	pseudonymInfos := make([]models.PseudonymInfo, len(pseudonyms))
+	pseudonymInfos := make([]apimodels.PseudonymInfo, len(pseudonyms))
 	for i, p := range pseudonyms {
 		karmaScore := 0
 		if p.KarmaScore.Valid {
@@ -375,7 +655,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *models.UserLoginInpu
 			isActive = p.IsActive.V
 		}
 
-		pseudonymInfos[i] = models.PseudonymInfo{
+		pseudonymInfos[i] = apimodels.PseudonymInfo{
 			PseudonymID:  p.PseudonymID,
 			DisplayName:  p.DisplayName,
 			KarmaScore:   karmaScore,
@@ -435,7 +715,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *models.UserLoginInpu
 		Bool("jwt_development", h.config.JWT.Development).
 		Msg("User logged in successfully - creating response with cookies")
 
-	response := models.NewUserLoginResponse(
+	response := apimodels.NewUserLoginResponse(
 		accessToken,
 		refreshToken, // Include refresh token in response
 		int(user.UserID),
@@ -455,7 +735,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *models.UserLoginInpu
 }
 
 // LogoutUser handles user logout
-func (h *AuthHandler) LogoutUser(ctx context.Context, input *models.UserLogoutInput) (*models.UserLogoutResponse, error) {
+func (h *AuthHandler) LogoutUser(ctx context.Context, input *apimodels.UserLogoutInput) (*apimodels.UserLogoutResponse, error) {
 	log.Info().
 		Str("endpoint", "auth/logout").
 		Str("component", "auth_handler").
@@ -481,7 +761,7 @@ func (h *AuthHandler) LogoutUser(ctx context.Context, input *models.UserLogoutIn
 
 	log.Info().Msg("User logged out successfully - clearing cookies")
 
-	return models.NewUserLogoutResponse(h.config.JWT.Development), nil
+	return apimodels.NewUserLogoutResponse(h.config.JWT.Development), nil
 }
 
 // validateJWT validates and parses a JWT token
@@ -509,8 +789,8 @@ func (h *AuthHandler) validateJWT(tokenString string) (*middleware.JWTClaims, er
 // RefreshToken handles token refresh
 func (h *AuthHandler) RefreshToken(ctx context.Context, input *struct {
 	RefreshToken string `cookie:"refresh_token"`
-	Body         models.RefreshTokenBody
-}) (*models.TokenRefreshResponse, error) {
+	Body         apimodels.RefreshTokenBody
+}) (*apimodels.TokenRefreshResponse, error) {
 	log.Info().
 		Str("endpoint", "auth/refresh").
 		Str("component", "auth_handler").
@@ -528,7 +808,7 @@ func (h *AuthHandler) RefreshToken(ctx context.Context, input *struct {
 		log.Warn().
 			Err(err).
 			Msg("Invalid refresh token provided")
-		return nil, fmt.Errorf("invalid refresh token: %w", err)
+		return nil, huma.Error401Unauthorized("Invalid or missing refresh token")
 	}
 
 	// Create user context from the refresh token claims
@@ -557,7 +837,7 @@ func (h *AuthHandler) RefreshToken(ctx context.Context, input *struct {
 		Msg("Token refreshed successfully")
 
 	// Return new token response with cookie
-	return models.NewTokenRefreshResponse(newAccessToken, int(h.config.JWT.Expiration.Seconds()), h.config.JWT.Development), nil
+	return apimodels.NewTokenRefreshResponse(newAccessToken, int(h.config.JWT.Expiration.Seconds()), h.config.JWT.Development), nil
 }
 
 // hashPassword hashes a password using SHA-256
@@ -574,7 +854,7 @@ func (h *AuthHandler) verifyPassword(password, hash string) bool {
 }
 
 // GetCurrentUserSession handles getting the current user's session data
-func (h *AuthHandler) GetCurrentUserSession(ctx context.Context, input *middleware.AuthInput) (*models.CurrentUserSessionResponse, error) {
+func (h *AuthHandler) GetCurrentUserSession(ctx context.Context, input *middleware.AuthInput) (*apimodels.CurrentUserSessionResponse, error) {
 	log.Info().
 		Str("endpoint", "auth/me").
 		Str("component", "auth_handler").
@@ -647,7 +927,7 @@ func (h *AuthHandler) GetCurrentUserSession(ctx context.Context, input *middlewa
 	}
 
 	// Convert to API models
-	pseudonymInfos := make([]models.PseudonymInfo, len(pseudonyms))
+	pseudonymInfos := make([]apimodels.PseudonymInfo, len(pseudonyms))
 	for i, p := range pseudonyms {
 		karmaScore := 0
 		if p.KarmaScore.Valid {
@@ -669,7 +949,7 @@ func (h *AuthHandler) GetCurrentUserSession(ctx context.Context, input *middlewa
 			isActive = p.IsActive.V
 		}
 
-		pseudonymInfos[i] = models.PseudonymInfo{
+		pseudonymInfos[i] = apimodels.PseudonymInfo{
 			PseudonymID:  p.PseudonymID,
 			DisplayName:  p.DisplayName,
 			KarmaScore:   karmaScore,
@@ -719,7 +999,7 @@ func (h *AuthHandler) GetCurrentUserSession(ctx context.Context, input *middlewa
 		Str("active_pseudonym_id", activePseudonymID).
 		Msg("Current user session data retrieved successfully")
 
-	return models.NewCurrentUserSessionResponse(
+	return apimodels.NewCurrentUserSessionResponse(
 		userID,
 		userCtx.Email,
 		activeRoles,
@@ -734,7 +1014,7 @@ func (h *AuthHandler) GetCurrentUserSession(ctx context.Context, input *middlewa
 func (h *AuthHandler) GetCurrentUserSessionForSubforum(ctx context.Context, input *struct {
 	middleware.AuthInput
 	SubforumName string `path:"subforum_name"`
-}) (*models.CurrentUserSessionResponse, error) {
+}) (*apimodels.CurrentUserSessionResponse, error) {
 	log.Info().
 		Str("endpoint", "auth/me/subforum").
 		Str("component", "auth_handler").
@@ -854,7 +1134,7 @@ func (h *AuthHandler) GetCurrentUserSessionForSubforum(ctx context.Context, inpu
 	}
 
 	// Convert to API models
-	pseudonymInfos := make([]models.PseudonymInfo, len(pseudonyms))
+	pseudonymInfos := make([]apimodels.PseudonymInfo, len(pseudonyms))
 	for i, p := range pseudonyms {
 		karmaScore := 0
 		if p.KarmaScore.Valid {
@@ -876,7 +1156,7 @@ func (h *AuthHandler) GetCurrentUserSessionForSubforum(ctx context.Context, inpu
 			isActive = p.IsActive.V
 		}
 
-		pseudonymInfos[i] = models.PseudonymInfo{
+		pseudonymInfos[i] = apimodels.PseudonymInfo{
 			PseudonymID:  p.PseudonymID,
 			DisplayName:  p.DisplayName,
 			KarmaScore:   karmaScore,
@@ -921,7 +1201,7 @@ func (h *AuthHandler) GetCurrentUserSessionForSubforum(ctx context.Context, inpu
 		Int("subforum_capabilities", len(subforumCapabilities)).
 		Msg("Current user session data for subforum retrieved successfully")
 
-	return models.NewCurrentUserSessionResponse(
+	return apimodels.NewCurrentUserSessionResponse(
 		userID,
 		userCtx.Email,
 		allRoles,        // Use the updated roles array that includes subforum-specific roles
@@ -935,8 +1215,8 @@ func (h *AuthHandler) GetCurrentUserSessionForSubforum(ctx context.Context, inpu
 // SwitchPseudonym handles switching the user's active pseudonym
 func (h *AuthHandler) SwitchPseudonym(ctx context.Context, input *struct {
 	middleware.AuthInput
-	models.SwitchPseudonymInput
-}) (*models.SwitchPseudonymResponse, error) {
+	apimodels.SwitchPseudonymInput
+}) (*apimodels.SwitchPseudonymResponse, error) {
 	log.Info().
 		Str("endpoint", "auth/switch-pseudonym").
 		Str("component", "auth_handler").
@@ -1028,14 +1308,14 @@ func (h *AuthHandler) SwitchPseudonym(ctx context.Context, input *struct {
 		Str("new_pseudonym_id", input.Body.PseudonymID).
 		Msg("Pseudonym switched successfully")
 
-	return models.NewSwitchPseudonymResponse(accessToken, h.config.JWT.Expiration, h.config.JWT.Development), nil
+	return apimodels.NewSwitchPseudonymResponse(accessToken, h.config.JWT.Expiration, h.config.JWT.Development), nil
 }
 
 // DeactivatePseudonym handles deactivating a pseudonym owned by the current user
 func (h *AuthHandler) DeactivatePseudonym(ctx context.Context, input *struct {
 	middleware.AuthInput
-	models.DeactivatePseudonymInput
-}) (*models.DeactivatePseudonymResponse, error) {
+	apimodels.DeactivatePseudonymInput
+}) (*apimodels.DeactivatePseudonymResponse, error) {
 	log.Info().
 		Str("endpoint", "auth/deactivate-pseudonym").
 		Str("component", "auth_handler").
@@ -1080,7 +1360,7 @@ func (h *AuthHandler) DeactivatePseudonym(ctx context.Context, input *struct {
 		Str("pseudonym_id", input.Body.PseudonymID).
 		Msg("Pseudonym deactivated successfully")
 
-	return models.NewDeactivatePseudonymResponse(), nil
+	return apimodels.NewDeactivatePseudonymResponse(), nil
 }
 
 // contains checks if a slice contains a string

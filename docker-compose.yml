@@ -90,6 +90,8 @@ services:
       IBE_KEY_ROTATION_ENABLED: false
       IBE_KEY_ROTATION_INTERVAL: 8760h
       IBE_KEY_ROTATION_GRACE_PERIOD: 720h
+    env_file:
+      - .env
     depends_on:
       postgres:
         condition: service_healthy

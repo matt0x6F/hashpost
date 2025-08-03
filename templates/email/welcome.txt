@@ -1,0 +1,51 @@
+HashPost - {{.Subject}}
+
+Hello {{.ToName}},
+
+{{if eq .Data.TemplateName "welcome"}}
+Welcome to HashPost! We're excited to have you join our community.
+
+Get started by exploring our forums and connecting with other users.
+
+Visit HashPost: {{.SiteURL}}
+
+{{else if eq .Data.TemplateName "password_reset"}}
+We received a request to reset your password. Click the link below to create a new password:
+
+{{.Data.reset_url}}
+
+If you didn't request this, you can safely ignore this email.
+
+{{else if eq .Data.TemplateName "email_verification"}}
+Please verify your email address by clicking the link below:
+
+{{.Data.verification_url}}
+
+{{else if eq .Data.TemplateName "notification"}}
+{{.Data.message}}
+
+{{if .Data.action_url}}
+View Details: {{.Data.action_url}}
+{{end}}
+
+{{else if eq .Data.TemplateName "moderation_alert"}}
+A moderation action has been taken on your content:
+
+Action: {{.Data.action}}
+Reason: {{.Data.reason}}
+
+{{if .Data.appeal_url}}
+If you believe this action was taken in error, you can appeal:
+{{.Data.appeal_url}}
+{{end}}
+
+{{else}}
+{{.Data.message}}
+{{end}}
+
+---
+This email was sent from HashPost.
+
+{{if .UnsubscribeURL}}
+To unsubscribe, visit: {{.UnsubscribeURL}}
+{{end}}

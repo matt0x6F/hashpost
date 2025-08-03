@@ -18,6 +18,7 @@ type Config struct {
 	JWT      JWTConfig
 	Security SecurityConfig
 	CORS     CORSConfig
+	Email    EmailConfig
 }
 
 // DatabaseConfig holds database connection configuration
@@ -41,6 +42,7 @@ type ServerConfig struct {
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
 	IdleTimeout  time.Duration
+	SiteURL      string // Base URL for the application (e.g., "https://hashpost.com")
 }
 
 // LoggingConfig holds logging configuration
@@ -96,6 +98,22 @@ type PasswordValidationConfig struct {
 	DisallowCommon     bool // Disallow common passwords
 }
 
+// EmailConfig holds email service configuration
+type EmailConfig struct {
+	Provider    string // "mailgun" or other providers in the future
+	FromAddress string
+	FromName    string
+	MailGun     MailGunConfig
+}
+
+// MailGunConfig holds MailGun-specific configuration
+type MailGunConfig struct {
+	Domain        string
+	SendingAPIKey string // API key for sending emails
+	BaseURL       string
+	Region        string // "us" or "eu"
+}
+
 // Load loads configuration from environment variables
 func Load() (*Config, error) {
 	config := &Config{
@@ -117,6 +135,7 @@ func Load() (*Config, error) {
 			ReadTimeout:  getEnvAsDuration("SERVER_READ_TIMEOUT", 30*time.Second),
 			WriteTimeout: getEnvAsDuration("SERVER_WRITE_TIMEOUT", 30*time.Second),
 			IdleTimeout:  getEnvAsDuration("SERVER_IDLE_TIMEOUT", 60*time.Second),
+			SiteURL:      getEnv("SERVER_SITE_URL", "https://hashpost.com"),
 		},
 		Logging: LoggingConfig{
 			Level:      getEnv("LOG_LEVEL", "info"),
@@ -159,6 +178,17 @@ func Load() (*Config, error) {
 			AllowedHeaders:   getEnvAsSlice("CORS_ALLOWED_HEADERS", []string{"Authorization", "Content-Type"}),
 			AllowCredentials: getEnvAsBool("CORS_ALLOW_CREDENTIALS", true),
 			MaxAge:           getEnvAsInt("CORS_MAX_AGE", 300),
+		},
+		Email: EmailConfig{
+			Provider:    getEnv("EMAIL_PROVIDER", "mailgun"),
+			FromAddress: getEnv("EMAIL_FROM_ADDRESS", "noreply@hashpost.com"),
+			FromName:    getEnv("EMAIL_FROM_NAME", "HashPost"),
+			MailGun: MailGunConfig{
+				Domain:        getEnv("MAILGUN_DOMAIN", ""),
+				SendingAPIKey: getEnv("MAILGUN_SENDING_API_KEY", ""),
+				BaseURL:       getEnv("MAILGUN_BASE_URL", "https://api.mailgun.net"),
+				Region:        getEnv("MAILGUN_REGION", "us"),
+			},
 		},
 	}
 

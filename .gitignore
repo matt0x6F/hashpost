@@ -1,5 +1,6 @@
 # Project specific files
 reports/
+.env
 
 # Binaries for programs and plugins
 *.exe

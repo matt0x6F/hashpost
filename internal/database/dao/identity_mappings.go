@@ -79,6 +79,20 @@ func (dao *IdentityMappingDAO) UpdateIdentityMapping(ctx context.Context, mappin
 	return nil
 }
 
+// DeleteByUserID deletes all identity mappings for a specific user
+func (dao *IdentityMappingDAO) DeleteByUserID(ctx context.Context, userID int64) error {
+	// Delete all identity mappings where user_id matches the user ID
+	_, err := models.IdentityMappings.Delete(
+		models.DeleteWhere.IdentityMappings.UserID.EQ(userID),
+	).Exec(ctx, dao.db)
+
+	if err != nil {
+		return fmt.Errorf("failed to delete identity mappings for user %d: %w", userID, err)
+	}
+
+	return nil
+}
+
 // DeactivateIdentityMapping marks an identity mapping as inactive
 func (dao *IdentityMappingDAO) DeactivateIdentityMapping(ctx context.Context, mappingID string) error {
 	isActive := sql.Null[bool]{}

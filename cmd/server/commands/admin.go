@@ -41,6 +41,13 @@ type SetModeratorInput struct {
 	NonInteractive bool   `doc:"Non-interactive mode (requires all flags)" json:"non_interactive"`
 }
 
+// DeleteUserInput defines the input for deleting a user
+type DeleteUserInput struct {
+	Email          string `doc:"Email address of the user to delete" json:"email"`
+	NonInteractive bool   `doc:"Non-interactive mode (requires all flags)" json:"non_interactive"`
+	Force          bool   `doc:"Force deletion without confirmation" json:"force"`
+}
+
 // CreateAdminUser creates a new admin user
 func CreateAdminUser() error {
 	// Load configuration
@@ -251,8 +258,7 @@ func CreateAdminUser() error {
 	}
 
 	// Create a pseudonym for the admin user with identity mapping
-	userBlocksDAO := dao.NewUserBlocksDAO(db)
-	securePseudonymDAO := dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
+	securePseudonymDAO := dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO, dao.NewUserDAO(db), dao.NewRoleKeyDAO(db), dao.NewUserBlocksDAO(db))
 
 	// Use display name for pseudonym (it's required)
 	displayName := input.DisplayName
@@ -410,6 +416,135 @@ func SetModerator() error {
 	return nil
 }
 
+// DeleteUser deletes a user and all associated data
+func DeleteUser() error {
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	// Create database connection
+	db, err := database.NewConnection(&cfg.Database)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	// Get delete user input
+	input := getDeleteUserInput()
+
+	// Validate input
+	if err := validateDeleteUserInput(input); err != nil {
+		return fmt.Errorf("invalid input: %w", err)
+	}
+
+	// Create DAOs
+	userDAO := dao.NewUserDAO(db)
+	roleKeyDAO := dao.NewRoleKeyDAO(db)
+	identityMappingDAO := dao.NewIdentityMappingDAO(db)
+	userBlocksDAO := dao.NewUserBlocksDAO(db)
+	securePseudonymDAO := dao.NewPseudonymDAO(db, ibe.NewIBESystemFromEnv(), identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
+	emailVerificationTokenDAO := dao.NewEmailVerificationTokenDAO(db)
+	passwordResetTokenDAO := dao.NewPasswordResetTokenDAO(db)
+
+	// Find the user
+	ctx := context.Background()
+	user, err := userDAO.GetUserByEmail(ctx, input.Email)
+	if err != nil {
+		return fmt.Errorf("failed to find user: %w", err)
+	}
+
+	if user == nil {
+		return fmt.Errorf("user with email %s not found", input.Email)
+	}
+
+	// Show user info and ask for confirmation
+	log.Info().
+		Int64("user_id", user.UserID).
+		Str("email", user.Email).
+		Msg("Found user to delete")
+
+	if !input.Force && !input.NonInteractive {
+		fmt.Printf("Are you sure you want to delete user %s (ID: %d)? This action cannot be undone. (y/N): ", input.Email, user.UserID)
+		var response string
+		fmt.Scanln(&response)
+		if strings.ToLower(strings.TrimSpace(response)) != "y" {
+			fmt.Println("Deletion cancelled.")
+			return nil
+		}
+	}
+
+	// Start transaction for atomic deletion
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			tx.Rollback(ctx)
+		}
+	}()
+
+	// Delete in the correct order to respect foreign key constraints:
+	// 1. Email verification tokens
+	// 2. Password reset tokens
+	// 3. Pseudonyms (before identity mappings since pseudonym deletion depends on them)
+	// 4. Identity mappings
+	// 5. Role keys
+	// 6. User
+
+	log.Info().Msg("Starting user deletion process...")
+
+	// 1. Delete email verification tokens
+	if err := emailVerificationTokenDAO.DeleteTokensByUserID(ctx, user.UserID); err != nil {
+		return fmt.Errorf("failed to delete email verification tokens: %w", err)
+	}
+	log.Info().Msg("Deleted email verification tokens")
+
+	// 2. Delete password reset tokens
+	if err := passwordResetTokenDAO.DeleteTokensByUserID(ctx, user.UserID); err != nil {
+		return fmt.Errorf("failed to delete password reset tokens: %w", err)
+	}
+	log.Info().Msg("Deleted password reset tokens")
+
+	// 3. Delete pseudonyms (before identity mappings since pseudonym deletion depends on them)
+	if err := securePseudonymDAO.DeleteByUserID(ctx, user.UserID); err != nil {
+		return fmt.Errorf("failed to delete pseudonyms: %w", err)
+	}
+	log.Info().Msg("Deleted pseudonyms")
+
+	// 4. Delete identity mappings
+	if err := identityMappingDAO.DeleteByUserID(ctx, user.UserID); err != nil {
+		return fmt.Errorf("failed to delete identity mappings: %w", err)
+	}
+	log.Info().Msg("Deleted identity mappings")
+
+	// 5. Delete role keys
+	if err := roleKeyDAO.DeleteByUserID(ctx, user.UserID); err != nil {
+		return fmt.Errorf("failed to delete role keys: %w", err)
+	}
+	log.Info().Msg("Deleted role keys")
+
+	// 6. Delete user
+	if err := userDAO.DeleteUser(ctx, user.UserID); err != nil {
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+	log.Info().Msg("Deleted user")
+
+	// Commit transaction
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	log.Info().
+		Int64("user_id", user.UserID).
+		Str("email", input.Email).
+		Msg("User deleted successfully")
+
+	fmt.Printf("User %s (ID: %d) has been deleted successfully.\n", input.Email, user.UserID)
+	return nil
+}
+
 // getAdminCreateInput prompts for admin user creation input
 func getAdminCreateInput() *AdminCreateInput {
 	input := &AdminCreateInput{}
@@ -561,6 +696,58 @@ func getSetModeratorInput() *SetModeratorInput {
 	return input
 }
 
+// getDeleteUserInput prompts for user deletion input
+func getDeleteUserInput() *DeleteUserInput {
+	input := &DeleteUserInput{}
+
+	// Check if we're in non-interactive mode
+	cmd := cobra.Command{}
+	cmd.Flags().String("email", "", "")
+	cmd.Flags().Bool("force", false, "")
+	cmd.Flags().Bool("non-interactive", false, "")
+
+	// Parse flags from os.Args
+	if err := cmd.ParseFlags(os.Args[1:]); err != nil {
+		log.Fatal().Err(err).Msg("failed to parse flags")
+	}
+
+	nonInteractive, _ := cmd.Flags().GetBool("non-interactive")
+
+	if nonInteractive {
+		// Non-interactive mode - get values from flags
+		email, _ := cmd.Flags().GetString("email")
+		force, _ := cmd.Flags().GetBool("force")
+
+		if email == "" {
+			log.Fatal().Msg("email is required in non-interactive mode")
+		}
+
+		input.Email = email
+		input.Force = force
+		input.NonInteractive = true
+
+		return input
+	}
+
+	// Interactive mode
+	fmt.Println("Delete User")
+	fmt.Println("===========")
+
+	fmt.Print("Email: ")
+	if _, err := fmt.Scanln(&input.Email); err != nil {
+		log.Fatal().Err(err).Msg("failed to read email")
+	}
+
+	fmt.Print("Force deletion without confirmation (y/N) [N]: ")
+	var forceInput string
+	if _, err := fmt.Scanln(&forceInput); err != nil {
+		log.Fatal().Err(err).Msg("failed to read force input")
+	}
+	input.Force = forceInput != "n" && forceInput != "N"
+
+	return input
+}
+
 // getPasswordInput prompts for a password with hidden input
 func getPasswordInput(prompt string) string {
 	fmt.Print(prompt)
@@ -648,6 +835,15 @@ func validateSetModeratorInput(input *SetModeratorInput) error {
 	}
 	if len(subforumName) > 50 {
 		return fmt.Errorf("subforum name must be 50 characters or less")
+	}
+
+	return nil
+}
+
+// validateDeleteUserInput validates the delete user input
+func validateDeleteUserInput(input *DeleteUserInput) error {
+	if input.Email == "" {
+		return fmt.Errorf("email is required")
 	}
 
 	return nil

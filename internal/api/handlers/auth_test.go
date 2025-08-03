@@ -53,7 +53,8 @@ func NewAuthHandlerWithMocks() (*handlers.AuthHandler, *mocks.MockUserDAO, *mock
 	ibeSystem := ibe.NewIBESystemWithOptions(ibe.IBEOptions{})
 
 	// Create handler with the SAME mock instances that we return
-	handler := handlers.NewAuthHandler(cfg, nil, mockUserDAO, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockRoleKeyDAO, ibeSystem, mockSubforumDAO, mockPermissionDAO)
+	// Note: Email service and token DAOs are nil for tests since we're not testing email functionality
+	handler := handlers.NewAuthHandler(cfg, nil, mockUserDAO, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockRoleKeyDAO, ibeSystem, mockSubforumDAO, mockPermissionDAO, nil, nil, nil)
 
 	// Return the SAME mock instances that the handler is using
 	return handler, mockUserDAO, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockRoleKeyDAO, mockSubforumDAO, mockPermissionDAO
@@ -2029,6 +2030,9 @@ func TestAuthHandler_NewAuthHandler(t *testing.T) {
 			mockIBESystem,
 			mockSubforumDAO,
 			mockPermissionDAO,
+			nil, // Email service
+			nil, // Email verification token DAO
+			nil, // Password reset token DAO
 		)
 
 		// Verify handler was created successfully
@@ -2062,6 +2066,9 @@ func TestAuthHandler_NewAuthHandlerWithDependencies(t *testing.T) {
 			mockIBESystem,
 			mockSubforumDAO,
 			mockPermissionDAO,
+			nil, // Email service
+			nil, // Email verification token DAO
+			nil, // Password reset token DAO
 		)
 
 		// Verify handler is created

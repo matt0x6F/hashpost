@@ -54,6 +54,9 @@ func NewAuthHandlerWithMocks() (*AuthHandler, *mocks.MockUserDAO, *mocks.MockSec
 		ibeSystem,
 		mockSubforumDAO,
 		mockPermissionDAO,
+		nil, // Email service
+		nil, // Email verification token DAO
+		nil, // Password reset token DAO
 	)
 
 	return handler, mockUserDAO, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockRoleKeyDAO, mockSubforumDAO, mockPermissionDAO
