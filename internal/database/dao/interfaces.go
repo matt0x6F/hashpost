@@ -57,7 +57,7 @@ type RoleKeyDAOInterface interface {
 	DeactivateRoleKey(ctx context.Context, keyID string) error
 	ValidateKeyCapability(ctx context.Context, pseudonymID string, scope, requiredCapability string, subforumID *int32) (bool, error)
 	GetKeyData(ctx context.Context, pseudonymID string, scope string, subforumID *int32) ([]byte, error)
-	EnsureDefaultKeys(ctx context.Context, ibeSystem interface{}, pseudonymID string) error
+	EnsureDefaultKeys(ctx context.Context, ibeSystem interface{}, pseudonymID string, userRoles []string) error
 	DeleteByPseudonymID(ctx context.Context, pseudonymID string) error
 }
 

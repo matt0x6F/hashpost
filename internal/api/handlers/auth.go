@@ -202,7 +202,7 @@ func (h *AuthHandler) RegisterUser(ctx context.Context, input *apimodels.UserReg
 		return nil, fmt.Errorf("failed to create default pseudonym: %w", err)
 	}
 
-	if err := h.roleKeyDAO.EnsureDefaultKeys(ctx, h.ibeSystem, defaultPseudonym.PseudonymID); err != nil {
+	if err := h.roleKeyDAO.EnsureDefaultKeys(ctx, h.ibeSystem, defaultPseudonym.PseudonymID, []string{"user"}); err != nil {
 		log.Error().
 			Err(err).
 			Int64("user_id", user.UserID).

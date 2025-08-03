@@ -65,7 +65,7 @@ func (dao *PseudonymDAO) GetPseudonymsByUserID(ctx context.Context, userID int64
 func (dao *PseudonymDAO) GetPseudonymsByRealIdentity(ctx context.Context, realIdentity string, roleName, scope string) ([]*models.Pseudonym, error) {
 	// This is a privileged operation that requires admin-level access
 	// We'll validate using a system-level pseudonym check
-	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, "system-admin", scope, constants.CapabilityAccessAllPseudonyms, nil)
+	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, constants.SystemPseudonymID, scope, constants.CapabilityAccessAllPseudonyms, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate key capability: %w", err)
 	}
@@ -110,7 +110,7 @@ func (dao *PseudonymDAO) VerifyPseudonymOwnership(ctx context.Context, pseudonym
 func (dao *PseudonymDAO) GetRealIdentityByPseudonym(ctx context.Context, pseudonymID string, roleName, scope string) (string, error) {
 	// This is a privileged operation that requires admin-level access
 	// We'll validate using a system-level pseudonym check
-	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, "system-admin", scope, constants.CapabilityCrossUserCorrelation, nil)
+	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, constants.SystemPseudonymID, scope, constants.CapabilityCrossUserCorrelation, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to validate key capability: %w", err)
 	}
@@ -120,7 +120,7 @@ func (dao *PseudonymDAO) GetRealIdentityByPseudonym(ctx context.Context, pseudon
 	}
 
 	// Get the role key for this operation using system admin
-	keyData, err := dao.roleKeyDAO.GetKeyData(ctx, "system-admin", scope, nil)
+	keyData, err := dao.roleKeyDAO.GetKeyData(ctx, constants.SystemPseudonymID, scope, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to get role key: %w", err)
 	}
@@ -448,7 +448,7 @@ func (dao *PseudonymDAO) CreatePseudonymWithIdentityMapping(ctx context.Context,
 
 	// Get authentication role key from the database
 	// Since we're creating a new pseudonym, we need to use a system-level key for initial setup
-	authenticationKeyData, err := dao.roleKeyDAO.GetKeyData(ctx, "system-admin", "authentication", nil)
+	authenticationKeyData, err := dao.roleKeyDAO.GetKeyData(ctx, constants.SystemPseudonymID, "authentication", nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get authentication role key: %w", err)
 	}
@@ -477,7 +477,7 @@ func (dao *PseudonymDAO) CreatePseudonymWithIdentityMapping(ctx context.Context,
 
 	// Get self-correlation role key from the database
 	// Since we're creating a new pseudonym, we need to use a system-level key for initial setup
-	selfCorrelationKeyData, err := dao.roleKeyDAO.GetKeyData(ctx, "system-admin", constants.ScopeSelfCorrelation, nil)
+	selfCorrelationKeyData, err := dao.roleKeyDAO.GetKeyData(ctx, constants.SystemPseudonymID, constants.ScopeSelfCorrelation, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get self-correlation role key: %w", err)
 	}
@@ -517,7 +517,7 @@ func (dao *PseudonymDAO) CreatePseudonymWithIdentityMapping(ctx context.Context,
 	if isAdminRole {
 		// Get correlation key for admin role
 		// Since we're creating a new pseudonym, we need to use a system-level key for initial setup
-		correlationKeyData, err := dao.roleKeyDAO.GetKeyData(ctx, "system-admin", constants.ScopeCorrelation, nil)
+		correlationKeyData, err := dao.roleKeyDAO.GetKeyData(ctx, constants.SystemPseudonymID, constants.ScopeCorrelation, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get correlation role key: %w", err)
 		}
@@ -622,7 +622,7 @@ func (dao *PseudonymDAO) GetUserIDByPseudonym(ctx context.Context, pseudonymID, 
 
 	// This is a privileged operation that requires admin-level access
 	// We'll validate using a system-level pseudonym check
-	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, "system-admin", scope, constants.CapabilityCrossUserCorrelation, nil)
+	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, constants.SystemPseudonymID, scope, constants.CapabilityCrossUserCorrelation, nil)
 	if err != nil {
 		return 0, fmt.Errorf("failed to validate key capability: %w", err)
 	}

@@ -98,8 +98,8 @@ func (s *RoleKeyService) ValidateUserAccess(ctx context.Context, userID int64, p
 }
 
 // EnsureDefaultKeys ensures that default role keys exist in the database
-func (s *RoleKeyService) EnsureDefaultKeys(ctx context.Context, pseudonymID string) error {
-	return s.roleKeyDAO.EnsureDefaultKeys(ctx, s.ibeSystem, pseudonymID)
+func (s *RoleKeyService) EnsureDefaultKeys(ctx context.Context, pseudonymID string, userRoles []string) error {
+	return s.roleKeyDAO.EnsureDefaultKeys(ctx, s.ibeSystem, pseudonymID, userRoles)
 }
 
 // ListUserKeys lists all role keys that a user can access
@@ -137,9 +137,8 @@ func (s *RoleKeyService) DeactivateKey(ctx context.Context, keyID string) error 
 }
 
 // GetKeyCapabilities returns the capabilities of a specific role key
-func (s *RoleKeyService) GetKeyCapabilities(ctx context.Context, roleName, scope string) ([]string, error) {
-	// Note: This needs to be updated to use actual pseudonym ID when the calling code is updated
-	roleKey, err := s.roleKeyDAO.GetRoleKey(ctx, "", scope, nil)
+func (s *RoleKeyService) GetKeyCapabilities(ctx context.Context, pseudonymID, scope string) ([]string, error) {
+	roleKey, err := s.roleKeyDAO.GetRoleKey(ctx, pseudonymID, scope, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get role key: %w", err)
 	}

@@ -218,35 +218,14 @@ func (dao *RoleKeyDAO) GetKeyData(ctx context.Context, pseudonymID string, scope
 }
 
 // EnsureDefaultKeys creates default role keys if they don't exist
-func (dao *RoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interface{}, pseudonymID string) error {
+func (dao *RoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interface{}, pseudonymID string, userRoles []string) error {
 	// Type assert to get the IBE system
 	ibe, ok := ibeSystem.(*ibe.IBESystem)
 	if !ok {
 		return fmt.Errorf("invalid IBE system type")
 	}
 
-	// Get the pseudonym to determine user roles
-	pseudonym, err := models.FindPseudonym(ctx, dao.db, pseudonymID)
-	if err != nil {
-		return fmt.Errorf("failed to get pseudonym %s: %w", pseudonymID, err)
-	}
-	if pseudonym == nil {
-		return fmt.Errorf("pseudonym %s not found", pseudonymID)
-	}
-
-	// Get the user's roles from the pseudonym's roles field
-	var userRoles []string
-	if pseudonym.Roles.Valid {
-		rolesBytes, err := pseudonym.Roles.V.Value()
-		if err != nil {
-			return fmt.Errorf("failed to get pseudonym roles value: %w", err)
-		}
-		if err := json.Unmarshal(rolesBytes.([]byte), &userRoles); err != nil {
-			return fmt.Errorf("failed to unmarshal pseudonym roles: %w", err)
-		}
-	}
-
-	// If no roles found, default to "user"
+	// If no roles provided, default to "user"
 	if len(userRoles) == 0 {
 		userRoles = []string{"user"}
 	}

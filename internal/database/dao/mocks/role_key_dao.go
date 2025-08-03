@@ -89,7 +89,7 @@ func (m *MockRoleKeyDAO) GetKeyData(ctx context.Context, pseudonymID string, sco
 	return args.Get(0).([]byte), args.Error(1)
 }
 
-func (m *MockRoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interface{}, pseudonymID string) error {
-	args := m.Called(ctx, ibeSystem, pseudonymID)
+func (m *MockRoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interface{}, pseudonymID string, userRoles []string) error {
+	args := m.Called(ctx, ibeSystem, pseudonymID, userRoles)
 	return args.Error(0)
 }

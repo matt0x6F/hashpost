@@ -305,7 +305,7 @@ func CreateAdminUser() error {
 
 	// Ensure default role keys for the admin user's pseudonym
 	roleKeyDAO := dao.NewRoleKeyDAO(db)
-	if err := roleKeyDAO.EnsureDefaultKeys(ctx, ibeSystem, pseudonym.PseudonymID); err != nil {
+	if err := roleKeyDAO.EnsureDefaultKeys(ctx, ibeSystem, pseudonym.PseudonymID, []string{input.AdminRole}); err != nil {
 		return fmt.Errorf("failed to create default role keys for admin user: %w", err)
 	}
 
@@ -416,7 +416,7 @@ func SetModerator() error {
 		keyData := ibeSystem.GenerateRoleKey(constants.RoleModerator, scope, time.Now().AddDate(1, 0, 0))
 
 		// Store the role key
-		_, err = roleKeyDAO.CreateRoleKey(ctx, constants.RoleModerator, scope, keyData, capabilities, time.Now().AddDate(1, 0, 0), "system-admin", input.PseudonymID, &subforum.SubforumID)
+		_, err = roleKeyDAO.CreateRoleKey(ctx, constants.RoleModerator, scope, keyData, capabilities, time.Now().AddDate(1, 0, 0), constants.SystemPseudonymID, input.PseudonymID, &subforum.SubforumID)
 		if err != nil {
 			return fmt.Errorf("failed to create role key for scope %s: %w", scope, err)
 		}
