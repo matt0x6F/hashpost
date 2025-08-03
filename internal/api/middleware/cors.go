@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 	"strings"
+	"strconv"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/matt0x6f/hashpost/internal/config"
@@ -26,7 +27,7 @@ func CORSMiddleware(corsConfig *config.CORSConfig) func(huma.Context, func(huma.
 			ctx.SetHeader("Access-Control-Allow-Credentials", "true")
 		}
 
-		ctx.SetHeader("Access-Control-Max-Age", string(rune(corsConfig.MaxAge)))
+		ctx.SetHeader("Access-Control-Max-Age", strconv.Itoa(corsConfig.MaxAge))
 
 		// Handle preflight OPTIONS requests
 		if ctx.Method() == "OPTIONS" {
@@ -60,7 +61,7 @@ func CORSMiddlewareHTTP(corsConfig *config.CORSConfig) func(http.Handler) http.H
 				w.Header().Set("Access-Control-Allow-Credentials", "true")
 			}
 
-			w.Header().Set("Access-Control-Max-Age", string(rune(corsConfig.MaxAge)))
+			w.Header().Set("Access-Control-Max-Age", strconv.Itoa(corsConfig.MaxAge))
 
 			// Handle preflight OPTIONS requests
 			if r.Method == "OPTIONS" {
