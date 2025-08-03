@@ -75,10 +75,11 @@ func TestAuthHandler_Login(t *testing.T) {
 		// Mock user lookup - use the actual password hash that the handler expects
 		hashedPassword := hashPasswordSHA256(testPassword)
 		mockUser := &dbmodels.User{
-			UserID:       testUserID,
-			Email:        testEmail,
-			PasswordHash: hashedPassword,
-			IsActive:     sql.Null[bool]{V: true, Valid: true},
+			UserID:        testUserID,
+			Email:         testEmail,
+			PasswordHash:  hashedPassword,
+			IsActive:      sql.Null[bool]{V: true, Valid: true},
+			EmailVerified: sql.Null[bool]{V: true, Valid: true},
 		}
 		mockUserDAO.On("GetUserByEmail", mock.Anything, testEmail).Return(mockUser, nil)
 		mockUserDAO.On("UpdateLastActive", mock.Anything, testUserID).Return(nil)
@@ -154,10 +155,11 @@ func TestAuthHandler_Login(t *testing.T) {
 		// Mock user lookup - use the actual password hash
 		hashedPassword := hashPasswordSHA256(testPassword)
 		mockUser := &dbmodels.User{
-			UserID:       testUserID,
-			Email:        testEmail,
-			PasswordHash: hashedPassword,
-			IsActive:     sql.Null[bool]{V: true, Valid: true},
+			UserID:        testUserID,
+			Email:         testEmail,
+			PasswordHash:  hashedPassword,
+			IsActive:      sql.Null[bool]{V: true, Valid: true},
+			EmailVerified: sql.Null[bool]{V: true, Valid: true},
 		}
 		mockUserDAO.On("GetUserByEmail", mock.Anything, testEmail).Return(mockUser, nil)
 
@@ -235,11 +237,12 @@ func TestAuthHandler_Login(t *testing.T) {
 		rolesNull := sql.Null[types.JSON[json.RawMessage]]{}
 		rolesNull.Scan(rolesJSON)
 		mockUser := &dbmodels.User{
-			UserID:       testUserID,
-			Email:        testEmail,
-			PasswordHash: hashedPassword,
-			IsActive:     sql.Null[bool]{V: true, Valid: true},
-			Roles:        rolesNull,
+			UserID:        testUserID,
+			Email:         testEmail,
+			PasswordHash:  hashedPassword,
+			IsActive:      sql.Null[bool]{V: true, Valid: true},
+			EmailVerified: sql.Null[bool]{V: true, Valid: true},
+			Roles:         rolesNull,
 		}
 		mockUserDAO.On("GetUserByEmail", mock.Anything, testEmail).Return(mockUser, nil)
 		mockUserDAO.On("UpdateLastActive", mock.Anything, testUserID).Return(nil)
@@ -329,8 +332,9 @@ func TestAuthHandler_Registration(t *testing.T) {
 		assert.NotNil(t, response)
 		assert.Equal(t, testEmail, response.Body.Email)
 		assert.Equal(t, int(testUserID), response.Body.UserID)
-		assert.NotEmpty(t, response.Body.AccessToken)
-		assert.NotEmpty(t, response.Body.RefreshToken)
+		// Registration no longer returns tokens - user must verify email first
+		assert.Empty(t, response.Body.AccessToken)
+		assert.Empty(t, response.Body.RefreshToken)
 		assert.Equal(t, testPseudonymID, response.Body.PseudonymID)
 		assert.Equal(t, testDisplayName, response.Body.DisplayName)
 		assert.Len(t, response.Body.Roles, 1)
