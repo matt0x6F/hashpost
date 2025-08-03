@@ -237,14 +237,36 @@ func (h *AuthHandler) RegisterUser(ctx context.Context, input *apimodels.UserReg
 		}
 	}
 
-	// Get pseudonym capabilities
-	if pseudonym.Capabilities.Valid {
-		rawValue, err := pseudonym.Capabilities.V.Value()
-		if err == nil {
-			var pseudonymCapabilities []string
-			if err := json.Unmarshal(rawValue.([]byte), &pseudonymCapabilities); err == nil && len(pseudonymCapabilities) > 0 {
-				capabilities = pseudonymCapabilities
+	// Get pseudonym capabilities from role keys
+	roleKeys, err := h.roleKeyDAO.ListRoleKeysByPseudonym(ctx, pseudonym.PseudonymID)
+	if err == nil {
+		capabilitySet := make(map[string]bool)
+		for _, roleKey := range roleKeys {
+			// Skip subforum-specific keys for registration
+			if roleKey.SubforumID.Valid {
+				continue
 			}
+
+			// Extract capabilities from JSON
+			rawValue, err := roleKey.Capabilities.Value()
+			if err == nil {
+				var roleCapabilities []string
+				if err := json.Unmarshal(rawValue.([]byte), &roleCapabilities); err == nil {
+					for _, capability := range roleCapabilities {
+						capabilitySet[capability] = true
+					}
+				}
+			}
+		}
+
+		// Convert set to slice
+		var pseudonymCapabilities []string
+		for capability := range capabilitySet {
+			pseudonymCapabilities = append(pseudonymCapabilities, capability)
+		}
+
+		if len(pseudonymCapabilities) > 0 {
+			capabilities = pseudonymCapabilities
 		}
 	}
 
