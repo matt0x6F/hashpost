@@ -203,8 +203,6 @@ ALTER TABLE role_keys ALTER COLUMN pseudonym_id SET NOT NULL;
 ALTER TABLE role_keys ADD CONSTRAINT role_keys_created_by_fkey 
 FOREIGN KEY (created_by) REFERENCES pseudonyms(pseudonym_id);
 
--- Step 13: Drop the old subforum_moderators table
-DROP TABLE subforum_moderators;
 
 -- +migrate Down
 -- Revert the migration by dropping the new columns and restoring the old structure
