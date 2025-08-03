@@ -696,10 +696,6 @@ func LoadDomainMastersFromDir(dir string) (map[string][]byte, error) {
 	return domainMasters, nil
 }
 
-
-
-
-
 // SaveDomainMastersToDir saves all domain masters to a directory
 func (ibe *IBESystem) SaveDomainMastersToDir(dir string) error {
 	if err := os.MkdirAll(dir, 0755); err != nil {

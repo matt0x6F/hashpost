@@ -279,28 +279,7 @@ func CreateAdminUser() error {
 			return fmt.Errorf("failed to create pseudonym for admin user: %w", err)
 		}
 
-		// Set admin capabilities on the pseudonym
-		capabilities := getCapabilitiesForRole(input.AdminRole)
-		capabilitiesJSON, err := json.Marshal(capabilities)
-		if err != nil {
-			return fmt.Errorf("failed to marshal capabilities: %w", err)
-		}
-
-		capabilitiesNull := sql.Null[types.JSON[json.RawMessage]]{}
-		if err := capabilitiesNull.Scan(capabilitiesJSON); err != nil {
-			return fmt.Errorf("failed to scan capabilities: %w", err)
-		}
-
-		// Update the pseudonym with admin capabilities
-		pseudonymUpdates := &models.PseudonymSetter{
-			Capabilities: &capabilitiesNull,
-		}
-
-		if err := pseudonymDAO.UpdatePseudonym(ctx, pseudonym.PseudonymID, pseudonymUpdates); err != nil {
-			return fmt.Errorf("failed to update pseudonym with admin capabilities: %w", err)
-		}
-
-		log.Info().Str("pseudonym_id", pseudonym.PseudonymID).Msg("Created new pseudonym with admin capabilities")
+		log.Info().Str("pseudonym_id", pseudonym.PseudonymID).Msg("Created new pseudonym")
 	}
 
 	// Ensure default role keys for the admin user's pseudonym

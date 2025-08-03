@@ -294,31 +294,31 @@ func (dao *PermissionDAO) HasSubforumCapabilityWithActivePseudonym(ctx context.C
 	// Check if the active pseudonym has platform-wide capabilities through role keys
 	roleKeys, err := dao.roleKeyDAO.ListRoleKeysByPseudonym(ctx, activePseudonymID)
 	if err != nil {
-		log.Debug().Err(err).Msg("Failed to get role keys for pseudonym")
-	} else {
-		for _, roleKey := range roleKeys {
-			// Skip subforum-specific keys (we already checked those above)
-			if roleKey.SubforumID.Valid {
-				continue
-			}
+		return false, fmt.Errorf("failed to get role keys for pseudonym: %w", err)
+	}
 
-			// Check capabilities from this role key
-			capabilitiesBytes, err := roleKey.Capabilities.Value()
-			if err == nil && capabilitiesBytes != nil {
-				if bytes, ok := capabilitiesBytes.([]byte); ok {
-					var capabilities []string
-					if err := json.Unmarshal(bytes, &capabilities); err == nil {
-						for _, cap := range capabilities {
-							if cap == capability {
-								log.Debug().
-									Int64("user_id", userID).
-									Int32("subforum_id", subforumID).
-									Str("pseudonym_id", activePseudonymID).
-									Str("capability", capability).
-									Str("role", roleKey.RoleName).
-									Msg("Active pseudonym has platform-wide capability through role key")
-								return true, nil
-							}
+	for _, roleKey := range roleKeys {
+		// Skip subforum-specific keys (we already checked those above)
+		if roleKey.SubforumID.Valid {
+			continue
+		}
+
+		// Check capabilities from this role key
+		capabilitiesBytes, err := roleKey.Capabilities.Value()
+		if err == nil && capabilitiesBytes != nil {
+			if bytes, ok := capabilitiesBytes.([]byte); ok {
+				var capabilities []string
+				if err := json.Unmarshal(bytes, &capabilities); err == nil {
+					for _, cap := range capabilities {
+						if cap == capability {
+							log.Debug().
+								Int64("user_id", userID).
+								Int32("subforum_id", subforumID).
+								Str("pseudonym_id", activePseudonymID).
+								Str("capability", capability).
+								Str("role", roleKey.RoleName).
+								Msg("Active pseudonym has platform-wide capability through role key")
+							return true, nil
 						}
 					}
 				}

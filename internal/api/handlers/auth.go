@@ -239,7 +239,9 @@ func (h *AuthHandler) RegisterUser(ctx context.Context, input *apimodels.UserReg
 
 	// Get pseudonym capabilities from role keys
 	roleKeys, err := h.roleKeyDAO.ListRoleKeysByPseudonym(ctx, pseudonym.PseudonymID)
-	if err == nil {
+	if err != nil {
+		log.Warn().Err(err).Str("pseudonym_id", pseudonym.PseudonymID).Msg("Failed to get role keys for pseudonym, using default capabilities")
+	} else {
 		capabilitySet := make(map[string]bool)
 		for _, roleKey := range roleKeys {
 			// Skip subforum-specific keys for registration
