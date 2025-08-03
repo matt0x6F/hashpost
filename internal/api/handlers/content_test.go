@@ -19,12 +19,12 @@ import (
 )
 
 // NewContentHandlerWithMocks creates a new content handler with mock DAOs and fixture data
-func NewContentHandlerWithMocks() (*ContentHandler, *mocks.MockPostDAO, *mocks.MockCommentDAO, *mocks.MockVoteDAO, *mocks.MockSubforumDAO, *mocks.MockSecurePseudonymDAO, *mocks.MockPermissionDAO, *mocks.MockReportDAO) {
+func NewContentHandlerWithMocks() (*ContentHandler, *mocks.MockPostDAO, *mocks.MockCommentDAO, *mocks.MockVoteDAO, *mocks.MockSubforumDAO, *mocks.MockPseudonymDAO, *mocks.MockPermissionDAO, *mocks.MockReportDAO) {
 	mockPostDAO := mocks.NewMockPostDAO()
 	mockCommentDAO := mocks.NewMockCommentDAO()
 	mockVoteDAO := mocks.NewMockVoteDAO()
 	mockSubforumDAO := mocks.NewMockSubforumDAO()
-	mockSecurePseudonymDAO := mocks.NewMockSecurePseudonymDAO()
+	mockPseudonymDAO := mocks.NewMockPseudonymDAO()
 	mockUserDAO := &mocks.MockUserDAO{}
 	mockIdentityMappingDAO := &mocks.MockIdentityMappingDAO{}
 	mockUserBlocksDAO := &mocks.MockUserBlocksDAO{}
@@ -54,7 +54,7 @@ func NewContentHandlerWithMocks() (*ContentHandler, *mocks.MockPostDAO, *mocks.M
 		mockPostDAO,
 		mockCommentDAO,
 		mockSubforumDAO,
-		mockSecurePseudonymDAO,
+		mockPseudonymDAO,
 		mockVoteDAO,
 		mockUserBlocksDAO,
 		mockRoleKeyDAO,
@@ -63,7 +63,7 @@ func NewContentHandlerWithMocks() (*ContentHandler, *mocks.MockPostDAO, *mocks.M
 		mockReportDAO,
 	)
 
-	return handler, mockPostDAO, mockCommentDAO, mockVoteDAO, mockSubforumDAO, mockSecurePseudonymDAO, mockPermissionDAO, mockReportDAO
+	return handler, mockPostDAO, mockCommentDAO, mockVoteDAO, mockSubforumDAO, mockPseudonymDAO, mockPermissionDAO, mockReportDAO
 }
 
 // TestContentHandler_VoteOnPost_PreventsVotingOnDeletedPost tests that voting on deleted posts is prevented
@@ -156,7 +156,7 @@ func TestContentHandler_VoteOnComment_PreventsVotingOnDeletedComment(t *testing.
 
 // TestContentHandler_DeletePost_HandlesDeletedPostResponse tests that the delete post response has the correct structure
 func TestContentHandler_DeletePost_HandlesDeletedPostResponse(t *testing.T) {
-	handler, mockPostDAO, _, _, _, mockSecurePseudonymDAO, _, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, _, _, _, mockPseudonymDAO, _, _ := NewContentHandlerWithMocks()
 
 	// Create a test post
 	testPost := fixtures.CreateTestPost()
@@ -172,8 +172,8 @@ func TestContentHandler_DeletePost_HandlesDeletedPostResponse(t *testing.T) {
 		PseudonymID: "test-pseudonym-id",
 		DisplayName: "TestUser",
 	}
-	mockSecurePseudonymDAO.InjectPseudonym(testPseudonym)
-	mockSecurePseudonymDAO.SetDefaultBehavior()
+	mockPseudonymDAO.InjectPseudonym(testPseudonym)
+	mockPseudonymDAO.SetDefaultBehavior()
 
 	// Don't set up default behavior for PostDAO since we only need the specific method
 
@@ -218,7 +218,7 @@ func TestContentHandler_DeletePost_HandlesDeletedPostResponse(t *testing.T) {
 
 // TestContentHandler_DeleteComment_HandlesDeletedCommentResponse tests that the delete comment response has the correct structure
 func TestContentHandler_DeleteComment_HandlesDeletedCommentResponse(t *testing.T) {
-	handler, _, mockCommentDAO, _, _, mockSecurePseudonymDAO, _, _ := NewContentHandlerWithMocks()
+	handler, _, mockCommentDAO, _, _, mockPseudonymDAO, _, _ := NewContentHandlerWithMocks()
 
 	// Create a test comment
 	testComment := fixtures.CreateTestComment()
@@ -234,8 +234,8 @@ func TestContentHandler_DeleteComment_HandlesDeletedCommentResponse(t *testing.T
 		PseudonymID: "test-pseudonym-id",
 		DisplayName: "TestUser",
 	}
-	mockSecurePseudonymDAO.InjectPseudonym(testPseudonym)
-	mockSecurePseudonymDAO.SetDefaultBehavior()
+	mockPseudonymDAO.InjectPseudonym(testPseudonym)
+	mockPseudonymDAO.SetDefaultBehavior()
 
 	// Create a valid JWT token for testing
 	userCtx := fixtures.CreateTestUserContext()
@@ -2152,7 +2152,7 @@ func TestContentHandler_NewContentHandler(t *testing.T) {
 		mockCommentDAO := mocks.NewMockCommentDAO()
 		mockVoteDAO := mocks.NewMockVoteDAO()
 		mockSubforumDAO := mocks.NewMockSubforumDAO()
-		mockSecurePseudonymDAO := mocks.NewMockSecurePseudonymDAO()
+		mockPseudonymDAO := mocks.NewMockPseudonymDAO()
 		mockUserDAO := &mocks.MockUserDAO{}
 		mockIdentityMappingDAO := &mocks.MockIdentityMappingDAO{}
 		mockUserBlocksDAO := &mocks.MockUserBlocksDAO{}
@@ -2173,7 +2173,7 @@ func TestContentHandler_NewContentHandler(t *testing.T) {
 			mockPostDAO,
 			mockCommentDAO,
 			mockSubforumDAO,
-			mockSecurePseudonymDAO,
+			mockPseudonymDAO,
 			mockVoteDAO,
 			mockUserBlocksDAO,
 			mockRoleKeyDAO,
@@ -2189,7 +2189,7 @@ func TestContentHandler_NewContentHandler(t *testing.T) {
 		assert.Equal(t, mockCommentDAO, handler.commentDAO)
 		assert.Equal(t, mockVoteDAO, handler.voteDAO)
 		assert.Equal(t, mockSubforumDAO, handler.subforumDAO)
-		assert.Equal(t, mockSecurePseudonymDAO, handler.securePseudonymDAO)
+		assert.Equal(t, mockPseudonymDAO, handler.pseudonymDAO)
 		assert.Equal(t, mockPermissionDAO, handler.permissionDAO)
 	})
 }

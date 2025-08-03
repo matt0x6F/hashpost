@@ -18,9 +18,9 @@ import (
 )
 
 // Helper function to create a test UserHandler with mocks
-func NewUserHandlerWithMocks() (*UserHandler, *mocks.MockUserDAO, *mocks.MockSecurePseudonymDAO, *mocks.MockUserPreferencesDAO, *mocks.MockUserBlocksDAO, *mocks.MockPostDAO, *mocks.MockCommentDAO) {
+func NewUserHandlerWithMocks() (*UserHandler, *mocks.MockUserDAO, *mocks.MockPseudonymDAO, *mocks.MockUserPreferencesDAO, *mocks.MockUserBlocksDAO, *mocks.MockPostDAO, *mocks.MockCommentDAO) {
 	mockUserDAO := &mocks.MockUserDAO{}
-	mockSecurePseudonymDAO := mocks.NewMockSecurePseudonymDAO()
+	mockPseudonymDAO := mocks.NewMockPseudonymDAO()
 	mockUserPreferencesDAO := &mocks.MockUserPreferencesDAO{}
 	mockUserBlocksDAO := &mocks.MockUserBlocksDAO{}
 	mockPostDAO := mocks.NewMockPostDAO()
@@ -31,7 +31,7 @@ func NewUserHandlerWithMocks() (*UserHandler, *mocks.MockUserDAO, *mocks.MockSec
 	handler := NewUserHandler(
 		nil, // nil db for testing
 		mockUserDAO,
-		mockSecurePseudonymDAO,
+		mockPseudonymDAO,
 		mockUserPreferencesDAO,
 		mockUserBlocksDAO,
 		mockPostDAO,
@@ -39,11 +39,11 @@ func NewUserHandlerWithMocks() (*UserHandler, *mocks.MockUserDAO, *mocks.MockSec
 		ibeSystem,
 	)
 
-	return handler, mockUserDAO, mockSecurePseudonymDAO, mockUserPreferencesDAO, mockUserBlocksDAO, mockPostDAO, mockCommentDAO
+	return handler, mockUserDAO, mockPseudonymDAO, mockUserPreferencesDAO, mockUserBlocksDAO, mockPostDAO, mockCommentDAO
 }
 
 func TestUserHandler_GetPseudonymProfile(t *testing.T) {
-	handler, _, mockSecurePseudonymDAO, _, _, mockPostDAO, mockCommentDAO := NewUserHandlerWithMocks()
+	handler, _, mockPseudonymDAO, _, _, mockPostDAO, mockCommentDAO := NewUserHandlerWithMocks()
 
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
@@ -57,7 +57,7 @@ func TestUserHandler_GetPseudonymProfile(t *testing.T) {
 		testPseudonym := fixtures.CreateTestPseudonym()
 
 		// Set up mock expectations
-		mockSecurePseudonymDAO.On("GetPseudonymByID", ctx, pseudonymID).Return(testPseudonym, nil)
+		mockPseudonymDAO.On("GetPseudonymByID", ctx, pseudonymID).Return(testPseudonym, nil)
 		mockPostDAO.On("CountPostsByPseudonym", ctx, pseudonymID).Return(int64(5), nil)
 		mockCommentDAO.On("CountCommentsByPseudonym", ctx, pseudonymID).Return(int64(10), nil)
 
@@ -83,7 +83,7 @@ func TestUserHandler_GetPseudonymProfile(t *testing.T) {
 		require.True(t, result.Body.AllowDirectMessages)
 
 		// Verify mock expectations
-		mockSecurePseudonymDAO.AssertExpectations(t)
+		mockPseudonymDAO.AssertExpectations(t)
 		mockPostDAO.AssertExpectations(t)
 		mockCommentDAO.AssertExpectations(t)
 	})
@@ -93,7 +93,7 @@ func TestUserHandler_GetPseudonymProfile(t *testing.T) {
 		pseudonymID := "non-existent-pseudonym"
 
 		// Set up mock expectations
-		mockSecurePseudonymDAO.On("GetPseudonymByID", ctx, pseudonymID).Return(nil, nil)
+		mockPseudonymDAO.On("GetPseudonymByID", ctx, pseudonymID).Return(nil, nil)
 
 		// Create input
 		input := &apimodels.PseudonymIDPathParam{
@@ -109,7 +109,7 @@ func TestUserHandler_GetPseudonymProfile(t *testing.T) {
 		require.Contains(t, err.Error(), "pseudonym not found")
 
 		// Verify mock expectations
-		mockSecurePseudonymDAO.AssertExpectations(t)
+		mockPseudonymDAO.AssertExpectations(t)
 	})
 
 	t.Run("PseudonymInactive", func(t *testing.T) {
@@ -121,7 +121,7 @@ func TestUserHandler_GetPseudonymProfile(t *testing.T) {
 		inactivePseudonym.IsActive = sql.Null[bool]{V: false, Valid: true}
 
 		// Set up mock expectations
-		mockSecurePseudonymDAO.On("GetPseudonymByID", ctx, pseudonymID).Return(inactivePseudonym, nil)
+		mockPseudonymDAO.On("GetPseudonymByID", ctx, pseudonymID).Return(inactivePseudonym, nil)
 
 		// Create input
 		input := &apimodels.PseudonymIDPathParam{
@@ -137,12 +137,12 @@ func TestUserHandler_GetPseudonymProfile(t *testing.T) {
 		require.Contains(t, err.Error(), "pseudonym is inactive")
 
 		// Verify mock expectations
-		mockSecurePseudonymDAO.AssertExpectations(t)
+		mockPseudonymDAO.AssertExpectations(t)
 	})
 }
 
 func TestUserHandler_CreatePseudonym(t *testing.T) {
-	handler, mockUserDAO, mockSecurePseudonymDAO, _, _, _, _ := NewUserHandlerWithMocks()
+	handler, mockUserDAO, mockPseudonymDAO, _, _, _, _ := NewUserHandlerWithMocks()
 
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
@@ -157,10 +157,10 @@ func TestUserHandler_CreatePseudonym(t *testing.T) {
 		testPseudonym.DisplayName = "NewPseudonym"
 
 		// Set up mock expectations
-		mockSecurePseudonymDAO.On("GetPseudonymByDisplayName", ctx, "NewPseudonym").Return(nil, nil)
-		mockSecurePseudonymDAO.On("CreatePseudonymWithIdentityMapping", ctx, int64(1), "NewPseudonym").Return(testPseudonym, nil)
-		mockSecurePseudonymDAO.On("UpdatePseudonym", ctx, "test-pseudonym-id", mock.AnythingOfType("*models.PseudonymSetter")).Return(nil)
-		mockSecurePseudonymDAO.On("GetPseudonymByID", ctx, "test-pseudonym-id").Return(testPseudonym, nil)
+		mockPseudonymDAO.On("GetPseudonymByDisplayName", ctx, "NewPseudonym").Return(nil, nil)
+		mockPseudonymDAO.On("CreatePseudonymWithIdentityMapping", ctx, int64(1), "NewPseudonym").Return(testPseudonym, nil)
+		mockPseudonymDAO.On("UpdatePseudonym", ctx, "test-pseudonym-id", mock.AnythingOfType("*models.PseudonymSetter")).Return(nil)
+		mockPseudonymDAO.On("GetPseudonymByID", ctx, "test-pseudonym-id").Return(testPseudonym, nil)
 
 		// Generate JWT token
 		token, err := middleware.GenerateJWT(userCtx, "test-secret", 24*time.Hour)
@@ -196,7 +196,7 @@ func TestUserHandler_CreatePseudonym(t *testing.T) {
 
 		// Verify mock expectations
 		mockUserDAO.AssertExpectations(t)
-		mockSecurePseudonymDAO.AssertExpectations(t)
+		mockPseudonymDAO.AssertExpectations(t)
 	})
 
 	t.Run("DisplayNameAlreadyTaken", func(t *testing.T) {
@@ -207,7 +207,7 @@ func TestUserHandler_CreatePseudonym(t *testing.T) {
 		existingPseudonym := fixtures.CreateTestPseudonym()
 
 		// Set up mock expectations
-		mockSecurePseudonymDAO.On("GetPseudonymByDisplayName", ctx, "ExistingPseudonym").Return(existingPseudonym, nil)
+		mockPseudonymDAO.On("GetPseudonymByDisplayName", ctx, "ExistingPseudonym").Return(existingPseudonym, nil)
 
 		// Generate JWT token
 		token, err := middleware.GenerateJWT(userCtx, "test-secret", 24*time.Hour)
@@ -242,7 +242,7 @@ func TestUserHandler_CreatePseudonym(t *testing.T) {
 
 		// Verify mock expectations
 		mockUserDAO.AssertExpectations(t)
-		mockSecurePseudonymDAO.AssertExpectations(t)
+		mockPseudonymDAO.AssertExpectations(t)
 	})
 }
 
@@ -269,10 +269,10 @@ func TestUserHandler_GetUserProfile(t *testing.T) {
 
 		// Set up mock expectations
 		mockUserDAO := &mocks.MockUserDAO{}
-		mockSecurePseudonymDAO := mocks.NewMockSecurePseudonymDAO()
+		mockPseudonymDAO := mocks.NewMockPseudonymDAO()
 
 		mockUserDAO.On("GetUserByID", mock.Anything, int64(1)).Return(testUser, nil)
-		mockSecurePseudonymDAO.On("GetPseudonymsByUserID", mock.Anything, int64(1), "user", "authentication").Return([]*models.Pseudonym{testPseudonym}, nil)
+		mockPseudonymDAO.On("GetPseudonymsByUserID", mock.Anything, int64(1), "user", "authentication").Return([]*models.Pseudonym{testPseudonym}, nil)
 
 		// Create mock PostDAO and CommentDAO
 		mockPostDAO := mocks.NewMockPostDAO()
@@ -286,7 +286,7 @@ func TestUserHandler_GetUserProfile(t *testing.T) {
 		handler := NewUserHandler(
 			nil, // nil db for testing
 			mockUserDAO,
-			mockSecurePseudonymDAO,
+			mockPseudonymDAO,
 			nil, // Mock UserPreferencesDAO
 			nil, // Mock UserBlocksDAO
 			mockPostDAO,
@@ -320,7 +320,7 @@ func TestUserHandler_GetUserProfile(t *testing.T) {
 
 		// Verify mock expectations
 		mockUserDAO.AssertExpectations(t)
-		mockSecurePseudonymDAO.AssertExpectations(t)
+		mockPseudonymDAO.AssertExpectations(t)
 	})
 }
 
@@ -329,7 +329,7 @@ func TestNewUserHandler(t *testing.T) {
 	t.Run("NewUserHandlerSuccess", func(t *testing.T) {
 		// Create mock dependencies
 		mockUserDAO := &mocks.MockUserDAO{}
-		mockSecurePseudonymDAO := &mocks.MockSecurePseudonymDAO{}
+		mockPseudonymDAO := &mocks.MockPseudonymDAO{}
 		mockUserPreferencesDAO := &mocks.MockUserPreferencesDAO{}
 		mockUserBlocksDAO := &mocks.MockUserBlocksDAO{}
 		mockPostDAO := &mocks.MockPostDAO{}
@@ -340,7 +340,7 @@ func TestNewUserHandler(t *testing.T) {
 		handler := NewUserHandler(
 			nil, // nil db for testing
 			mockUserDAO,
-			mockSecurePseudonymDAO,
+			mockPseudonymDAO,
 			mockUserPreferencesDAO,
 			mockUserBlocksDAO,
 			mockPostDAO,

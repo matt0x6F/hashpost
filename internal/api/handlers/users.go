@@ -21,7 +21,7 @@ import (
 // UserHandler handles user management requests
 type UserHandler struct {
 	userDAO            dao.UserDAOInterface
-	securePseudonymDAO dao.PseudonymDAOInterface
+	pseudonymDAO       dao.PseudonymDAOInterface
 	userPreferencesDAO dao.UserPreferencesDAOInterface
 	userBlocksDAO      dao.UserBlocksDAOInterface
 	postDAO            dao.PostDAOInterface
@@ -34,7 +34,7 @@ type UserHandler struct {
 func NewUserHandler(
 	db bob.Executor,
 	userDAO dao.UserDAOInterface,
-	securePseudonymDAO dao.PseudonymDAOInterface,
+	pseudonymDAO dao.PseudonymDAOInterface,
 	userPreferencesDAO dao.UserPreferencesDAOInterface,
 	userBlocksDAO dao.UserBlocksDAOInterface,
 	postDAO dao.PostDAOInterface,
@@ -61,7 +61,7 @@ func NewUserHandler(
 			return nil
 		}
 
-		securePseudonymDAO = dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO, userDAOImpl, roleKeyDAO, userBlocksDAOImpl)
+		pseudonymDAO = dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO, userDAOImpl, roleKeyDAO, userBlocksDAOImpl)
 		userPreferencesDAO = dao.NewUserPreferencesDAO(db)
 		postDAO = dao.NewPostDAO(db)
 		commentDAO = dao.NewCommentDAO(db)
@@ -69,7 +69,7 @@ func NewUserHandler(
 
 	return &UserHandler{
 		userDAO:            userDAO,
-		securePseudonymDAO: securePseudonymDAO,
+		pseudonymDAO:       pseudonymDAO,
 		userPreferencesDAO: userPreferencesDAO,
 		userBlocksDAO:      userBlocksDAO,
 		postDAO:            postDAO,
@@ -88,7 +88,7 @@ func (h *UserHandler) GetPseudonymProfile(ctx context.Context, input *apimodels.
 		Str("pseudonym_id", pseudonymID).
 		Msg("Get pseudonym profile requested")
 
-	pseudonym, err := h.securePseudonymDAO.GetPseudonymByID(ctx, pseudonymID)
+	pseudonym, err := h.pseudonymDAO.GetPseudonymByID(ctx, pseudonymID)
 	if err != nil {
 		log.Error().Err(err).Str("pseudonym_id", pseudonymID).Msg("Failed to get pseudonym from database")
 		return nil, fmt.Errorf("failed to get pseudonym: %w", err)
@@ -162,7 +162,7 @@ func (h *UserHandler) UpdatePseudonymProfile(ctx context.Context, input *struct 
 	if input.Body.DisplayName == "" {
 		return nil, fmt.Errorf("display name is required")
 	}
-	pseudonym, err := h.securePseudonymDAO.GetPseudonymByID(ctx, pseudonymID)
+	pseudonym, err := h.pseudonymDAO.GetPseudonymByID(ctx, pseudonymID)
 	if err != nil {
 		log.Error().Err(err).Str("pseudonym_id", pseudonymID).Msg("Failed to get pseudonym from database")
 		return nil, fmt.Errorf("failed to get pseudonym: %w", err)
@@ -173,7 +173,7 @@ func (h *UserHandler) UpdatePseudonymProfile(ctx context.Context, input *struct 
 	}
 
 	// Use role-based access control for ownership verification
-	ownsPseudonym, err := h.securePseudonymDAO.VerifyPseudonymOwnership(ctx, pseudonymID, int64(userID), constants.RoleUser, constants.ScopeSelfCorrelation)
+	ownsPseudonym, err := h.pseudonymDAO.VerifyPseudonymOwnership(ctx, pseudonymID, int64(userID), constants.RoleUser, constants.ScopeSelfCorrelation)
 	if err != nil {
 		log.Error().Err(err).Str("pseudonym_id", pseudonymID).Int("user_id", userID).Msg("Failed to verify pseudonym ownership")
 		return nil, fmt.Errorf("failed to verify ownership: %w", err)
@@ -184,7 +184,7 @@ func (h *UserHandler) UpdatePseudonymProfile(ctx context.Context, input *struct 
 	}
 
 	if input.Body.DisplayName != pseudonym.DisplayName {
-		existing, _ := h.securePseudonymDAO.GetPseudonymByDisplayName(ctx, input.Body.DisplayName)
+		existing, _ := h.pseudonymDAO.GetPseudonymByDisplayName(ctx, input.Body.DisplayName)
 		if existing != nil {
 			return nil, fmt.Errorf("display name is already taken")
 		}
@@ -214,12 +214,12 @@ func (h *UserHandler) UpdatePseudonymProfile(ctx context.Context, input *struct 
 		allowDirectMessages := sql.Null[bool]{V: *input.Body.AllowDirectMessages, Valid: true}
 		updates.AllowDirectMessages = &allowDirectMessages
 	}
-	err = h.securePseudonymDAO.UpdatePseudonym(ctx, pseudonymID, updates)
+	err = h.pseudonymDAO.UpdatePseudonym(ctx, pseudonymID, updates)
 	if err != nil {
 		log.Error().Err(err).Str("pseudonym_id", pseudonymID).Msg("Failed to update pseudonym in database")
 		return nil, fmt.Errorf("failed to update pseudonym: %w", err)
 	}
-	finalPseudonym, err := h.securePseudonymDAO.GetPseudonymByID(ctx, pseudonymID)
+	finalPseudonym, err := h.pseudonymDAO.GetPseudonymByID(ctx, pseudonymID)
 	if err != nil {
 		log.Error().Err(err).Str("pseudonym_id", pseudonymID).Msg("Failed to get final pseudonym data")
 		return nil, fmt.Errorf("failed to get pseudonym data: %w", err)
@@ -283,13 +283,13 @@ func (h *UserHandler) CreatePseudonym(ctx context.Context, input *struct {
 	if displayName == "" {
 		return nil, fmt.Errorf("display name is required")
 	}
-	existing, _ := h.securePseudonymDAO.GetPseudonymByDisplayName(ctx, displayName)
+	existing, _ := h.pseudonymDAO.GetPseudonymByDisplayName(ctx, displayName)
 	if existing != nil {
 		return nil, fmt.Errorf("display name is already taken")
 	}
 
 	// ✅ Use new method that creates pseudonym and identity mapping together
-	pseudonym, err := h.securePseudonymDAO.CreatePseudonymWithIdentityMapping(ctx, int64(userID), displayName)
+	pseudonym, err := h.pseudonymDAO.CreatePseudonymWithIdentityMapping(ctx, int64(userID), displayName)
 	if err != nil {
 		log.Error().Err(err).Int("user_id", userID).Str("display_name", displayName).Msg("Failed to create pseudonym in database")
 		return nil, fmt.Errorf("failed to create pseudonym: %w", err)
@@ -313,12 +313,12 @@ func (h *UserHandler) CreatePseudonym(ctx context.Context, input *struct {
 		updates.AllowDirectMessages = &allowDirectMessagesVal
 	}
 	if len(updates.SetColumns()) > 0 {
-		err = h.securePseudonymDAO.UpdatePseudonym(ctx, pseudonym.PseudonymID, updates)
+		err = h.pseudonymDAO.UpdatePseudonym(ctx, pseudonym.PseudonymID, updates)
 		if err != nil {
 			log.Error().Err(err).Str("pseudonym_id", pseudonym.PseudonymID).Msg("Failed to update pseudonym with additional fields")
 		}
 	}
-	finalPseudonym, err := h.securePseudonymDAO.GetPseudonymByID(ctx, pseudonym.PseudonymID)
+	finalPseudonym, err := h.pseudonymDAO.GetPseudonymByID(ctx, pseudonym.PseudonymID)
 	if err != nil {
 		log.Error().Err(err).Str("pseudonym_id", pseudonym.PseudonymID).Msg("Failed to get final pseudonym data")
 		return nil, fmt.Errorf("failed to get pseudonym data: %w", err)
@@ -384,7 +384,7 @@ func (h *UserHandler) GetUserProfile(ctx context.Context, input *middleware.Auth
 
 	// Use the first role for authentication
 	primaryRole := userRoles[0]
-	pseudonyms, err := h.securePseudonymDAO.GetPseudonymsByUserID(ctx, int64(userID), primaryRole, constants.ScopeAuthentication)
+	pseudonyms, err := h.pseudonymDAO.GetPseudonymsByUserID(ctx, int64(userID), primaryRole, constants.ScopeAuthentication)
 	if err != nil {
 		log.Error().Err(err).Int64("user_id", int64(userID)).Str("role", primaryRole).Msg("Failed to get user pseudonyms")
 		return nil, fmt.Errorf("failed to get pseudonyms: %w", err)
@@ -601,7 +601,7 @@ func (h *UserHandler) BlockUser(ctx context.Context, input *struct {
 	if blockedPseudonymID == "" {
 		return nil, fmt.Errorf("blocked pseudonym ID is required")
 	}
-	blockedPseudonym, err := h.securePseudonymDAO.GetPseudonymByID(ctx, blockedPseudonymID)
+	blockedPseudonym, err := h.pseudonymDAO.GetPseudonymByID(ctx, blockedPseudonymID)
 	if err != nil {
 		log.Error().Err(err).Str("blocked_pseudonym_id", blockedPseudonymID).Msg("Failed to get blocked pseudonym from database")
 		return nil, fmt.Errorf("failed to get blocked pseudonym: %w", err)
@@ -612,7 +612,7 @@ func (h *UserHandler) BlockUser(ctx context.Context, input *struct {
 	}
 
 	// Use role-based access control for ownership verification
-	ownsPseudonym, err := h.securePseudonymDAO.VerifyPseudonymOwnership(ctx, blockedPseudonymID, userID, constants.RoleUser, constants.ScopeSelfCorrelation)
+	ownsPseudonym, err := h.pseudonymDAO.VerifyPseudonymOwnership(ctx, blockedPseudonymID, userID, constants.RoleUser, constants.ScopeSelfCorrelation)
 	if err != nil {
 		log.Error().Err(err).Str("blocked_pseudonym_id", blockedPseudonymID).Int64("user_id", userID).Msg("Failed to verify pseudonym ownership")
 		return nil, fmt.Errorf("failed to verify ownership: %w", err)
@@ -626,7 +626,7 @@ func (h *UserHandler) BlockUser(ctx context.Context, input *struct {
 	if input.Body.BlockAllPersonas != nil && *input.Body.BlockAllPersonas {
 		// ✅ Use IBE-based correlation to block all personas of the user
 		// Get the blocked user's ID (not the blocker's ID)
-		blockedUserID, err := h.securePseudonymDAO.GetUserIDByPseudonym(ctx, blockedPseudonymID, constants.RoleUser, constants.ScopeSelfCorrelation)
+		blockedUserID, err := h.pseudonymDAO.GetUserIDByPseudonym(ctx, blockedPseudonymID, constants.RoleUser, constants.ScopeSelfCorrelation)
 		if err != nil {
 			log.Error().Err(err).Str("blocked_pseudonym_id", blockedPseudonymID).Msg("Failed to get blocked user ID")
 			return nil, fmt.Errorf("failed to get blocked user ID: %w", err)
@@ -686,7 +686,7 @@ func (h *UserHandler) UnblockUser(ctx context.Context, input *struct {
 	// If no direct block found, check for fingerprint-level block
 	if existingBlock == nil {
 		// Get the blocked user's ID to check for fingerprint-level blocks
-		blockedUserID, err := h.securePseudonymDAO.GetUserIDByPseudonym(ctx, blockedPseudonymID, constants.RoleUser, constants.ScopeSelfCorrelation)
+		blockedUserID, err := h.pseudonymDAO.GetUserIDByPseudonym(ctx, blockedPseudonymID, constants.RoleUser, constants.ScopeSelfCorrelation)
 		if err != nil {
 			log.Error().Err(err).Str("blocked_pseudonym_id", blockedPseudonymID).Msg("Failed to get blocked user ID for unblock")
 			return nil, fmt.Errorf("failed to get blocked user ID: %w", err)

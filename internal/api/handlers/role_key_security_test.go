@@ -16,9 +16,9 @@ import (
 )
 
 // NewAuthHandlerWithMocks creates a new auth handler with mock DAOs and fixture data
-func NewAuthHandlerWithMocks() (*AuthHandler, *mocks.MockUserDAO, *mocks.MockSecurePseudonymDAO, *mocks.MockIdentityMappingDAO, *mocks.MockRoleKeyDAO, *mocks.MockSubforumDAO, *mocks.MockPermissionDAO) {
+func NewAuthHandlerWithMocks() (*AuthHandler, *mocks.MockUserDAO, *mocks.MockPseudonymDAO, *mocks.MockIdentityMappingDAO, *mocks.MockRoleKeyDAO, *mocks.MockSubforumDAO, *mocks.MockPermissionDAO) {
 	mockUserDAO := &mocks.MockUserDAO{}
-	mockSecurePseudonymDAO := mocks.NewMockSecurePseudonymDAO()
+	mockPseudonymDAO := mocks.NewMockPseudonymDAO()
 	mockIdentityMappingDAO := &mocks.MockIdentityMappingDAO{}
 	mockRoleKeyDAO := &mocks.MockRoleKeyDAO{}
 	mockSubforumDAO := mocks.NewMockSubforumDAO()
@@ -48,7 +48,7 @@ func NewAuthHandlerWithMocks() (*AuthHandler, *mocks.MockUserDAO, *mocks.MockSec
 		cfg,
 		nil, // nil db for testing
 		mockUserDAO,
-		mockSecurePseudonymDAO,
+		mockPseudonymDAO,
 		mockIdentityMappingDAO,
 		mockRoleKeyDAO,
 		ibeSystem,
@@ -59,13 +59,13 @@ func NewAuthHandlerWithMocks() (*AuthHandler, *mocks.MockUserDAO, *mocks.MockSec
 		nil, // Password reset token DAO
 	)
 
-	return handler, mockUserDAO, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockRoleKeyDAO, mockSubforumDAO, mockPermissionDAO
+	return handler, mockUserDAO, mockPseudonymDAO, mockIdentityMappingDAO, mockRoleKeyDAO, mockSubforumDAO, mockPermissionDAO
 }
 
 // TestRoleKeySecurity tests the role key security functionality
 func TestRoleKeySecurity(t *testing.T) {
 	t.Run("AuthenticationKeyScope", func(t *testing.T) {
-		_, _, mockSecurePseudonymDAO, _, _, _, _ := NewAuthHandlerWithMocks()
+		_, _, mockPseudonymDAO, _, _, _, _ := NewAuthHandlerWithMocks()
 
 		// Test data
 		testUserID := int64(1)
@@ -74,10 +74,10 @@ func TestRoleKeySecurity(t *testing.T) {
 		testPseudonym.DisplayName = "AuthUser1"
 
 		// Mock pseudonym retrieval
-		mockSecurePseudonymDAO.On("GetPseudonymsByUserID", mock.Anything, testUserID, "user", "authentication").Return([]*dbmodels.Pseudonym{testPseudonym}, nil)
+		mockPseudonymDAO.On("GetPseudonymsByUserID", mock.Anything, testUserID, "user", "authentication").Return([]*dbmodels.Pseudonym{testPseudonym}, nil)
 
 		// Call the method directly on the mock
-		pseudonyms, err := mockSecurePseudonymDAO.GetPseudonymsByUserID(context.Background(), testUserID, "user", "authentication")
+		pseudonyms, err := mockPseudonymDAO.GetPseudonymsByUserID(context.Background(), testUserID, "user", "authentication")
 
 		// Assert response
 		require.NoError(t, err)
@@ -85,28 +85,28 @@ func TestRoleKeySecurity(t *testing.T) {
 		assert.Equal(t, "pseudonym-123", pseudonyms[0].PseudonymID)
 
 		// Verify mocks were called
-		mockSecurePseudonymDAO.AssertExpectations(t)
+		mockPseudonymDAO.AssertExpectations(t)
 	})
 
 	t.Run("SelfCorrelationKeyScope", func(t *testing.T) {
-		_, _, mockSecurePseudonymDAO, _, _, _, _ := NewAuthHandlerWithMocks()
+		_, _, mockPseudonymDAO, _, _, _, _ := NewAuthHandlerWithMocks()
 
 		// Test data
 		testUserID := int64(1)
 		testPseudonymID := "pseudonym-123"
 
 		// Mock ownership verification
-		mockSecurePseudonymDAO.On("VerifyPseudonymOwnership", mock.Anything, testPseudonymID, testUserID, "user", "self_correlation").Return(true, nil)
+		mockPseudonymDAO.On("VerifyPseudonymOwnership", mock.Anything, testPseudonymID, testUserID, "user", "self_correlation").Return(true, nil)
 
 		// Call the method directly on the mock
-		ownsPseudonym, err := mockSecurePseudonymDAO.VerifyPseudonymOwnership(context.Background(), testPseudonymID, testUserID, "user", "self_correlation")
+		ownsPseudonym, err := mockPseudonymDAO.VerifyPseudonymOwnership(context.Background(), testPseudonymID, testUserID, "user", "self_correlation")
 
 		// Assert response
 		require.NoError(t, err)
 		assert.True(t, ownsPseudonym)
 
 		// Verify mocks were called
-		mockSecurePseudonymDAO.AssertExpectations(t)
+		mockPseudonymDAO.AssertExpectations(t)
 	})
 
 	t.Run("RoleKeyDatabaseOperations", func(t *testing.T) {
@@ -115,18 +115,17 @@ func TestRoleKeySecurity(t *testing.T) {
 		// Test data
 		capabilities := []string{"test_capability", "another_capability"}
 		expiresAt := time.Now().AddDate(0, 1, 0)
-		createdBy := int64(1)
 		testRoleKey := fixtures.CreateTestRoleKey("key-123", "test_role", "test_scope", capabilities)
 
 		// Mock role key creation
-		mockRoleKeyDAO.On("CreateRoleKey", mock.Anything, "test_role", "test_scope", []byte("test_key_data"), capabilities, expiresAt, createdBy).Return(testRoleKey, nil)
+		mockRoleKeyDAO.On("CreateRoleKey", mock.Anything, "test_role", "test_scope", []byte("test_key_data"), capabilities, expiresAt, "test-pseudonym-id", "test-pseudonym-id", (*int32)(nil)).Return(testRoleKey, nil)
 
 		// Mock role key retrieval
-		mockRoleKeyDAO.On("GetRoleKey", mock.Anything, "test_role", "test_scope").Return(testRoleKey, nil)
+		mockRoleKeyDAO.On("GetRoleKey", mock.Anything, "test-pseudonym-id", "test_scope", (*int32)(nil)).Return(testRoleKey, nil)
 
 		// Mock capability validation
-		mockRoleKeyDAO.On("ValidateKeyCapability", mock.Anything, "test_role", "test_scope", "test_capability").Return(true, nil)
-		mockRoleKeyDAO.On("ValidateKeyCapability", mock.Anything, "test_role", "test_scope", "invalid_capability").Return(false, nil)
+		mockRoleKeyDAO.On("ValidateKeyCapability", mock.Anything, "test-pseudonym-id", "test_scope", "test_capability", (*int32)(nil)).Return(true, nil)
+		mockRoleKeyDAO.On("ValidateKeyCapability", mock.Anything, "test-pseudonym-id", "test_scope", "invalid_capability", (*int32)(nil)).Return(false, nil)
 
 		// Mock listing role keys
 		mockRoleKeyDAO.On("ListRoleKeys", mock.Anything).Return([]*dbmodels.RoleKey{testRoleKey}, nil)
@@ -135,24 +134,24 @@ func TestRoleKeySecurity(t *testing.T) {
 		mockRoleKeyDAO.On("DeactivateRoleKey", mock.Anything, "key-123").Return(nil)
 
 		// Test role key creation
-		roleKey, err := mockRoleKeyDAO.CreateRoleKey(context.Background(), "test_role", "test_scope", []byte("test_key_data"), capabilities, expiresAt, createdBy)
+		roleKey, err := mockRoleKeyDAO.CreateRoleKey(context.Background(), "test_role", "test_scope", []byte("test_key_data"), capabilities, expiresAt, "test-pseudonym-id", "test-pseudonym-id", (*int32)(nil))
 		require.NoError(t, err)
 		assert.Equal(t, "test_role", roleKey.RoleName)
 		assert.Equal(t, "test_scope", roleKey.Scope)
 
 		// Test role key retrieval
-		retrievedKey, err := mockRoleKeyDAO.GetRoleKey(context.Background(), "test_role", "test_scope")
+		retrievedKey, err := mockRoleKeyDAO.GetRoleKey(context.Background(), "test-pseudonym-id", "test_scope", (*int32)(nil))
 		require.NoError(t, err)
 		assert.Equal(t, "test_role", retrievedKey.RoleName)
 		assert.Equal(t, "test_scope", retrievedKey.Scope)
 
 		// Test capability validation
-		hasCapability, err := mockRoleKeyDAO.ValidateKeyCapability(context.Background(), "test_role", "test_scope", "test_capability")
+		hasCapability, err := mockRoleKeyDAO.ValidateKeyCapability(context.Background(), "test-pseudonym-id", "test_scope", "test_capability", (*int32)(nil))
 		require.NoError(t, err)
 		assert.True(t, hasCapability)
 
 		// Test invalid capability
-		hasInvalidCapability, err := mockRoleKeyDAO.ValidateKeyCapability(context.Background(), "test_role", "test_scope", "invalid_capability")
+		hasInvalidCapability, err := mockRoleKeyDAO.ValidateKeyCapability(context.Background(), "test-pseudonym-id", "test_scope", "invalid_capability", (*int32)(nil))
 		require.NoError(t, err)
 		assert.False(t, hasInvalidCapability)
 

@@ -40,20 +40,6 @@ func setupTestAuthMiddleware() {
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
 }
 
-// createTestContext creates a context with user information
-func createTestContext(t *testing.T, userID int64, activePseudonymID string, displayName string) context.Context {
-	user := &middleware.UserContext{
-		UserID:            userID,
-		Email:             "test@example.com",
-		ActivePseudonymID: activePseudonymID,
-		DisplayName:       displayName,
-		Roles:             []string{"user"},
-		Capabilities:      []string{"send_messages"},
-	}
-
-	return context.WithValue(context.Background(), middleware.UserContextKeyValue, user)
-}
-
 // createAuthenticatedInput creates an input with a valid JWT token for testing
 func createAuthenticatedInput(userID int64, activePseudonymID string, displayName string) *models.DirectMessageInput {
 	// Create a user context

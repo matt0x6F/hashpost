@@ -41,14 +41,14 @@ func NewSearchHandler(
 		roleKeyDAO := dao.NewRoleKeyDAO(db)
 		userBlocksDAO := dao.NewUserBlocksDAO(db)
 		userDAO := dao.NewUserDAO(db)
-		securePseudonymDAO := dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
+		pseudonymDAO := dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
 
 		return &SearchHandler{
 			db:           db,
 			postDAO:      dao.NewPostDAO(db),
 			userDAO:      userDAO,
 			subforumDAO:  dao.NewSubforumDAO(db),
-			pseudonymDAO: securePseudonymDAO,
+			pseudonymDAO: pseudonymDAO,
 			ibeSystem:    ibeSystem,
 		}
 	}

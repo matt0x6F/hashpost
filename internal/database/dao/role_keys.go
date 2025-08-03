@@ -14,6 +14,7 @@ import (
 	"github.com/matt0x6f/hashpost/internal/ibe"
 	"github.com/rs/zerolog/log"
 	"github.com/stephenafamo/bob"
+	"github.com/stephenafamo/bob/dialect/psql/dialect"
 	"github.com/stephenafamo/bob/types"
 )
 
@@ -30,7 +31,7 @@ func NewRoleKeyDAO(db bob.Executor) *RoleKeyDAO {
 }
 
 // CreateRoleKey creates a new role key in the database
-func (dao *RoleKeyDAO) CreateRoleKey(ctx context.Context, roleName, scope string, keyData []byte, capabilities []string, expiresAt time.Time, createdBy int64) (*models.RoleKey, error) {
+func (dao *RoleKeyDAO) CreateRoleKey(ctx context.Context, roleName, scope string, keyData []byte, capabilities []string, expiresAt time.Time, createdByPseudonymID string, pseudonymID string, subforumID *int32) (*models.RoleKey, error) {
 	// Convert capabilities to JSON
 	capabilitiesJSON, err := json.Marshal(capabilities)
 	if err != nil {
@@ -54,7 +55,15 @@ func (dao *RoleKeyDAO) CreateRoleKey(ctx context.Context, roleName, scope string
 		Capabilities: &capabilitiesType,
 		ExpiresAt:    &expiresAt,
 		IsActive:     &isActive,
-		CreatedBy:    &createdBy,
+		CreatedBy:    &createdByPseudonymID,
+		PseudonymID:  &pseudonymID,
+		SubforumID: func() *sql.Null[int32] {
+			if subforumID == nil {
+				return nil
+			}
+			v := sql.Null[int32]{V: *subforumID, Valid: true}
+			return &v
+		}(),
 	}
 
 	// Set created_at
@@ -71,34 +80,28 @@ func (dao *RoleKeyDAO) CreateRoleKey(ctx context.Context, roleName, scope string
 	return roleKey, nil
 }
 
-// GetRoleKey retrieves a role key by role name and scope (global keys)
-func (dao *RoleKeyDAO) GetRoleKey(ctx context.Context, roleName, scope string) (*models.RoleKey, error) {
-	roleKey, err := models.RoleKeys.Query(
-		models.SelectWhere.RoleKeys.RoleName.EQ(roleName),
+// GetRoleKey retrieves a role key by pseudonym ID, scope, and optional subforum ID
+func (dao *RoleKeyDAO) GetRoleKey(ctx context.Context, pseudonymID string, scope string, subforumID *int32) (*models.RoleKey, error) {
+	// Build query conditions
+	conditions := []bob.Mod[*dialect.SelectQuery]{
+		models.SelectWhere.RoleKeys.PseudonymID.EQ(pseudonymID),
 		models.SelectWhere.RoleKeys.Scope.EQ(scope),
 		models.SelectWhere.RoleKeys.IsActive.EQ(true),
 		models.SelectWhere.RoleKeys.ExpiresAt.GT(time.Now()),
-	).One(ctx, dao.db)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to get role key for role=%s scope=%s: %w", roleName, scope, err)
 	}
 
-	return roleKey, nil
-}
+	// Add subforum filter if provided
+	if subforumID != nil {
+		conditions = append(conditions, models.SelectWhere.RoleKeys.SubforumID.EQ(*subforumID))
+	} else {
+		conditions = append(conditions, models.SelectWhere.RoleKeys.SubforumID.IsNull())
+	}
 
-// GetPerUserRoleKey retrieves a per-user role key by role name, scope, and createdBy
-func (dao *RoleKeyDAO) GetPerUserRoleKey(ctx context.Context, roleName, scope string, createdBy int64) (*models.RoleKey, error) {
-	roleKey, err := models.RoleKeys.Query(
-		models.SelectWhere.RoleKeys.RoleName.EQ(roleName),
-		models.SelectWhere.RoleKeys.Scope.EQ(scope),
-		models.SelectWhere.RoleKeys.CreatedBy.EQ(createdBy),
-		models.SelectWhere.RoleKeys.IsActive.EQ(true),
-		models.SelectWhere.RoleKeys.ExpiresAt.GT(time.Now()),
-	).One(ctx, dao.db)
+	query := models.RoleKeys.Query(conditions...)
 
+	roleKey, err := query.One(ctx, dao.db)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get per-user role key for role=%s scope=%s createdBy=%d: %w", roleName, scope, createdBy, err)
+		return nil, fmt.Errorf("failed to get role key for pseudonym=%s scope=%s subforum=%v: %w", pseudonymID, scope, subforumID, err)
 	}
 
 	return roleKey, nil
@@ -134,16 +137,16 @@ func (dao *RoleKeyDAO) ListRoleKeys(ctx context.Context) ([]*models.RoleKey, err
 	return roleKeys, nil
 }
 
-// ListRoleKeysByRole retrieves all active role keys for a specific role
-func (dao *RoleKeyDAO) ListRoleKeysByRole(ctx context.Context, roleName string) ([]*models.RoleKey, error) {
+// ListRoleKeysByPseudonym retrieves all active role keys for a specific pseudonym
+func (dao *RoleKeyDAO) ListRoleKeysByPseudonym(ctx context.Context, pseudonymID string) ([]*models.RoleKey, error) {
 	roleKeys, err := models.RoleKeys.Query(
-		models.SelectWhere.RoleKeys.RoleName.EQ(roleName),
+		models.SelectWhere.RoleKeys.PseudonymID.EQ(pseudonymID),
 		models.SelectWhere.RoleKeys.IsActive.EQ(true),
 		models.SelectWhere.RoleKeys.ExpiresAt.GT(time.Now()),
 	).All(ctx, dao.db)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to list role keys for role %s: %w", roleName, err)
+		return nil, fmt.Errorf("failed to list role keys for pseudonym %s: %w", pseudonymID, err)
 	}
 
 	return roleKeys, nil
@@ -177,8 +180,8 @@ func (dao *RoleKeyDAO) DeactivateRoleKey(ctx context.Context, keyID string) erro
 }
 
 // ValidateKeyCapability checks if a role key has a specific capability
-func (dao *RoleKeyDAO) ValidateKeyCapability(ctx context.Context, roleName, scope, requiredCapability string) (bool, error) {
-	roleKey, err := dao.GetRoleKey(ctx, roleName, scope)
+func (dao *RoleKeyDAO) ValidateKeyCapability(ctx context.Context, pseudonymID string, scope, requiredCapability string, subforumID *int32) (bool, error) {
+	roleKey, err := dao.GetRoleKey(ctx, pseudonymID, scope, subforumID)
 	if err != nil {
 		return false, fmt.Errorf("failed to get role key for validation: %w", err)
 	}
@@ -205,8 +208,8 @@ func (dao *RoleKeyDAO) ValidateKeyCapability(ctx context.Context, roleName, scop
 }
 
 // GetKeyData retrieves the key data for a role key
-func (dao *RoleKeyDAO) GetKeyData(ctx context.Context, roleName, scope string) ([]byte, error) {
-	roleKey, err := dao.GetRoleKey(ctx, roleName, scope)
+func (dao *RoleKeyDAO) GetKeyData(ctx context.Context, pseudonymID string, scope string, subforumID *int32) ([]byte, error) {
+	roleKey, err := dao.GetRoleKey(ctx, pseudonymID, scope, subforumID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get role key: %w", err)
 	}
@@ -214,43 +217,32 @@ func (dao *RoleKeyDAO) GetKeyData(ctx context.Context, roleName, scope string) (
 	return roleKey.KeyData, nil
 }
 
-// GetPerUserKeyData retrieves the key data for a per-user role key
-func (dao *RoleKeyDAO) GetPerUserKeyData(ctx context.Context, roleName, scope string, createdBy int64) ([]byte, error) {
-	roleKey, err := dao.GetPerUserRoleKey(ctx, roleName, scope, createdBy)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get per-user role key: %w", err)
-	}
-
-	return roleKey.KeyData, nil
-}
-
 // EnsureDefaultKeys creates default role keys if they don't exist
-func (dao *RoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interface{}, userID int64) error {
+func (dao *RoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interface{}, pseudonymID string) error {
 	// Type assert to get the IBE system
 	ibe, ok := ibeSystem.(*ibe.IBESystem)
 	if !ok {
 		return fmt.Errorf("invalid IBE system type")
 	}
 
-	// Get the user's actual role from the database
-	userDAO := NewUserDAO(dao.db)
-	user, err := userDAO.GetUserByID(ctx, userID)
+	// Get the pseudonym to determine user roles
+	pseudonym, err := models.FindPseudonym(ctx, dao.db, pseudonymID)
 	if err != nil {
-		return fmt.Errorf("failed to get user %d: %w", userID, err)
+		return fmt.Errorf("failed to get pseudonym %s: %w", pseudonymID, err)
 	}
-	if user == nil {
-		return fmt.Errorf("user %d not found", userID)
+	if pseudonym == nil {
+		return fmt.Errorf("pseudonym %s not found", pseudonymID)
 	}
 
-	// Parse user's roles from JSON
+	// Get the user's roles from the pseudonym's roles field
 	var userRoles []string
-	if user.Roles.Valid {
-		rolesBytes, err := user.Roles.V.Value()
+	if pseudonym.Roles.Valid {
+		rolesBytes, err := pseudonym.Roles.V.Value()
 		if err != nil {
-			return fmt.Errorf("failed to get user roles value: %w", err)
+			return fmt.Errorf("failed to get pseudonym roles value: %w", err)
 		}
 		if err := json.Unmarshal(rolesBytes.([]byte), &userRoles); err != nil {
-			return fmt.Errorf("failed to unmarshal user roles: %w", err)
+			return fmt.Errorf("failed to unmarshal pseudonym roles: %w", err)
 		}
 	}
 
@@ -259,8 +251,7 @@ func (dao *RoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interfac
 		userRoles = []string{"user"}
 	}
 
-	fmt.Printf("[DEBUG] EnsureDefaultKeys: user_id=%d, user_roles=%v\n", userID, userRoles)
-	log.Debug().Int64("user_id", userID).Strs("user_roles", userRoles).Msg("Provisioning role keys for user")
+	log.Debug().Str("pseudonym_id", pseudonymID).Strs("user_roles", userRoles).Msg("Provisioning role keys for pseudonym")
 
 	// Define default keys for each user role using constants
 	defaultKeys := []struct {
@@ -389,40 +380,32 @@ func (dao *RoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interfac
 		}
 	}
 
-	fmt.Printf("[DEBUG] EnsureDefaultKeys: defaultKeys to provision: %+v\n", defaultKeys)
-	log.Debug().Int64("user_id", userID).Msgf("defaultKeys to provision: %+v", defaultKeys)
+	log.Debug().Str("pseudonym_id", pseudonymID).Msgf("defaultKeys to provision: %+v", defaultKeys)
 
 	// Check if each default key exists, create if not
 	for _, keyDef := range defaultKeys {
-		fmt.Printf("[DEBUG] EnsureDefaultKeys: checking role=%s scope=%s\n", keyDef.roleName, keyDef.scope)
 		log.Debug().Str("role", keyDef.roleName).Str("scope", keyDef.scope).Msg("Checking if role key exists")
-		existingKey, err := dao.GetPerUserRoleKey(ctx, keyDef.roleName, keyDef.scope, userID)
+		existingKey, err := dao.GetRoleKey(ctx, pseudonymID, keyDef.scope, nil) // Global keys only
 		if errors.Is(err, sql.ErrNoRows) {
 			// Key doesn't exist, create it with proper IBE key
-			fmt.Printf("[DEBUG] EnsureDefaultKeys: role key doesn't exist, creating role=%s scope=%s\n", keyDef.roleName, keyDef.scope)
 			log.Debug().Str("role", keyDef.roleName).Str("scope", keyDef.scope).Msg("Role key doesn't exist, creating it")
 			expiresAt := time.Now().AddDate(1, 0, 0) // Expire in 1 year
 
 			// Generate key data using the actual role name and scope
 			keyData := ibe.GenerateTestRoleKey(keyDef.roleName, keyDef.scope)
-			fmt.Printf("[DEBUG] EnsureDefaultKeys: generated IBE key data for role=%s scope=%s, length=%d\n", keyDef.roleName, keyDef.scope, len(keyData))
 			log.Debug().Str("role", keyDef.roleName).Str("scope", keyDef.scope).Int("key_data_length", len(keyData)).Msg("Generated IBE key data")
 
-			createdKey, err := dao.CreateRoleKey(ctx, keyDef.roleName, keyDef.scope, keyData, keyDef.capabilities, expiresAt, userID)
+			createdKey, err := dao.CreateRoleKey(ctx, keyDef.roleName, keyDef.scope, keyData, keyDef.capabilities, expiresAt, pseudonymID, pseudonymID, nil)
 			if err != nil {
-				fmt.Printf("[DEBUG] EnsureDefaultKeys: FAILED to create role key role=%s scope=%s: %v\n", keyDef.roleName, keyDef.scope, err)
 				log.Error().Str("role", keyDef.roleName).Str("scope", keyDef.scope).Err(err).Msg("Failed to create role key")
 				return fmt.Errorf("failed to create default key for role=%s scope=%s: %w", keyDef.roleName, keyDef.scope, err)
 			}
-			fmt.Printf("[DEBUG] EnsureDefaultKeys: SUCCESSFULLY created role key role=%s scope=%s, key_id=%s\n", keyDef.roleName, keyDef.scope, createdKey.KeyID.String())
 			log.Debug().Str("role", keyDef.roleName).Str("scope", keyDef.scope).Str("key_id", createdKey.KeyID.String()).Msg("Successfully created role key")
 		} else if err != nil {
 			// Unexpected error, log and return
-			fmt.Printf("[DEBUG] EnsureDefaultKeys: ERROR retrieving role key role=%s scope=%s: %v\n", keyDef.roleName, keyDef.scope, err)
 			log.Error().Str("role", keyDef.roleName).Str("scope", keyDef.scope).Err(err).Msg("Failed to retrieve role key")
 			return fmt.Errorf("failed to retrieve role key for role=%s scope=%s: %w", keyDef.roleName, keyDef.scope, err)
 		} else {
-			fmt.Printf("[DEBUG] EnsureDefaultKeys: role key already exists role=%s scope=%s\n", keyDef.roleName, keyDef.scope)
 			log.Debug().Str("role", keyDef.roleName).Str("scope", keyDef.scope).Msg("Role key already exists, checking if update needed")
 			// Key exists, check if it needs updating
 			capabilitiesBytes, err := existingKey.Capabilities.Value()
@@ -450,7 +433,6 @@ func (dao *RoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interfac
 			}
 
 			if needsUpdate {
-				fmt.Printf("[DEBUG] EnsureDefaultKeys: updating role key capabilities role=%s scope=%s\n", keyDef.roleName, keyDef.scope)
 				log.Debug().Str("role", keyDef.roleName).Str("scope", keyDef.scope).Msg("Updating role key capabilities")
 				// Update the key with new capabilities
 				capabilitiesJSON, _ := json.Marshal(keyDef.capabilities)
@@ -469,32 +451,55 @@ func (dao *RoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interfac
 		}
 	}
 
-	// After provisioning, log all role keys for the user
-	roleKeys, err := models.RoleKeys.Query(models.SelectWhere.RoleKeys.CreatedBy.EQ(userID)).All(ctx, dao.db)
+	// After provisioning, log all role keys for the pseudonym
+	roleKeys, err := models.RoleKeys.Query(models.SelectWhere.RoleKeys.PseudonymID.EQ(pseudonymID)).All(ctx, dao.db)
 	if err == nil {
-		fmt.Printf("[DEBUG] EnsureDefaultKeys: after provisioning, found %d role keys for user %d\n", len(roleKeys), userID)
+		log.Debug().Str("pseudonym_id", pseudonymID).Int("role_key_count", len(roleKeys)).Msg("Role keys after provisioning")
 		for _, k := range roleKeys {
-			fmt.Printf("[DEBUG] EnsureDefaultKeys: role key present in DB: role=%s scope=%s\n", k.RoleName, k.Scope)
 			log.Debug().Str("role", k.RoleName).Str("scope", k.Scope).Msg("Role key present in DB after provisioning")
 		}
 	} else {
-		fmt.Printf("[DEBUG] EnsureDefaultKeys: FAILED to query role keys after provisioning for user %d: %v\n", userID, err)
-		log.Error().Int64("user_id", userID).Err(err).Msg("Failed to query role keys after provisioning")
+		log.Error().Str("pseudonym_id", pseudonymID).Err(err).Msg("Failed to query role keys after provisioning")
 	}
 
 	return nil
 }
 
-// DeleteByUserID deletes all role keys created by a specific user
-func (dao *RoleKeyDAO) DeleteByUserID(ctx context.Context, userID int64) error {
-	// Delete all role keys where created_by matches the user ID
+// DeleteByPseudonymID deletes all role keys for a specific pseudonym
+func (dao *RoleKeyDAO) DeleteByPseudonymID(ctx context.Context, pseudonymID string) error {
+	// Delete all role keys where pseudonym_id matches
 	_, err := models.RoleKeys.Delete(
-		models.DeleteWhere.RoleKeys.CreatedBy.EQ(userID),
+		models.DeleteWhere.RoleKeys.PseudonymID.EQ(pseudonymID),
 	).Exec(ctx, dao.db)
 
 	if err != nil {
-		return fmt.Errorf("failed to delete role keys for user %d: %w", userID, err)
+		return fmt.Errorf("failed to delete role keys for pseudonym %s: %w", pseudonymID, err)
 	}
 
 	return nil
+}
+
+// GetModeratorsForSubforum retrieves all moderator role keys for a specific subforum
+func (dao *RoleKeyDAO) GetModeratorsForSubforum(ctx context.Context, subforumID int32) ([]*models.RoleKey, error) {
+	roleKeys, err := models.RoleKeys.Query(
+		models.SelectWhere.RoleKeys.SubforumID.EQ(subforumID),
+		models.SelectWhere.RoleKeys.RoleName.EQ("moderator"),
+		models.SelectWhere.RoleKeys.IsActive.EQ(true),
+		models.SelectWhere.RoleKeys.ExpiresAt.GT(time.Now()),
+	).All(ctx, dao.db)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get moderator role keys for subforum %d: %w", subforumID, err)
+	}
+
+	// Load pseudonym relationships for all role keys
+	if len(roleKeys) > 0 {
+		err = models.RoleKeySlice(roleKeys).LoadPseudonym(ctx, dao.db)
+		if err != nil {
+			log.Warn().Err(err).Int32("subforum_id", subforumID).Msg("Failed to load role key pseudonyms")
+			// Continue without pseudonym data
+		}
+	}
+
+	return roleKeys, nil
 }

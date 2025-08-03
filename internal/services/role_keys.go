@@ -28,33 +28,33 @@ func NewRoleKeyService(roleKeyDAO *dao.RoleKeyDAO, userDAO *dao.UserDAO, ibeSyst
 }
 
 // GetKeyForOperation retrieves and validates a role key for a specific operation
-func (s *RoleKeyService) GetKeyForOperation(ctx context.Context, roleName, scope, operation string) ([]byte, error) {
-	// Get the role key from the database
-	roleKey, err := s.roleKeyDAO.GetRoleKey(ctx, roleName, scope)
+func (s *RoleKeyService) GetKeyForOperation(ctx context.Context, pseudonymID, scope, operation string) ([]byte, error) {
+	// Get the role key from the database using the pseudonym ID
+	roleKey, err := s.roleKeyDAO.GetRoleKey(ctx, pseudonymID, scope, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get role key: %w", err)
 	}
 
 	// Validate that the key has the required capability
-	hasCapability, err := s.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, operation)
+	hasCapability, err := s.roleKeyDAO.ValidateKeyCapability(ctx, pseudonymID, scope, operation, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate key capability: %w", err)
 	}
 
 	if !hasCapability {
-		return nil, fmt.Errorf("role key for role=%s scope=%s does not have capability=%s", roleName, scope, operation)
+		return nil, fmt.Errorf("role key for pseudonym=%s scope=%s does not have capability=%s", pseudonymID, scope, operation)
 	}
 
 	return roleKey.KeyData, nil
 }
 
 // GenerateAndStoreKey generates a new IBE key and stores it in the database
-func (s *RoleKeyService) GenerateAndStoreKey(ctx context.Context, roleName, scope string, capabilities []string, expiresAt time.Time, createdBy int64) error {
-	// Generate IBE key for the role and scope
-	ibeKey := s.ibeSystem.GenerateRoleKey(roleName, scope, expiresAt)
+func (s *RoleKeyService) GenerateAndStoreKey(ctx context.Context, pseudonymID, scope string, capabilities []string, expiresAt time.Time, createdByPseudonymID string) error {
+	// Generate IBE key for the pseudonym and scope
+	ibeKey := s.ibeSystem.GenerateRoleKey(pseudonymID, scope, expiresAt)
 
 	// Store the key in the database
-	_, err := s.roleKeyDAO.CreateRoleKey(ctx, roleName, scope, ibeKey, capabilities, expiresAt, createdBy)
+	_, err := s.roleKeyDAO.CreateRoleKey(ctx, pseudonymID, scope, ibeKey, capabilities, expiresAt, createdByPseudonymID, "", nil)
 	if err != nil {
 		return fmt.Errorf("failed to store role key: %w", err)
 	}
@@ -75,7 +75,7 @@ func extractUserRoles(user *models.User) []string {
 }
 
 // ValidateUserAccess validates if a user can access a specific operation
-func (s *RoleKeyService) ValidateUserAccess(ctx context.Context, userID int64, roleName, scope, operation string) (bool, error) {
+func (s *RoleKeyService) ValidateUserAccess(ctx context.Context, userID int64, pseudonymID, scope, operation string) (bool, error) {
 	// Fetch user from DB
 	user, err := s.userDAO.GetUserByID(ctx, userID)
 	if err != nil {
@@ -85,21 +85,8 @@ func (s *RoleKeyService) ValidateUserAccess(ctx context.Context, userID int64, r
 		return false, fmt.Errorf("user not found")
 	}
 
-	// Check if user has the required role
-	userRoles := extractUserRoles(user)
-	hasRole := false
-	for _, r := range userRoles {
-		if r == roleName {
-			hasRole = true
-			break
-		}
-	}
-	if !hasRole {
-		return false, nil
-	}
-
-	// Check if the key exists and has the required capability
-	hasCapability, err := s.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, operation)
+	// Check if the key exists and has the required capability using the pseudonym ID
+	hasCapability, err := s.roleKeyDAO.ValidateKeyCapability(ctx, pseudonymID, scope, operation, nil)
 	if err != nil {
 		return false, fmt.Errorf("failed to validate key capability: %w", err)
 	}
@@ -111,8 +98,8 @@ func (s *RoleKeyService) ValidateUserAccess(ctx context.Context, userID int64, r
 }
 
 // EnsureDefaultKeys ensures that default role keys exist in the database
-func (s *RoleKeyService) EnsureDefaultKeys(ctx context.Context, createdBy int64) error {
-	return s.roleKeyDAO.EnsureDefaultKeys(ctx, s.ibeSystem, createdBy)
+func (s *RoleKeyService) EnsureDefaultKeys(ctx context.Context, pseudonymID string) error {
+	return s.roleKeyDAO.EnsureDefaultKeys(ctx, s.ibeSystem, pseudonymID)
 }
 
 // ListUserKeys lists all role keys that a user can access
@@ -151,7 +138,8 @@ func (s *RoleKeyService) DeactivateKey(ctx context.Context, keyID string) error 
 
 // GetKeyCapabilities returns the capabilities of a specific role key
 func (s *RoleKeyService) GetKeyCapabilities(ctx context.Context, roleName, scope string) ([]string, error) {
-	roleKey, err := s.roleKeyDAO.GetRoleKey(ctx, roleName, scope)
+	// Note: This needs to be updated to use actual pseudonym ID when the calling code is updated
+	roleKey, err := s.roleKeyDAO.GetRoleKey(ctx, "", scope, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get role key: %w", err)
 	}

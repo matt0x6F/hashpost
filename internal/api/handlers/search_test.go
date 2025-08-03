@@ -17,11 +17,11 @@ import (
 )
 
 // NewSearchHandlerWithMocks creates a SearchHandler with mocked dependencies
-func NewSearchHandlerWithMocks() (*handlers.SearchHandler, *mocks.MockPostDAO, *mocks.MockUserDAO, *mocks.MockSubforumDAO, *mocks.MockSecurePseudonymDAO) {
+func NewSearchHandlerWithMocks() (*handlers.SearchHandler, *mocks.MockPostDAO, *mocks.MockUserDAO, *mocks.MockSubforumDAO, *mocks.MockPseudonymDAO) {
 	mockPostDAO := &mocks.MockPostDAO{}
 	mockUserDAO := &mocks.MockUserDAO{}
 	mockSubforumDAO := &mocks.MockSubforumDAO{}
-	mockSecurePseudonymDAO := &mocks.MockSecurePseudonymDAO{}
+	mockPseudonymDAO := &mocks.MockPseudonymDAO{}
 
 	// Create handler with mocked DAOs
 	handler := handlers.NewSearchHandler(
@@ -29,10 +29,10 @@ func NewSearchHandlerWithMocks() (*handlers.SearchHandler, *mocks.MockPostDAO, *
 		mockPostDAO,
 		mockUserDAO,
 		mockSubforumDAO,
-		mockSecurePseudonymDAO,
+		mockPseudonymDAO,
 	)
 
-	return handler, mockPostDAO, mockUserDAO, mockSubforumDAO, mockSecurePseudonymDAO
+	return handler, mockPostDAO, mockUserDAO, mockSubforumDAO, mockPseudonymDAO
 }
 
 // createTestContext creates a context with user information
@@ -65,7 +65,7 @@ func createTestPlatformAdminContext(t *testing.T, userID int64, activePseudonymI
 // TestSearchHandler_SearchPosts tests the search posts functionality
 func TestSearchHandler_SearchPosts(t *testing.T) {
 	t.Run("SearchPostsSuccess", func(t *testing.T) {
-		handler, mockPostDAO, _, mockSubforumDAO, mockSecurePseudonymDAO := NewSearchHandlerWithMocks()
+		handler, mockPostDAO, _, mockSubforumDAO, mockPseudonymDAO := NewSearchHandlerWithMocks()
 
 		// Test data
 		userID := int64(1)
@@ -124,8 +124,8 @@ func TestSearchHandler_SearchPosts(t *testing.T) {
 		mockPostDAO.On("GetPostsBySubforum", mock.Anything, int32(1), 1, 100, "created_at", true).Return(mockPosts, nil)
 		mockPostDAO.On("GetPostsBySubforum", mock.Anything, int32(1), 1, 1000, "created_at", true).Return(mockPosts, nil)
 		mockSubforumDAO.On("GetSubforumByID", mock.Anything, int32(1)).Return(mockSubforum, nil)
-		mockSecurePseudonymDAO.On("GetPseudonymByID", mock.Anything, "author-pseudonym-1").Return(mockPseudonym1, nil)
-		mockSecurePseudonymDAO.On("GetPseudonymByID", mock.Anything, "author-pseudonym-2").Return(mockPseudonym2, nil)
+		mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, "author-pseudonym-1").Return(mockPseudonym1, nil)
+		mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, "author-pseudonym-2").Return(mockPseudonym2, nil)
 
 		// Create input
 		input := &models.SearchPostsInput{
@@ -159,7 +159,7 @@ func TestSearchHandler_SearchPosts(t *testing.T) {
 
 		mockPostDAO.AssertExpectations(t)
 		mockSubforumDAO.AssertExpectations(t)
-		mockSecurePseudonymDAO.AssertExpectations(t)
+		mockPseudonymDAO.AssertExpectations(t)
 	})
 
 	t.Run("SearchPostsEmptyQuery", func(t *testing.T) {
@@ -242,7 +242,7 @@ func TestSearchHandler_SearchPosts(t *testing.T) {
 	})
 
 	t.Run("SearchPostsWithFilters", func(t *testing.T) {
-		handler, mockPostDAO, _, mockSubforumDAO, mockSecurePseudonymDAO := NewSearchHandlerWithMocks()
+		handler, mockPostDAO, _, mockSubforumDAO, mockPseudonymDAO := NewSearchHandlerWithMocks()
 
 		// Test data
 		userID := int64(1)
@@ -290,7 +290,7 @@ func TestSearchHandler_SearchPosts(t *testing.T) {
 		mockPostDAO.On("GetPostsBySubforum", mock.Anything, int32(1), 1, 100, "created_at", true).Return(mockPosts, nil)
 		mockPostDAO.On("GetPostsBySubforum", mock.Anything, int32(1), 1, 1000, "created_at", true).Return(mockPosts, nil)
 		mockSubforumDAO.On("GetSubforumByID", mock.Anything, int32(1)).Return(mockSubforum, nil)
-		mockSecurePseudonymDAO.On("GetPseudonymByID", mock.Anything, "author-pseudonym-1").Return(mockPseudonym, nil)
+		mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, "author-pseudonym-1").Return(mockPseudonym, nil)
 
 		// Create input with filters
 		input := &models.SearchPostsInput{
@@ -315,14 +315,14 @@ func TestSearchHandler_SearchPosts(t *testing.T) {
 
 		mockPostDAO.AssertExpectations(t)
 		mockSubforumDAO.AssertExpectations(t)
-		mockSecurePseudonymDAO.AssertExpectations(t)
+		mockPseudonymDAO.AssertExpectations(t)
 	})
 }
 
 // TestSearchHandler_SearchUsers tests the search users functionality
 func TestSearchHandler_SearchUsers(t *testing.T) {
 	t.Run("SearchUsersSuccess", func(t *testing.T) {
-		handler, mockPostDAO, mockUserDAO, _, mockSecurePseudonymDAO := NewSearchHandlerWithMocks()
+		handler, mockPostDAO, mockUserDAO, _, mockPseudonymDAO := NewSearchHandlerWithMocks()
 
 		// Test data
 		userID := int64(1)
@@ -364,8 +364,8 @@ func TestSearchHandler_SearchUsers(t *testing.T) {
 
 		// Mock database calls
 		mockUserDAO.On("ListUsers", mock.Anything, 1000, 0).Return(mockUsers, nil)
-		mockSecurePseudonymDAO.On("GetDefaultPseudonymByUserID", mock.Anything, int64(1), "user", "global").Return(mockPseudonym1, nil)
-		mockSecurePseudonymDAO.On("GetDefaultPseudonymByUserID", mock.Anything, int64(2), "user", "global").Return(mockPseudonym2, nil)
+		mockPseudonymDAO.On("GetDefaultPseudonymByUserID", mock.Anything, int64(1), "user", "global").Return(mockPseudonym1, nil)
+		mockPseudonymDAO.On("GetDefaultPseudonymByUserID", mock.Anything, int64(2), "user", "global").Return(mockPseudonym2, nil)
 
 		// Mock karma score calculation calls
 		mockPostDAO.On("GetPostsBySubforum", mock.Anything, int32(0), 1, 1000, "created_at", true).Return([]*dbmodels.Post{}, nil)
@@ -397,7 +397,7 @@ func TestSearchHandler_SearchUsers(t *testing.T) {
 		assert.NotEmpty(t, response.Body.Users[0].CreatedAt)
 
 		mockUserDAO.AssertExpectations(t)
-		mockSecurePseudonymDAO.AssertExpectations(t)
+		mockPseudonymDAO.AssertExpectations(t)
 	})
 
 	t.Run("SearchUsersEmptyQuery", func(t *testing.T) {
@@ -479,7 +479,7 @@ func TestSearchHandler_NewSearchHandler(t *testing.T) {
 		mockPostDAO := mocks.NewMockPostDAO()
 		mockUserDAO := &mocks.MockUserDAO{}
 		mockSubforumDAO := mocks.NewMockSubforumDAO()
-		mockSecurePseudonymDAO := mocks.NewMockSecurePseudonymDAO()
+		mockPseudonymDAO := mocks.NewMockPseudonymDAO()
 
 		// Create handler with mocked dependencies
 		handler := handlers.NewSearchHandler(
@@ -487,7 +487,7 @@ func TestSearchHandler_NewSearchHandler(t *testing.T) {
 			mockPostDAO,
 			mockUserDAO,
 			mockSubforumDAO,
-			mockSecurePseudonymDAO,
+			mockPseudonymDAO,
 		)
 
 		// Verify handler was created successfully

@@ -71,7 +71,6 @@ type userR struct {
 	PasswordResetTokens            PasswordResetTokenSlice     `scan:"PasswordResetTokens" json:"PasswordResetTokens"`                       // password_reset_tokens.password_reset_tokens_user_id_fkey
 	ForwardedByUserReports         ReportSlice                 `scan:"ForwardedByUserReports" json:"ForwardedByUserReports"`                 // reports.fk_reports_forwarded_by
 	ResolvedByUserReports          ReportSlice                 `scan:"ResolvedByUserReports" json:"ResolvedByUserReports"`                   // reports.reports_resolved_by_user_id_fkey
-	CreatedByRoleKeys              RoleKeySlice                `scan:"CreatedByRoleKeys" json:"CreatedByRoleKeys"`                           // role_keys.role_keys_created_by_fkey
 	CreatedByUserSubforums         SubforumSlice               `scan:"CreatedByUserSubforums" json:"CreatedByUserSubforums"`                 // subforums.subforums_created_by_user_id_fkey
 	UpdatedBySystemSettings        SystemSettingSlice          `scan:"UpdatedBySystemSettings" json:"UpdatedBySystemSettings"`               // system_settings.system_settings_updated_by_fkey
 	BannedByUserUserBans           UserBanSlice                `scan:"BannedByUserUserBans" json:"BannedByUserUserBans"`                     // user_bans.user_bans_banned_by_user_id_fkey
@@ -885,7 +884,6 @@ type userJoins[Q dialect.Joinable] struct {
 	PasswordResetTokens            modAs[Q, passwordResetTokenColumns]
 	ForwardedByUserReports         modAs[Q, reportColumns]
 	ResolvedByUserReports          modAs[Q, reportColumns]
-	CreatedByRoleKeys              modAs[Q, roleKeyColumns]
 	CreatedByUserSubforums         modAs[Q, subforumColumns]
 	UpdatedBySystemSettings        modAs[Q, systemSettingColumns]
 	BannedByUserUserBans           modAs[Q, userBanColumns]
@@ -1049,20 +1047,6 @@ func buildUserJoins[Q dialect.Joinable](cols userColumns, typ string) userJoins[
 				{
 					mods = append(mods, dialect.Join[Q](typ, Reports.Name().As(to.Alias())).On(
 						to.ResolvedByUserID.EQ(cols.UserID),
-					))
-				}
-
-				return mods
-			},
-		},
-		CreatedByRoleKeys: modAs[Q, roleKeyColumns]{
-			c: RoleKeyColumns,
-			f: func(to roleKeyColumns) bob.Mod[Q] {
-				mods := make(mods.QueryMods[Q], 0, 1)
-
-				{
-					mods = append(mods, dialect.Join[Q](typ, RoleKeys.Name().As(to.Alias())).On(
-						to.CreatedBy.EQ(cols.UserID),
 					))
 				}
 
@@ -1387,27 +1371,6 @@ func (os UserSlice) ResolvedByUserReports(mods ...bob.Mod[*dialect.SelectQuery])
 	)...)
 }
 
-// CreatedByRoleKeys starts a query for related objects on role_keys
-func (o *User) CreatedByRoleKeys(mods ...bob.Mod[*dialect.SelectQuery]) RoleKeysQuery {
-	return RoleKeys.Query(append(mods,
-		sm.Where(RoleKeyColumns.CreatedBy.EQ(psql.Arg(o.UserID))),
-	)...)
-}
-
-func (os UserSlice) CreatedByRoleKeys(mods ...bob.Mod[*dialect.SelectQuery]) RoleKeysQuery {
-	pkUserID := make(pgtypes.Array[int64], len(os))
-	for i, o := range os {
-		pkUserID[i] = o.UserID
-	}
-	PKArgExpr := psql.Select(sm.Columns(
-		psql.F("unnest", psql.Cast(psql.Arg(pkUserID), "bigint[]")),
-	))
-
-	return RoleKeys.Query(append(mods,
-		sm.Where(psql.Group(RoleKeyColumns.CreatedBy).OP("IN", PKArgExpr)),
-	)...)
-}
-
 // CreatedByUserSubforums starts a query for related objects on subforums
 func (o *User) CreatedByUserSubforums(mods ...bob.Mod[*dialect.SelectQuery]) SubforumsQuery {
 	return Subforums.Query(append(mods,
@@ -1694,20 +1657,6 @@ func (o *User) Preload(name string, retrieved any) error {
 			}
 		}
 		return nil
-	case "CreatedByRoleKeys":
-		rels, ok := retrieved.(RoleKeySlice)
-		if !ok {
-			return fmt.Errorf("user cannot load %T as %q", retrieved, name)
-		}
-
-		o.R.CreatedByRoleKeys = rels
-
-		for _, rel := range rels {
-			if rel != nil {
-				rel.R.CreatedByUser = o
-			}
-		}
-		return nil
 	case "CreatedByUserSubforums":
 		rels, ok := retrieved.(SubforumSlice)
 		if !ok {
@@ -1833,7 +1782,6 @@ type userThenLoader[Q orm.Loadable] struct {
 	PasswordResetTokens            func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	ForwardedByUserReports         func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	ResolvedByUserReports          func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	CreatedByRoleKeys              func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	CreatedByUserSubforums         func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	UpdatedBySystemSettings        func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	BannedByUserUserBans           func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
@@ -1875,9 +1823,6 @@ func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
 	}
 	type ResolvedByUserReportsLoadInterface interface {
 		LoadResolvedByUserReports(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
-	}
-	type CreatedByRoleKeysLoadInterface interface {
-		LoadCreatedByRoleKeys(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 	type CreatedByUserSubforumsLoadInterface interface {
 		LoadCreatedByUserSubforums(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
@@ -1963,12 +1908,6 @@ func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
 			"ResolvedByUserReports",
 			func(ctx context.Context, exec bob.Executor, retrieved ResolvedByUserReportsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
 				return retrieved.LoadResolvedByUserReports(ctx, exec, mods...)
-			},
-		),
-		CreatedByRoleKeys: thenLoadBuilder[Q](
-			"CreatedByRoleKeys",
-			func(ctx context.Context, exec bob.Executor, retrieved CreatedByRoleKeysLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
-				return retrieved.LoadCreatedByRoleKeys(ctx, exec, mods...)
 			},
 		),
 		CreatedByUserSubforums: thenLoadBuilder[Q](
@@ -2576,58 +2515,6 @@ func (os UserSlice) LoadResolvedByUserReports(ctx context.Context, exec bob.Exec
 			rel.R.ResolvedByUserUser = o
 
 			o.R.ResolvedByUserReports = append(o.R.ResolvedByUserReports, rel)
-		}
-	}
-
-	return nil
-}
-
-// LoadCreatedByRoleKeys loads the user's CreatedByRoleKeys into the .R struct
-func (o *User) LoadCreatedByRoleKeys(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
-	if o == nil {
-		return nil
-	}
-
-	// Reset the relationship
-	o.R.CreatedByRoleKeys = nil
-
-	related, err := o.CreatedByRoleKeys(mods...).All(ctx, exec)
-	if err != nil {
-		return err
-	}
-
-	for _, rel := range related {
-		rel.R.CreatedByUser = o
-	}
-
-	o.R.CreatedByRoleKeys = related
-	return nil
-}
-
-// LoadCreatedByRoleKeys loads the user's CreatedByRoleKeys into the .R struct
-func (os UserSlice) LoadCreatedByRoleKeys(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
-	if len(os) == 0 {
-		return nil
-	}
-
-	roleKeys, err := os.CreatedByRoleKeys(mods...).All(ctx, exec)
-	if err != nil {
-		return err
-	}
-
-	for _, o := range os {
-		o.R.CreatedByRoleKeys = nil
-	}
-
-	for _, o := range os {
-		for _, rel := range roleKeys {
-			if o.UserID != rel.CreatedBy {
-				continue
-			}
-
-			rel.R.CreatedByUser = o
-
-			o.R.CreatedByRoleKeys = append(o.R.CreatedByRoleKeys, rel)
 		}
 	}
 
@@ -3708,74 +3595,6 @@ func (user0 *User) AttachResolvedByUserReports(ctx context.Context, exec bob.Exe
 
 	for _, rel := range related {
 		rel.R.ResolvedByUserUser = user0
-	}
-
-	return nil
-}
-
-func insertUserCreatedByRoleKeys0(ctx context.Context, exec bob.Executor, roleKeys1 []*RoleKeySetter, user0 *User) (RoleKeySlice, error) {
-	for i := range roleKeys1 {
-		roleKeys1[i].CreatedBy = &user0.UserID
-	}
-
-	ret, err := RoleKeys.Insert(bob.ToMods(roleKeys1...)).All(ctx, exec)
-	if err != nil {
-		return ret, fmt.Errorf("insertUserCreatedByRoleKeys0: %w", err)
-	}
-
-	return ret, nil
-}
-
-func attachUserCreatedByRoleKeys0(ctx context.Context, exec bob.Executor, count int, roleKeys1 RoleKeySlice, user0 *User) (RoleKeySlice, error) {
-	setter := &RoleKeySetter{
-		CreatedBy: &user0.UserID,
-	}
-
-	err := roleKeys1.UpdateAll(ctx, exec, *setter)
-	if err != nil {
-		return nil, fmt.Errorf("attachUserCreatedByRoleKeys0: %w", err)
-	}
-
-	return roleKeys1, nil
-}
-
-func (user0 *User) InsertCreatedByRoleKeys(ctx context.Context, exec bob.Executor, related ...*RoleKeySetter) error {
-	if len(related) == 0 {
-		return nil
-	}
-
-	var err error
-
-	roleKeys1, err := insertUserCreatedByRoleKeys0(ctx, exec, related, user0)
-	if err != nil {
-		return err
-	}
-
-	user0.R.CreatedByRoleKeys = append(user0.R.CreatedByRoleKeys, roleKeys1...)
-
-	for _, rel := range roleKeys1 {
-		rel.R.CreatedByUser = user0
-	}
-	return nil
-}
-
-func (user0 *User) AttachCreatedByRoleKeys(ctx context.Context, exec bob.Executor, related ...*RoleKey) error {
-	if len(related) == 0 {
-		return nil
-	}
-
-	var err error
-	roleKeys1 := RoleKeySlice(related)
-
-	_, err = attachUserCreatedByRoleKeys0(ctx, exec, len(related), roleKeys1, user0)
-	if err != nil {
-		return err
-	}
-
-	user0.R.CreatedByRoleKeys = append(user0.R.CreatedByRoleKeys, roleKeys1...)
-
-	for _, rel := range related {
-		rel.R.CreatedByUser = user0
 	}
 
 	return nil

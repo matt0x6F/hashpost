@@ -42,7 +42,6 @@ var TableNames = struct {
 	RoleDefinitions         string
 	RoleKeys                string
 	SchemaMigrations        string
-	SubforumModerators      string
 	SubforumSubscriptions   string
 	Subforums               string
 	SystemEvents            string
@@ -76,7 +75,6 @@ var TableNames = struct {
 	RoleDefinitions:         "role_definitions",
 	RoleKeys:                "role_keys",
 	SchemaMigrations:        "schema_migrations",
-	SubforumModerators:      "subforum_moderators",
 	SubforumSubscriptions:   "subforum_subscriptions",
 	Subforums:               "subforums",
 	SystemEvents:            "system_events",
@@ -112,7 +110,6 @@ var ColumnNames = struct {
 	RoleDefinitions         roleDefinitionColumnNames
 	RoleKeys                roleKeyColumnNames
 	SchemaMigrations        schemaMigrationColumnNames
-	SubforumModerators      subforumModeratorColumnNames
 	SubforumSubscriptions   subforumSubscriptionColumnNames
 	Subforums               subforumColumnNames
 	SystemEvents            systemEventColumnNames
@@ -414,19 +411,12 @@ var ColumnNames = struct {
 		ExpiresAt:    "expires_at",
 		IsActive:     "is_active",
 		CreatedBy:    "created_by",
+		PseudonymID:  "pseudonym_id",
+		SubforumID:   "subforum_id",
 	},
 	SchemaMigrations: schemaMigrationColumnNames{
 		ID:        "id",
 		AppliedAt: "applied_at",
-	},
-	SubforumModerators: subforumModeratorColumnNames{
-		ModeratorID:        "moderator_id",
-		SubforumID:         "subforum_id",
-		PseudonymID:        "pseudonym_id",
-		Role:               "role",
-		AddedAt:            "added_at",
-		Permissions:        "permissions",
-		AddedByPseudonymID: "added_by_pseudonym_id",
 	},
 	SubforumSubscriptions: subforumSubscriptionColumnNames{
 		SubscriptionID: "subscription_id",
@@ -572,7 +562,6 @@ func Where[Q psql.Filterable]() struct {
 	RoleDefinitions         roleDefinitionWhere[Q]
 	RoleKeys                roleKeyWhere[Q]
 	SchemaMigrations        schemaMigrationWhere[Q]
-	SubforumModerators      subforumModeratorWhere[Q]
 	SubforumSubscriptions   subforumSubscriptionWhere[Q]
 	Subforums               subforumWhere[Q]
 	SystemEvents            systemEventWhere[Q]
@@ -607,7 +596,6 @@ func Where[Q psql.Filterable]() struct {
 		RoleDefinitions         roleDefinitionWhere[Q]
 		RoleKeys                roleKeyWhere[Q]
 		SchemaMigrations        schemaMigrationWhere[Q]
-		SubforumModerators      subforumModeratorWhere[Q]
 		SubforumSubscriptions   subforumSubscriptionWhere[Q]
 		Subforums               subforumWhere[Q]
 		SystemEvents            systemEventWhere[Q]
@@ -641,7 +629,6 @@ func Where[Q psql.Filterable]() struct {
 		RoleDefinitions:         buildRoleDefinitionWhere[Q](RoleDefinitionColumns),
 		RoleKeys:                buildRoleKeyWhere[Q](RoleKeyColumns),
 		SchemaMigrations:        buildSchemaMigrationWhere[Q](SchemaMigrationColumns),
-		SubforumModerators:      buildSubforumModeratorWhere[Q](SubforumModeratorColumns),
 		SubforumSubscriptions:   buildSubforumSubscriptionWhere[Q](SubforumSubscriptionColumns),
 		Subforums:               buildSubforumWhere[Q](SubforumColumns),
 		SystemEvents:            buildSystemEventWhere[Q](SystemEventColumns),
@@ -677,7 +664,6 @@ type preloaders struct {
 	Pseudonym              pseudonymPreloader
 	Report                 reportPreloader
 	RoleKey                roleKeyPreloader
-	SubforumModerator      subforumModeratorPreloader
 	SubforumSubscription   subforumSubscriptionPreloader
 	Subforum               subforumPreloader
 	SystemSetting          systemSettingPreloader
@@ -710,7 +696,6 @@ func getPreloaders() preloaders {
 		Pseudonym:              buildPseudonymPreloader(),
 		Report:                 buildReportPreloader(),
 		RoleKey:                buildRoleKeyPreloader(),
-		SubforumModerator:      buildSubforumModeratorPreloader(),
 		SubforumSubscription:   buildSubforumSubscriptionPreloader(),
 		Subforum:               buildSubforumPreloader(),
 		SystemSetting:          buildSystemSettingPreloader(),
@@ -749,7 +734,6 @@ type thenLoaders[Q orm.Loadable] struct {
 	Pseudonym              pseudonymThenLoader[Q]
 	Report                 reportThenLoader[Q]
 	RoleKey                roleKeyThenLoader[Q]
-	SubforumModerator      subforumModeratorThenLoader[Q]
 	SubforumSubscription   subforumSubscriptionThenLoader[Q]
 	Subforum               subforumThenLoader[Q]
 	SystemSetting          systemSettingThenLoader[Q]
@@ -782,7 +766,6 @@ func getThenLoaders[Q orm.Loadable]() thenLoaders[Q] {
 		Pseudonym:              buildPseudonymThenLoader[Q](),
 		Report:                 buildReportThenLoader[Q](),
 		RoleKey:                buildRoleKeyThenLoader[Q](),
-		SubforumModerator:      buildSubforumModeratorThenLoader[Q](),
 		SubforumSubscription:   buildSubforumSubscriptionThenLoader[Q](),
 		Subforum:               buildSubforumThenLoader[Q](),
 		SystemSetting:          buildSystemSettingThenLoader[Q](),
@@ -855,7 +838,6 @@ type joins[Q dialect.Joinable] struct {
 	Pseudonyms              joinSet[pseudonymJoins[Q]]
 	Reports                 joinSet[reportJoins[Q]]
 	RoleKeys                joinSet[roleKeyJoins[Q]]
-	SubforumModerators      joinSet[subforumModeratorJoins[Q]]
 	SubforumSubscriptions   joinSet[subforumSubscriptionJoins[Q]]
 	Subforums               joinSet[subforumJoins[Q]]
 	SystemSettings          joinSet[systemSettingJoins[Q]]
@@ -896,7 +878,6 @@ func getJoins[Q dialect.Joinable]() joins[Q] {
 		Pseudonyms:              buildJoinSet[pseudonymJoins[Q]](PseudonymColumns, buildPseudonymJoins),
 		Reports:                 buildJoinSet[reportJoins[Q]](ReportColumns, buildReportJoins),
 		RoleKeys:                buildJoinSet[roleKeyJoins[Q]](RoleKeyColumns, buildRoleKeyJoins),
-		SubforumModerators:      buildJoinSet[subforumModeratorJoins[Q]](SubforumModeratorColumns, buildSubforumModeratorJoins),
 		SubforumSubscriptions:   buildJoinSet[subforumSubscriptionJoins[Q]](SubforumSubscriptionColumns, buildSubforumSubscriptionJoins),
 		Subforums:               buildJoinSet[subforumJoins[Q]](SubforumColumns, buildSubforumJoins),
 		SystemSettings:          buildJoinSet[systemSettingJoins[Q]](SystemSettingColumns, buildSystemSettingJoins),

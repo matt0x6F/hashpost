@@ -71,8 +71,8 @@ type pseudonymR struct {
 	ReportedPseudonymReports            ReportSlice               `scan:"ReportedPseudonymReports" json:"ReportedPseudonymReports"`                       // reports.reports_reported_pseudonym_id_fkey
 	ReporterPseudonymReports            ReportSlice               `scan:"ReporterPseudonymReports" json:"ReporterPseudonymReports"`                       // reports.reports_reporter_pseudonym_id_fkey
 	ResolvedByPseudonymReports          ReportSlice               `scan:"ResolvedByPseudonymReports" json:"ResolvedByPseudonymReports"`                   // reports.reports_resolved_by_pseudonym_id_fkey
-	AddedByPseudonymSubforumModerators  SubforumModeratorSlice    `scan:"AddedByPseudonymSubforumModerators" json:"AddedByPseudonymSubforumModerators"`   // subforum_moderators.fk_added_by_pseudonym
-	SubforumModerators                  SubforumModeratorSlice    `scan:"SubforumModerators" json:"SubforumModerators"`                                   // subforum_moderators.subforum_moderators_pseudonym_id_fkey
+	CreatedByRoleKeys                   RoleKeySlice              `scan:"CreatedByRoleKeys" json:"CreatedByRoleKeys"`                                     // role_keys.role_keys_created_by_fkey
+	RoleKeys                            RoleKeySlice              `scan:"RoleKeys" json:"RoleKeys"`                                                       // role_keys.role_keys_pseudonym_id_fkey
 	SubforumSubscriptions               SubforumSubscriptionSlice `scan:"SubforumSubscriptions" json:"SubforumSubscriptions"`                             // subforum_subscriptions.subforum_subscriptions_pseudonym_id_fkey
 	OwnerPseudonymSubforums             SubforumSlice             `scan:"OwnerPseudonymSubforums" json:"OwnerPseudonymSubforums"`                         // subforums.fk_subforums_owner_pseudonym
 	BannedByPseudonymUserBans           UserBanSlice              `scan:"BannedByPseudonymUserBans" json:"BannedByPseudonymUserBans"`                     // user_bans.user_bans_banned_by_pseudonym_id_fkey
@@ -777,8 +777,8 @@ type pseudonymJoins[Q dialect.Joinable] struct {
 	ReportedPseudonymReports            modAs[Q, reportColumns]
 	ReporterPseudonymReports            modAs[Q, reportColumns]
 	ResolvedByPseudonymReports          modAs[Q, reportColumns]
-	AddedByPseudonymSubforumModerators  modAs[Q, subforumModeratorColumns]
-	SubforumModerators                  modAs[Q, subforumModeratorColumns]
+	CreatedByRoleKeys                   modAs[Q, roleKeyColumns]
+	RoleKeys                            modAs[Q, roleKeyColumns]
 	SubforumSubscriptions               modAs[Q, subforumSubscriptionColumns]
 	OwnerPseudonymSubforums             modAs[Q, subforumColumns]
 	BannedByPseudonymUserBans           modAs[Q, userBanColumns]
@@ -1004,27 +1004,27 @@ func buildPseudonymJoins[Q dialect.Joinable](cols pseudonymColumns, typ string) 
 				return mods
 			},
 		},
-		AddedByPseudonymSubforumModerators: modAs[Q, subforumModeratorColumns]{
-			c: SubforumModeratorColumns,
-			f: func(to subforumModeratorColumns) bob.Mod[Q] {
+		CreatedByRoleKeys: modAs[Q, roleKeyColumns]{
+			c: RoleKeyColumns,
+			f: func(to roleKeyColumns) bob.Mod[Q] {
 				mods := make(mods.QueryMods[Q], 0, 1)
 
 				{
-					mods = append(mods, dialect.Join[Q](typ, SubforumModerators.Name().As(to.Alias())).On(
-						to.AddedByPseudonymID.EQ(cols.PseudonymID),
+					mods = append(mods, dialect.Join[Q](typ, RoleKeys.Name().As(to.Alias())).On(
+						to.CreatedBy.EQ(cols.PseudonymID),
 					))
 				}
 
 				return mods
 			},
 		},
-		SubforumModerators: modAs[Q, subforumModeratorColumns]{
-			c: SubforumModeratorColumns,
-			f: func(to subforumModeratorColumns) bob.Mod[Q] {
+		RoleKeys: modAs[Q, roleKeyColumns]{
+			c: RoleKeyColumns,
+			f: func(to roleKeyColumns) bob.Mod[Q] {
 				mods := make(mods.QueryMods[Q], 0, 1)
 
 				{
-					mods = append(mods, dialect.Join[Q](typ, SubforumModerators.Name().As(to.Alias())).On(
+					mods = append(mods, dialect.Join[Q](typ, RoleKeys.Name().As(to.Alias())).On(
 						to.PseudonymID.EQ(cols.PseudonymID),
 					))
 				}
@@ -1434,14 +1434,14 @@ func (os PseudonymSlice) ResolvedByPseudonymReports(mods ...bob.Mod[*dialect.Sel
 	)...)
 }
 
-// AddedByPseudonymSubforumModerators starts a query for related objects on subforum_moderators
-func (o *Pseudonym) AddedByPseudonymSubforumModerators(mods ...bob.Mod[*dialect.SelectQuery]) SubforumModeratorsQuery {
-	return SubforumModerators.Query(append(mods,
-		sm.Where(SubforumModeratorColumns.AddedByPseudonymID.EQ(psql.Arg(o.PseudonymID))),
+// CreatedByRoleKeys starts a query for related objects on role_keys
+func (o *Pseudonym) CreatedByRoleKeys(mods ...bob.Mod[*dialect.SelectQuery]) RoleKeysQuery {
+	return RoleKeys.Query(append(mods,
+		sm.Where(RoleKeyColumns.CreatedBy.EQ(psql.Arg(o.PseudonymID))),
 	)...)
 }
 
-func (os PseudonymSlice) AddedByPseudonymSubforumModerators(mods ...bob.Mod[*dialect.SelectQuery]) SubforumModeratorsQuery {
+func (os PseudonymSlice) CreatedByRoleKeys(mods ...bob.Mod[*dialect.SelectQuery]) RoleKeysQuery {
 	pkPseudonymID := make(pgtypes.Array[string], len(os))
 	for i, o := range os {
 		pkPseudonymID[i] = o.PseudonymID
@@ -1450,19 +1450,19 @@ func (os PseudonymSlice) AddedByPseudonymSubforumModerators(mods ...bob.Mod[*dia
 		psql.F("unnest", psql.Cast(psql.Arg(pkPseudonymID), "character varying[]")),
 	))
 
-	return SubforumModerators.Query(append(mods,
-		sm.Where(psql.Group(SubforumModeratorColumns.AddedByPseudonymID).OP("IN", PKArgExpr)),
+	return RoleKeys.Query(append(mods,
+		sm.Where(psql.Group(RoleKeyColumns.CreatedBy).OP("IN", PKArgExpr)),
 	)...)
 }
 
-// SubforumModerators starts a query for related objects on subforum_moderators
-func (o *Pseudonym) SubforumModerators(mods ...bob.Mod[*dialect.SelectQuery]) SubforumModeratorsQuery {
-	return SubforumModerators.Query(append(mods,
-		sm.Where(SubforumModeratorColumns.PseudonymID.EQ(psql.Arg(o.PseudonymID))),
+// RoleKeys starts a query for related objects on role_keys
+func (o *Pseudonym) RoleKeys(mods ...bob.Mod[*dialect.SelectQuery]) RoleKeysQuery {
+	return RoleKeys.Query(append(mods,
+		sm.Where(RoleKeyColumns.PseudonymID.EQ(psql.Arg(o.PseudonymID))),
 	)...)
 }
 
-func (os PseudonymSlice) SubforumModerators(mods ...bob.Mod[*dialect.SelectQuery]) SubforumModeratorsQuery {
+func (os PseudonymSlice) RoleKeys(mods ...bob.Mod[*dialect.SelectQuery]) RoleKeysQuery {
 	pkPseudonymID := make(pgtypes.Array[string], len(os))
 	for i, o := range os {
 		pkPseudonymID[i] = o.PseudonymID
@@ -1471,8 +1471,8 @@ func (os PseudonymSlice) SubforumModerators(mods ...bob.Mod[*dialect.SelectQuery
 		psql.F("unnest", psql.Cast(psql.Arg(pkPseudonymID), "character varying[]")),
 	))
 
-	return SubforumModerators.Query(append(mods,
-		sm.Where(psql.Group(SubforumModeratorColumns.PseudonymID).OP("IN", PKArgExpr)),
+	return RoleKeys.Query(append(mods,
+		sm.Where(psql.Group(RoleKeyColumns.PseudonymID).OP("IN", PKArgExpr)),
 	)...)
 }
 
@@ -1818,27 +1818,27 @@ func (o *Pseudonym) Preload(name string, retrieved any) error {
 			}
 		}
 		return nil
-	case "AddedByPseudonymSubforumModerators":
-		rels, ok := retrieved.(SubforumModeratorSlice)
+	case "CreatedByRoleKeys":
+		rels, ok := retrieved.(RoleKeySlice)
 		if !ok {
 			return fmt.Errorf("pseudonym cannot load %T as %q", retrieved, name)
 		}
 
-		o.R.AddedByPseudonymSubforumModerators = rels
+		o.R.CreatedByRoleKeys = rels
 
 		for _, rel := range rels {
 			if rel != nil {
-				rel.R.AddedByPseudonymPseudonym = o
+				rel.R.CreatedByPseudonym = o
 			}
 		}
 		return nil
-	case "SubforumModerators":
-		rels, ok := retrieved.(SubforumModeratorSlice)
+	case "RoleKeys":
+		rels, ok := retrieved.(RoleKeySlice)
 		if !ok {
 			return fmt.Errorf("pseudonym cannot load %T as %q", retrieved, name)
 		}
 
-		o.R.SubforumModerators = rels
+		o.R.RoleKeys = rels
 
 		for _, rel := range rels {
 			if rel != nil {
@@ -1957,8 +1957,8 @@ type pseudonymThenLoader[Q orm.Loadable] struct {
 	ReportedPseudonymReports            func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	ReporterPseudonymReports            func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	ResolvedByPseudonymReports          func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	AddedByPseudonymSubforumModerators  func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	SubforumModerators                  func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	CreatedByRoleKeys                   func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	RoleKeys                            func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	SubforumSubscriptions               func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	OwnerPseudonymSubforums             func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	BannedByPseudonymUserBans           func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
@@ -2013,11 +2013,11 @@ func buildPseudonymThenLoader[Q orm.Loadable]() pseudonymThenLoader[Q] {
 	type ResolvedByPseudonymReportsLoadInterface interface {
 		LoadResolvedByPseudonymReports(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
-	type AddedByPseudonymSubforumModeratorsLoadInterface interface {
-		LoadAddedByPseudonymSubforumModerators(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	type CreatedByRoleKeysLoadInterface interface {
+		LoadCreatedByRoleKeys(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
-	type SubforumModeratorsLoadInterface interface {
-		LoadSubforumModerators(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	type RoleKeysLoadInterface interface {
+		LoadRoleKeys(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 	type SubforumSubscriptionsLoadInterface interface {
 		LoadSubforumSubscriptions(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
@@ -2129,16 +2129,16 @@ func buildPseudonymThenLoader[Q orm.Loadable]() pseudonymThenLoader[Q] {
 				return retrieved.LoadResolvedByPseudonymReports(ctx, exec, mods...)
 			},
 		),
-		AddedByPseudonymSubforumModerators: thenLoadBuilder[Q](
-			"AddedByPseudonymSubforumModerators",
-			func(ctx context.Context, exec bob.Executor, retrieved AddedByPseudonymSubforumModeratorsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
-				return retrieved.LoadAddedByPseudonymSubforumModerators(ctx, exec, mods...)
+		CreatedByRoleKeys: thenLoadBuilder[Q](
+			"CreatedByRoleKeys",
+			func(ctx context.Context, exec bob.Executor, retrieved CreatedByRoleKeysLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadCreatedByRoleKeys(ctx, exec, mods...)
 			},
 		),
-		SubforumModerators: thenLoadBuilder[Q](
-			"SubforumModerators",
-			func(ctx context.Context, exec bob.Executor, retrieved SubforumModeratorsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
-				return retrieved.LoadSubforumModerators(ctx, exec, mods...)
+		RoleKeys: thenLoadBuilder[Q](
+			"RoleKeys",
+			func(ctx context.Context, exec bob.Executor, retrieved RoleKeysLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadRoleKeys(ctx, exec, mods...)
 			},
 		),
 		SubforumSubscriptions: thenLoadBuilder[Q](
@@ -2960,68 +2960,68 @@ func (os PseudonymSlice) LoadResolvedByPseudonymReports(ctx context.Context, exe
 	return nil
 }
 
-// LoadAddedByPseudonymSubforumModerators loads the pseudonym's AddedByPseudonymSubforumModerators into the .R struct
-func (o *Pseudonym) LoadAddedByPseudonymSubforumModerators(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+// LoadCreatedByRoleKeys loads the pseudonym's CreatedByRoleKeys into the .R struct
+func (o *Pseudonym) LoadCreatedByRoleKeys(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
 	if o == nil {
 		return nil
 	}
 
 	// Reset the relationship
-	o.R.AddedByPseudonymSubforumModerators = nil
+	o.R.CreatedByRoleKeys = nil
 
-	related, err := o.AddedByPseudonymSubforumModerators(mods...).All(ctx, exec)
+	related, err := o.CreatedByRoleKeys(mods...).All(ctx, exec)
 	if err != nil {
 		return err
 	}
 
 	for _, rel := range related {
-		rel.R.AddedByPseudonymPseudonym = o
+		rel.R.CreatedByPseudonym = o
 	}
 
-	o.R.AddedByPseudonymSubforumModerators = related
+	o.R.CreatedByRoleKeys = related
 	return nil
 }
 
-// LoadAddedByPseudonymSubforumModerators loads the pseudonym's AddedByPseudonymSubforumModerators into the .R struct
-func (os PseudonymSlice) LoadAddedByPseudonymSubforumModerators(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+// LoadCreatedByRoleKeys loads the pseudonym's CreatedByRoleKeys into the .R struct
+func (os PseudonymSlice) LoadCreatedByRoleKeys(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
 	if len(os) == 0 {
 		return nil
 	}
 
-	subforumModerators, err := os.AddedByPseudonymSubforumModerators(mods...).All(ctx, exec)
+	roleKeys, err := os.CreatedByRoleKeys(mods...).All(ctx, exec)
 	if err != nil {
 		return err
 	}
 
 	for _, o := range os {
-		o.R.AddedByPseudonymSubforumModerators = nil
+		o.R.CreatedByRoleKeys = nil
 	}
 
 	for _, o := range os {
-		for _, rel := range subforumModerators {
-			if o.PseudonymID != rel.AddedByPseudonymID.V {
+		for _, rel := range roleKeys {
+			if o.PseudonymID != rel.CreatedBy {
 				continue
 			}
 
-			rel.R.AddedByPseudonymPseudonym = o
+			rel.R.CreatedByPseudonym = o
 
-			o.R.AddedByPseudonymSubforumModerators = append(o.R.AddedByPseudonymSubforumModerators, rel)
+			o.R.CreatedByRoleKeys = append(o.R.CreatedByRoleKeys, rel)
 		}
 	}
 
 	return nil
 }
 
-// LoadSubforumModerators loads the pseudonym's SubforumModerators into the .R struct
-func (o *Pseudonym) LoadSubforumModerators(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+// LoadRoleKeys loads the pseudonym's RoleKeys into the .R struct
+func (o *Pseudonym) LoadRoleKeys(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
 	if o == nil {
 		return nil
 	}
 
 	// Reset the relationship
-	o.R.SubforumModerators = nil
+	o.R.RoleKeys = nil
 
-	related, err := o.SubforumModerators(mods...).All(ctx, exec)
+	related, err := o.RoleKeys(mods...).All(ctx, exec)
 	if err != nil {
 		return err
 	}
@@ -3030,34 +3030,34 @@ func (o *Pseudonym) LoadSubforumModerators(ctx context.Context, exec bob.Executo
 		rel.R.Pseudonym = o
 	}
 
-	o.R.SubforumModerators = related
+	o.R.RoleKeys = related
 	return nil
 }
 
-// LoadSubforumModerators loads the pseudonym's SubforumModerators into the .R struct
-func (os PseudonymSlice) LoadSubforumModerators(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+// LoadRoleKeys loads the pseudonym's RoleKeys into the .R struct
+func (os PseudonymSlice) LoadRoleKeys(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
 	if len(os) == 0 {
 		return nil
 	}
 
-	subforumModerators, err := os.SubforumModerators(mods...).All(ctx, exec)
+	roleKeys, err := os.RoleKeys(mods...).All(ctx, exec)
 	if err != nil {
 		return err
 	}
 
 	for _, o := range os {
-		o.R.SubforumModerators = nil
+		o.R.RoleKeys = nil
 	}
 
 	for _, o := range os {
-		for _, rel := range subforumModerators {
+		for _, rel := range roleKeys {
 			if o.PseudonymID != rel.PseudonymID {
 				continue
 			}
 
 			rel.R.Pseudonym = o
 
-			o.R.SubforumModerators = append(o.R.SubforumModerators, rel)
+			o.R.RoleKeys = append(o.R.RoleKeys, rel)
 		}
 	}
 
@@ -4438,140 +4438,134 @@ func (pseudonym0 *Pseudonym) AttachResolvedByPseudonymReports(ctx context.Contex
 	return nil
 }
 
-func insertPseudonymAddedByPseudonymSubforumModerators0(ctx context.Context, exec bob.Executor, subforumModerators1 []*SubforumModeratorSetter, pseudonym0 *Pseudonym) (SubforumModeratorSlice, error) {
-	for i := range subforumModerators1 {
-		subforumModerators1[i].AddedByPseudonymID = func() *sql.Null[string] {
-			v := sql.Null[string]{V: pseudonym0.PseudonymID, Valid: true}
-			return &v
-		}()
+func insertPseudonymCreatedByRoleKeys0(ctx context.Context, exec bob.Executor, roleKeys1 []*RoleKeySetter, pseudonym0 *Pseudonym) (RoleKeySlice, error) {
+	for i := range roleKeys1 {
+		roleKeys1[i].CreatedBy = &pseudonym0.PseudonymID
 	}
 
-	ret, err := SubforumModerators.Insert(bob.ToMods(subforumModerators1...)).All(ctx, exec)
+	ret, err := RoleKeys.Insert(bob.ToMods(roleKeys1...)).All(ctx, exec)
 	if err != nil {
-		return ret, fmt.Errorf("insertPseudonymAddedByPseudonymSubforumModerators0: %w", err)
+		return ret, fmt.Errorf("insertPseudonymCreatedByRoleKeys0: %w", err)
 	}
 
 	return ret, nil
 }
 
-func attachPseudonymAddedByPseudonymSubforumModerators0(ctx context.Context, exec bob.Executor, count int, subforumModerators1 SubforumModeratorSlice, pseudonym0 *Pseudonym) (SubforumModeratorSlice, error) {
-	setter := &SubforumModeratorSetter{
-		AddedByPseudonymID: func() *sql.Null[string] {
-			v := sql.Null[string]{V: pseudonym0.PseudonymID, Valid: true}
-			return &v
-		}(),
+func attachPseudonymCreatedByRoleKeys0(ctx context.Context, exec bob.Executor, count int, roleKeys1 RoleKeySlice, pseudonym0 *Pseudonym) (RoleKeySlice, error) {
+	setter := &RoleKeySetter{
+		CreatedBy: &pseudonym0.PseudonymID,
 	}
 
-	err := subforumModerators1.UpdateAll(ctx, exec, *setter)
+	err := roleKeys1.UpdateAll(ctx, exec, *setter)
 	if err != nil {
-		return nil, fmt.Errorf("attachPseudonymAddedByPseudonymSubforumModerators0: %w", err)
+		return nil, fmt.Errorf("attachPseudonymCreatedByRoleKeys0: %w", err)
 	}
 
-	return subforumModerators1, nil
+	return roleKeys1, nil
 }
 
-func (pseudonym0 *Pseudonym) InsertAddedByPseudonymSubforumModerators(ctx context.Context, exec bob.Executor, related ...*SubforumModeratorSetter) error {
+func (pseudonym0 *Pseudonym) InsertCreatedByRoleKeys(ctx context.Context, exec bob.Executor, related ...*RoleKeySetter) error {
 	if len(related) == 0 {
 		return nil
 	}
 
 	var err error
 
-	subforumModerators1, err := insertPseudonymAddedByPseudonymSubforumModerators0(ctx, exec, related, pseudonym0)
+	roleKeys1, err := insertPseudonymCreatedByRoleKeys0(ctx, exec, related, pseudonym0)
 	if err != nil {
 		return err
 	}
 
-	pseudonym0.R.AddedByPseudonymSubforumModerators = append(pseudonym0.R.AddedByPseudonymSubforumModerators, subforumModerators1...)
+	pseudonym0.R.CreatedByRoleKeys = append(pseudonym0.R.CreatedByRoleKeys, roleKeys1...)
 
-	for _, rel := range subforumModerators1 {
-		rel.R.AddedByPseudonymPseudonym = pseudonym0
+	for _, rel := range roleKeys1 {
+		rel.R.CreatedByPseudonym = pseudonym0
 	}
 	return nil
 }
 
-func (pseudonym0 *Pseudonym) AttachAddedByPseudonymSubforumModerators(ctx context.Context, exec bob.Executor, related ...*SubforumModerator) error {
+func (pseudonym0 *Pseudonym) AttachCreatedByRoleKeys(ctx context.Context, exec bob.Executor, related ...*RoleKey) error {
 	if len(related) == 0 {
 		return nil
 	}
 
 	var err error
-	subforumModerators1 := SubforumModeratorSlice(related)
+	roleKeys1 := RoleKeySlice(related)
 
-	_, err = attachPseudonymAddedByPseudonymSubforumModerators0(ctx, exec, len(related), subforumModerators1, pseudonym0)
+	_, err = attachPseudonymCreatedByRoleKeys0(ctx, exec, len(related), roleKeys1, pseudonym0)
 	if err != nil {
 		return err
 	}
 
-	pseudonym0.R.AddedByPseudonymSubforumModerators = append(pseudonym0.R.AddedByPseudonymSubforumModerators, subforumModerators1...)
+	pseudonym0.R.CreatedByRoleKeys = append(pseudonym0.R.CreatedByRoleKeys, roleKeys1...)
 
 	for _, rel := range related {
-		rel.R.AddedByPseudonymPseudonym = pseudonym0
+		rel.R.CreatedByPseudonym = pseudonym0
 	}
 
 	return nil
 }
 
-func insertPseudonymSubforumModerators0(ctx context.Context, exec bob.Executor, subforumModerators1 []*SubforumModeratorSetter, pseudonym0 *Pseudonym) (SubforumModeratorSlice, error) {
-	for i := range subforumModerators1 {
-		subforumModerators1[i].PseudonymID = &pseudonym0.PseudonymID
+func insertPseudonymRoleKeys0(ctx context.Context, exec bob.Executor, roleKeys1 []*RoleKeySetter, pseudonym0 *Pseudonym) (RoleKeySlice, error) {
+	for i := range roleKeys1 {
+		roleKeys1[i].PseudonymID = &pseudonym0.PseudonymID
 	}
 
-	ret, err := SubforumModerators.Insert(bob.ToMods(subforumModerators1...)).All(ctx, exec)
+	ret, err := RoleKeys.Insert(bob.ToMods(roleKeys1...)).All(ctx, exec)
 	if err != nil {
-		return ret, fmt.Errorf("insertPseudonymSubforumModerators0: %w", err)
+		return ret, fmt.Errorf("insertPseudonymRoleKeys0: %w", err)
 	}
 
 	return ret, nil
 }
 
-func attachPseudonymSubforumModerators0(ctx context.Context, exec bob.Executor, count int, subforumModerators1 SubforumModeratorSlice, pseudonym0 *Pseudonym) (SubforumModeratorSlice, error) {
-	setter := &SubforumModeratorSetter{
+func attachPseudonymRoleKeys0(ctx context.Context, exec bob.Executor, count int, roleKeys1 RoleKeySlice, pseudonym0 *Pseudonym) (RoleKeySlice, error) {
+	setter := &RoleKeySetter{
 		PseudonymID: &pseudonym0.PseudonymID,
 	}
 
-	err := subforumModerators1.UpdateAll(ctx, exec, *setter)
+	err := roleKeys1.UpdateAll(ctx, exec, *setter)
 	if err != nil {
-		return nil, fmt.Errorf("attachPseudonymSubforumModerators0: %w", err)
+		return nil, fmt.Errorf("attachPseudonymRoleKeys0: %w", err)
 	}
 
-	return subforumModerators1, nil
+	return roleKeys1, nil
 }
 
-func (pseudonym0 *Pseudonym) InsertSubforumModerators(ctx context.Context, exec bob.Executor, related ...*SubforumModeratorSetter) error {
+func (pseudonym0 *Pseudonym) InsertRoleKeys(ctx context.Context, exec bob.Executor, related ...*RoleKeySetter) error {
 	if len(related) == 0 {
 		return nil
 	}
 
 	var err error
 
-	subforumModerators1, err := insertPseudonymSubforumModerators0(ctx, exec, related, pseudonym0)
+	roleKeys1, err := insertPseudonymRoleKeys0(ctx, exec, related, pseudonym0)
 	if err != nil {
 		return err
 	}
 
-	pseudonym0.R.SubforumModerators = append(pseudonym0.R.SubforumModerators, subforumModerators1...)
+	pseudonym0.R.RoleKeys = append(pseudonym0.R.RoleKeys, roleKeys1...)
 
-	for _, rel := range subforumModerators1 {
+	for _, rel := range roleKeys1 {
 		rel.R.Pseudonym = pseudonym0
 	}
 	return nil
 }
 
-func (pseudonym0 *Pseudonym) AttachSubforumModerators(ctx context.Context, exec bob.Executor, related ...*SubforumModerator) error {
+func (pseudonym0 *Pseudonym) AttachRoleKeys(ctx context.Context, exec bob.Executor, related ...*RoleKey) error {
 	if len(related) == 0 {
 		return nil
 	}
 
 	var err error
-	subforumModerators1 := SubforumModeratorSlice(related)
+	roleKeys1 := RoleKeySlice(related)
 
-	_, err = attachPseudonymSubforumModerators0(ctx, exec, len(related), subforumModerators1, pseudonym0)
+	_, err = attachPseudonymRoleKeys0(ctx, exec, len(related), roleKeys1, pseudonym0)
 	if err != nil {
 		return err
 	}
 
-	pseudonym0.R.SubforumModerators = append(pseudonym0.R.SubforumModerators, subforumModerators1...)
+	pseudonym0.R.RoleKeys = append(pseudonym0.R.RoleKeys, roleKeys1...)
 
 	for _, rel := range related {
 		rel.R.Pseudonym = pseudonym0

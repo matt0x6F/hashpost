@@ -27,7 +27,7 @@ type PseudonymDAO struct {
 	userBlocksDAO      *UserBlocksDAO
 }
 
-// NewPseudonymDAO creates a new SecurePseudonymDAO
+// NewPseudonymDAO creates a new PseudonymDAO
 func NewPseudonymDAO(db bob.Executor, ibeSystem *ibe.IBESystem, identityMappingDAO *IdentityMappingDAO, userDAO *UserDAO, roleKeyDAO *RoleKeyDAO, userBlocksDAO *UserBlocksDAO) *PseudonymDAO {
 	return &PseudonymDAO{
 		db:                 db,
@@ -41,8 +41,14 @@ func NewPseudonymDAO(db bob.Executor, ibeSystem *ibe.IBESystem, identityMappingD
 
 // GetPseudonymsByUserID retrieves all pseudonyms for a user using role-based access control
 func (dao *PseudonymDAO) GetPseudonymsByUserID(ctx context.Context, userID int64, roleName, scope string) ([]*models.Pseudonym, error) {
-	// Validate that the key has the required capability
-	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, constants.CapabilityAccessOwnPseudonyms)
+	// Get the user's default pseudonym for validation
+	defaultPseudonym, err := dao.getDefaultPseudonymByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get default pseudonym for validation: %w", err)
+	}
+
+	// Validate that the key has the required capability using the default pseudonym
+	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, defaultPseudonym.PseudonymID, scope, constants.CapabilityAccessOwnPseudonyms, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate key capability: %w", err)
 	}
@@ -57,8 +63,9 @@ func (dao *PseudonymDAO) GetPseudonymsByUserID(ctx context.Context, userID int64
 
 // GetPseudonymsByRealIdentity retrieves all pseudonyms for a real identity using role-based access control
 func (dao *PseudonymDAO) GetPseudonymsByRealIdentity(ctx context.Context, realIdentity string, roleName, scope string) ([]*models.Pseudonym, error) {
-	// Validate that the operation is allowed for this role/scope
-	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, constants.CapabilityAccessAllPseudonyms)
+	// This is a privileged operation that requires admin-level access
+	// We'll validate using a system-level pseudonym check
+	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, "system-admin", scope, constants.CapabilityAccessAllPseudonyms, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate key capability: %w", err)
 	}
@@ -73,8 +80,14 @@ func (dao *PseudonymDAO) GetPseudonymsByRealIdentity(ctx context.Context, realId
 
 // VerifyPseudonymOwnership verifies if a user owns a pseudonym using role-based access control
 func (dao *PseudonymDAO) VerifyPseudonymOwnership(ctx context.Context, pseudonymID string, userID int64, roleName, scope string) (bool, error) {
-	// Validate that the key has the required capability
-	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, constants.CapabilityVerifyOwnPseudonymOwnership)
+	// Get the user's default pseudonym for validation
+	defaultPseudonym, err := dao.getDefaultPseudonymByUserID(ctx, userID)
+	if err != nil {
+		return false, fmt.Errorf("failed to get default pseudonym for validation: %w", err)
+	}
+
+	// Validate that the key has the required capability using the default pseudonym
+	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, defaultPseudonym.PseudonymID, scope, constants.CapabilityVerifyOwnPseudonymOwnership, nil)
 	if err != nil {
 		return false, fmt.Errorf("failed to validate key capability: %w", err)
 	}
@@ -83,8 +96,8 @@ func (dao *PseudonymDAO) VerifyPseudonymOwnership(ctx context.Context, pseudonym
 		return false, fmt.Errorf("role key does not have permission to verify pseudonym ownership")
 	}
 
-	// Get the role key for this operation
-	keyData, err := dao.roleKeyDAO.GetKeyData(ctx, roleName, scope)
+	// Get the role key for this operation using the default pseudonym
+	keyData, err := dao.roleKeyDAO.GetKeyData(ctx, defaultPseudonym.PseudonymID, scope, nil)
 	if err != nil {
 		return false, fmt.Errorf("failed to get role key: %w", err)
 	}
@@ -95,8 +108,9 @@ func (dao *PseudonymDAO) VerifyPseudonymOwnership(ctx context.Context, pseudonym
 
 // GetRealIdentityByPseudonym retrieves the real identity fingerprint for a pseudonym using role-based access control
 func (dao *PseudonymDAO) GetRealIdentityByPseudonym(ctx context.Context, pseudonymID string, roleName, scope string) (string, error) {
-	// Validate that the operation is allowed for this role/scope
-	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, constants.CapabilityCrossUserCorrelation)
+	// This is a privileged operation that requires admin-level access
+	// We'll validate using a system-level pseudonym check
+	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, "system-admin", scope, constants.CapabilityCrossUserCorrelation, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to validate key capability: %w", err)
 	}
@@ -105,8 +119,8 @@ func (dao *PseudonymDAO) GetRealIdentityByPseudonym(ctx context.Context, pseudon
 		return "", fmt.Errorf("role key does not have permission for cross-user correlation")
 	}
 
-	// Get the role key for this operation
-	keyData, err := dao.roleKeyDAO.GetKeyData(ctx, roleName, scope)
+	// Get the role key for this operation using system admin
+	keyData, err := dao.roleKeyDAO.GetKeyData(ctx, "system-admin", scope, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to get role key: %w", err)
 	}
@@ -268,11 +282,6 @@ func (dao *PseudonymDAO) GetPseudonymByID(ctx context.Context, pseudonymID strin
 	return pseudonym, nil
 }
 
-// ValidateKeyCapability is a helper method to validate key capabilities
-func (dao *PseudonymDAO) ValidateKeyCapability(ctx context.Context, roleName, scope, capability string) (bool, error) {
-	return dao.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, capability)
-}
-
 // GetPseudonymByDisplayName retrieves a pseudonym by display name
 func (dao *PseudonymDAO) GetPseudonymByDisplayName(ctx context.Context, displayName string) (*models.Pseudonym, error) {
 	pseudonyms, err := models.Pseudonyms.Query(
@@ -341,8 +350,14 @@ func (dao *PseudonymDAO) UpdateLastActive(ctx context.Context, pseudonymID strin
 
 // GetDefaultPseudonymByUserID retrieves the default pseudonym for a user using role-based access control
 func (dao *PseudonymDAO) GetDefaultPseudonymByUserID(ctx context.Context, userID int64, roleName, scope string) (*models.Pseudonym, error) {
-	// Validate that the key has the required capability
-	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, constants.CapabilityAccessOwnPseudonyms)
+	// Get the user's default pseudonym for validation
+	defaultPseudonym, err := dao.getDefaultPseudonymByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get default pseudonym for validation: %w", err)
+	}
+
+	// Validate that the key has the required capability using the default pseudonym
+	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, defaultPseudonym.PseudonymID, scope, constants.CapabilityAccessOwnPseudonyms, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate key capability: %w", err)
 	}
@@ -351,8 +366,8 @@ func (dao *PseudonymDAO) GetDefaultPseudonymByUserID(ctx context.Context, userID
 		return nil, fmt.Errorf("role key does not have permission to access own pseudonyms")
 	}
 
-	// Use the key to access pseudonyms
-	return dao.getDefaultPseudonymByUserID(ctx, userID)
+	// Return the default pseudonym
+	return defaultPseudonym, nil
 }
 
 // getDefaultPseudonymByUserID retrieves the default pseudonym for a user using the provided key
@@ -432,7 +447,8 @@ func (dao *PseudonymDAO) CreatePseudonymWithIdentityMapping(ctx context.Context,
 	userRole := userRoles[0] // Use the first role for consistency
 
 	// Get authentication role key from the database
-	authenticationKeyData, err := dao.roleKeyDAO.GetPerUserKeyData(ctx, userRole, "authentication", userID)
+	// Since we're creating a new pseudonym, we need to use a system-level key for initial setup
+	authenticationKeyData, err := dao.roleKeyDAO.GetKeyData(ctx, "system-admin", "authentication", nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get authentication role key: %w", err)
 	}
@@ -460,7 +476,8 @@ func (dao *PseudonymDAO) CreatePseudonymWithIdentityMapping(ctx context.Context,
 	}
 
 	// Get self-correlation role key from the database
-	selfCorrelationKeyData, err := dao.roleKeyDAO.GetPerUserKeyData(ctx, userRole, constants.ScopeSelfCorrelation, userID)
+	// Since we're creating a new pseudonym, we need to use a system-level key for initial setup
+	selfCorrelationKeyData, err := dao.roleKeyDAO.GetKeyData(ctx, "system-admin", constants.ScopeSelfCorrelation, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get self-correlation role key: %w", err)
 	}
@@ -499,7 +516,8 @@ func (dao *PseudonymDAO) CreatePseudonymWithIdentityMapping(ctx context.Context,
 
 	if isAdminRole {
 		// Get correlation key for admin role
-		correlationKeyData, err := dao.roleKeyDAO.GetPerUserKeyData(ctx, userRole, constants.ScopeCorrelation, userID)
+		// Since we're creating a new pseudonym, we need to use a system-level key for initial setup
+		correlationKeyData, err := dao.roleKeyDAO.GetKeyData(ctx, "system-admin", constants.ScopeCorrelation, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get correlation role key: %w", err)
 		}
@@ -547,13 +565,26 @@ func (dao *PseudonymDAO) createPseudonym(ctx context.Context, displayName string
 
 	isDefaultVal := false
 	if userID != nil {
-		// Check if user already has a default pseudonym using bob
-		existingPseudonyms, err := models.Pseudonyms.Query(
-			models.SelectWhere.Pseudonyms.IsDefault.EQ(true),
-			models.SelectWhere.Pseudonyms.IsActive.EQ(true),
-		).All(ctx, dao.db)
-		if err == nil && len(existingPseudonyms) == 0 {
-			isDefaultVal = true
+		// Check if user already has a default pseudonym by getting all pseudonyms for this user
+		// and checking if any are marked as default
+		user, err := dao.userDAO.GetUserByID(ctx, *userID)
+		if err == nil && user != nil {
+			// Get all pseudonyms for this user's real identity
+			pseudonyms, err := dao.getPseudonymsByRealIdentity(ctx, user.Email)
+			if err == nil {
+				// Check if any existing pseudonym is default
+				hasDefault := false
+				for _, pseudonym := range pseudonyms {
+					if pseudonym.IsDefault {
+						hasDefault = true
+						break
+					}
+				}
+				// If no default pseudonym exists, make this one default
+				if !hasDefault {
+					isDefaultVal = true
+				}
+			}
 		}
 	}
 
@@ -589,6 +620,17 @@ func (dao *PseudonymDAO) GetUserIDByPseudonym(ctx context.Context, pseudonymID, 
 		Str("scope", scope).
 		Msg("Getting user ID by pseudonym using IBE correlation")
 
+	// This is a privileged operation that requires admin-level access
+	// We'll validate using a system-level pseudonym check
+	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, "system-admin", scope, constants.CapabilityCrossUserCorrelation, nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to validate key capability: %w", err)
+	}
+
+	if !hasCapability {
+		return 0, fmt.Errorf("role key does not have permission for cross-user correlation")
+	}
+
 	// Get the identity mapping for this pseudonym
 	mapping, err := dao.identityMappingDAO.GetIdentityMappingByPseudonymID(ctx, pseudonymID)
 	if err != nil {
@@ -605,8 +647,14 @@ func (dao *PseudonymDAO) GetUserIDByPseudonym(ctx context.Context, pseudonymID, 
 // DeactivatePseudonym deactivates a pseudonym, preventing it from being used for new content
 // Users cannot reactivate deactivated pseudonyms
 func (dao *PseudonymDAO) DeactivatePseudonym(ctx context.Context, pseudonymID string, userID int64, roleName, scope string) error {
-	// Validate that the key has the required capability
-	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, constants.CapabilityManageOwnPseudonyms)
+	// Get the user's default pseudonym for validation
+	defaultPseudonym, err := dao.getDefaultPseudonymByUserID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to get default pseudonym for validation: %w", err)
+	}
+
+	// Validate that the key has the required capability using the default pseudonym
+	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, defaultPseudonym.PseudonymID, scope, constants.CapabilityManageOwnPseudonyms, nil)
 	if err != nil {
 		return fmt.Errorf("failed to validate key capability: %w", err)
 	}

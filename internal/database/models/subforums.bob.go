@@ -72,7 +72,7 @@ type SubforumsQuery = *psql.ViewQuery[*Subforum, SubforumSlice]
 type subforumR struct {
 	ModerationActions       ModerationActionSlice     `scan:"ModerationActions" json:"ModerationActions"`             // moderation_actions.moderation_actions_subforum_id_fkey
 	Posts                   PostSlice                 `scan:"Posts" json:"Posts"`                                     // posts.posts_subforum_id_fkey
-	SubforumModerators      SubforumModeratorSlice    `scan:"SubforumModerators" json:"SubforumModerators"`           // subforum_moderators.subforum_moderators_subforum_id_fkey
+	RoleKeys                RoleKeySlice              `scan:"RoleKeys" json:"RoleKeys"`                               // role_keys.role_keys_subforum_id_fkey
 	SubforumSubscriptions   SubforumSubscriptionSlice `scan:"SubforumSubscriptions" json:"SubforumSubscriptions"`     // subforum_subscriptions.subforum_subscriptions_subforum_id_fkey
 	OwnerPseudonymPseudonym *Pseudonym                `scan:"OwnerPseudonymPseudonym" json:"OwnerPseudonymPseudonym"` // subforums.fk_subforums_owner_pseudonym
 	CreatedByUserUser       *User                     `scan:"CreatedByUserUser" json:"CreatedByUserUser"`             // subforums.subforums_created_by_user_id_fkey
@@ -1048,7 +1048,7 @@ type subforumJoins[Q dialect.Joinable] struct {
 	typ                     string
 	ModerationActions       modAs[Q, moderationActionColumns]
 	Posts                   modAs[Q, postColumns]
-	SubforumModerators      modAs[Q, subforumModeratorColumns]
+	RoleKeys                modAs[Q, roleKeyColumns]
 	SubforumSubscriptions   modAs[Q, subforumSubscriptionColumns]
 	OwnerPseudonymPseudonym modAs[Q, pseudonymColumns]
 	CreatedByUserUser       modAs[Q, userColumns]
@@ -1090,13 +1090,13 @@ func buildSubforumJoins[Q dialect.Joinable](cols subforumColumns, typ string) su
 				return mods
 			},
 		},
-		SubforumModerators: modAs[Q, subforumModeratorColumns]{
-			c: SubforumModeratorColumns,
-			f: func(to subforumModeratorColumns) bob.Mod[Q] {
+		RoleKeys: modAs[Q, roleKeyColumns]{
+			c: RoleKeyColumns,
+			f: func(to roleKeyColumns) bob.Mod[Q] {
 				mods := make(mods.QueryMods[Q], 0, 1)
 
 				{
-					mods = append(mods, dialect.Join[Q](typ, SubforumModerators.Name().As(to.Alias())).On(
+					mods = append(mods, dialect.Join[Q](typ, RoleKeys.Name().As(to.Alias())).On(
 						to.SubforumID.EQ(cols.SubforumID),
 					))
 				}
@@ -1205,14 +1205,14 @@ func (os SubforumSlice) Posts(mods ...bob.Mod[*dialect.SelectQuery]) PostsQuery 
 	)...)
 }
 
-// SubforumModerators starts a query for related objects on subforum_moderators
-func (o *Subforum) SubforumModerators(mods ...bob.Mod[*dialect.SelectQuery]) SubforumModeratorsQuery {
-	return SubforumModerators.Query(append(mods,
-		sm.Where(SubforumModeratorColumns.SubforumID.EQ(psql.Arg(o.SubforumID))),
+// RoleKeys starts a query for related objects on role_keys
+func (o *Subforum) RoleKeys(mods ...bob.Mod[*dialect.SelectQuery]) RoleKeysQuery {
+	return RoleKeys.Query(append(mods,
+		sm.Where(RoleKeyColumns.SubforumID.EQ(psql.Arg(o.SubforumID))),
 	)...)
 }
 
-func (os SubforumSlice) SubforumModerators(mods ...bob.Mod[*dialect.SelectQuery]) SubforumModeratorsQuery {
+func (os SubforumSlice) RoleKeys(mods ...bob.Mod[*dialect.SelectQuery]) RoleKeysQuery {
 	pkSubforumID := make(pgtypes.Array[int32], len(os))
 	for i, o := range os {
 		pkSubforumID[i] = o.SubforumID
@@ -1221,8 +1221,8 @@ func (os SubforumSlice) SubforumModerators(mods ...bob.Mod[*dialect.SelectQuery]
 		psql.F("unnest", psql.Cast(psql.Arg(pkSubforumID), "integer[]")),
 	))
 
-	return SubforumModerators.Query(append(mods,
-		sm.Where(psql.Group(SubforumModeratorColumns.SubforumID).OP("IN", PKArgExpr)),
+	return RoleKeys.Query(append(mods,
+		sm.Where(psql.Group(RoleKeyColumns.SubforumID).OP("IN", PKArgExpr)),
 	)...)
 }
 
@@ -1344,13 +1344,13 @@ func (o *Subforum) Preload(name string, retrieved any) error {
 			}
 		}
 		return nil
-	case "SubforumModerators":
-		rels, ok := retrieved.(SubforumModeratorSlice)
+	case "RoleKeys":
+		rels, ok := retrieved.(RoleKeySlice)
 		if !ok {
 			return fmt.Errorf("subforum cannot load %T as %q", retrieved, name)
 		}
 
-		o.R.SubforumModerators = rels
+		o.R.RoleKeys = rels
 
 		for _, rel := range rels {
 			if rel != nil {
@@ -1462,7 +1462,7 @@ func buildSubforumPreloader() subforumPreloader {
 type subforumThenLoader[Q orm.Loadable] struct {
 	ModerationActions       func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	Posts                   func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	SubforumModerators      func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	RoleKeys                func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	SubforumSubscriptions   func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	OwnerPseudonymPseudonym func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	CreatedByUserUser       func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
@@ -1476,8 +1476,8 @@ func buildSubforumThenLoader[Q orm.Loadable]() subforumThenLoader[Q] {
 	type PostsLoadInterface interface {
 		LoadPosts(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
-	type SubforumModeratorsLoadInterface interface {
-		LoadSubforumModerators(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	type RoleKeysLoadInterface interface {
+		LoadRoleKeys(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 	type SubforumSubscriptionsLoadInterface interface {
 		LoadSubforumSubscriptions(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
@@ -1505,10 +1505,10 @@ func buildSubforumThenLoader[Q orm.Loadable]() subforumThenLoader[Q] {
 				return retrieved.LoadPosts(ctx, exec, mods...)
 			},
 		),
-		SubforumModerators: thenLoadBuilder[Q](
-			"SubforumModerators",
-			func(ctx context.Context, exec bob.Executor, retrieved SubforumModeratorsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
-				return retrieved.LoadSubforumModerators(ctx, exec, mods...)
+		RoleKeys: thenLoadBuilder[Q](
+			"RoleKeys",
+			func(ctx context.Context, exec bob.Executor, retrieved RoleKeysLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadRoleKeys(ctx, exec, mods...)
 			},
 		),
 		SubforumSubscriptions: thenLoadBuilder[Q](
@@ -1642,16 +1642,16 @@ func (os SubforumSlice) LoadPosts(ctx context.Context, exec bob.Executor, mods .
 	return nil
 }
 
-// LoadSubforumModerators loads the subforum's SubforumModerators into the .R struct
-func (o *Subforum) LoadSubforumModerators(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+// LoadRoleKeys loads the subforum's RoleKeys into the .R struct
+func (o *Subforum) LoadRoleKeys(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
 	if o == nil {
 		return nil
 	}
 
 	// Reset the relationship
-	o.R.SubforumModerators = nil
+	o.R.RoleKeys = nil
 
-	related, err := o.SubforumModerators(mods...).All(ctx, exec)
+	related, err := o.RoleKeys(mods...).All(ctx, exec)
 	if err != nil {
 		return err
 	}
@@ -1660,34 +1660,34 @@ func (o *Subforum) LoadSubforumModerators(ctx context.Context, exec bob.Executor
 		rel.R.Subforum = o
 	}
 
-	o.R.SubforumModerators = related
+	o.R.RoleKeys = related
 	return nil
 }
 
-// LoadSubforumModerators loads the subforum's SubforumModerators into the .R struct
-func (os SubforumSlice) LoadSubforumModerators(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+// LoadRoleKeys loads the subforum's RoleKeys into the .R struct
+func (os SubforumSlice) LoadRoleKeys(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
 	if len(os) == 0 {
 		return nil
 	}
 
-	subforumModerators, err := os.SubforumModerators(mods...).All(ctx, exec)
+	roleKeys, err := os.RoleKeys(mods...).All(ctx, exec)
 	if err != nil {
 		return err
 	}
 
 	for _, o := range os {
-		o.R.SubforumModerators = nil
+		o.R.RoleKeys = nil
 	}
 
 	for _, o := range os {
-		for _, rel := range subforumModerators {
-			if o.SubforumID != rel.SubforumID {
+		for _, rel := range roleKeys {
+			if o.SubforumID != rel.SubforumID.V {
 				continue
 			}
 
 			rel.R.Subforum = o
 
-			o.R.SubforumModerators = append(o.R.SubforumModerators, rel)
+			o.R.RoleKeys = append(o.R.RoleKeys, rel)
 		}
 	}
 
@@ -2034,66 +2034,72 @@ func (subforum0 *Subforum) AttachPosts(ctx context.Context, exec bob.Executor, r
 	return nil
 }
 
-func insertSubforumSubforumModerators0(ctx context.Context, exec bob.Executor, subforumModerators1 []*SubforumModeratorSetter, subforum0 *Subforum) (SubforumModeratorSlice, error) {
-	for i := range subforumModerators1 {
-		subforumModerators1[i].SubforumID = &subforum0.SubforumID
+func insertSubforumRoleKeys0(ctx context.Context, exec bob.Executor, roleKeys1 []*RoleKeySetter, subforum0 *Subforum) (RoleKeySlice, error) {
+	for i := range roleKeys1 {
+		roleKeys1[i].SubforumID = func() *sql.Null[int32] {
+			v := sql.Null[int32]{V: subforum0.SubforumID, Valid: true}
+			return &v
+		}()
 	}
 
-	ret, err := SubforumModerators.Insert(bob.ToMods(subforumModerators1...)).All(ctx, exec)
+	ret, err := RoleKeys.Insert(bob.ToMods(roleKeys1...)).All(ctx, exec)
 	if err != nil {
-		return ret, fmt.Errorf("insertSubforumSubforumModerators0: %w", err)
+		return ret, fmt.Errorf("insertSubforumRoleKeys0: %w", err)
 	}
 
 	return ret, nil
 }
 
-func attachSubforumSubforumModerators0(ctx context.Context, exec bob.Executor, count int, subforumModerators1 SubforumModeratorSlice, subforum0 *Subforum) (SubforumModeratorSlice, error) {
-	setter := &SubforumModeratorSetter{
-		SubforumID: &subforum0.SubforumID,
+func attachSubforumRoleKeys0(ctx context.Context, exec bob.Executor, count int, roleKeys1 RoleKeySlice, subforum0 *Subforum) (RoleKeySlice, error) {
+	setter := &RoleKeySetter{
+		SubforumID: func() *sql.Null[int32] {
+			v := sql.Null[int32]{V: subforum0.SubforumID, Valid: true}
+			return &v
+		}(),
 	}
 
-	err := subforumModerators1.UpdateAll(ctx, exec, *setter)
+	err := roleKeys1.UpdateAll(ctx, exec, *setter)
 	if err != nil {
-		return nil, fmt.Errorf("attachSubforumSubforumModerators0: %w", err)
+		return nil, fmt.Errorf("attachSubforumRoleKeys0: %w", err)
 	}
 
-	return subforumModerators1, nil
+	return roleKeys1, nil
 }
 
-func (subforum0 *Subforum) InsertSubforumModerators(ctx context.Context, exec bob.Executor, related ...*SubforumModeratorSetter) error {
+func (subforum0 *Subforum) InsertRoleKeys(ctx context.Context, exec bob.Executor, related ...*RoleKeySetter) error {
 	if len(related) == 0 {
 		return nil
 	}
 
 	var err error
 
-	subforumModerators1, err := insertSubforumSubforumModerators0(ctx, exec, related, subforum0)
+	roleKeys1, err := insertSubforumRoleKeys0(ctx, exec, related, subforum0)
 	if err != nil {
 		return err
 	}
 
-	subforum0.R.SubforumModerators = append(subforum0.R.SubforumModerators, subforumModerators1...)
+	subforum0.R.RoleKeys = append(subforum0.R.RoleKeys, roleKeys1...)
 
-	for _, rel := range subforumModerators1 {
+	for _, rel := range roleKeys1 {
 		rel.R.Subforum = subforum0
 	}
 	return nil
 }
 
-func (subforum0 *Subforum) AttachSubforumModerators(ctx context.Context, exec bob.Executor, related ...*SubforumModerator) error {
+func (subforum0 *Subforum) AttachRoleKeys(ctx context.Context, exec bob.Executor, related ...*RoleKey) error {
 	if len(related) == 0 {
 		return nil
 	}
 
 	var err error
-	subforumModerators1 := SubforumModeratorSlice(related)
+	roleKeys1 := RoleKeySlice(related)
 
-	_, err = attachSubforumSubforumModerators0(ctx, exec, len(related), subforumModerators1, subforum0)
+	_, err = attachSubforumRoleKeys0(ctx, exec, len(related), roleKeys1, subforum0)
 	if err != nil {
 		return err
 	}
 
-	subforum0.R.SubforumModerators = append(subforum0.R.SubforumModerators, subforumModerators1...)
+	subforum0.R.RoleKeys = append(subforum0.R.RoleKeys, roleKeys1...)
 
 	for _, rel := range related {
 		rel.R.Subforum = subforum0

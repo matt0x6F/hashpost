@@ -25,7 +25,7 @@ type ModerationHandler struct {
 	reportDAO           dao.ReportDAOInterface
 	moderationActionDAO dao.ModerationActionDAOInterface
 	userBanDAO          dao.UserBanDAOInterface
-	securePseudonymDAO  dao.PseudonymDAOInterface
+	pseudonymDAO        dao.PseudonymDAOInterface
 	subforumDAO         dao.SubforumDAOInterface
 	postDAO             dao.PostDAOInterface
 	commentDAO          dao.CommentDAOInterface
@@ -38,7 +38,7 @@ func NewModerationHandler(
 	reportDAO dao.ReportDAOInterface,
 	moderationActionDAO dao.ModerationActionDAOInterface,
 	userBanDAO dao.UserBanDAOInterface,
-	securePseudonymDAO dao.PseudonymDAOInterface,
+	pseudonymDAO dao.PseudonymDAOInterface,
 	subforumDAO dao.SubforumDAOInterface,
 	postDAO dao.PostDAOInterface,
 	commentDAO dao.CommentDAOInterface,
@@ -49,7 +49,7 @@ func NewModerationHandler(
 		reportDAO:           reportDAO,
 		moderationActionDAO: moderationActionDAO,
 		userBanDAO:          userBanDAO,
-		securePseudonymDAO:  securePseudonymDAO,
+		pseudonymDAO:        pseudonymDAO,
 		subforumDAO:         subforumDAO,
 		postDAO:             postDAO,
 		commentDAO:          commentDAO,
@@ -354,7 +354,7 @@ func (h *ModerationHandler) loadRelatedData(ctx context.Context, report *dbmodel
 		Msg("Loading related data for report")
 
 	// Load reporter pseudonym
-	reporterPseudonym, err := h.securePseudonymDAO.GetPseudonymByID(ctx, report.ReporterPseudonymID)
+	reporterPseudonym, err := h.pseudonymDAO.GetPseudonymByID(ctx, report.ReporterPseudonymID)
 	if err != nil {
 		log.Error().Err(err).Str("pseudonym_id", report.ReporterPseudonymID).Msg("Failed to load reporter pseudonym")
 	} else {
@@ -367,7 +367,7 @@ func (h *ModerationHandler) loadRelatedData(ctx context.Context, report *dbmodel
 	// Load reported pseudonym if available
 	var reportedPseudonym *dbmodels.Pseudonym
 	if report.ReportedPseudonymID.Valid {
-		reportedPseudonym, err = h.securePseudonymDAO.GetPseudonymByID(ctx, report.ReportedPseudonymID.V)
+		reportedPseudonym, err = h.pseudonymDAO.GetPseudonymByID(ctx, report.ReportedPseudonymID.V)
 		if err != nil {
 			log.Error().Err(err).Str("pseudonym_id", report.ReportedPseudonymID.V).Msg("Failed to load reported pseudonym")
 		}
@@ -424,7 +424,7 @@ func (h *ModerationHandler) loadRelatedData(ctx context.Context, report *dbmodel
 
 		if report.ResolvedByPseudonymID.Valid {
 			// Load resolver pseudonym
-			resolverPseudonym, err := h.securePseudonymDAO.GetPseudonymByID(ctx, report.ResolvedByPseudonymID.V)
+			resolverPseudonym, err := h.pseudonymDAO.GetPseudonymByID(ctx, report.ResolvedByPseudonymID.V)
 			if err == nil && resolverPseudonym != nil {
 				resolvedBy := apimodels.ResolvedBy{
 					PseudonymID: resolverPseudonym.PseudonymID,
@@ -739,7 +739,7 @@ func (h *ModerationHandler) BanUser(ctx context.Context, input *apimodels.UserBa
 		Msg("Ban user requested")
 
 	// Get user ID from pseudonym
-	userID, err := h.securePseudonymDAO.GetUserIDByPseudonym(ctx, input.PseudonymID, "user", "site")
+	userID, err := h.pseudonymDAO.GetUserIDByPseudonym(ctx, input.PseudonymID, "user", "site")
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to get user ID from pseudonym")
 		return nil, fmt.Errorf("user not found: %w", err)
@@ -967,7 +967,7 @@ func (h *ModerationHandler) GetModerationHistory(ctx context.Context, input *api
 		}
 
 		// Load moderator pseudonym details if available
-		moderatorPseudonym, err := h.securePseudonymDAO.GetPseudonymByID(ctx, action.ModeratorPseudonymID)
+		moderatorPseudonym, err := h.pseudonymDAO.GetPseudonymByID(ctx, action.ModeratorPseudonymID)
 		if err == nil && moderatorPseudonym != nil {
 			apiActions[i].Moderator.DisplayName = moderatorPseudonym.DisplayName
 		}

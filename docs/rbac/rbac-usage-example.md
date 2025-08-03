@@ -37,11 +37,11 @@ capabilities := constants.GetRoleCapabilities(constants.RoleModerator)
 
 ```go
 // Use scope constants for IBE operations
-pseudonyms, err := securePseudonymDAO.GetPseudonymsByUserID(
+pseudonyms, err := pseudonymDAO.GetPseudonymsByUserID(
     ctx, userID, role, constants.ScopeAuthentication)
 
 // Verify ownership using self-correlation scope
-ownsPseudonym, err := securePseudonymDAO.VerifyPseudonymOwnership(
+ownsPseudonym, err := pseudonymDAO.VerifyPseudonymOwnership(
     ctx, pseudonymID, userID, constants.RoleUser, constants.ScopeSelfCorrelation)
 ```
 
@@ -183,7 +183,7 @@ func (h *AuthHandler) SwitchPseudonym(ctx context.Context, input *struct {
     }
 
     // Verify pseudonym ownership
-    ownsPseudonym, err := h.securePseudonymDAO.VerifyPseudonymOwnership(
+    ownsPseudonym, err := h.pseudonymDAO.VerifyPseudonymOwnership(
         ctx, input.Body.PseudonymID, userCtx.UserID, "user", constants.ScopeAuthentication)
     
     if !ownsPseudonym {
@@ -338,7 +338,7 @@ allRoles := append(pseudonymRoles, subforumRoles...)
 ### 4. Validate Pseudonym Ownership
 ```go
 // Always verify pseudonym ownership before operations
-ownsPseudonym, err := securePseudonymDAO.VerifyPseudonymOwnership(
+ownsPseudonym, err := pseudonymDAO.VerifyPseudonymOwnership(
     ctx, pseudonymID, userID, role, constants.ScopeAuthentication)
 ```
 

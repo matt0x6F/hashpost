@@ -904,15 +904,13 @@ func TestMigrationState(t *testing.T) {
 // TestMigrationProgress tests the migration progress structure
 func TestMigrationProgress(t *testing.T) {
 	progress := &dao.MigrationProgress{
-		MigrationID:         "test-migration-id",
-		Domain:              "user_correlation",
-		Status:              "in_progress",
-		TotalRecords:        1000,
-		ProcessedRecords:    500,
-		FailedRecords:       5,
-		Percentage:          50.0,
-		StartedAt:           time.Now(),
-		EstimatedCompletion: nil,
+		MigrationID:      "test-migration-id",
+		Domain:           "user_correlation",
+		Status:           "in_progress",
+		TotalRecords:     1000,
+		ProcessedRecords: 500,
+		FailedRecords:    5,
+		Percentage:       50.0,
 	}
 
 	assert.Equal(t, "test-migration-id", progress.MigrationID)

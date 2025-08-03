@@ -48,17 +48,17 @@ type IdentityMappingDAOInterface interface {
 
 // RoleKeyDAOInterface defines the interface for role key data access operations
 type RoleKeyDAOInterface interface {
-	CreateRoleKey(ctx context.Context, roleName, scope string, keyData []byte, capabilities []string, expiresAt time.Time, createdBy int64) (*models.RoleKey, error)
-	GetRoleKey(ctx context.Context, roleName, scope string) (*models.RoleKey, error)
-	GetPerUserRoleKey(ctx context.Context, roleName, scope string, createdBy int64) (*models.RoleKey, error)
+	CreateRoleKey(ctx context.Context, roleName, scope string, keyData []byte, capabilities []string, expiresAt time.Time, createdByPseudonymID string, pseudonymID string, subforumID *int32) (*models.RoleKey, error)
+	GetRoleKey(ctx context.Context, pseudonymID string, scope string, subforumID *int32) (*models.RoleKey, error)
 	GetRoleKeyByID(ctx context.Context, keyID string) (*models.RoleKey, error)
 	ListRoleKeys(ctx context.Context) ([]*models.RoleKey, error)
-	ListRoleKeysByRole(ctx context.Context, roleName string) ([]*models.RoleKey, error)
+	ListRoleKeysByPseudonym(ctx context.Context, pseudonymID string) ([]*models.RoleKey, error)
+	GetModeratorsForSubforum(ctx context.Context, subforumID int32) ([]*models.RoleKey, error)
 	DeactivateRoleKey(ctx context.Context, keyID string) error
-	ValidateKeyCapability(ctx context.Context, roleName, scope, requiredCapability string) (bool, error)
-	GetKeyData(ctx context.Context, roleName, scope string) ([]byte, error)
-	GetPerUserKeyData(ctx context.Context, roleName, scope string, createdBy int64) ([]byte, error)
-	EnsureDefaultKeys(ctx context.Context, ibeSystem interface{}, userID int64) error
+	ValidateKeyCapability(ctx context.Context, pseudonymID string, scope, requiredCapability string, subforumID *int32) (bool, error)
+	GetKeyData(ctx context.Context, pseudonymID string, scope string, subforumID *int32) ([]byte, error)
+	EnsureDefaultKeys(ctx context.Context, ibeSystem interface{}, pseudonymID string) error
+	DeleteByPseudonymID(ctx context.Context, pseudonymID string) error
 }
 
 // SubforumDAOInterface defines the interface for subforum data access operations
@@ -254,13 +254,4 @@ type PermissionDAOInterface interface {
 	// Unified permission methods that combine global and subforum-specific capabilities
 	GetUnifiedActivePseudonymRolesAndCapabilities(ctx context.Context, userID int64, activePseudonymID string, subforumID *int32) ([]string, []string, error)
 	HasUnifiedCapability(ctx context.Context, userID int64, activePseudonymID string, capability string, subforumID *int32) (bool, error)
-}
-
-// SubforumModeratorDAOInterface defines the interface for subforum moderator data access operations
-type SubforumModeratorDAOInterface interface {
-	GetModeratorsBySubforum(ctx context.Context, subforumID int32) ([]*models.SubforumModerator, error)
-	GetModeratorByPseudonym(ctx context.Context, pseudonymID string, subforumID int32) (*models.SubforumModerator, error)
-	CreateModerator(ctx context.Context, subforumID int32, pseudonymID, role string, addedByPseudonymID string) (*models.SubforumModerator, error)
-	DeleteModerator(ctx context.Context, pseudonymID string, subforumID int32) error
-	UpdateModeratorRole(ctx context.Context, pseudonymID string, subforumID int32, newRole string) error
 }
