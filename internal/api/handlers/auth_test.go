@@ -42,6 +42,11 @@ func NewAuthHandlerWithMocks() (*handlers.AuthHandler, *mocks.MockUserDAO, *mock
 				RequireSpecialChar: true,
 			},
 		},
+		Email: config.EmailConfig{
+			Validation: config.EmailValidationConfig{
+				VerifierEmail: "noreply@example.com", // Default verifier email for tests
+			},
+		},
 	}
 
 	mockUserDAO := &mocks.MockUserDAO{}
@@ -53,7 +58,8 @@ func NewAuthHandlerWithMocks() (*handlers.AuthHandler, *mocks.MockUserDAO, *mock
 	ibeSystem := ibe.NewIBESystemWithOptions(ibe.IBEOptions{})
 
 	// Create handler with the SAME mock instances that we return
-	handler := handlers.NewAuthHandler(cfg, nil, mockUserDAO, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockRoleKeyDAO, ibeSystem, mockSubforumDAO, mockPermissionDAO)
+	// Note: Email service and token DAOs are nil for tests since we're not testing email functionality
+	handler := handlers.NewAuthHandler(cfg, nil, mockUserDAO, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockRoleKeyDAO, ibeSystem, mockSubforumDAO, mockPermissionDAO, nil, nil, nil)
 
 	// Return the SAME mock instances that the handler is using
 	return handler, mockUserDAO, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockRoleKeyDAO, mockSubforumDAO, mockPermissionDAO
@@ -74,10 +80,11 @@ func TestAuthHandler_Login(t *testing.T) {
 		// Mock user lookup - use the actual password hash that the handler expects
 		hashedPassword := hashPasswordSHA256(testPassword)
 		mockUser := &dbmodels.User{
-			UserID:       testUserID,
-			Email:        testEmail,
-			PasswordHash: hashedPassword,
-			IsActive:     sql.Null[bool]{V: true, Valid: true},
+			UserID:        testUserID,
+			Email:         testEmail,
+			PasswordHash:  hashedPassword,
+			IsActive:      sql.Null[bool]{V: true, Valid: true},
+			EmailVerified: sql.Null[bool]{V: true, Valid: true},
 		}
 		mockUserDAO.On("GetUserByEmail", mock.Anything, testEmail).Return(mockUser, nil)
 		mockUserDAO.On("UpdateLastActive", mock.Anything, testUserID).Return(nil)
@@ -153,10 +160,11 @@ func TestAuthHandler_Login(t *testing.T) {
 		// Mock user lookup - use the actual password hash
 		hashedPassword := hashPasswordSHA256(testPassword)
 		mockUser := &dbmodels.User{
-			UserID:       testUserID,
-			Email:        testEmail,
-			PasswordHash: hashedPassword,
-			IsActive:     sql.Null[bool]{V: true, Valid: true},
+			UserID:        testUserID,
+			Email:         testEmail,
+			PasswordHash:  hashedPassword,
+			IsActive:      sql.Null[bool]{V: true, Valid: true},
+			EmailVerified: sql.Null[bool]{V: true, Valid: true},
 		}
 		mockUserDAO.On("GetUserByEmail", mock.Anything, testEmail).Return(mockUser, nil)
 
@@ -234,11 +242,12 @@ func TestAuthHandler_Login(t *testing.T) {
 		rolesNull := sql.Null[types.JSON[json.RawMessage]]{}
 		rolesNull.Scan(rolesJSON)
 		mockUser := &dbmodels.User{
-			UserID:       testUserID,
-			Email:        testEmail,
-			PasswordHash: hashedPassword,
-			IsActive:     sql.Null[bool]{V: true, Valid: true},
-			Roles:        rolesNull,
+			UserID:        testUserID,
+			Email:         testEmail,
+			PasswordHash:  hashedPassword,
+			IsActive:      sql.Null[bool]{V: true, Valid: true},
+			EmailVerified: sql.Null[bool]{V: true, Valid: true},
+			Roles:         rolesNull,
 		}
 		mockUserDAO.On("GetUserByEmail", mock.Anything, testEmail).Return(mockUser, nil)
 		mockUserDAO.On("UpdateLastActive", mock.Anything, testUserID).Return(nil)
@@ -328,8 +337,9 @@ func TestAuthHandler_Registration(t *testing.T) {
 		assert.NotNil(t, response)
 		assert.Equal(t, testEmail, response.Body.Email)
 		assert.Equal(t, int(testUserID), response.Body.UserID)
-		assert.NotEmpty(t, response.Body.AccessToken)
-		assert.NotEmpty(t, response.Body.RefreshToken)
+		// Registration no longer returns tokens - user must verify email first
+		assert.Empty(t, response.Body.AccessToken)
+		assert.Empty(t, response.Body.RefreshToken)
 		assert.Equal(t, testPseudonymID, response.Body.PseudonymID)
 		assert.Equal(t, testDisplayName, response.Body.DisplayName)
 		assert.Len(t, response.Body.Roles, 1)
@@ -395,7 +405,7 @@ func TestAuthHandler_Registration(t *testing.T) {
 		// Assert response
 		assert.Error(t, err)
 		assert.Nil(t, response)
-		assert.Contains(t, err.Error(), "email format is invalid")
+		assert.Contains(t, err.Error(), "email validation failed: email does not match the regular expression")
 	})
 
 	t.Run("RegisterUserWithWeakPassword", func(t *testing.T) {
@@ -2029,6 +2039,9 @@ func TestAuthHandler_NewAuthHandler(t *testing.T) {
 			mockIBESystem,
 			mockSubforumDAO,
 			mockPermissionDAO,
+			nil, // Email service
+			nil, // Email verification token DAO
+			nil, // Password reset token DAO
 		)
 
 		// Verify handler was created successfully
@@ -2062,6 +2075,9 @@ func TestAuthHandler_NewAuthHandlerWithDependencies(t *testing.T) {
 			mockIBESystem,
 			mockSubforumDAO,
 			mockPermissionDAO,
+			nil, // Email service
+			nil, // Email verification token DAO
+			nil, // Password reset token DAO
 		)
 
 		// Verify handler is created

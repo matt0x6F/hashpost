@@ -43,6 +43,7 @@ type User struct {
 	ModeratedSubforums  sql.Null[types.JSON[json.RawMessage]] `db:"moderated_subforums" scan:"moderated_subforums" json:"moderated_subforums"`
 	AdminScope          sql.Null[string]                      `db:"admin_scope" scan:"admin_scope" json:"admin_scope"`
 	UpdatedAt           sql.Null[time.Time]                   `db:"updated_at" scan:"updated_at" json:"updated_at"`
+	EmailVerified       sql.Null[bool]                        `db:"email_verified" scan:"email_verified" json:"email_verified"`
 
 	R userR `db:"-" scan:"rel" json:"rel"`
 }
@@ -59,22 +60,24 @@ type UsersQuery = *psql.ViewQuery[*User, UserSlice]
 
 // userR is where relationships are stored.
 type userR struct {
-	AssignedUserComplianceReports  ComplianceReportSlice     `scan:"AssignedUserComplianceReports" json:"AssignedUserComplianceReports"`   // compliance_reports.compliance_reports_assigned_user_id_fkey
-	CorrelationAudits              CorrelationAuditSlice     `scan:"CorrelationAudits" json:"CorrelationAudits"`                           // correlation_audit.correlation_audit_user_id_fkey
-	IdentityMappings               IdentityMappingSlice      `scan:"IdentityMappings" json:"IdentityMappings"`                             // identity_mappings.identity_mappings_user_id_fkey
-	CreatedByKeyRotationMigrations KeyRotationMigrationSlice `scan:"CreatedByKeyRotationMigrations" json:"CreatedByKeyRotationMigrations"` // key_rotation_migrations.key_rotation_migrations_created_by_fkey
-	KeyUsageAudits                 KeyUsageAuditSlice        `scan:"KeyUsageAudits" json:"KeyUsageAudits"`                                 // key_usage_audit.key_usage_audit_user_id_fkey
-	ModeratorUserModerationActions ModerationActionSlice     `scan:"ModeratorUserModerationActions" json:"ModeratorUserModerationActions"` // moderation_actions.moderation_actions_moderator_user_id_fkey
-	TargetUserModerationActions    ModerationActionSlice     `scan:"TargetUserModerationActions" json:"TargetUserModerationActions"`       // moderation_actions.moderation_actions_target_user_id_fkey
-	ForwardedByUserReports         ReportSlice               `scan:"ForwardedByUserReports" json:"ForwardedByUserReports"`                 // reports.fk_reports_forwarded_by
-	ResolvedByUserReports          ReportSlice               `scan:"ResolvedByUserReports" json:"ResolvedByUserReports"`                   // reports.reports_resolved_by_user_id_fkey
-	CreatedByRoleKeys              RoleKeySlice              `scan:"CreatedByRoleKeys" json:"CreatedByRoleKeys"`                           // role_keys.role_keys_created_by_fkey
-	CreatedByUserSubforums         SubforumSlice             `scan:"CreatedByUserSubforums" json:"CreatedByUserSubforums"`                 // subforums.subforums_created_by_user_id_fkey
-	UpdatedBySystemSettings        SystemSettingSlice        `scan:"UpdatedBySystemSettings" json:"UpdatedBySystemSettings"`               // system_settings.system_settings_updated_by_fkey
-	BannedByUserUserBans           UserBanSlice              `scan:"BannedByUserUserBans" json:"BannedByUserUserBans"`                     // user_bans.user_bans_banned_by_user_id_fkey
-	BannedUserUserBans             UserBanSlice              `scan:"BannedUserUserBans" json:"BannedUserUserBans"`                         // user_bans.user_bans_banned_user_id_fkey
-	BlockedUserUserBlocks          UserBlockSlice            `scan:"BlockedUserUserBlocks" json:"BlockedUserUserBlocks"`                   // user_blocks.user_blocks_blocked_user_id_fkey
-	UserPreference                 *UserPreference           `scan:"UserPreference" json:"UserPreference"`                                 // user_preferences.user_preferences_user_id_fkey
+	AssignedUserComplianceReports  ComplianceReportSlice       `scan:"AssignedUserComplianceReports" json:"AssignedUserComplianceReports"`   // compliance_reports.compliance_reports_assigned_user_id_fkey
+	CorrelationAudits              CorrelationAuditSlice       `scan:"CorrelationAudits" json:"CorrelationAudits"`                           // correlation_audit.correlation_audit_user_id_fkey
+	EmailVerificationTokens        EmailVerificationTokenSlice `scan:"EmailVerificationTokens" json:"EmailVerificationTokens"`               // email_verification_tokens.email_verification_tokens_user_id_fkey
+	IdentityMappings               IdentityMappingSlice        `scan:"IdentityMappings" json:"IdentityMappings"`                             // identity_mappings.identity_mappings_user_id_fkey
+	CreatedByKeyRotationMigrations KeyRotationMigrationSlice   `scan:"CreatedByKeyRotationMigrations" json:"CreatedByKeyRotationMigrations"` // key_rotation_migrations.key_rotation_migrations_created_by_fkey
+	KeyUsageAudits                 KeyUsageAuditSlice          `scan:"KeyUsageAudits" json:"KeyUsageAudits"`                                 // key_usage_audit.key_usage_audit_user_id_fkey
+	ModeratorUserModerationActions ModerationActionSlice       `scan:"ModeratorUserModerationActions" json:"ModeratorUserModerationActions"` // moderation_actions.moderation_actions_moderator_user_id_fkey
+	TargetUserModerationActions    ModerationActionSlice       `scan:"TargetUserModerationActions" json:"TargetUserModerationActions"`       // moderation_actions.moderation_actions_target_user_id_fkey
+	PasswordResetTokens            PasswordResetTokenSlice     `scan:"PasswordResetTokens" json:"PasswordResetTokens"`                       // password_reset_tokens.password_reset_tokens_user_id_fkey
+	ForwardedByUserReports         ReportSlice                 `scan:"ForwardedByUserReports" json:"ForwardedByUserReports"`                 // reports.fk_reports_forwarded_by
+	ResolvedByUserReports          ReportSlice                 `scan:"ResolvedByUserReports" json:"ResolvedByUserReports"`                   // reports.reports_resolved_by_user_id_fkey
+	CreatedByRoleKeys              RoleKeySlice                `scan:"CreatedByRoleKeys" json:"CreatedByRoleKeys"`                           // role_keys.role_keys_created_by_fkey
+	CreatedByUserSubforums         SubforumSlice               `scan:"CreatedByUserSubforums" json:"CreatedByUserSubforums"`                 // subforums.subforums_created_by_user_id_fkey
+	UpdatedBySystemSettings        SystemSettingSlice          `scan:"UpdatedBySystemSettings" json:"UpdatedBySystemSettings"`               // system_settings.system_settings_updated_by_fkey
+	BannedByUserUserBans           UserBanSlice                `scan:"BannedByUserUserBans" json:"BannedByUserUserBans"`                     // user_bans.user_bans_banned_by_user_id_fkey
+	BannedUserUserBans             UserBanSlice                `scan:"BannedUserUserBans" json:"BannedUserUserBans"`                         // user_bans.user_bans_banned_user_id_fkey
+	BlockedUserUserBlocks          UserBlockSlice              `scan:"BlockedUserUserBlocks" json:"BlockedUserUserBlocks"`                   // user_blocks.user_blocks_blocked_user_id_fkey
+	UserPreference                 *UserPreference             `scan:"UserPreference" json:"UserPreference"`                                 // user_preferences.user_preferences_user_id_fkey
 }
 
 type userColumnNames struct {
@@ -95,6 +98,7 @@ type userColumnNames struct {
 	ModeratedSubforums  string
 	AdminScope          string
 	UpdatedAt           string
+	EmailVerified       string
 }
 
 var UserColumns = buildUserColumns("users")
@@ -118,6 +122,7 @@ type userColumns struct {
 	ModeratedSubforums  psql.Expression
 	AdminScope          psql.Expression
 	UpdatedAt           psql.Expression
+	EmailVerified       psql.Expression
 }
 
 func (c userColumns) Alias() string {
@@ -148,6 +153,7 @@ func buildUserColumns(alias string) userColumns {
 		ModeratedSubforums:  psql.Quote(alias, "moderated_subforums"),
 		AdminScope:          psql.Quote(alias, "admin_scope"),
 		UpdatedAt:           psql.Quote(alias, "updated_at"),
+		EmailVerified:       psql.Quote(alias, "email_verified"),
 	}
 }
 
@@ -169,6 +175,7 @@ type userWhere[Q psql.Filterable] struct {
 	ModeratedSubforums  psql.WhereNullMod[Q, types.JSON[json.RawMessage]]
 	AdminScope          psql.WhereNullMod[Q, string]
 	UpdatedAt           psql.WhereNullMod[Q, time.Time]
+	EmailVerified       psql.WhereNullMod[Q, bool]
 }
 
 func (userWhere[Q]) AliasedAs(alias string) userWhere[Q] {
@@ -194,6 +201,7 @@ func buildUserWhere[Q psql.Filterable](cols userColumns) userWhere[Q] {
 		ModeratedSubforums:  psql.WhereNull[Q, types.JSON[json.RawMessage]](cols.ModeratedSubforums),
 		AdminScope:          psql.WhereNull[Q, string](cols.AdminScope),
 		UpdatedAt:           psql.WhereNull[Q, time.Time](cols.UpdatedAt),
+		EmailVerified:       psql.WhereNull[Q, bool](cols.EmailVerified),
 	}
 }
 
@@ -249,10 +257,11 @@ type UserSetter struct {
 	ModeratedSubforums  *sql.Null[types.JSON[json.RawMessage]] `db:"moderated_subforums" scan:"moderated_subforums" json:"moderated_subforums"`
 	AdminScope          *sql.Null[string]                      `db:"admin_scope" scan:"admin_scope" json:"admin_scope"`
 	UpdatedAt           *sql.Null[time.Time]                   `db:"updated_at" scan:"updated_at" json:"updated_at"`
+	EmailVerified       *sql.Null[bool]                        `db:"email_verified" scan:"email_verified" json:"email_verified"`
 }
 
 func (s UserSetter) SetColumns() []string {
-	vals := make([]string, 0, 17)
+	vals := make([]string, 0, 18)
 	if s.UserID != nil {
 		vals = append(vals, "user_id")
 	}
@@ -321,6 +330,10 @@ func (s UserSetter) SetColumns() []string {
 		vals = append(vals, "updated_at")
 	}
 
+	if s.EmailVerified != nil {
+		vals = append(vals, "email_verified")
+	}
+
 	return vals
 }
 
@@ -376,6 +389,9 @@ func (s UserSetter) Overwrite(t *User) {
 	if s.UpdatedAt != nil {
 		t.UpdatedAt = *s.UpdatedAt
 	}
+	if s.EmailVerified != nil {
+		t.EmailVerified = *s.EmailVerified
+	}
 }
 
 func (s *UserSetter) Apply(q *dialect.InsertQuery) {
@@ -384,7 +400,7 @@ func (s *UserSetter) Apply(q *dialect.InsertQuery) {
 	})
 
 	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
-		vals := make([]bob.Expression, 17)
+		vals := make([]bob.Expression, 18)
 		if s.UserID != nil {
 			vals[0] = psql.Arg(*s.UserID)
 		} else {
@@ -487,6 +503,12 @@ func (s *UserSetter) Apply(q *dialect.InsertQuery) {
 			vals[16] = psql.Raw("DEFAULT")
 		}
 
+		if s.EmailVerified != nil {
+			vals[17] = psql.Arg(*s.EmailVerified)
+		} else {
+			vals[17] = psql.Raw("DEFAULT")
+		}
+
 		return bob.ExpressSlice(ctx, w, d, start, vals, "", ", ", "")
 	}))
 }
@@ -496,7 +518,7 @@ func (s UserSetter) UpdateMod() bob.Mod[*dialect.UpdateQuery] {
 }
 
 func (s UserSetter) Expressions(prefix ...string) []bob.Expression {
-	exprs := make([]bob.Expression, 0, 17)
+	exprs := make([]bob.Expression, 0, 18)
 
 	if s.UserID != nil {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
@@ -614,6 +636,13 @@ func (s UserSetter) Expressions(prefix ...string) []bob.Expression {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "updated_at")...),
 			psql.Arg(s.UpdatedAt),
+		}})
+	}
+
+	if s.EmailVerified != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "email_verified")...),
+			psql.Arg(s.EmailVerified),
 		}})
 	}
 
@@ -847,11 +876,13 @@ type userJoins[Q dialect.Joinable] struct {
 	typ                            string
 	AssignedUserComplianceReports  modAs[Q, complianceReportColumns]
 	CorrelationAudits              modAs[Q, correlationAuditColumns]
+	EmailVerificationTokens        modAs[Q, emailVerificationTokenColumns]
 	IdentityMappings               modAs[Q, identityMappingColumns]
 	CreatedByKeyRotationMigrations modAs[Q, keyRotationMigrationColumns]
 	KeyUsageAudits                 modAs[Q, keyUsageAuditColumns]
 	ModeratorUserModerationActions modAs[Q, moderationActionColumns]
 	TargetUserModerationActions    modAs[Q, moderationActionColumns]
+	PasswordResetTokens            modAs[Q, passwordResetTokenColumns]
 	ForwardedByUserReports         modAs[Q, reportColumns]
 	ResolvedByUserReports          modAs[Q, reportColumns]
 	CreatedByRoleKeys              modAs[Q, roleKeyColumns]
@@ -891,6 +922,20 @@ func buildUserJoins[Q dialect.Joinable](cols userColumns, typ string) userJoins[
 
 				{
 					mods = append(mods, dialect.Join[Q](typ, CorrelationAudits.Name().As(to.Alias())).On(
+						to.UserID.EQ(cols.UserID),
+					))
+				}
+
+				return mods
+			},
+		},
+		EmailVerificationTokens: modAs[Q, emailVerificationTokenColumns]{
+			c: EmailVerificationTokenColumns,
+			f: func(to emailVerificationTokenColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, EmailVerificationTokens.Name().As(to.Alias())).On(
 						to.UserID.EQ(cols.UserID),
 					))
 				}
@@ -962,6 +1007,20 @@ func buildUserJoins[Q dialect.Joinable](cols userColumns, typ string) userJoins[
 				{
 					mods = append(mods, dialect.Join[Q](typ, ModerationActions.Name().As(to.Alias())).On(
 						to.TargetUserID.EQ(cols.UserID),
+					))
+				}
+
+				return mods
+			},
+		},
+		PasswordResetTokens: modAs[Q, passwordResetTokenColumns]{
+			c: PasswordResetTokenColumns,
+			f: func(to passwordResetTokenColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, PasswordResetTokens.Name().As(to.Alias())).On(
+						to.UserID.EQ(cols.UserID),
 					))
 				}
 
@@ -1139,6 +1198,27 @@ func (os UserSlice) CorrelationAudits(mods ...bob.Mod[*dialect.SelectQuery]) Cor
 	)...)
 }
 
+// EmailVerificationTokens starts a query for related objects on email_verification_tokens
+func (o *User) EmailVerificationTokens(mods ...bob.Mod[*dialect.SelectQuery]) EmailVerificationTokensQuery {
+	return EmailVerificationTokens.Query(append(mods,
+		sm.Where(EmailVerificationTokenColumns.UserID.EQ(psql.Arg(o.UserID))),
+	)...)
+}
+
+func (os UserSlice) EmailVerificationTokens(mods ...bob.Mod[*dialect.SelectQuery]) EmailVerificationTokensQuery {
+	pkUserID := make(pgtypes.Array[int64], len(os))
+	for i, o := range os {
+		pkUserID[i] = o.UserID
+	}
+	PKArgExpr := psql.Select(sm.Columns(
+		psql.F("unnest", psql.Cast(psql.Arg(pkUserID), "bigint[]")),
+	))
+
+	return EmailVerificationTokens.Query(append(mods,
+		sm.Where(psql.Group(EmailVerificationTokenColumns.UserID).OP("IN", PKArgExpr)),
+	)...)
+}
+
 // IdentityMappings starts a query for related objects on identity_mappings
 func (o *User) IdentityMappings(mods ...bob.Mod[*dialect.SelectQuery]) IdentityMappingsQuery {
 	return IdentityMappings.Query(append(mods,
@@ -1241,6 +1321,27 @@ func (os UserSlice) TargetUserModerationActions(mods ...bob.Mod[*dialect.SelectQ
 
 	return ModerationActions.Query(append(mods,
 		sm.Where(psql.Group(ModerationActionColumns.TargetUserID).OP("IN", PKArgExpr)),
+	)...)
+}
+
+// PasswordResetTokens starts a query for related objects on password_reset_tokens
+func (o *User) PasswordResetTokens(mods ...bob.Mod[*dialect.SelectQuery]) PasswordResetTokensQuery {
+	return PasswordResetTokens.Query(append(mods,
+		sm.Where(PasswordResetTokenColumns.UserID.EQ(psql.Arg(o.UserID))),
+	)...)
+}
+
+func (os UserSlice) PasswordResetTokens(mods ...bob.Mod[*dialect.SelectQuery]) PasswordResetTokensQuery {
+	pkUserID := make(pgtypes.Array[int64], len(os))
+	for i, o := range os {
+		pkUserID[i] = o.UserID
+	}
+	PKArgExpr := psql.Select(sm.Columns(
+		psql.F("unnest", psql.Cast(psql.Arg(pkUserID), "bigint[]")),
+	))
+
+	return PasswordResetTokens.Query(append(mods,
+		sm.Where(psql.Group(PasswordResetTokenColumns.UserID).OP("IN", PKArgExpr)),
 	)...)
 }
 
@@ -1467,6 +1568,20 @@ func (o *User) Preload(name string, retrieved any) error {
 			}
 		}
 		return nil
+	case "EmailVerificationTokens":
+		rels, ok := retrieved.(EmailVerificationTokenSlice)
+		if !ok {
+			return fmt.Errorf("user cannot load %T as %q", retrieved, name)
+		}
+
+		o.R.EmailVerificationTokens = rels
+
+		for _, rel := range rels {
+			if rel != nil {
+				rel.R.User = o
+			}
+		}
+		return nil
 	case "IdentityMappings":
 		rels, ok := retrieved.(IdentityMappingSlice)
 		if !ok {
@@ -1534,6 +1649,20 @@ func (o *User) Preload(name string, retrieved any) error {
 		for _, rel := range rels {
 			if rel != nil {
 				rel.R.TargetUserUser = o
+			}
+		}
+		return nil
+	case "PasswordResetTokens":
+		rels, ok := retrieved.(PasswordResetTokenSlice)
+		if !ok {
+			return fmt.Errorf("user cannot load %T as %q", retrieved, name)
+		}
+
+		o.R.PasswordResetTokens = rels
+
+		for _, rel := range rels {
+			if rel != nil {
+				rel.R.User = o
 			}
 		}
 		return nil
@@ -1695,11 +1824,13 @@ func buildUserPreloader() userPreloader {
 type userThenLoader[Q orm.Loadable] struct {
 	AssignedUserComplianceReports  func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	CorrelationAudits              func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	EmailVerificationTokens        func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	IdentityMappings               func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	CreatedByKeyRotationMigrations func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	KeyUsageAudits                 func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	ModeratorUserModerationActions func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	TargetUserModerationActions    func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	PasswordResetTokens            func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	ForwardedByUserReports         func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	ResolvedByUserReports          func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	CreatedByRoleKeys              func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
@@ -1718,6 +1849,9 @@ func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
 	type CorrelationAuditsLoadInterface interface {
 		LoadCorrelationAudits(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
+	type EmailVerificationTokensLoadInterface interface {
+		LoadEmailVerificationTokens(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	}
 	type IdentityMappingsLoadInterface interface {
 		LoadIdentityMappings(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
@@ -1732,6 +1866,9 @@ func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
 	}
 	type TargetUserModerationActionsLoadInterface interface {
 		LoadTargetUserModerationActions(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	}
+	type PasswordResetTokensLoadInterface interface {
+		LoadPasswordResetTokens(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 	type ForwardedByUserReportsLoadInterface interface {
 		LoadForwardedByUserReports(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
@@ -1774,6 +1911,12 @@ func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
 				return retrieved.LoadCorrelationAudits(ctx, exec, mods...)
 			},
 		),
+		EmailVerificationTokens: thenLoadBuilder[Q](
+			"EmailVerificationTokens",
+			func(ctx context.Context, exec bob.Executor, retrieved EmailVerificationTokensLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadEmailVerificationTokens(ctx, exec, mods...)
+			},
+		),
 		IdentityMappings: thenLoadBuilder[Q](
 			"IdentityMappings",
 			func(ctx context.Context, exec bob.Executor, retrieved IdentityMappingsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
@@ -1802,6 +1945,12 @@ func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
 			"TargetUserModerationActions",
 			func(ctx context.Context, exec bob.Executor, retrieved TargetUserModerationActionsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
 				return retrieved.LoadTargetUserModerationActions(ctx, exec, mods...)
+			},
+		),
+		PasswordResetTokens: thenLoadBuilder[Q](
+			"PasswordResetTokens",
+			func(ctx context.Context, exec bob.Executor, retrieved PasswordResetTokensLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadPasswordResetTokens(ctx, exec, mods...)
 			},
 		),
 		ForwardedByUserReports: thenLoadBuilder[Q](
@@ -1959,6 +2108,58 @@ func (os UserSlice) LoadCorrelationAudits(ctx context.Context, exec bob.Executor
 			rel.R.User = o
 
 			o.R.CorrelationAudits = append(o.R.CorrelationAudits, rel)
+		}
+	}
+
+	return nil
+}
+
+// LoadEmailVerificationTokens loads the user's EmailVerificationTokens into the .R struct
+func (o *User) LoadEmailVerificationTokens(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if o == nil {
+		return nil
+	}
+
+	// Reset the relationship
+	o.R.EmailVerificationTokens = nil
+
+	related, err := o.EmailVerificationTokens(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, rel := range related {
+		rel.R.User = o
+	}
+
+	o.R.EmailVerificationTokens = related
+	return nil
+}
+
+// LoadEmailVerificationTokens loads the user's EmailVerificationTokens into the .R struct
+func (os UserSlice) LoadEmailVerificationTokens(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if len(os) == 0 {
+		return nil
+	}
+
+	emailVerificationTokens, err := os.EmailVerificationTokens(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range os {
+		o.R.EmailVerificationTokens = nil
+	}
+
+	for _, o := range os {
+		for _, rel := range emailVerificationTokens {
+			if o.UserID != rel.UserID {
+				continue
+			}
+
+			rel.R.User = o
+
+			o.R.EmailVerificationTokens = append(o.R.EmailVerificationTokens, rel)
 		}
 	}
 
@@ -2219,6 +2420,58 @@ func (os UserSlice) LoadTargetUserModerationActions(ctx context.Context, exec bo
 			rel.R.TargetUserUser = o
 
 			o.R.TargetUserModerationActions = append(o.R.TargetUserModerationActions, rel)
+		}
+	}
+
+	return nil
+}
+
+// LoadPasswordResetTokens loads the user's PasswordResetTokens into the .R struct
+func (o *User) LoadPasswordResetTokens(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if o == nil {
+		return nil
+	}
+
+	// Reset the relationship
+	o.R.PasswordResetTokens = nil
+
+	related, err := o.PasswordResetTokens(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, rel := range related {
+		rel.R.User = o
+	}
+
+	o.R.PasswordResetTokens = related
+	return nil
+}
+
+// LoadPasswordResetTokens loads the user's PasswordResetTokens into the .R struct
+func (os UserSlice) LoadPasswordResetTokens(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if len(os) == 0 {
+		return nil
+	}
+
+	passwordResetTokens, err := os.PasswordResetTokens(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range os {
+		o.R.PasswordResetTokens = nil
+	}
+
+	for _, o := range os {
+		for _, rel := range passwordResetTokens {
+			if o.UserID != rel.UserID {
+				continue
+			}
+
+			rel.R.User = o
+
+			o.R.PasswordResetTokens = append(o.R.PasswordResetTokens, rel)
 		}
 	}
 
@@ -2830,6 +3083,74 @@ func (user0 *User) AttachCorrelationAudits(ctx context.Context, exec bob.Executo
 	return nil
 }
 
+func insertUserEmailVerificationTokens0(ctx context.Context, exec bob.Executor, emailVerificationTokens1 []*EmailVerificationTokenSetter, user0 *User) (EmailVerificationTokenSlice, error) {
+	for i := range emailVerificationTokens1 {
+		emailVerificationTokens1[i].UserID = &user0.UserID
+	}
+
+	ret, err := EmailVerificationTokens.Insert(bob.ToMods(emailVerificationTokens1...)).All(ctx, exec)
+	if err != nil {
+		return ret, fmt.Errorf("insertUserEmailVerificationTokens0: %w", err)
+	}
+
+	return ret, nil
+}
+
+func attachUserEmailVerificationTokens0(ctx context.Context, exec bob.Executor, count int, emailVerificationTokens1 EmailVerificationTokenSlice, user0 *User) (EmailVerificationTokenSlice, error) {
+	setter := &EmailVerificationTokenSetter{
+		UserID: &user0.UserID,
+	}
+
+	err := emailVerificationTokens1.UpdateAll(ctx, exec, *setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachUserEmailVerificationTokens0: %w", err)
+	}
+
+	return emailVerificationTokens1, nil
+}
+
+func (user0 *User) InsertEmailVerificationTokens(ctx context.Context, exec bob.Executor, related ...*EmailVerificationTokenSetter) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+
+	emailVerificationTokens1, err := insertUserEmailVerificationTokens0(ctx, exec, related, user0)
+	if err != nil {
+		return err
+	}
+
+	user0.R.EmailVerificationTokens = append(user0.R.EmailVerificationTokens, emailVerificationTokens1...)
+
+	for _, rel := range emailVerificationTokens1 {
+		rel.R.User = user0
+	}
+	return nil
+}
+
+func (user0 *User) AttachEmailVerificationTokens(ctx context.Context, exec bob.Executor, related ...*EmailVerificationToken) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+	emailVerificationTokens1 := EmailVerificationTokenSlice(related)
+
+	_, err = attachUserEmailVerificationTokens0(ctx, exec, len(related), emailVerificationTokens1, user0)
+	if err != nil {
+		return err
+	}
+
+	user0.R.EmailVerificationTokens = append(user0.R.EmailVerificationTokens, emailVerificationTokens1...)
+
+	for _, rel := range related {
+		rel.R.User = user0
+	}
+
+	return nil
+}
+
 func insertUserIdentityMappings0(ctx context.Context, exec bob.Executor, identityMappings1 []*IdentityMappingSetter, user0 *User) (IdentityMappingSlice, error) {
 	for i := range identityMappings1 {
 		identityMappings1[i].UserID = &user0.UserID
@@ -3171,6 +3492,74 @@ func (user0 *User) AttachTargetUserModerationActions(ctx context.Context, exec b
 
 	for _, rel := range related {
 		rel.R.TargetUserUser = user0
+	}
+
+	return nil
+}
+
+func insertUserPasswordResetTokens0(ctx context.Context, exec bob.Executor, passwordResetTokens1 []*PasswordResetTokenSetter, user0 *User) (PasswordResetTokenSlice, error) {
+	for i := range passwordResetTokens1 {
+		passwordResetTokens1[i].UserID = &user0.UserID
+	}
+
+	ret, err := PasswordResetTokens.Insert(bob.ToMods(passwordResetTokens1...)).All(ctx, exec)
+	if err != nil {
+		return ret, fmt.Errorf("insertUserPasswordResetTokens0: %w", err)
+	}
+
+	return ret, nil
+}
+
+func attachUserPasswordResetTokens0(ctx context.Context, exec bob.Executor, count int, passwordResetTokens1 PasswordResetTokenSlice, user0 *User) (PasswordResetTokenSlice, error) {
+	setter := &PasswordResetTokenSetter{
+		UserID: &user0.UserID,
+	}
+
+	err := passwordResetTokens1.UpdateAll(ctx, exec, *setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachUserPasswordResetTokens0: %w", err)
+	}
+
+	return passwordResetTokens1, nil
+}
+
+func (user0 *User) InsertPasswordResetTokens(ctx context.Context, exec bob.Executor, related ...*PasswordResetTokenSetter) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+
+	passwordResetTokens1, err := insertUserPasswordResetTokens0(ctx, exec, related, user0)
+	if err != nil {
+		return err
+	}
+
+	user0.R.PasswordResetTokens = append(user0.R.PasswordResetTokens, passwordResetTokens1...)
+
+	for _, rel := range passwordResetTokens1 {
+		rel.R.User = user0
+	}
+	return nil
+}
+
+func (user0 *User) AttachPasswordResetTokens(ctx context.Context, exec bob.Executor, related ...*PasswordResetToken) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+	passwordResetTokens1 := PasswordResetTokenSlice(related)
+
+	_, err = attachUserPasswordResetTokens0(ctx, exec, len(related), passwordResetTokens1, user0)
+	if err != nil {
+		return err
+	}
+
+	user0.R.PasswordResetTokens = append(user0.R.PasswordResetTokens, passwordResetTokens1...)
+
+	for _, rel := range related {
+		rel.R.User = user0
 	}
 
 	return nil

@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/matt0x6f/hashpost/internal/database/dao"
-	"github.com/matt0x6f/hashpost/internal/database/services"
 	"github.com/matt0x6f/hashpost/internal/ibe"
+	"github.com/matt0x6f/hashpost/internal/services"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )

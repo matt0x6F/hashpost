@@ -679,3 +679,59 @@ func (dao *PseudonymDAO) deactivatePseudonym(ctx context.Context, pseudonymID st
 
 	return nil
 }
+
+// DeleteByUserID deletes all pseudonyms for a specific user
+func (dao *PseudonymDAO) DeleteByUserID(ctx context.Context, userID int64) error {
+	// 1. Get user's real identity (email) first
+	user, err := dao.userDAO.GetUserByID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to get user %d: %w", userID, err)
+	}
+	if user == nil {
+		return fmt.Errorf("user %d not found", userID)
+	}
+
+	// 2. Generate fingerprint from real identity
+	fingerprint := dao.ibeSystem.GenerateFingerprint(user.Email)
+	log.Info().
+		Str("real_identity", user.Email).
+		Str("fingerprint", fingerprint).
+		Msg("Generated fingerprint for real identity")
+
+	// 3. Get all identity mappings for this fingerprint
+	mappings, err := dao.identityMappingDAO.GetIdentityMappingsByFingerprint(ctx, fingerprint)
+	if err != nil {
+		return fmt.Errorf("failed to get identity mappings for fingerprint %s: %w", fingerprint, err)
+	}
+
+	log.Info().
+		Str("fingerprint", fingerprint).
+		Int("mapping_count", len(mappings)).
+		Msg("Found identity mappings for fingerprint")
+
+	// 4. Extract pseudonym IDs and delete each pseudonym (deduplicate by pseudonym ID)
+	pseudonymIDs := make(map[string]bool)
+	for _, mapping := range mappings {
+		pseudonymIDs[mapping.PseudonymID] = true
+	}
+
+	// 5. Delete each unique pseudonym
+	for pseudonymID := range pseudonymIDs {
+		pseudonym, err := models.FindPseudonym(ctx, dao.db, pseudonymID)
+		if err != nil {
+			return fmt.Errorf("failed to find pseudonym %s: %w", pseudonymID, err)
+		}
+		if pseudonym != nil {
+			err = pseudonym.Delete(ctx, dao.db)
+			if err != nil {
+				return fmt.Errorf("failed to delete pseudonym %s: %w", pseudonymID, err)
+			}
+			log.Info().
+				Str("pseudonym_id", pseudonymID).
+				Str("display_name", pseudonym.DisplayName).
+				Msg("Deleted pseudonym")
+		}
+	}
+
+	return nil
+}

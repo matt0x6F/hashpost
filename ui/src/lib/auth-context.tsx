@@ -68,8 +68,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch (error) {
         if (error instanceof AuthRefreshFailedError) {
-          // Refresh failed: log out and redirect
-          await logout(getNearestUnprotectedPage());
+          // Check if we're on a public page that shouldn't redirect
+          const currentPath = window.location.pathname;
+          const isPublicPage = currentPath.startsWith('/reset-password') || 
+                              currentPath.startsWith('/verify-email') ||
+                              currentPath === '/';
+          
+          if (isPublicPage) {
+            // Don't redirect on public pages, just clear the user state
+            setUser(null);
+            localStorage.removeItem('hashpost_user');
+          } else {
+            // Refresh failed: log out and redirect
+            await logout(getNearestUnprotectedPage());
+          }
           return;
         }
         console.error('Error checking authentication:', error);

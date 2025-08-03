@@ -19,103 +19,109 @@ import (
 )
 
 var TableNames = struct {
-	APIKeys                string
-	Comments               string
-	ComplianceCorrelations string
-	ComplianceReports      string
-	CorrelationAudits      string
-	DirectMessages         string
-	IdentityMappings       string
-	KeyRotationMigrations  string
-	KeyUsageAudits         string
-	MediaAttachments       string
-	MigrationProgresses    string
-	ModerationActions      string
-	PerformanceMetrics     string
-	PollVotes              string
-	Polls                  string
-	Posts                  string
-	Pseudonyms             string
-	Reports                string
-	RoleDefinitions        string
-	RoleKeys               string
-	SchemaMigrations       string
-	SubforumModerators     string
-	SubforumSubscriptions  string
-	Subforums              string
-	SystemEvents           string
-	SystemSettings         string
-	UserBans               string
-	UserBlocks             string
-	UserPreferences        string
-	Users                  string
-	Votes                  string
+	APIKeys                 string
+	Comments                string
+	ComplianceCorrelations  string
+	ComplianceReports       string
+	CorrelationAudits       string
+	DirectMessages          string
+	EmailVerificationTokens string
+	IdentityMappings        string
+	KeyRotationMigrations   string
+	KeyUsageAudits          string
+	MediaAttachments        string
+	MigrationProgresses     string
+	ModerationActions       string
+	PasswordResetTokens     string
+	PerformanceMetrics      string
+	PollVotes               string
+	Polls                   string
+	Posts                   string
+	Pseudonyms              string
+	Reports                 string
+	RoleDefinitions         string
+	RoleKeys                string
+	SchemaMigrations        string
+	SubforumModerators      string
+	SubforumSubscriptions   string
+	Subforums               string
+	SystemEvents            string
+	SystemSettings          string
+	UserBans                string
+	UserBlocks              string
+	UserPreferences         string
+	Users                   string
+	Votes                   string
 }{
-	APIKeys:                "api_keys",
-	Comments:               "comments",
-	ComplianceCorrelations: "compliance_correlations",
-	ComplianceReports:      "compliance_reports",
-	CorrelationAudits:      "correlation_audit",
-	DirectMessages:         "direct_messages",
-	IdentityMappings:       "identity_mappings",
-	KeyRotationMigrations:  "key_rotation_migrations",
-	KeyUsageAudits:         "key_usage_audit",
-	MediaAttachments:       "media_attachments",
-	MigrationProgresses:    "migration_progress",
-	ModerationActions:      "moderation_actions",
-	PerformanceMetrics:     "performance_metrics",
-	PollVotes:              "poll_votes",
-	Polls:                  "polls",
-	Posts:                  "posts",
-	Pseudonyms:             "pseudonyms",
-	Reports:                "reports",
-	RoleDefinitions:        "role_definitions",
-	RoleKeys:               "role_keys",
-	SchemaMigrations:       "schema_migrations",
-	SubforumModerators:     "subforum_moderators",
-	SubforumSubscriptions:  "subforum_subscriptions",
-	Subforums:              "subforums",
-	SystemEvents:           "system_events",
-	SystemSettings:         "system_settings",
-	UserBans:               "user_bans",
-	UserBlocks:             "user_blocks",
-	UserPreferences:        "user_preferences",
-	Users:                  "users",
-	Votes:                  "votes",
+	APIKeys:                 "api_keys",
+	Comments:                "comments",
+	ComplianceCorrelations:  "compliance_correlations",
+	ComplianceReports:       "compliance_reports",
+	CorrelationAudits:       "correlation_audit",
+	DirectMessages:          "direct_messages",
+	EmailVerificationTokens: "email_verification_tokens",
+	IdentityMappings:        "identity_mappings",
+	KeyRotationMigrations:   "key_rotation_migrations",
+	KeyUsageAudits:          "key_usage_audit",
+	MediaAttachments:        "media_attachments",
+	MigrationProgresses:     "migration_progress",
+	ModerationActions:       "moderation_actions",
+	PasswordResetTokens:     "password_reset_tokens",
+	PerformanceMetrics:      "performance_metrics",
+	PollVotes:               "poll_votes",
+	Polls:                   "polls",
+	Posts:                   "posts",
+	Pseudonyms:              "pseudonyms",
+	Reports:                 "reports",
+	RoleDefinitions:         "role_definitions",
+	RoleKeys:                "role_keys",
+	SchemaMigrations:        "schema_migrations",
+	SubforumModerators:      "subforum_moderators",
+	SubforumSubscriptions:   "subforum_subscriptions",
+	Subforums:               "subforums",
+	SystemEvents:            "system_events",
+	SystemSettings:          "system_settings",
+	UserBans:                "user_bans",
+	UserBlocks:              "user_blocks",
+	UserPreferences:         "user_preferences",
+	Users:                   "users",
+	Votes:                   "votes",
 }
 
 var ColumnNames = struct {
-	APIKeys                apiKeyColumnNames
-	Comments               commentColumnNames
-	ComplianceCorrelations complianceCorrelationColumnNames
-	ComplianceReports      complianceReportColumnNames
-	CorrelationAudits      correlationAuditColumnNames
-	DirectMessages         directMessageColumnNames
-	IdentityMappings       identityMappingColumnNames
-	KeyRotationMigrations  keyRotationMigrationColumnNames
-	KeyUsageAudits         keyUsageAuditColumnNames
-	MediaAttachments       mediaAttachmentColumnNames
-	MigrationProgresses    migrationProgressColumnNames
-	ModerationActions      moderationActionColumnNames
-	PerformanceMetrics     performanceMetricColumnNames
-	PollVotes              pollVoteColumnNames
-	Polls                  pollColumnNames
-	Posts                  postColumnNames
-	Pseudonyms             pseudonymColumnNames
-	Reports                reportColumnNames
-	RoleDefinitions        roleDefinitionColumnNames
-	RoleKeys               roleKeyColumnNames
-	SchemaMigrations       schemaMigrationColumnNames
-	SubforumModerators     subforumModeratorColumnNames
-	SubforumSubscriptions  subforumSubscriptionColumnNames
-	Subforums              subforumColumnNames
-	SystemEvents           systemEventColumnNames
-	SystemSettings         systemSettingColumnNames
-	UserBans               userBanColumnNames
-	UserBlocks             userBlockColumnNames
-	UserPreferences        userPreferenceColumnNames
-	Users                  userColumnNames
-	Votes                  voteColumnNames
+	APIKeys                 apiKeyColumnNames
+	Comments                commentColumnNames
+	ComplianceCorrelations  complianceCorrelationColumnNames
+	ComplianceReports       complianceReportColumnNames
+	CorrelationAudits       correlationAuditColumnNames
+	DirectMessages          directMessageColumnNames
+	EmailVerificationTokens emailVerificationTokenColumnNames
+	IdentityMappings        identityMappingColumnNames
+	KeyRotationMigrations   keyRotationMigrationColumnNames
+	KeyUsageAudits          keyUsageAuditColumnNames
+	MediaAttachments        mediaAttachmentColumnNames
+	MigrationProgresses     migrationProgressColumnNames
+	ModerationActions       moderationActionColumnNames
+	PasswordResetTokens     passwordResetTokenColumnNames
+	PerformanceMetrics      performanceMetricColumnNames
+	PollVotes               pollVoteColumnNames
+	Polls                   pollColumnNames
+	Posts                   postColumnNames
+	Pseudonyms              pseudonymColumnNames
+	Reports                 reportColumnNames
+	RoleDefinitions         roleDefinitionColumnNames
+	RoleKeys                roleKeyColumnNames
+	SchemaMigrations        schemaMigrationColumnNames
+	SubforumModerators      subforumModeratorColumnNames
+	SubforumSubscriptions   subforumSubscriptionColumnNames
+	Subforums               subforumColumnNames
+	SystemEvents            systemEventColumnNames
+	SystemSettings          systemSettingColumnNames
+	UserBans                userBanColumnNames
+	UserBlocks              userBlockColumnNames
+	UserPreferences         userPreferenceColumnNames
+	Users                   userColumnNames
+	Votes                   voteColumnNames
 }{
 	APIKeys: apiKeyColumnNames{
 		KeyID:       "key_id",
@@ -199,6 +205,14 @@ var ColumnNames = struct {
 		IsRead:               "is_read",
 		CreatedAt:            "created_at",
 	},
+	EmailVerificationTokens: emailVerificationTokenColumnNames{
+		ID:        "id",
+		UserID:    "user_id",
+		Token:     "token",
+		CreatedAt: "created_at",
+		ExpiresAt: "expires_at",
+		UsedAt:    "used_at",
+	},
 	IdentityMappings: identityMappingColumnNames{
 		MappingID:                 "mapping_id",
 		Fingerprint:               "fingerprint",
@@ -277,6 +291,14 @@ var ColumnNames = struct {
 		TargetUserID:         "target_user_id",
 		ActionDetails:        "action_details",
 		CreatedAt:            "created_at",
+	},
+	PasswordResetTokens: passwordResetTokenColumnNames{
+		ID:        "id",
+		UserID:    "user_id",
+		Token:     "token",
+		CreatedAt: "created_at",
+		ExpiresAt: "expires_at",
+		UsedAt:    "used_at",
 	},
 	PerformanceMetrics: performanceMetricColumnNames{
 		MetricID:    "metric_id",
@@ -506,6 +528,7 @@ var ColumnNames = struct {
 		ModeratedSubforums:  "moderated_subforums",
 		AdminScope:          "admin_scope",
 		UpdatedAt:           "updated_at",
+		EmailVerified:       "email_verified",
 	},
 	Votes: voteColumnNames{
 		VoteID:      "vote_id",
@@ -526,166 +549,176 @@ var (
 )
 
 func Where[Q psql.Filterable]() struct {
-	APIKeys                apiKeyWhere[Q]
-	Comments               commentWhere[Q]
-	ComplianceCorrelations complianceCorrelationWhere[Q]
-	ComplianceReports      complianceReportWhere[Q]
-	CorrelationAudits      correlationAuditWhere[Q]
-	DirectMessages         directMessageWhere[Q]
-	IdentityMappings       identityMappingWhere[Q]
-	KeyRotationMigrations  keyRotationMigrationWhere[Q]
-	KeyUsageAudits         keyUsageAuditWhere[Q]
-	MediaAttachments       mediaAttachmentWhere[Q]
-	MigrationProgresses    migrationProgressWhere[Q]
-	ModerationActions      moderationActionWhere[Q]
-	PerformanceMetrics     performanceMetricWhere[Q]
-	PollVotes              pollVoteWhere[Q]
-	Polls                  pollWhere[Q]
-	Posts                  postWhere[Q]
-	Pseudonyms             pseudonymWhere[Q]
-	Reports                reportWhere[Q]
-	RoleDefinitions        roleDefinitionWhere[Q]
-	RoleKeys               roleKeyWhere[Q]
-	SchemaMigrations       schemaMigrationWhere[Q]
-	SubforumModerators     subforumModeratorWhere[Q]
-	SubforumSubscriptions  subforumSubscriptionWhere[Q]
-	Subforums              subforumWhere[Q]
-	SystemEvents           systemEventWhere[Q]
-	SystemSettings         systemSettingWhere[Q]
-	UserBans               userBanWhere[Q]
-	UserBlocks             userBlockWhere[Q]
-	UserPreferences        userPreferenceWhere[Q]
-	Users                  userWhere[Q]
-	Votes                  voteWhere[Q]
+	APIKeys                 apiKeyWhere[Q]
+	Comments                commentWhere[Q]
+	ComplianceCorrelations  complianceCorrelationWhere[Q]
+	ComplianceReports       complianceReportWhere[Q]
+	CorrelationAudits       correlationAuditWhere[Q]
+	DirectMessages          directMessageWhere[Q]
+	EmailVerificationTokens emailVerificationTokenWhere[Q]
+	IdentityMappings        identityMappingWhere[Q]
+	KeyRotationMigrations   keyRotationMigrationWhere[Q]
+	KeyUsageAudits          keyUsageAuditWhere[Q]
+	MediaAttachments        mediaAttachmentWhere[Q]
+	MigrationProgresses     migrationProgressWhere[Q]
+	ModerationActions       moderationActionWhere[Q]
+	PasswordResetTokens     passwordResetTokenWhere[Q]
+	PerformanceMetrics      performanceMetricWhere[Q]
+	PollVotes               pollVoteWhere[Q]
+	Polls                   pollWhere[Q]
+	Posts                   postWhere[Q]
+	Pseudonyms              pseudonymWhere[Q]
+	Reports                 reportWhere[Q]
+	RoleDefinitions         roleDefinitionWhere[Q]
+	RoleKeys                roleKeyWhere[Q]
+	SchemaMigrations        schemaMigrationWhere[Q]
+	SubforumModerators      subforumModeratorWhere[Q]
+	SubforumSubscriptions   subforumSubscriptionWhere[Q]
+	Subforums               subforumWhere[Q]
+	SystemEvents            systemEventWhere[Q]
+	SystemSettings          systemSettingWhere[Q]
+	UserBans                userBanWhere[Q]
+	UserBlocks              userBlockWhere[Q]
+	UserPreferences         userPreferenceWhere[Q]
+	Users                   userWhere[Q]
+	Votes                   voteWhere[Q]
 } {
 	return struct {
-		APIKeys                apiKeyWhere[Q]
-		Comments               commentWhere[Q]
-		ComplianceCorrelations complianceCorrelationWhere[Q]
-		ComplianceReports      complianceReportWhere[Q]
-		CorrelationAudits      correlationAuditWhere[Q]
-		DirectMessages         directMessageWhere[Q]
-		IdentityMappings       identityMappingWhere[Q]
-		KeyRotationMigrations  keyRotationMigrationWhere[Q]
-		KeyUsageAudits         keyUsageAuditWhere[Q]
-		MediaAttachments       mediaAttachmentWhere[Q]
-		MigrationProgresses    migrationProgressWhere[Q]
-		ModerationActions      moderationActionWhere[Q]
-		PerformanceMetrics     performanceMetricWhere[Q]
-		PollVotes              pollVoteWhere[Q]
-		Polls                  pollWhere[Q]
-		Posts                  postWhere[Q]
-		Pseudonyms             pseudonymWhere[Q]
-		Reports                reportWhere[Q]
-		RoleDefinitions        roleDefinitionWhere[Q]
-		RoleKeys               roleKeyWhere[Q]
-		SchemaMigrations       schemaMigrationWhere[Q]
-		SubforumModerators     subforumModeratorWhere[Q]
-		SubforumSubscriptions  subforumSubscriptionWhere[Q]
-		Subforums              subforumWhere[Q]
-		SystemEvents           systemEventWhere[Q]
-		SystemSettings         systemSettingWhere[Q]
-		UserBans               userBanWhere[Q]
-		UserBlocks             userBlockWhere[Q]
-		UserPreferences        userPreferenceWhere[Q]
-		Users                  userWhere[Q]
-		Votes                  voteWhere[Q]
+		APIKeys                 apiKeyWhere[Q]
+		Comments                commentWhere[Q]
+		ComplianceCorrelations  complianceCorrelationWhere[Q]
+		ComplianceReports       complianceReportWhere[Q]
+		CorrelationAudits       correlationAuditWhere[Q]
+		DirectMessages          directMessageWhere[Q]
+		EmailVerificationTokens emailVerificationTokenWhere[Q]
+		IdentityMappings        identityMappingWhere[Q]
+		KeyRotationMigrations   keyRotationMigrationWhere[Q]
+		KeyUsageAudits          keyUsageAuditWhere[Q]
+		MediaAttachments        mediaAttachmentWhere[Q]
+		MigrationProgresses     migrationProgressWhere[Q]
+		ModerationActions       moderationActionWhere[Q]
+		PasswordResetTokens     passwordResetTokenWhere[Q]
+		PerformanceMetrics      performanceMetricWhere[Q]
+		PollVotes               pollVoteWhere[Q]
+		Polls                   pollWhere[Q]
+		Posts                   postWhere[Q]
+		Pseudonyms              pseudonymWhere[Q]
+		Reports                 reportWhere[Q]
+		RoleDefinitions         roleDefinitionWhere[Q]
+		RoleKeys                roleKeyWhere[Q]
+		SchemaMigrations        schemaMigrationWhere[Q]
+		SubforumModerators      subforumModeratorWhere[Q]
+		SubforumSubscriptions   subforumSubscriptionWhere[Q]
+		Subforums               subforumWhere[Q]
+		SystemEvents            systemEventWhere[Q]
+		SystemSettings          systemSettingWhere[Q]
+		UserBans                userBanWhere[Q]
+		UserBlocks              userBlockWhere[Q]
+		UserPreferences         userPreferenceWhere[Q]
+		Users                   userWhere[Q]
+		Votes                   voteWhere[Q]
 	}{
-		APIKeys:                buildAPIKeyWhere[Q](APIKeyColumns),
-		Comments:               buildCommentWhere[Q](CommentColumns),
-		ComplianceCorrelations: buildComplianceCorrelationWhere[Q](ComplianceCorrelationColumns),
-		ComplianceReports:      buildComplianceReportWhere[Q](ComplianceReportColumns),
-		CorrelationAudits:      buildCorrelationAuditWhere[Q](CorrelationAuditColumns),
-		DirectMessages:         buildDirectMessageWhere[Q](DirectMessageColumns),
-		IdentityMappings:       buildIdentityMappingWhere[Q](IdentityMappingColumns),
-		KeyRotationMigrations:  buildKeyRotationMigrationWhere[Q](KeyRotationMigrationColumns),
-		KeyUsageAudits:         buildKeyUsageAuditWhere[Q](KeyUsageAuditColumns),
-		MediaAttachments:       buildMediaAttachmentWhere[Q](MediaAttachmentColumns),
-		MigrationProgresses:    buildMigrationProgressWhere[Q](MigrationProgressColumns),
-		ModerationActions:      buildModerationActionWhere[Q](ModerationActionColumns),
-		PerformanceMetrics:     buildPerformanceMetricWhere[Q](PerformanceMetricColumns),
-		PollVotes:              buildPollVoteWhere[Q](PollVoteColumns),
-		Polls:                  buildPollWhere[Q](PollColumns),
-		Posts:                  buildPostWhere[Q](PostColumns),
-		Pseudonyms:             buildPseudonymWhere[Q](PseudonymColumns),
-		Reports:                buildReportWhere[Q](ReportColumns),
-		RoleDefinitions:        buildRoleDefinitionWhere[Q](RoleDefinitionColumns),
-		RoleKeys:               buildRoleKeyWhere[Q](RoleKeyColumns),
-		SchemaMigrations:       buildSchemaMigrationWhere[Q](SchemaMigrationColumns),
-		SubforumModerators:     buildSubforumModeratorWhere[Q](SubforumModeratorColumns),
-		SubforumSubscriptions:  buildSubforumSubscriptionWhere[Q](SubforumSubscriptionColumns),
-		Subforums:              buildSubforumWhere[Q](SubforumColumns),
-		SystemEvents:           buildSystemEventWhere[Q](SystemEventColumns),
-		SystemSettings:         buildSystemSettingWhere[Q](SystemSettingColumns),
-		UserBans:               buildUserBanWhere[Q](UserBanColumns),
-		UserBlocks:             buildUserBlockWhere[Q](UserBlockColumns),
-		UserPreferences:        buildUserPreferenceWhere[Q](UserPreferenceColumns),
-		Users:                  buildUserWhere[Q](UserColumns),
-		Votes:                  buildVoteWhere[Q](VoteColumns),
+		APIKeys:                 buildAPIKeyWhere[Q](APIKeyColumns),
+		Comments:                buildCommentWhere[Q](CommentColumns),
+		ComplianceCorrelations:  buildComplianceCorrelationWhere[Q](ComplianceCorrelationColumns),
+		ComplianceReports:       buildComplianceReportWhere[Q](ComplianceReportColumns),
+		CorrelationAudits:       buildCorrelationAuditWhere[Q](CorrelationAuditColumns),
+		DirectMessages:          buildDirectMessageWhere[Q](DirectMessageColumns),
+		EmailVerificationTokens: buildEmailVerificationTokenWhere[Q](EmailVerificationTokenColumns),
+		IdentityMappings:        buildIdentityMappingWhere[Q](IdentityMappingColumns),
+		KeyRotationMigrations:   buildKeyRotationMigrationWhere[Q](KeyRotationMigrationColumns),
+		KeyUsageAudits:          buildKeyUsageAuditWhere[Q](KeyUsageAuditColumns),
+		MediaAttachments:        buildMediaAttachmentWhere[Q](MediaAttachmentColumns),
+		MigrationProgresses:     buildMigrationProgressWhere[Q](MigrationProgressColumns),
+		ModerationActions:       buildModerationActionWhere[Q](ModerationActionColumns),
+		PasswordResetTokens:     buildPasswordResetTokenWhere[Q](PasswordResetTokenColumns),
+		PerformanceMetrics:      buildPerformanceMetricWhere[Q](PerformanceMetricColumns),
+		PollVotes:               buildPollVoteWhere[Q](PollVoteColumns),
+		Polls:                   buildPollWhere[Q](PollColumns),
+		Posts:                   buildPostWhere[Q](PostColumns),
+		Pseudonyms:              buildPseudonymWhere[Q](PseudonymColumns),
+		Reports:                 buildReportWhere[Q](ReportColumns),
+		RoleDefinitions:         buildRoleDefinitionWhere[Q](RoleDefinitionColumns),
+		RoleKeys:                buildRoleKeyWhere[Q](RoleKeyColumns),
+		SchemaMigrations:        buildSchemaMigrationWhere[Q](SchemaMigrationColumns),
+		SubforumModerators:      buildSubforumModeratorWhere[Q](SubforumModeratorColumns),
+		SubforumSubscriptions:   buildSubforumSubscriptionWhere[Q](SubforumSubscriptionColumns),
+		Subforums:               buildSubforumWhere[Q](SubforumColumns),
+		SystemEvents:            buildSystemEventWhere[Q](SystemEventColumns),
+		SystemSettings:          buildSystemSettingWhere[Q](SystemSettingColumns),
+		UserBans:                buildUserBanWhere[Q](UserBanColumns),
+		UserBlocks:              buildUserBlockWhere[Q](UserBlockColumns),
+		UserPreferences:         buildUserPreferenceWhere[Q](UserPreferenceColumns),
+		Users:                   buildUserWhere[Q](UserColumns),
+		Votes:                   buildVoteWhere[Q](VoteColumns),
 	}
 }
 
 var Preload = getPreloaders()
 
 type preloaders struct {
-	APIKey                apiKeyPreloader
-	Comment               commentPreloader
-	ComplianceCorrelation complianceCorrelationPreloader
-	ComplianceReport      complianceReportPreloader
-	CorrelationAudit      correlationAuditPreloader
-	DirectMessage         directMessagePreloader
-	IdentityMapping       identityMappingPreloader
-	KeyRotationMigration  keyRotationMigrationPreloader
-	KeyUsageAudit         keyUsageAuditPreloader
-	MediaAttachment       mediaAttachmentPreloader
-	MigrationProgress     migrationProgressPreloader
-	ModerationAction      moderationActionPreloader
-	PollVote              pollVotePreloader
-	Poll                  pollPreloader
-	Post                  postPreloader
-	Pseudonym             pseudonymPreloader
-	Report                reportPreloader
-	RoleKey               roleKeyPreloader
-	SubforumModerator     subforumModeratorPreloader
-	SubforumSubscription  subforumSubscriptionPreloader
-	Subforum              subforumPreloader
-	SystemSetting         systemSettingPreloader
-	UserBan               userBanPreloader
-	UserBlock             userBlockPreloader
-	UserPreference        userPreferencePreloader
-	User                  userPreloader
-	Vote                  votePreloader
+	APIKey                 apiKeyPreloader
+	Comment                commentPreloader
+	ComplianceCorrelation  complianceCorrelationPreloader
+	ComplianceReport       complianceReportPreloader
+	CorrelationAudit       correlationAuditPreloader
+	DirectMessage          directMessagePreloader
+	EmailVerificationToken emailVerificationTokenPreloader
+	IdentityMapping        identityMappingPreloader
+	KeyRotationMigration   keyRotationMigrationPreloader
+	KeyUsageAudit          keyUsageAuditPreloader
+	MediaAttachment        mediaAttachmentPreloader
+	MigrationProgress      migrationProgressPreloader
+	ModerationAction       moderationActionPreloader
+	PasswordResetToken     passwordResetTokenPreloader
+	PollVote               pollVotePreloader
+	Poll                   pollPreloader
+	Post                   postPreloader
+	Pseudonym              pseudonymPreloader
+	Report                 reportPreloader
+	RoleKey                roleKeyPreloader
+	SubforumModerator      subforumModeratorPreloader
+	SubforumSubscription   subforumSubscriptionPreloader
+	Subforum               subforumPreloader
+	SystemSetting          systemSettingPreloader
+	UserBan                userBanPreloader
+	UserBlock              userBlockPreloader
+	UserPreference         userPreferencePreloader
+	User                   userPreloader
+	Vote                   votePreloader
 }
 
 func getPreloaders() preloaders {
 	return preloaders{
-		APIKey:                buildAPIKeyPreloader(),
-		Comment:               buildCommentPreloader(),
-		ComplianceCorrelation: buildComplianceCorrelationPreloader(),
-		ComplianceReport:      buildComplianceReportPreloader(),
-		CorrelationAudit:      buildCorrelationAuditPreloader(),
-		DirectMessage:         buildDirectMessagePreloader(),
-		IdentityMapping:       buildIdentityMappingPreloader(),
-		KeyRotationMigration:  buildKeyRotationMigrationPreloader(),
-		KeyUsageAudit:         buildKeyUsageAuditPreloader(),
-		MediaAttachment:       buildMediaAttachmentPreloader(),
-		MigrationProgress:     buildMigrationProgressPreloader(),
-		ModerationAction:      buildModerationActionPreloader(),
-		PollVote:              buildPollVotePreloader(),
-		Poll:                  buildPollPreloader(),
-		Post:                  buildPostPreloader(),
-		Pseudonym:             buildPseudonymPreloader(),
-		Report:                buildReportPreloader(),
-		RoleKey:               buildRoleKeyPreloader(),
-		SubforumModerator:     buildSubforumModeratorPreloader(),
-		SubforumSubscription:  buildSubforumSubscriptionPreloader(),
-		Subforum:              buildSubforumPreloader(),
-		SystemSetting:         buildSystemSettingPreloader(),
-		UserBan:               buildUserBanPreloader(),
-		UserBlock:             buildUserBlockPreloader(),
-		UserPreference:        buildUserPreferencePreloader(),
-		User:                  buildUserPreloader(),
-		Vote:                  buildVotePreloader(),
+		APIKey:                 buildAPIKeyPreloader(),
+		Comment:                buildCommentPreloader(),
+		ComplianceCorrelation:  buildComplianceCorrelationPreloader(),
+		ComplianceReport:       buildComplianceReportPreloader(),
+		CorrelationAudit:       buildCorrelationAuditPreloader(),
+		DirectMessage:          buildDirectMessagePreloader(),
+		EmailVerificationToken: buildEmailVerificationTokenPreloader(),
+		IdentityMapping:        buildIdentityMappingPreloader(),
+		KeyRotationMigration:   buildKeyRotationMigrationPreloader(),
+		KeyUsageAudit:          buildKeyUsageAuditPreloader(),
+		MediaAttachment:        buildMediaAttachmentPreloader(),
+		MigrationProgress:      buildMigrationProgressPreloader(),
+		ModerationAction:       buildModerationActionPreloader(),
+		PasswordResetToken:     buildPasswordResetTokenPreloader(),
+		PollVote:               buildPollVotePreloader(),
+		Poll:                   buildPollPreloader(),
+		Post:                   buildPostPreloader(),
+		Pseudonym:              buildPseudonymPreloader(),
+		Report:                 buildReportPreloader(),
+		RoleKey:                buildRoleKeyPreloader(),
+		SubforumModerator:      buildSubforumModeratorPreloader(),
+		SubforumSubscription:   buildSubforumSubscriptionPreloader(),
+		Subforum:               buildSubforumPreloader(),
+		SystemSetting:          buildSystemSettingPreloader(),
+		UserBan:                buildUserBanPreloader(),
+		UserBlock:              buildUserBlockPreloader(),
+		UserPreference:         buildUserPreferencePreloader(),
+		User:                   buildUserPreloader(),
+		Vote:                   buildVotePreloader(),
 	}
 }
 
@@ -696,64 +729,68 @@ var (
 )
 
 type thenLoaders[Q orm.Loadable] struct {
-	APIKey                apiKeyThenLoader[Q]
-	Comment               commentThenLoader[Q]
-	ComplianceCorrelation complianceCorrelationThenLoader[Q]
-	ComplianceReport      complianceReportThenLoader[Q]
-	CorrelationAudit      correlationAuditThenLoader[Q]
-	DirectMessage         directMessageThenLoader[Q]
-	IdentityMapping       identityMappingThenLoader[Q]
-	KeyRotationMigration  keyRotationMigrationThenLoader[Q]
-	KeyUsageAudit         keyUsageAuditThenLoader[Q]
-	MediaAttachment       mediaAttachmentThenLoader[Q]
-	MigrationProgress     migrationProgressThenLoader[Q]
-	ModerationAction      moderationActionThenLoader[Q]
-	PollVote              pollVoteThenLoader[Q]
-	Poll                  pollThenLoader[Q]
-	Post                  postThenLoader[Q]
-	Pseudonym             pseudonymThenLoader[Q]
-	Report                reportThenLoader[Q]
-	RoleKey               roleKeyThenLoader[Q]
-	SubforumModerator     subforumModeratorThenLoader[Q]
-	SubforumSubscription  subforumSubscriptionThenLoader[Q]
-	Subforum              subforumThenLoader[Q]
-	SystemSetting         systemSettingThenLoader[Q]
-	UserBan               userBanThenLoader[Q]
-	UserBlock             userBlockThenLoader[Q]
-	UserPreference        userPreferenceThenLoader[Q]
-	User                  userThenLoader[Q]
-	Vote                  voteThenLoader[Q]
+	APIKey                 apiKeyThenLoader[Q]
+	Comment                commentThenLoader[Q]
+	ComplianceCorrelation  complianceCorrelationThenLoader[Q]
+	ComplianceReport       complianceReportThenLoader[Q]
+	CorrelationAudit       correlationAuditThenLoader[Q]
+	DirectMessage          directMessageThenLoader[Q]
+	EmailVerificationToken emailVerificationTokenThenLoader[Q]
+	IdentityMapping        identityMappingThenLoader[Q]
+	KeyRotationMigration   keyRotationMigrationThenLoader[Q]
+	KeyUsageAudit          keyUsageAuditThenLoader[Q]
+	MediaAttachment        mediaAttachmentThenLoader[Q]
+	MigrationProgress      migrationProgressThenLoader[Q]
+	ModerationAction       moderationActionThenLoader[Q]
+	PasswordResetToken     passwordResetTokenThenLoader[Q]
+	PollVote               pollVoteThenLoader[Q]
+	Poll                   pollThenLoader[Q]
+	Post                   postThenLoader[Q]
+	Pseudonym              pseudonymThenLoader[Q]
+	Report                 reportThenLoader[Q]
+	RoleKey                roleKeyThenLoader[Q]
+	SubforumModerator      subforumModeratorThenLoader[Q]
+	SubforumSubscription   subforumSubscriptionThenLoader[Q]
+	Subforum               subforumThenLoader[Q]
+	SystemSetting          systemSettingThenLoader[Q]
+	UserBan                userBanThenLoader[Q]
+	UserBlock              userBlockThenLoader[Q]
+	UserPreference         userPreferenceThenLoader[Q]
+	User                   userThenLoader[Q]
+	Vote                   voteThenLoader[Q]
 }
 
 func getThenLoaders[Q orm.Loadable]() thenLoaders[Q] {
 	return thenLoaders[Q]{
-		APIKey:                buildAPIKeyThenLoader[Q](),
-		Comment:               buildCommentThenLoader[Q](),
-		ComplianceCorrelation: buildComplianceCorrelationThenLoader[Q](),
-		ComplianceReport:      buildComplianceReportThenLoader[Q](),
-		CorrelationAudit:      buildCorrelationAuditThenLoader[Q](),
-		DirectMessage:         buildDirectMessageThenLoader[Q](),
-		IdentityMapping:       buildIdentityMappingThenLoader[Q](),
-		KeyRotationMigration:  buildKeyRotationMigrationThenLoader[Q](),
-		KeyUsageAudit:         buildKeyUsageAuditThenLoader[Q](),
-		MediaAttachment:       buildMediaAttachmentThenLoader[Q](),
-		MigrationProgress:     buildMigrationProgressThenLoader[Q](),
-		ModerationAction:      buildModerationActionThenLoader[Q](),
-		PollVote:              buildPollVoteThenLoader[Q](),
-		Poll:                  buildPollThenLoader[Q](),
-		Post:                  buildPostThenLoader[Q](),
-		Pseudonym:             buildPseudonymThenLoader[Q](),
-		Report:                buildReportThenLoader[Q](),
-		RoleKey:               buildRoleKeyThenLoader[Q](),
-		SubforumModerator:     buildSubforumModeratorThenLoader[Q](),
-		SubforumSubscription:  buildSubforumSubscriptionThenLoader[Q](),
-		Subforum:              buildSubforumThenLoader[Q](),
-		SystemSetting:         buildSystemSettingThenLoader[Q](),
-		UserBan:               buildUserBanThenLoader[Q](),
-		UserBlock:             buildUserBlockThenLoader[Q](),
-		UserPreference:        buildUserPreferenceThenLoader[Q](),
-		User:                  buildUserThenLoader[Q](),
-		Vote:                  buildVoteThenLoader[Q](),
+		APIKey:                 buildAPIKeyThenLoader[Q](),
+		Comment:                buildCommentThenLoader[Q](),
+		ComplianceCorrelation:  buildComplianceCorrelationThenLoader[Q](),
+		ComplianceReport:       buildComplianceReportThenLoader[Q](),
+		CorrelationAudit:       buildCorrelationAuditThenLoader[Q](),
+		DirectMessage:          buildDirectMessageThenLoader[Q](),
+		EmailVerificationToken: buildEmailVerificationTokenThenLoader[Q](),
+		IdentityMapping:        buildIdentityMappingThenLoader[Q](),
+		KeyRotationMigration:   buildKeyRotationMigrationThenLoader[Q](),
+		KeyUsageAudit:          buildKeyUsageAuditThenLoader[Q](),
+		MediaAttachment:        buildMediaAttachmentThenLoader[Q](),
+		MigrationProgress:      buildMigrationProgressThenLoader[Q](),
+		ModerationAction:       buildModerationActionThenLoader[Q](),
+		PasswordResetToken:     buildPasswordResetTokenThenLoader[Q](),
+		PollVote:               buildPollVoteThenLoader[Q](),
+		Poll:                   buildPollThenLoader[Q](),
+		Post:                   buildPostThenLoader[Q](),
+		Pseudonym:              buildPseudonymThenLoader[Q](),
+		Report:                 buildReportThenLoader[Q](),
+		RoleKey:                buildRoleKeyThenLoader[Q](),
+		SubforumModerator:      buildSubforumModeratorThenLoader[Q](),
+		SubforumSubscription:   buildSubforumSubscriptionThenLoader[Q](),
+		Subforum:               buildSubforumThenLoader[Q](),
+		SystemSetting:          buildSystemSettingThenLoader[Q](),
+		UserBan:                buildUserBanThenLoader[Q](),
+		UserBlock:              buildUserBlockThenLoader[Q](),
+		UserPreference:         buildUserPreferenceThenLoader[Q](),
+		User:                   buildUserThenLoader[Q](),
+		Vote:                   buildVoteThenLoader[Q](),
 	}
 }
 
@@ -798,33 +835,35 @@ func (j joinSet[Q]) AliasedAs(alias string) joinSet[Q] {
 }
 
 type joins[Q dialect.Joinable] struct {
-	APIKeys                joinSet[apiKeyJoins[Q]]
-	Comments               joinSet[commentJoins[Q]]
-	ComplianceCorrelations joinSet[complianceCorrelationJoins[Q]]
-	ComplianceReports      joinSet[complianceReportJoins[Q]]
-	CorrelationAudits      joinSet[correlationAuditJoins[Q]]
-	DirectMessages         joinSet[directMessageJoins[Q]]
-	IdentityMappings       joinSet[identityMappingJoins[Q]]
-	KeyRotationMigrations  joinSet[keyRotationMigrationJoins[Q]]
-	KeyUsageAudits         joinSet[keyUsageAuditJoins[Q]]
-	MediaAttachments       joinSet[mediaAttachmentJoins[Q]]
-	MigrationProgresses    joinSet[migrationProgressJoins[Q]]
-	ModerationActions      joinSet[moderationActionJoins[Q]]
-	PollVotes              joinSet[pollVoteJoins[Q]]
-	Polls                  joinSet[pollJoins[Q]]
-	Posts                  joinSet[postJoins[Q]]
-	Pseudonyms             joinSet[pseudonymJoins[Q]]
-	Reports                joinSet[reportJoins[Q]]
-	RoleKeys               joinSet[roleKeyJoins[Q]]
-	SubforumModerators     joinSet[subforumModeratorJoins[Q]]
-	SubforumSubscriptions  joinSet[subforumSubscriptionJoins[Q]]
-	Subforums              joinSet[subforumJoins[Q]]
-	SystemSettings         joinSet[systemSettingJoins[Q]]
-	UserBans               joinSet[userBanJoins[Q]]
-	UserBlocks             joinSet[userBlockJoins[Q]]
-	UserPreferences        joinSet[userPreferenceJoins[Q]]
-	Users                  joinSet[userJoins[Q]]
-	Votes                  joinSet[voteJoins[Q]]
+	APIKeys                 joinSet[apiKeyJoins[Q]]
+	Comments                joinSet[commentJoins[Q]]
+	ComplianceCorrelations  joinSet[complianceCorrelationJoins[Q]]
+	ComplianceReports       joinSet[complianceReportJoins[Q]]
+	CorrelationAudits       joinSet[correlationAuditJoins[Q]]
+	DirectMessages          joinSet[directMessageJoins[Q]]
+	EmailVerificationTokens joinSet[emailVerificationTokenJoins[Q]]
+	IdentityMappings        joinSet[identityMappingJoins[Q]]
+	KeyRotationMigrations   joinSet[keyRotationMigrationJoins[Q]]
+	KeyUsageAudits          joinSet[keyUsageAuditJoins[Q]]
+	MediaAttachments        joinSet[mediaAttachmentJoins[Q]]
+	MigrationProgresses     joinSet[migrationProgressJoins[Q]]
+	ModerationActions       joinSet[moderationActionJoins[Q]]
+	PasswordResetTokens     joinSet[passwordResetTokenJoins[Q]]
+	PollVotes               joinSet[pollVoteJoins[Q]]
+	Polls                   joinSet[pollJoins[Q]]
+	Posts                   joinSet[postJoins[Q]]
+	Pseudonyms              joinSet[pseudonymJoins[Q]]
+	Reports                 joinSet[reportJoins[Q]]
+	RoleKeys                joinSet[roleKeyJoins[Q]]
+	SubforumModerators      joinSet[subforumModeratorJoins[Q]]
+	SubforumSubscriptions   joinSet[subforumSubscriptionJoins[Q]]
+	Subforums               joinSet[subforumJoins[Q]]
+	SystemSettings          joinSet[systemSettingJoins[Q]]
+	UserBans                joinSet[userBanJoins[Q]]
+	UserBlocks              joinSet[userBlockJoins[Q]]
+	UserPreferences         joinSet[userPreferenceJoins[Q]]
+	Users                   joinSet[userJoins[Q]]
+	Votes                   joinSet[voteJoins[Q]]
 }
 
 func buildJoinSet[Q interface{ aliasedAs(string) Q }, C any, F func(C, string) Q](c C, f F) joinSet[Q] {
@@ -837,33 +876,35 @@ func buildJoinSet[Q interface{ aliasedAs(string) Q }, C any, F func(C, string) Q
 
 func getJoins[Q dialect.Joinable]() joins[Q] {
 	return joins[Q]{
-		APIKeys:                buildJoinSet[apiKeyJoins[Q]](APIKeyColumns, buildAPIKeyJoins),
-		Comments:               buildJoinSet[commentJoins[Q]](CommentColumns, buildCommentJoins),
-		ComplianceCorrelations: buildJoinSet[complianceCorrelationJoins[Q]](ComplianceCorrelationColumns, buildComplianceCorrelationJoins),
-		ComplianceReports:      buildJoinSet[complianceReportJoins[Q]](ComplianceReportColumns, buildComplianceReportJoins),
-		CorrelationAudits:      buildJoinSet[correlationAuditJoins[Q]](CorrelationAuditColumns, buildCorrelationAuditJoins),
-		DirectMessages:         buildJoinSet[directMessageJoins[Q]](DirectMessageColumns, buildDirectMessageJoins),
-		IdentityMappings:       buildJoinSet[identityMappingJoins[Q]](IdentityMappingColumns, buildIdentityMappingJoins),
-		KeyRotationMigrations:  buildJoinSet[keyRotationMigrationJoins[Q]](KeyRotationMigrationColumns, buildKeyRotationMigrationJoins),
-		KeyUsageAudits:         buildJoinSet[keyUsageAuditJoins[Q]](KeyUsageAuditColumns, buildKeyUsageAuditJoins),
-		MediaAttachments:       buildJoinSet[mediaAttachmentJoins[Q]](MediaAttachmentColumns, buildMediaAttachmentJoins),
-		MigrationProgresses:    buildJoinSet[migrationProgressJoins[Q]](MigrationProgressColumns, buildMigrationProgressJoins),
-		ModerationActions:      buildJoinSet[moderationActionJoins[Q]](ModerationActionColumns, buildModerationActionJoins),
-		PollVotes:              buildJoinSet[pollVoteJoins[Q]](PollVoteColumns, buildPollVoteJoins),
-		Polls:                  buildJoinSet[pollJoins[Q]](PollColumns, buildPollJoins),
-		Posts:                  buildJoinSet[postJoins[Q]](PostColumns, buildPostJoins),
-		Pseudonyms:             buildJoinSet[pseudonymJoins[Q]](PseudonymColumns, buildPseudonymJoins),
-		Reports:                buildJoinSet[reportJoins[Q]](ReportColumns, buildReportJoins),
-		RoleKeys:               buildJoinSet[roleKeyJoins[Q]](RoleKeyColumns, buildRoleKeyJoins),
-		SubforumModerators:     buildJoinSet[subforumModeratorJoins[Q]](SubforumModeratorColumns, buildSubforumModeratorJoins),
-		SubforumSubscriptions:  buildJoinSet[subforumSubscriptionJoins[Q]](SubforumSubscriptionColumns, buildSubforumSubscriptionJoins),
-		Subforums:              buildJoinSet[subforumJoins[Q]](SubforumColumns, buildSubforumJoins),
-		SystemSettings:         buildJoinSet[systemSettingJoins[Q]](SystemSettingColumns, buildSystemSettingJoins),
-		UserBans:               buildJoinSet[userBanJoins[Q]](UserBanColumns, buildUserBanJoins),
-		UserBlocks:             buildJoinSet[userBlockJoins[Q]](UserBlockColumns, buildUserBlockJoins),
-		UserPreferences:        buildJoinSet[userPreferenceJoins[Q]](UserPreferenceColumns, buildUserPreferenceJoins),
-		Users:                  buildJoinSet[userJoins[Q]](UserColumns, buildUserJoins),
-		Votes:                  buildJoinSet[voteJoins[Q]](VoteColumns, buildVoteJoins),
+		APIKeys:                 buildJoinSet[apiKeyJoins[Q]](APIKeyColumns, buildAPIKeyJoins),
+		Comments:                buildJoinSet[commentJoins[Q]](CommentColumns, buildCommentJoins),
+		ComplianceCorrelations:  buildJoinSet[complianceCorrelationJoins[Q]](ComplianceCorrelationColumns, buildComplianceCorrelationJoins),
+		ComplianceReports:       buildJoinSet[complianceReportJoins[Q]](ComplianceReportColumns, buildComplianceReportJoins),
+		CorrelationAudits:       buildJoinSet[correlationAuditJoins[Q]](CorrelationAuditColumns, buildCorrelationAuditJoins),
+		DirectMessages:          buildJoinSet[directMessageJoins[Q]](DirectMessageColumns, buildDirectMessageJoins),
+		EmailVerificationTokens: buildJoinSet[emailVerificationTokenJoins[Q]](EmailVerificationTokenColumns, buildEmailVerificationTokenJoins),
+		IdentityMappings:        buildJoinSet[identityMappingJoins[Q]](IdentityMappingColumns, buildIdentityMappingJoins),
+		KeyRotationMigrations:   buildJoinSet[keyRotationMigrationJoins[Q]](KeyRotationMigrationColumns, buildKeyRotationMigrationJoins),
+		KeyUsageAudits:          buildJoinSet[keyUsageAuditJoins[Q]](KeyUsageAuditColumns, buildKeyUsageAuditJoins),
+		MediaAttachments:        buildJoinSet[mediaAttachmentJoins[Q]](MediaAttachmentColumns, buildMediaAttachmentJoins),
+		MigrationProgresses:     buildJoinSet[migrationProgressJoins[Q]](MigrationProgressColumns, buildMigrationProgressJoins),
+		ModerationActions:       buildJoinSet[moderationActionJoins[Q]](ModerationActionColumns, buildModerationActionJoins),
+		PasswordResetTokens:     buildJoinSet[passwordResetTokenJoins[Q]](PasswordResetTokenColumns, buildPasswordResetTokenJoins),
+		PollVotes:               buildJoinSet[pollVoteJoins[Q]](PollVoteColumns, buildPollVoteJoins),
+		Polls:                   buildJoinSet[pollJoins[Q]](PollColumns, buildPollJoins),
+		Posts:                   buildJoinSet[postJoins[Q]](PostColumns, buildPostJoins),
+		Pseudonyms:              buildJoinSet[pseudonymJoins[Q]](PseudonymColumns, buildPseudonymJoins),
+		Reports:                 buildJoinSet[reportJoins[Q]](ReportColumns, buildReportJoins),
+		RoleKeys:                buildJoinSet[roleKeyJoins[Q]](RoleKeyColumns, buildRoleKeyJoins),
+		SubforumModerators:      buildJoinSet[subforumModeratorJoins[Q]](SubforumModeratorColumns, buildSubforumModeratorJoins),
+		SubforumSubscriptions:   buildJoinSet[subforumSubscriptionJoins[Q]](SubforumSubscriptionColumns, buildSubforumSubscriptionJoins),
+		Subforums:               buildJoinSet[subforumJoins[Q]](SubforumColumns, buildSubforumJoins),
+		SystemSettings:          buildJoinSet[systemSettingJoins[Q]](SystemSettingColumns, buildSystemSettingJoins),
+		UserBans:                buildJoinSet[userBanJoins[Q]](UserBanColumns, buildUserBanJoins),
+		UserBlocks:              buildJoinSet[userBlockJoins[Q]](UserBlockColumns, buildUserBlockJoins),
+		UserPreferences:         buildJoinSet[userPreferenceJoins[Q]](UserPreferenceColumns, buildUserPreferenceJoins),
+		Users:                   buildJoinSet[userJoins[Q]](UserColumns, buildUserJoins),
+		Votes:                   buildJoinSet[voteJoins[Q]](VoteColumns, buildVoteJoins),
 	}
 }
 

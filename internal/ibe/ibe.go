@@ -676,46 +676,29 @@ func LoadDomainMastersFromDir(dir string) (map[string][]byte, error) {
 
 	for _, domain := range domains {
 		keyPath := filepath.Join(dir, fmt.Sprintf("%s.key", domain))
-		master, err := LoadMasterSecretFromFile(keyPath)
+		data, err := os.ReadFile(keyPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load domain master for %s: %w", domain, err)
 		}
-		domainMasters[domain] = master
+
+		// Expect hex-encoded 32-byte secret
+		if len(data) != 64 { // 32 bytes = 64 hex chars
+			return nil, fmt.Errorf("domain master file %s must contain exactly 64 hex characters", domain)
+		}
+
+		secret, err := hex.DecodeString(string(data))
+		if err != nil {
+			return nil, fmt.Errorf("invalid hex encoding in domain master file %s: %w", domain, err)
+		}
+		domainMasters[domain] = secret
 	}
 
 	return domainMasters, nil
 }
 
-// LoadMasterSecretFromFile loads a master secret from a file
-func LoadMasterSecretFromFile(path string) ([]byte, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
 
-	// Expect hex-encoded 32-byte secret
-	if len(data) != 64 { // 32 bytes = 64 hex chars
-		return nil, fmt.Errorf("master secret file must contain exactly 64 hex characters")
-	}
 
-	secret, err := hex.DecodeString(string(data))
-	if err != nil {
-		return nil, fmt.Errorf("invalid hex encoding in master secret file: %w", err)
-	}
 
-	return secret, nil
-}
-
-// SaveMasterSecretToFile saves the master secret to a file (backward compatibility)
-// Note: This is deprecated - use SaveDomainMastersToDir instead
-func (ibe *IBESystem) SaveMasterSecretToFile(path string) error {
-	// For backward compatibility, save the first domain master
-	for _, master := range ibe.domainMasters {
-		hexSecret := hex.EncodeToString(master)
-		return os.WriteFile(path, []byte(hexSecret), 0600)
-	}
-	return fmt.Errorf("no domain masters available")
-}
 
 // SaveDomainMastersToDir saves all domain masters to a directory
 func (ibe *IBESystem) SaveDomainMastersToDir(dir string) error {

@@ -42,7 +42,7 @@ func NewServer() *Server {
 	rawDB := db.DB
 
 	// Create IBE system from configuration
-	ibeSystem, err := ibe.NewIBESystemFromConfig(cfg.IBE.MasterKeyPath, cfg.IBE.KeyVersion, cfg.IBE.Salt)
+	ibeSystem, err := ibe.NewIBESystemFromConfig(cfg.IBE.DomainKeysDir, cfg.IBE.KeyVersion, cfg.IBE.Salt)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to create IBE system from configuration")
 	}

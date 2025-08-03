@@ -18,6 +18,7 @@ type Config struct {
 	JWT      JWTConfig
 	Security SecurityConfig
 	CORS     CORSConfig
+	Email    EmailConfig
 }
 
 // DatabaseConfig holds database connection configuration
@@ -41,6 +42,7 @@ type ServerConfig struct {
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
 	IdleTimeout  time.Duration
+	SiteURL      string // Base URL for the application (e.g., "https://hashpost.com")
 }
 
 // LoggingConfig holds logging configuration
@@ -52,7 +54,7 @@ type LoggingConfig struct {
 
 // IBEConfig holds Identity-Based Encryption configuration
 type IBEConfig struct {
-	MasterKeyPath string // Path to master key file (for persistence)
+	DomainKeysDir string // Directory containing domain-specific master keys
 	KeyVersion    int    // Current key version
 	Salt          string // Salt for fingerprint generation (defaults to "fingerprint_salt_v1")
 	KeyRotation   struct {
@@ -96,6 +98,40 @@ type PasswordValidationConfig struct {
 	DisallowCommon     bool // Disallow common passwords
 }
 
+// EmailConfig holds email service configuration
+type EmailConfig struct {
+	Provider    string // "mailgun" or other providers in the future
+	FromAddress string
+	FromName    string
+	MailGun     MailGunConfig
+	Validation  EmailValidationConfig
+}
+
+// MailGunConfig holds MailGun-specific configuration
+type MailGunConfig struct {
+	Domain        string
+	SendingAPIKey string // API key for sending emails
+	BaseURL       string
+	Region        string // "us" or "eu"
+}
+
+// EmailValidationConfig holds email validation configuration
+type EmailValidationConfig struct {
+	Enabled            bool     // Enable email validation
+	VerifierEmail      string   // Email address to use for SMTP verification
+	VerifierPassword   string   // Password for the verifier email
+	VerifierSMTPHost   string   // SMTP host for verification (e.g., "smtp.gmail.com")
+	VerifierSMTPPort   int      // SMTP port for verification (e.g., 587)
+	VerifierSMTPUser   string   // SMTP username (usually same as email)
+	ConnectionTimeout  int      // Connection timeout in seconds
+	ResponseTimeout    int      // Response timeout in seconds
+	SmtpFailFast       bool     // Fail fast for better UX
+	SmtpSafeCheck      bool     // Safe check to avoid false negatives
+	ValidationLevel    string   // "basic", "mx", "smtp" - validation level to use
+	BlacklistedDomains []string // Domains to blacklist (e.g., disposable email providers)
+	BlacklistedMxIPs   []string // MX IP addresses to blacklist
+}
+
 // Load loads configuration from environment variables
 func Load() (*Config, error) {
 	config := &Config{
@@ -117,6 +153,7 @@ func Load() (*Config, error) {
 			ReadTimeout:  getEnvAsDuration("SERVER_READ_TIMEOUT", 30*time.Second),
 			WriteTimeout: getEnvAsDuration("SERVER_WRITE_TIMEOUT", 30*time.Second),
 			IdleTimeout:  getEnvAsDuration("SERVER_IDLE_TIMEOUT", 60*time.Second),
+			SiteURL:      getEnv("SERVER_SITE_URL", "https://hashpost.com"),
 		},
 		Logging: LoggingConfig{
 			Level:      getEnv("LOG_LEVEL", "info"),
@@ -124,7 +161,7 @@ func Load() (*Config, error) {
 			OutputPath: getEnv("LOG_OUTPUT_PATH", ""),
 		},
 		IBE: IBEConfig{
-			MasterKeyPath: getEnv("IBE_MASTER_KEY_PATH", "./keys/master.key"),
+			DomainKeysDir: getEnv("IBE_DOMAIN_KEYS_DIR", "./keys/domains"),
 			KeyVersion:    getEnvAsInt("IBE_KEY_VERSION", 1),
 			Salt:          getEnv("IBE_SALT", "fingerprint_salt_v1"),
 			KeyRotation: struct {
@@ -159,6 +196,32 @@ func Load() (*Config, error) {
 			AllowedHeaders:   getEnvAsSlice("CORS_ALLOWED_HEADERS", []string{"Authorization", "Content-Type"}),
 			AllowCredentials: getEnvAsBool("CORS_ALLOW_CREDENTIALS", true),
 			MaxAge:           getEnvAsInt("CORS_MAX_AGE", 300),
+		},
+		Email: EmailConfig{
+			Provider:    getEnv("EMAIL_PROVIDER", "mailgun"),
+			FromAddress: getEnv("EMAIL_FROM_ADDRESS", "noreply@hashpost.dev"),
+			FromName:    getEnv("EMAIL_FROM_NAME", "HashPost"),
+			MailGun: MailGunConfig{
+				Domain:        getEnv("MAILGUN_DOMAIN", ""),
+				SendingAPIKey: getEnv("MAILGUN_SENDING_API_KEY", ""),
+				BaseURL:       getEnv("MAILGUN_BASE_URL", "https://api.mailgun.net"),
+				Region:        getEnv("MAILGUN_REGION", "us"),
+			},
+			Validation: EmailValidationConfig{
+				Enabled:            getEnvAsBool("EMAIL_VALIDATION_ENABLED", false),
+				VerifierEmail:      getEnv("EMAIL_VALIDATION_VERIFIER_EMAIL", "noreply@hashpost.dev"),
+				VerifierPassword:   getEnv("EMAIL_VALIDATION_VERIFIER_PASSWORD", ""),
+				VerifierSMTPHost:   getEnv("EMAIL_VALIDATION_SMTP_HOST", "smtp.mailgun.org"),
+				VerifierSMTPPort:   getEnvAsInt("EMAIL_VALIDATION_SMTP_PORT", 587),
+				VerifierSMTPUser:   getEnv("EMAIL_VALIDATION_SMTP_USER", ""),
+				ConnectionTimeout:  getEnvAsInt("EMAIL_VALIDATION_CONNECTION_TIMEOUT", 5),
+				ResponseTimeout:    getEnvAsInt("EMAIL_VALIDATION_RESPONSE_TIMEOUT", 2),
+				SmtpFailFast:       getEnvAsBool("EMAIL_VALIDATION_SMTP_FAIL_FAST", false),
+				SmtpSafeCheck:      getEnvAsBool("EMAIL_VALIDATION_SMTP_SAFE_CHECK", false),
+				ValidationLevel:    getEnv("EMAIL_VALIDATION_LEVEL", "basic"),
+				BlacklistedDomains: getEnvAsSlice("EMAIL_VALIDATION_BLACKLISTED_DOMAINS", []string{}),
+				BlacklistedMxIPs:   getEnvAsSlice("EMAIL_VALIDATION_BLACKLISTED_MX_IPS", []string{}),
+			},
 		},
 	}
 

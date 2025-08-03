@@ -7,13 +7,30 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/matt0x6f/hashpost/internal/api/handlers"
 	"github.com/matt0x6f/hashpost/internal/config"
+	"github.com/matt0x6f/hashpost/internal/database/dao"
 	"github.com/matt0x6f/hashpost/internal/ibe"
+	"github.com/matt0x6f/hashpost/internal/services"
 	"github.com/stephenafamo/bob"
 )
 
 // RegisterAuthRoutes registers authentication-related routes
 func RegisterAuthRoutes(api huma.API, cfg *config.Config, db bob.Executor, rawDB *sql.DB, ibeSystem *ibe.IBESystem) {
-	authHandler := handlers.NewAuthHandler(cfg, db, nil, nil, nil, nil, ibeSystem, nil, nil)
+	// Initialize email service
+	var emailService *services.EmailService
+	if cfg.Email.Provider != "" {
+		var err error
+		emailService, err = services.NewEmailService(cfg)
+		if err != nil {
+			// Log error but continue without email service
+			// This allows the app to work without email configuration
+		}
+	}
+
+	// Initialize token DAOs
+	emailVerificationTokenDAO := dao.NewEmailVerificationTokenDAO(db)
+	passwordResetTokenDAO := dao.NewPasswordResetTokenDAO(db)
+
+	authHandler := handlers.NewAuthHandler(cfg, db, nil, nil, nil, nil, ibeSystem, nil, nil, emailService, emailVerificationTokenDAO, passwordResetTokenDAO)
 
 	// User registration
 	huma.Register(api, huma.Operation{
@@ -102,4 +119,34 @@ func RegisterAuthRoutes(api huma.API, cfg *config.Config, db bob.Executor, rawDB
 		Tags:        []string{"Authentication"},
 		Security:    []map[string][]string{{"jwt": {}}},
 	}, authHandler.DeactivatePseudonym)
+
+	// Email verification
+	huma.Register(api, huma.Operation{
+		OperationID: "verify-email",
+		Method:      http.MethodPost,
+		Path:        "/auth/verify-email",
+		Summary:     "Verify email address",
+		Description: "Verifies a user's email address using a verification token sent via email.",
+		Tags:        []string{"Authentication"},
+	}, authHandler.VerifyEmail)
+
+	// Request password reset
+	huma.Register(api, huma.Operation{
+		OperationID: "request-password-reset",
+		Method:      http.MethodPost,
+		Path:        "/auth/request-password-reset",
+		Summary:     "Request password reset",
+		Description: "Sends a password reset email to the specified email address if an account exists.",
+		Tags:        []string{"Authentication"},
+	}, authHandler.RequestPasswordReset)
+
+	// Reset password
+	huma.Register(api, huma.Operation{
+		OperationID: "reset-password",
+		Method:      http.MethodPost,
+		Path:        "/auth/reset-password",
+		Summary:     "Reset password",
+		Description: "Resets a user's password using a reset token sent via email.",
+		Tags:        []string{"Authentication"},
+	}, authHandler.ResetPassword)
 }

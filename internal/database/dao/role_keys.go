@@ -484,3 +484,17 @@ func (dao *RoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interfac
 
 	return nil
 }
+
+// DeleteByUserID deletes all role keys created by a specific user
+func (dao *RoleKeyDAO) DeleteByUserID(ctx context.Context, userID int64) error {
+	// Delete all role keys where created_by matches the user ID
+	_, err := models.RoleKeys.Delete(
+		models.DeleteWhere.RoleKeys.CreatedBy.EQ(userID),
+	).Exec(ctx, dao.db)
+
+	if err != nil {
+		return fmt.Errorf("failed to delete role keys for user %d: %w", userID, err)
+	}
+
+	return nil
+}

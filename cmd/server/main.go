@@ -185,7 +185,25 @@ func main() {
 	setModeratorCmd.Flags().Bool("non-interactive", false, "Non-interactive mode (requires all flags)")
 
 	cli.Root().AddCommand(setModeratorCmd)
-	fmt.Println("DEBUG: Added set-moderator command")
+
+	// Add delete-user subcommand
+	deleteUserCmd := &cobra.Command{
+		Use:   "delete-user",
+		Short: "Delete a user and all associated data",
+		Long:  "Delete a user account and all associated data including pseudonyms, role keys, and tokens",
+		Run: humacli.WithOptions(func(cmd *cobra.Command, args []string, options *Options) {
+			if err := commands.DeleteUser(); err != nil {
+				log.Fatal().Err(err).Msg("Failed to delete user")
+			}
+		}),
+	}
+
+	// Add flags for delete-user command
+	deleteUserCmd.Flags().String("email", "", "Email address of the user to delete")
+	deleteUserCmd.Flags().Bool("force", false, "Force deletion without confirmation")
+	deleteUserCmd.Flags().Bool("non-interactive", false, "Non-interactive mode (requires all flags)")
+
+	cli.Root().AddCommand(deleteUserCmd)
 
 	// Add generate-ibe-keys subcommand
 	generateIBEKeysCmd := &cobra.Command{
