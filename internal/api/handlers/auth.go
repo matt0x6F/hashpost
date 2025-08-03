@@ -120,7 +120,7 @@ func (h *AuthHandler) RegisterUser(ctx context.Context, input *apimodels.UserReg
 		Msg("Processing user registration request")
 
 	// Enhanced validation using the validation package
-	if err := validation.ValidateEmail(input.Body.Email); err != nil {
+	if err := validation.ValidateEmail(input.Body.Email, h.config); err != nil {
 		return nil, huma.Error422UnprocessableEntity(err.Error())
 	}
 
@@ -356,7 +356,7 @@ func (h *AuthHandler) RequestPasswordReset(ctx context.Context, input *apimodels
 		Msg("Processing password reset request")
 
 	// Validate email
-	if err := validation.ValidateEmail(input.Body.Email); err != nil {
+	if err := validation.ValidateEmail(input.Body.Email, h.config); err != nil {
 		return nil, huma.Error422UnprocessableEntity(err.Error())
 	}
 
@@ -506,7 +506,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 		Msg("Processing user login request")
 
 	// Enhanced validation using the validation package
-	if err := validation.ValidateEmail(input.Body.Email); err != nil {
+	if err := validation.ValidateEmail(input.Body.Email, h.config); err != nil {
 		return nil, huma.Error422UnprocessableEntity(err.Error())
 	}
 

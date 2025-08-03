@@ -54,7 +54,7 @@ type LoggingConfig struct {
 
 // IBEConfig holds Identity-Based Encryption configuration
 type IBEConfig struct {
-	MasterKeyPath string // Path to master key file (for persistence)
+	DomainKeysDir string // Directory containing domain-specific master keys
 	KeyVersion    int    // Current key version
 	Salt          string // Salt for fingerprint generation (defaults to "fingerprint_salt_v1")
 	KeyRotation   struct {
@@ -104,6 +104,7 @@ type EmailConfig struct {
 	FromAddress string
 	FromName    string
 	MailGun     MailGunConfig
+	Validation  EmailValidationConfig
 }
 
 // MailGunConfig holds MailGun-specific configuration
@@ -112,6 +113,23 @@ type MailGunConfig struct {
 	SendingAPIKey string // API key for sending emails
 	BaseURL       string
 	Region        string // "us" or "eu"
+}
+
+// EmailValidationConfig holds email validation configuration
+type EmailValidationConfig struct {
+	Enabled            bool     // Enable email validation
+	VerifierEmail      string   // Email address to use for SMTP verification
+	VerifierPassword   string   // Password for the verifier email
+	VerifierSMTPHost   string   // SMTP host for verification (e.g., "smtp.gmail.com")
+	VerifierSMTPPort   int      // SMTP port for verification (e.g., 587)
+	VerifierSMTPUser   string   // SMTP username (usually same as email)
+	ConnectionTimeout  int      // Connection timeout in seconds
+	ResponseTimeout    int      // Response timeout in seconds
+	SmtpFailFast       bool     // Fail fast for better UX
+	SmtpSafeCheck      bool     // Safe check to avoid false negatives
+	ValidationLevel    string   // "basic", "mx", "smtp" - validation level to use
+	BlacklistedDomains []string // Domains to blacklist (e.g., disposable email providers)
+	BlacklistedMxIPs   []string // MX IP addresses to blacklist
 }
 
 // Load loads configuration from environment variables
@@ -143,7 +161,7 @@ func Load() (*Config, error) {
 			OutputPath: getEnv("LOG_OUTPUT_PATH", ""),
 		},
 		IBE: IBEConfig{
-			MasterKeyPath: getEnv("IBE_MASTER_KEY_PATH", "./keys/master.key"),
+			DomainKeysDir: getEnv("IBE_DOMAIN_KEYS_DIR", "./keys/domains"),
 			KeyVersion:    getEnvAsInt("IBE_KEY_VERSION", 1),
 			Salt:          getEnv("IBE_SALT", "fingerprint_salt_v1"),
 			KeyRotation: struct {
@@ -181,13 +199,28 @@ func Load() (*Config, error) {
 		},
 		Email: EmailConfig{
 			Provider:    getEnv("EMAIL_PROVIDER", "mailgun"),
-			FromAddress: getEnv("EMAIL_FROM_ADDRESS", "noreply@hashpost.com"),
+			FromAddress: getEnv("EMAIL_FROM_ADDRESS", "noreply@hashpost.dev"),
 			FromName:    getEnv("EMAIL_FROM_NAME", "HashPost"),
 			MailGun: MailGunConfig{
 				Domain:        getEnv("MAILGUN_DOMAIN", ""),
 				SendingAPIKey: getEnv("MAILGUN_SENDING_API_KEY", ""),
 				BaseURL:       getEnv("MAILGUN_BASE_URL", "https://api.mailgun.net"),
 				Region:        getEnv("MAILGUN_REGION", "us"),
+			},
+			Validation: EmailValidationConfig{
+				Enabled:            getEnvAsBool("EMAIL_VALIDATION_ENABLED", false),
+				VerifierEmail:      getEnv("EMAIL_VALIDATION_VERIFIER_EMAIL", "noreply@hashpost.dev"),
+				VerifierPassword:   getEnv("EMAIL_VALIDATION_VERIFIER_PASSWORD", ""),
+				VerifierSMTPHost:   getEnv("EMAIL_VALIDATION_SMTP_HOST", "smtp.mailgun.org"),
+				VerifierSMTPPort:   getEnvAsInt("EMAIL_VALIDATION_SMTP_PORT", 587),
+				VerifierSMTPUser:   getEnv("EMAIL_VALIDATION_SMTP_USER", ""),
+				ConnectionTimeout:  getEnvAsInt("EMAIL_VALIDATION_CONNECTION_TIMEOUT", 5),
+				ResponseTimeout:    getEnvAsInt("EMAIL_VALIDATION_RESPONSE_TIMEOUT", 2),
+				SmtpFailFast:       getEnvAsBool("EMAIL_VALIDATION_SMTP_FAIL_FAST", false),
+				SmtpSafeCheck:      getEnvAsBool("EMAIL_VALIDATION_SMTP_SAFE_CHECK", false),
+				ValidationLevel:    getEnv("EMAIL_VALIDATION_LEVEL", "basic"),
+				BlacklistedDomains: getEnvAsSlice("EMAIL_VALIDATION_BLACKLISTED_DOMAINS", []string{}),
+				BlacklistedMxIPs:   getEnvAsSlice("EMAIL_VALIDATION_BLACKLISTED_MX_IPS", []string{}),
 			},
 		},
 	}

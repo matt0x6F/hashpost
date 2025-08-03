@@ -7,6 +7,7 @@ import (
 	"html/template"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -308,53 +309,71 @@ func (s *EmailService) getTemplateSubject(templateName string) string {
 
 // ValidateEmail validates an email address format
 func (s *EmailService) ValidateEmail(email string) bool {
-	// Basic email validation
+	// Use the same validation logic as the API validation
+	// This ensures consistency across the application
 	if email == "" {
 		return false
 	}
 
-	// Check for @ symbol
-	if !strings.Contains(email, "@") {
+	// Check total length (RFC 5321 limit)
+	if len(email) > 254 {
 		return false
 	}
 
-	// Split by @ and check parts
+	// Check for exactly one @ symbol
+	if strings.Count(email, "@") != 1 {
+		return false
+	}
+
+	// Split by @ and validate parts
 	parts := strings.Split(email, "@")
 	if len(parts) != 2 {
 		return false
 	}
 
-	// Check local part (before @)
 	localPart := parts[0]
-	if localPart == "" {
-		return false
-	}
-
-	// Check domain part (after @)
 	domainPart := parts[1]
-	if domainPart == "" {
+
+	// Validate local part
+	if len(localPart) == 0 || len(localPart) > 64 {
 		return false
 	}
 
-	// Check for domain separator
+	// Validate domain part
+	if len(domainPart) == 0 || len(domainPart) > 253 {
+		return false
+	}
+
+	// Check for valid domain structure
 	if !strings.Contains(domainPart, ".") {
 		return false
 	}
 
-	// Check that domain has valid structure
+	// Validate domain parts
 	domainParts := strings.Split(domainPart, ".")
 	if len(domainParts) < 2 {
 		return false
 	}
 
-	// Check that TLD is not empty and domain parts are not empty
-	for _, part := range domainParts {
-		if part == "" {
+	// Check each domain part
+	for i, part := range domainParts {
+		if len(part) == 0 || len(part) > 63 {
+			return false
+		}
+		// TLD (last part) must be at least 2 characters
+		if i == len(domainParts)-1 && len(part) < 2 {
+			return false
+		}
+		// Domain parts can only contain letters, digits, and hyphens
+		// Hyphens cannot be at start or end
+		if !regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$`).MatchString(part) {
 			return false
 		}
 	}
 
-	return true
+	// Use comprehensive regex for final validation
+	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9.!#$%&'*+/=?^_{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$`)
+	return emailRegex.MatchString(email)
 }
 
 // GetEmailStats returns email sending statistics (if available from MailGun)

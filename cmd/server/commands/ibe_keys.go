@@ -128,18 +128,15 @@ func initializeIBESystem(opts *IBEKeyOptions) (*ibe.IBESystem, error) {
 	return ibeSystem, nil
 }
 
-// generateMasterKey generates and saves a new master key
+// generateMasterKey generates and saves domain master keys
 func generateMasterKey(ibeSystem *ibe.IBESystem, outputDir string) error {
-	masterKeyPath := filepath.Join(outputDir, "master.key")
-
-	if err := ibeSystem.SaveMasterSecretToFile(masterKeyPath); err != nil {
-		return fmt.Errorf("failed to save master key: %w", err)
+	if err := ibeSystem.SaveDomainMastersToDir(outputDir); err != nil {
+		return fmt.Errorf("failed to save domain master keys: %w", err)
 	}
 
 	log.Info().
-		Str("master_key_path", masterKeyPath).
-		Str("master_key_hash", hex.EncodeToString(ibeSystem.GetMasterSecret())).
-		Msg("Master key generated and saved")
+		Str("domain_keys_dir", outputDir).
+		Msg("Domain master keys generated and saved")
 
 	return nil
 }

@@ -7,6 +7,7 @@ import (
 	"unicode"
 
 	"github.com/matt0x6f/hashpost/internal/config"
+	"github.com/truemail-rb/truemail-go"
 )
 
 // Common passwords to disallow (if enabled)
@@ -35,31 +36,64 @@ var commonPasswords = map[string]bool{
 	"joshua":      true,
 }
 
-// Email validation regex
-var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+// ValidateEmail validates an email address with configurable validation levels
+func ValidateEmail(email string, cfg *config.Config) error {
 
-// ValidateEmail validates an email address
-func ValidateEmail(email string) error {
-	if email == "" {
-		return fmt.Errorf("email is required")
+	// Configure truemail for comprehensive validation
+	verifierEmail := cfg.Email.Validation.VerifierEmail
+
+	// Use custom strict regex for validation
+	customRegex := `^[a-zA-Z0-9.!#$%&'*+/=?^_{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$`
+
+	configuration, err := truemail.NewConfiguration(
+		truemail.ConfigurationAttr{
+			VerifierEmail:            verifierEmail,
+			ConnectionTimeout:        cfg.Email.Validation.ConnectionTimeout,
+			ResponseTimeout:          cfg.Email.Validation.ResponseTimeout,
+			SmtpFailFast:             cfg.Email.Validation.SmtpFailFast,
+			SmtpSafeCheck:            cfg.Email.Validation.SmtpSafeCheck,
+			BlacklistedDomains:       cfg.Email.Validation.BlacklistedDomains,
+			BlacklistedMxIpAddresses: cfg.Email.Validation.BlacklistedMxIPs,
+			EmailPattern:             customRegex,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to configure email validator: %w", err)
 	}
 
-	if !emailRegex.MatchString(email) {
-		return fmt.Errorf("email format is invalid")
+	// Determine validation level and method
+	validationLevel := cfg.Email.Validation.ValidationLevel
+	if validationLevel == "" {
+		validationLevel = "basic"
 	}
 
-	// Additional checks
-	if len(email) > 254 {
-		return fmt.Errorf("email is too long (maximum 254 characters)")
+	// Perform validation based on level
+	var result *truemail.ValidatorResult
+	switch validationLevel {
+	case "basic":
+		result, err = truemail.Validate(email, configuration, "regex")
+	case "mx":
+		result, err = truemail.Validate(email, configuration, "mx")
+	case "smtp":
+		result, err = truemail.Validate(email, configuration, "smtp")
+	default:
+		result, err = truemail.Validate(email, configuration, "regex")
 	}
 
-	if strings.Count(email, "@") != 1 {
-		return fmt.Errorf("email must contain exactly one @ symbol")
+	if err != nil {
+		return fmt.Errorf("email validation error: %w", err)
 	}
 
-	parts := strings.Split(email, "@")
-	if len(parts[0]) == 0 || len(parts[1]) == 0 {
-		return fmt.Errorf("email has invalid format")
+	if !result.Success {
+		if len(result.Errors) > 0 {
+			// Return the first meaningful error
+			for _, validationErr := range result.Errors {
+				if validationErr != "" {
+					return fmt.Errorf("email validation failed: %s", validationErr)
+				}
+			}
+		}
+		return fmt.Errorf("email validation failed: domain does not have valid mail servers")
 	}
 
 	return nil

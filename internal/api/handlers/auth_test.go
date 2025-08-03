@@ -42,6 +42,11 @@ func NewAuthHandlerWithMocks() (*handlers.AuthHandler, *mocks.MockUserDAO, *mock
 				RequireSpecialChar: true,
 			},
 		},
+		Email: config.EmailConfig{
+			Validation: config.EmailValidationConfig{
+				VerifierEmail: "noreply@example.com", // Default verifier email for tests
+			},
+		},
 	}
 
 	mockUserDAO := &mocks.MockUserDAO{}
@@ -400,7 +405,7 @@ func TestAuthHandler_Registration(t *testing.T) {
 		// Assert response
 		assert.Error(t, err)
 		assert.Nil(t, response)
-		assert.Contains(t, err.Error(), "email format is invalid")
+		assert.Contains(t, err.Error(), "email validation failed: email does not match the regular expression")
 	})
 
 	t.Run("RegisterUserWithWeakPassword", func(t *testing.T) {

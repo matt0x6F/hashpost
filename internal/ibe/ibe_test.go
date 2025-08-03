@@ -3,6 +3,7 @@ package ibe
 import (
 	"bytes"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -88,45 +89,58 @@ func TestIBESystem_EnhancedArchitecture(t *testing.T) {
 		assert.Equal(t, pseudonym1, pseudonym1Again, "Same user ID and context should generate same pseudonym")
 	})
 
-	t.Run("Key File Generation", func(t *testing.T) {
+	t.Run("Domain Key Generation", func(t *testing.T) {
 		// Create IBE system
 		ibeSystem := createTestIBESystem()
 
-		// Test master key file generation
-		masterKeyPath := filepath.Join(tempDir, "master.key")
-		err := ibeSystem.SaveMasterSecretToFile(masterKeyPath)
-		require.NoError(t, err, "Should save master key to file")
+		// Test domain key generation and saving
+		domainKeysDir := filepath.Join(tempDir, "domains")
+		err := ibeSystem.SaveDomainMastersToDir(domainKeysDir)
+		require.NoError(t, err, "Should save domain master keys to directory")
 
-		// Verify file exists and has correct permissions
-		info, err := os.Stat(masterKeyPath)
-		require.NoError(t, err, "Should be able to stat master key file")
-		assert.Equal(t, os.FileMode(0600), info.Mode()&0777, "Master key file should have 600 permissions")
+		// Verify domain key files exist and have correct permissions
+		domains := []string{
+			DOMAIN_USER_PSEUDONYMS,
+			DOMAIN_USER_CORRELATION,
+			DOMAIN_MOD_CORRELATION,
+			DOMAIN_ADMIN_CORRELATION,
+			DOMAIN_LEGAL_CORRELATION,
+		}
 
-		// Debug: print master key file contents and length
-		masterKeyFileContents, err := os.ReadFile(masterKeyPath)
-		require.NoError(t, err, "Should read master key file for debug")
-		t.Logf("Master key file contents: %q", masterKeyFileContents)
-		t.Logf("Master key file length: %d", len(masterKeyFileContents))
+		for _, domain := range domains {
+			keyPath := filepath.Join(domainKeysDir, fmt.Sprintf("%s.key", domain))
+			info, err := os.Stat(keyPath)
+			require.NoError(t, err, "Should be able to stat domain key file for %s", domain)
+			assert.Equal(t, os.FileMode(0600), info.Mode()&0777, "Domain key file should have 600 permissions")
 
-		// Load master key from file using the production loader
-		masterSecretBytes, err := LoadMasterSecretFromFile(masterKeyPath)
-		require.NoError(t, err, "Should load master secret from file")
+			// Load domain key from file
+			data, err := os.ReadFile(keyPath)
+			require.NoError(t, err, "Should read domain key file for %s", domain)
+			
+			// Expect hex-encoded 32-byte secret
+			require.Len(t, data, 64, "Domain key file should contain exactly 64 hex characters")
+			
+			domainKeyBytes, err := hex.DecodeString(string(data))
+			require.NoError(t, err, "Should decode domain key for %s", domain)
+			assert.Len(t, domainKeyBytes, 32, "Domain key should be 32 bytes")
+		}
 
-		// Verify both systems generate same keys
+		// Load domain masters from directory
+		loadedDomainMasters, err := LoadDomainMastersFromDir(domainKeysDir)
+		require.NoError(t, err, "Should load domain masters from directory")
+
+		// Create new IBE system with loaded domain masters
 		loadedIBE := NewIBESystemWithOptions(IBEOptions{
-			DomainMasters: nil, // Will be loaded from file
+			DomainMasters: loadedDomainMasters,
 			KeyVersion:    1,
 			Salt:          "test_fingerprint_salt_v1",
 		})
-
-		err = loadedIBE.SetMasterSecret(masterSecretBytes)
-		require.NoError(t, err, "Should set master secret from file")
 
 		// Verify both systems generate same keys
 		originalKey := ibeSystem.GenerateTimeBoundedKey("user", "correlation", time.Hour)
 		loadedKey := loadedIBE.GenerateTimeBoundedKey("user", "correlation", time.Hour)
 
-		assert.True(t, bytes.Equal(originalKey, loadedKey), "Keys should be identical after loading from file")
+		assert.True(t, bytes.Equal(originalKey, loadedKey), "Keys should be identical after loading from directory")
 	})
 
 	t.Run("Domain Key Generation", func(t *testing.T) {
