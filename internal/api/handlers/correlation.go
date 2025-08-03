@@ -25,7 +25,7 @@ import (
 type CorrelationHandler struct {
 	db                  bob.Executor
 	ibeSystem           *ibe.IBESystem
-	securePseudonymDAO  dao.PseudonymDAOInterface
+	pseudonymDAO        dao.PseudonymDAOInterface
 	identityMappingDAO  dao.IdentityMappingDAOInterface
 	postDAO             dao.PostDAOInterface
 	commentDAO          dao.CommentDAOInterface
@@ -34,11 +34,11 @@ type CorrelationHandler struct {
 }
 
 // NewCorrelationHandler creates a new correlation handler
-func NewCorrelationHandler(db bob.Executor, ibeSystem *ibe.IBESystem, securePseudonymDAO dao.PseudonymDAOInterface, identityMappingDAO dao.IdentityMappingDAOInterface, postDAO dao.PostDAOInterface, commentDAO dao.CommentDAOInterface, subforumDAO dao.SubforumDAOInterface, correlationAuditDAO dao.CorrelationAuditDAOInterface) *CorrelationHandler {
+func NewCorrelationHandler(db bob.Executor, ibeSystem *ibe.IBESystem, pseudonymDAO dao.PseudonymDAOInterface, identityMappingDAO dao.IdentityMappingDAOInterface, postDAO dao.PostDAOInterface, commentDAO dao.CommentDAOInterface, subforumDAO dao.SubforumDAOInterface, correlationAuditDAO dao.CorrelationAuditDAOInterface) *CorrelationHandler {
 	return &CorrelationHandler{
 		db:                  db,
 		ibeSystem:           ibeSystem,
-		securePseudonymDAO:  securePseudonymDAO,
+		pseudonymDAO:        pseudonymDAO,
 		identityMappingDAO:  identityMappingDAO,
 		postDAO:             postDAO,
 		commentDAO:          commentDAO,
@@ -77,7 +77,7 @@ func (h *CorrelationHandler) RequestFingerprintCorrelation(ctx context.Context, 
 	}
 
 	// Check if pseudonym exists
-	pseudonym, err := h.securePseudonymDAO.GetPseudonymByID(ctx, input.Body.RequestedPseudonym)
+	pseudonym, err := h.pseudonymDAO.GetPseudonymByID(ctx, input.Body.RequestedPseudonym)
 	if err != nil {
 		log.Error().Err(err).Str("pseudonym_id", input.Body.RequestedPseudonym).Msg("Failed to get pseudonym from database")
 		return nil, fmt.Errorf("failed to get pseudonym: %w", err)
@@ -144,7 +144,7 @@ func (h *CorrelationHandler) RequestFingerprintCorrelation(ctx context.Context, 
 	results := make([]models.CorrelationResult, 0, len(relatedMappings))
 	for _, mapping := range relatedMappings {
 		// Get pseudonym details
-		pseudonym, err := h.securePseudonymDAO.GetPseudonymByID(ctx, mapping.PseudonymID)
+		pseudonym, err := h.pseudonymDAO.GetPseudonymByID(ctx, mapping.PseudonymID)
 		if err != nil {
 			log.Error().Err(err).Str("pseudonym_id", mapping.PseudonymID).Msg("Failed to get pseudonym from database")
 			continue
@@ -290,7 +290,7 @@ func (h *CorrelationHandler) RequestIdentityCorrelation(ctx context.Context, inp
 	}
 
 	// Check if pseudonym exists
-	pseudonym, err := h.securePseudonymDAO.GetPseudonymByID(ctx, input.Body.RequestedPseudonym)
+	pseudonym, err := h.pseudonymDAO.GetPseudonymByID(ctx, input.Body.RequestedPseudonym)
 	if err != nil {
 		log.Error().Err(err).Str("pseudonym_id", input.Body.RequestedPseudonym).Msg("Failed to get pseudonym from database")
 		return nil, fmt.Errorf("failed to get pseudonym: %w", err)
@@ -357,7 +357,7 @@ func (h *CorrelationHandler) RequestIdentityCorrelation(ctx context.Context, inp
 	results := make([]models.CorrelationResult, 0, len(relatedMappings))
 	for _, mapping := range relatedMappings {
 		// Get pseudonym details
-		pseudonym, err := h.securePseudonymDAO.GetPseudonymByID(ctx, mapping.PseudonymID)
+		pseudonym, err := h.pseudonymDAO.GetPseudonymByID(ctx, mapping.PseudonymID)
 		if err != nil {
 			log.Error().Err(err).Str("pseudonym_id", mapping.PseudonymID).Msg("Failed to get pseudonym from database")
 			continue

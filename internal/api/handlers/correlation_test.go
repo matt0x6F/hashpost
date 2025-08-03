@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"testing"
 	"time"
 
@@ -24,8 +23,8 @@ import (
 )
 
 // Helper function to create test correlation handler with mocks
-func NewCorrelationHandlerWithMocks() (*CorrelationHandler, *mocks.MockSecurePseudonymDAO, *mocks.MockIdentityMappingDAO, *mocks.MockPostDAO, *mocks.MockCommentDAO, *mocks.MockSubforumDAO, *mocks.MockCorrelationAuditDAO) {
-	mockSecurePseudonymDAO := &mocks.MockSecurePseudonymDAO{}
+func NewCorrelationHandlerWithMocks() (*CorrelationHandler, *mocks.MockPseudonymDAO, *mocks.MockIdentityMappingDAO, *mocks.MockPostDAO, *mocks.MockCommentDAO, *mocks.MockSubforumDAO, *mocks.MockCorrelationAuditDAO) {
+	mockPseudonymDAO := &mocks.MockPseudonymDAO{}
 	mockIdentityMappingDAO := &mocks.MockIdentityMappingDAO{}
 	mockPostDAO := &mocks.MockPostDAO{}
 	mockCommentDAO := &mocks.MockCommentDAO{}
@@ -37,7 +36,7 @@ func NewCorrelationHandlerWithMocks() (*CorrelationHandler, *mocks.MockSecurePse
 	handler := NewCorrelationHandler(
 		nil, // No direct DB needed since we use DAOs
 		ibeSystem,
-		mockSecurePseudonymDAO,
+		mockPseudonymDAO,
 		mockIdentityMappingDAO,
 		mockPostDAO,
 		mockCommentDAO,
@@ -45,7 +44,7 @@ func NewCorrelationHandlerWithMocks() (*CorrelationHandler, *mocks.MockSecurePse
 		mockCorrelationAuditDAO,
 	)
 
-	return handler, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockPostDAO, mockCommentDAO, mockSubforumDAO, mockCorrelationAuditDAO
+	return handler, mockPseudonymDAO, mockIdentityMappingDAO, mockPostDAO, mockCommentDAO, mockSubforumDAO, mockCorrelationAuditDAO
 }
 
 // Helper function to create test identity mapping
@@ -73,50 +72,12 @@ func setupTestAuthMiddleware() {
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
 }
 
-// createAuthenticatedIdentityInput creates an input with a valid JWT token for identity correlation testing
-func createAuthenticatedIdentityInput(userID int64, email string, capabilities []string, activePseudonymID string, displayName string) *apimodels.IdentityCorrelationInput {
-	// Generate a valid JWT token for testing
-	token, err := fixtures.GenerateTestJWTToken(userID, activePseudonymID, displayName, email, []string{"user"}, capabilities)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to generate test JWT token: %v", err))
-	}
-
-	return &apimodels.IdentityCorrelationInput{
-		AuthInput: middleware.AuthInput{
-			Authorization: "Bearer " + token,
-		},
-		Body: apimodels.IdentityCorrelationInputBody{
-			RequestedPseudonym:   "target-pseudonym-123",
-			RequestedFingerprint: "test-fingerprint-456",
-			Justification:        "Investigation of identity correlation",
-		},
-	}
-}
-
-// createAuthenticatedHistoryInput creates an input with a valid JWT token for correlation history testing
-func createAuthenticatedHistoryInput(userID int64, email string, capabilities []string, activePseudonymID string, displayName string) *apimodels.CorrelationHistoryInput {
-	// Generate a valid JWT token for testing
-	token, err := fixtures.GenerateTestJWTToken(userID, activePseudonymID, displayName, email, []string{"user"}, capabilities)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to generate test JWT token: %v", err))
-	}
-
-	return &apimodels.CorrelationHistoryInput{
-		AuthInput: middleware.AuthInput{
-			Authorization: "Bearer " + token,
-		},
-		CorrelationType: "fingerprint",
-		Page:            1,
-		Limit:           25,
-	}
-}
-
 func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 	// Set up global auth middleware for testing
 	setupTestAuthMiddleware()
 
 	t.Run("Success", func(t *testing.T) {
-		handler, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockPostDAO, mockCommentDAO, _, mockCorrelationAuditDAO := NewCorrelationHandlerWithMocks()
+		handler, mockPseudonymDAO, mockIdentityMappingDAO, mockPostDAO, mockCommentDAO, _, mockCorrelationAuditDAO := NewCorrelationHandlerWithMocks()
 
 		// Test data
 		adminUserID := int64(1)
@@ -132,7 +93,7 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 		// Mock pseudonym retrieval
 		testPseudonym := fixtures.CreateTestPseudonym()
 		testPseudonym.PseudonymID = requestedPseudonymID
-		mockSecurePseudonymDAO.On("GetPseudonymByID", mock.Anything, requestedPseudonymID).Return(testPseudonym, nil)
+		mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, requestedPseudonymID).Return(testPseudonym, nil)
 
 		// Use IBE system to encrypt the identity mapping
 		ibeSystem := handler.ibeSystem
@@ -166,7 +127,7 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 		// Mock pseudonym retrieval for related pseudonyms
 		relatedPseudonym := fixtures.CreateTestPseudonym()
 		relatedPseudonym.PseudonymID = relatedPseudonymID
-		mockSecurePseudonymDAO.On("GetPseudonymByID", mock.Anything, relatedPseudonymID).Return(relatedPseudonym, nil)
+		mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, relatedPseudonymID).Return(relatedPseudonym, nil)
 
 		// Mock post and comment counts for subforum (using available methods)
 		mockPostDAO.On("CountPostsByPseudonym", mock.Anything, requestedPseudonymID).Return(int64(5), nil).Maybe()
@@ -181,8 +142,8 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 		mockCommentDAO.On("CountCommentsByPseudonymInSubforum", mock.Anything, relatedPseudonymID, int32(subforumID)).Return(int64(7), nil).Maybe()
 
 		// Mock pseudonym retrieval for each result
-		mockSecurePseudonymDAO.On("GetPseudonymByID", mock.Anything, requestedPseudonymID).Return(testPseudonym, nil).Maybe()
-		mockSecurePseudonymDAO.On("GetPseudonymByID", mock.Anything, relatedPseudonymID).Return(relatedPseudonym, nil).Maybe()
+		mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, requestedPseudonymID).Return(testPseudonym, nil).Maybe()
+		mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, relatedPseudonymID).Return(relatedPseudonym, nil).Maybe()
 
 		// Mock additional calls that the handler makes for each pseudonym in results
 		mockPostDAO.On("CountPostsByPseudonym", mock.Anything, requestedPseudonymID).Return(int64(5), nil).Maybe()
@@ -235,7 +196,7 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 		assert.True(t, pseudonymIDs[relatedPseudonymID])
 
 		// Verify mock expectations
-		mockSecurePseudonymDAO.AssertExpectations(t)
+		mockPseudonymDAO.AssertExpectations(t)
 		mockIdentityMappingDAO.AssertExpectations(t)
 		mockPostDAO.AssertExpectations(t)
 		mockCommentDAO.AssertExpectations(t)
@@ -273,10 +234,10 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 	})
 
 	t.Run("PseudonymNotFound", func(t *testing.T) {
-		handler, mockSecurePseudonymDAO, _, _, _, _, _ := NewCorrelationHandlerWithMocks()
+		handler, mockPseudonymDAO, _, _, _, _, _ := NewCorrelationHandlerWithMocks()
 
 		// Mock pseudonym not found
-		mockSecurePseudonymDAO.On("GetPseudonymByID", mock.Anything, "nonexistent-pseudonym").Return(nil, nil).Maybe()
+		mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, "nonexistent-pseudonym").Return(nil, nil).Maybe()
 
 		// Create authenticated input with correlation capability
 		// Create input with correlation capability
@@ -304,7 +265,7 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 		assert.Contains(t, err.Error(), "pseudonym not found")
 
 		// Verify mock expectations
-		mockSecurePseudonymDAO.AssertExpectations(t)
+		mockPseudonymDAO.AssertExpectations(t)
 	})
 }
 
@@ -313,7 +274,7 @@ func TestCorrelationHandler_RequestIdentityCorrelation(t *testing.T) {
 	setupTestAuthMiddleware()
 
 	t.Run("Success", func(t *testing.T) {
-		handler, mockSecurePseudonymDAO, mockIdentityMappingDAO, mockPostDAO, mockCommentDAO, mockSubforumDAO, mockCorrelationAuditDAO := NewCorrelationHandlerWithMocks()
+		handler, mockPseudonymDAO, mockIdentityMappingDAO, mockPostDAO, mockCommentDAO, mockSubforumDAO, mockCorrelationAuditDAO := NewCorrelationHandlerWithMocks()
 
 		// Test data
 		adminUserID := int64(1)
@@ -322,7 +283,7 @@ func TestCorrelationHandler_RequestIdentityCorrelation(t *testing.T) {
 		// Mock pseudonym retrieval
 		testPseudonym := fixtures.CreateTestPseudonym()
 		testPseudonym.PseudonymID = requestedPseudonymID
-		mockSecurePseudonymDAO.On("GetPseudonymByID", mock.Anything, requestedPseudonymID).Return(testPseudonym, nil)
+		mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, requestedPseudonymID).Return(testPseudonym, nil)
 
 		// Use IBE system to encrypt the identity mapping
 		ibeSystem := handler.ibeSystem
@@ -356,7 +317,7 @@ func TestCorrelationHandler_RequestIdentityCorrelation(t *testing.T) {
 		// Mock pseudonym retrieval for related pseudonyms
 		relatedPseudonym := fixtures.CreateTestPseudonym()
 		relatedPseudonym.PseudonymID = relatedPseudonymID
-		mockSecurePseudonymDAO.On("GetPseudonymByID", mock.Anything, relatedPseudonymID).Return(relatedPseudonym, nil)
+		mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, relatedPseudonymID).Return(relatedPseudonym, nil)
 
 		// Mock post and comment counts (platform-wide)
 		mockPostDAO.On("CountPostsByPseudonym", mock.Anything, requestedPseudonymID).Return(int64(15), nil).Maybe()
@@ -418,7 +379,7 @@ func TestCorrelationHandler_RequestIdentityCorrelation(t *testing.T) {
 		assert.True(t, pseudonymIDs[relatedPseudonymID])
 
 		// Verify mock expectations
-		mockSecurePseudonymDAO.AssertExpectations(t)
+		mockPseudonymDAO.AssertExpectations(t)
 		mockIdentityMappingDAO.AssertExpectations(t)
 		mockPostDAO.AssertExpectations(t)
 		mockCommentDAO.AssertExpectations(t)
@@ -692,7 +653,7 @@ func TestNewCorrelationHandler(t *testing.T) {
 		// Create mock dependencies
 		var mockDB bob.Executor = nil
 		mockIBESystem := &ibe.IBESystem{}
-		mockSecurePseudonymDAO := &mocks.MockSecurePseudonymDAO{}
+		mockPseudonymDAO := &mocks.MockPseudonymDAO{}
 		mockIdentityMappingDAO := &mocks.MockIdentityMappingDAO{}
 		mockPostDAO := &mocks.MockPostDAO{}
 		mockCommentDAO := &mocks.MockCommentDAO{}
@@ -703,7 +664,7 @@ func TestNewCorrelationHandler(t *testing.T) {
 		handler := NewCorrelationHandler(
 			mockDB,
 			mockIBESystem,
-			mockSecurePseudonymDAO,
+			mockPseudonymDAO,
 			mockIdentityMappingDAO,
 			mockPostDAO,
 			mockCommentDAO,

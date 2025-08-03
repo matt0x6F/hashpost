@@ -34,7 +34,7 @@ func TestNewModerationHandlerWithMocks(t *testing.T) {
 	assert.NotNil(t, handler.reportDAO)
 	assert.NotNil(t, handler.moderationActionDAO)
 	assert.NotNil(t, handler.userBanDAO)
-	assert.NotNil(t, handler.securePseudonymDAO)
+	assert.NotNil(t, handler.pseudonymDAO)
 	assert.NotNil(t, handler.subforumDAO)
 	assert.NotNil(t, handler.postDAO)
 	assert.NotNil(t, handler.commentDAO)
@@ -689,7 +689,7 @@ func NewModerationHandlerWithMocks() *ModerationHandler {
 	mockReportDAO := mocks.NewMockReportDAO()
 	mockModerationActionDAO := mocks.NewMockModerationActionDAO()
 	mockUserBanDAO := mocks.NewMockUserBanDAO()
-	mockSecurePseudonymDAO := mocks.NewMockSecurePseudonymDAO()
+	mockPseudonymDAO := mocks.NewMockPseudonymDAO()
 	mockSubforumDAO := mocks.NewMockSubforumDAO()
 	mockPostDAO := mocks.NewMockPostDAO()
 	mockCommentDAO := mocks.NewMockCommentDAO()
@@ -719,21 +719,21 @@ func NewModerationHandlerWithMocks() *ModerationHandler {
 	mockUserBanDAO.SetDefaultBehavior()
 
 	// Set up mock secure pseudonym DAO with fixture data
-	mockSecurePseudonymDAO.InjectPseudonym(fixtures.CreateTestPseudonym())
+	mockPseudonymDAO.InjectPseudonym(fixtures.CreateTestPseudonym())
 	// Inject the pseudonyms that the test reports are looking for
-	mockSecurePseudonymDAO.InjectPseudonym(&dbmodels.Pseudonym{
+	mockPseudonymDAO.InjectPseudonym(&dbmodels.Pseudonym{
 		PseudonymID: "reporter-pseudonym-id",
 		DisplayName: "ReporterUser",
 	})
-	mockSecurePseudonymDAO.InjectPseudonym(&dbmodels.Pseudonym{
+	mockPseudonymDAO.InjectPseudonym(&dbmodels.Pseudonym{
 		PseudonymID: "reported-pseudonym-id",
 		DisplayName: "ReportedUser",
 	})
-	mockSecurePseudonymDAO.InjectPseudonym(&dbmodels.Pseudonym{
+	mockPseudonymDAO.InjectPseudonym(&dbmodels.Pseudonym{
 		PseudonymID: "moderator-pseudonym-id",
 		DisplayName: "ModeratorUser",
 	})
-	mockSecurePseudonymDAO.SetDefaultBehavior()
+	mockPseudonymDAO.SetDefaultBehavior()
 
 	// Set up mock post DAO with fixture data
 	mockPostDAO.InjectPost(fixtures.CreateTestPost())
@@ -773,7 +773,7 @@ func NewModerationHandlerWithMocks() *ModerationHandler {
 		reportDAO:           mockReportDAO,
 		moderationActionDAO: mockModerationActionDAO,
 		userBanDAO:          mockUserBanDAO,
-		securePseudonymDAO:  mockSecurePseudonymDAO,
+		pseudonymDAO:        mockPseudonymDAO,
 		subforumDAO:         mockSubforumDAO,
 		postDAO:             mockPostDAO,
 		commentDAO:          mockCommentDAO,
@@ -789,7 +789,7 @@ func TestNewModerationHandler(t *testing.T) {
 		mockReportDAO := &mocks.MockReportDAO{}
 		mockModerationActionDAO := &mocks.MockModerationActionDAO{}
 		mockUserBanDAO := &mocks.MockUserBanDAO{}
-		mockSecurePseudonymDAO := &mocks.MockSecurePseudonymDAO{}
+		mockPseudonymDAO := &mocks.MockPseudonymDAO{}
 		mockSubforumDAO := &mocks.MockSubforumDAO{}
 		mockPostDAO := &mocks.MockPostDAO{}
 		mockCommentDAO := &mocks.MockCommentDAO{}
@@ -801,7 +801,7 @@ func TestNewModerationHandler(t *testing.T) {
 			mockReportDAO,
 			mockModerationActionDAO,
 			mockUserBanDAO,
-			mockSecurePseudonymDAO,
+			mockPseudonymDAO,
 			mockSubforumDAO,
 			mockPostDAO,
 			mockCommentDAO,
@@ -814,7 +814,7 @@ func TestNewModerationHandler(t *testing.T) {
 		assert.Equal(t, mockReportDAO, handler.reportDAO)
 		assert.Equal(t, mockModerationActionDAO, handler.moderationActionDAO)
 		assert.Equal(t, mockUserBanDAO, handler.userBanDAO)
-		assert.Equal(t, mockSecurePseudonymDAO, handler.securePseudonymDAO)
+		assert.Equal(t, mockPseudonymDAO, handler.pseudonymDAO)
 		assert.Equal(t, mockSubforumDAO, handler.subforumDAO)
 		assert.Equal(t, mockPostDAO, handler.postDAO)
 		assert.Equal(t, mockCommentDAO, handler.commentDAO)

@@ -54,7 +54,7 @@ type ContentHandlerConfig struct {
 	PostDAO            dao.PostDAOInterface
 	CommentDAO         dao.CommentDAOInterface
 	SubforumDAO        dao.SubforumDAOInterface
-	SecurePseudonymDAO dao.PseudonymDAOInterface
+	PseudonymDAO       dao.PseudonymDAOInterface
 	VoteDAO            dao.VoteDAOInterface
 	UserBlocksDAO      dao.UserBlocksDAOInterface
 	RoleKeyDAO         dao.RoleKeyDAOInterface
@@ -82,7 +82,7 @@ type ContentHandler struct {
 	postDAO            dao.PostDAOInterface
 	commentDAO         dao.CommentDAOInterface
 	subforumDAO        dao.SubforumDAOInterface
-	securePseudonymDAO dao.PseudonymDAOInterface
+	pseudonymDAO       dao.PseudonymDAOInterface
 	voteDAO            dao.VoteDAOInterface
 	permissionChecker  middleware.PermissionCheckerInterface
 	permissionDAO      dao.PermissionDAOInterface
@@ -100,7 +100,7 @@ func NewContentHandler(
 	postDAO dao.PostDAOInterface,
 	commentDAO dao.CommentDAOInterface,
 	subforumDAO dao.SubforumDAOInterface,
-	securePseudonymDAO dao.PseudonymDAOInterface,
+	pseudonymDAO dao.PseudonymDAOInterface,
 	voteDAO dao.VoteDAOInterface,
 	userBlocksDAO dao.UserBlocksDAOInterface,
 	roleKeyDAO dao.RoleKeyDAOInterface,
@@ -135,7 +135,7 @@ func NewContentHandler(
 			return nil
 		}
 
-		securePseudonymDAO = dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAOImpl, userDAOImpl, roleKeyDAOImpl, userBlocksDAOImpl)
+		pseudonymDAO = dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAOImpl, userDAOImpl, roleKeyDAOImpl, userBlocksDAOImpl)
 		permissionDAO = dao.NewPermissionDAO(db)
 		postDAO = dao.NewPostDAO(db)
 		commentDAO = dao.NewCommentDAO(db)
@@ -154,7 +154,7 @@ func NewContentHandler(
 		postDAO:            postDAO,
 		commentDAO:         commentDAO,
 		subforumDAO:        subforumDAO,
-		securePseudonymDAO: securePseudonymDAO,
+		pseudonymDAO:       pseudonymDAO,
 		voteDAO:            voteDAO,
 		permissionChecker:  permissionChecker,
 		permissionDAO:      permissionDAO,
@@ -173,7 +173,7 @@ func NewContentHandlerFromConfig(cfg *ContentHandlerConfig) *ContentHandler {
 		cfg.PostDAO,
 		cfg.CommentDAO,
 		cfg.SubforumDAO,
-		cfg.SecurePseudonymDAO,
+		cfg.PseudonymDAO,
 		cfg.VoteDAO,
 		cfg.UserBlocksDAO,
 		cfg.RoleKeyDAO,
@@ -1391,7 +1391,7 @@ func (h *ContentHandler) DeletePost(ctx context.Context, input *models.PostDelet
 	}
 
 	// Get user info for response
-	pseudonymInfo, err := h.securePseudonymDAO.GetPseudonymByID(ctx, pseudonymID)
+	pseudonymInfo, err := h.pseudonymDAO.GetPseudonymByID(ctx, pseudonymID)
 	if err != nil {
 		log.Error().Err(err).Str("pseudonym_id", pseudonymID).Msg("Failed to get pseudonym info for deletion response")
 		// Continue without user info
@@ -1438,7 +1438,7 @@ func (h *ContentHandler) DeleteComment(ctx context.Context, input *models.Commen
 	}
 
 	// Get user info for response
-	pseudonymInfo, err := h.securePseudonymDAO.GetPseudonymByID(ctx, pseudonymID)
+	pseudonymInfo, err := h.pseudonymDAO.GetPseudonymByID(ctx, pseudonymID)
 	if err != nil {
 		log.Error().Err(err).Str("pseudonym_id", pseudonymID).Msg("Failed to get pseudonym info for deletion response")
 		// Continue without user info

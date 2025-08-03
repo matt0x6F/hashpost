@@ -78,8 +78,8 @@ func SetupRoles() error {
 		for _, scope := range adminRole.Scopes {
 			capabilities := adminRole.Capabilities[scope]
 
-			// Check if role key already exists
-			existingKey, err := roleKeyDAO.GetRoleKey(ctx, adminRole.RoleName, scope)
+			// Check if role key already exists for system admin
+			existingKey, err := roleKeyDAO.GetRoleKey(ctx, constants.SystemPseudonymID, scope, nil)
 			if err == nil && existingKey != nil {
 				log.Info().Str("role", adminRole.RoleName).Str("scope", scope).Msg("Role key already exists, skipping")
 				continue
@@ -89,7 +89,7 @@ func SetupRoles() error {
 			expiresAt := time.Now().AddDate(1, 0, 0) // Expire in 1 year
 			keyData := ibeSystem.GenerateTestRoleKey(adminRole.RoleName, scope)
 
-			_, err = roleKeyDAO.CreateRoleKey(ctx, adminRole.RoleName, scope, keyData, capabilities, expiresAt, creatorUserID)
+			_, err = roleKeyDAO.CreateRoleKey(ctx, constants.SystemPseudonymID, scope, keyData, capabilities, expiresAt, constants.SystemPseudonymID, "", nil)
 			if err != nil {
 				log.Error().Str("role", adminRole.RoleName).Str("scope", scope).Err(err).Msg("Failed to create role key")
 				continue
@@ -255,15 +255,16 @@ func RotateRoleKeys(roleName string, force bool) error {
 
 	// Create role key DAO
 	roleKeyDAO := dao.NewRoleKeyDAO(db)
-	userDAO := dao.NewUserDAO(db)
+	// userDAO := dao.NewUserDAO(db) // No longer needed
 	ctx := context.Background()
 
 	// Find a user to use as the creator for role keys
-	users, err := userDAO.ListUsers(ctx, 1, 0)
-	if err != nil || len(users) == 0 {
-		return fmt.Errorf("no users found to create role keys")
-	}
-	creatorUserID := users[0].UserID
+	// Note: This is no longer needed since we're using placeholder pseudonym IDs
+	// users, err := userDAO.ListUsers(ctx, 1, 0)
+	// if err != nil || len(users) == 0 {
+	// 	return fmt.Errorf("no users found to create role keys")
+	// }
+	// creatorUserID := users[0].UserID
 
 	// Define all roles and their capabilities (same as SetupRoles)
 	allRoles := constants.GetRoleDefinitions()
@@ -292,8 +293,8 @@ func RotateRoleKeys(roleName string, force bool) error {
 		for _, scope := range role.Scopes {
 			capabilities := role.Capabilities[scope]
 
-			// Check if role key exists
-			existingKey, err := roleKeyDAO.GetRoleKey(ctx, role.RoleName, scope)
+			// Check if role key exists for system admin
+			existingKey, err := roleKeyDAO.GetRoleKey(ctx, constants.SystemPseudonymID, scope, nil)
 			if err != nil || existingKey == nil {
 				log.Info().Str("role", role.RoleName).Str("scope", scope).Msg("Role key does not exist, creating new one")
 			} else if !force {
@@ -313,7 +314,7 @@ func RotateRoleKeys(roleName string, force bool) error {
 			expiresAt := time.Now().AddDate(1, 0, 0) // Expire in 1 year
 			keyData := ibeSystem.GenerateTestRoleKey(role.RoleName, scope)
 
-			_, err = roleKeyDAO.CreateRoleKey(ctx, role.RoleName, scope, keyData, capabilities, expiresAt, creatorUserID)
+			_, err = roleKeyDAO.CreateRoleKey(ctx, constants.SystemPseudonymID, scope, keyData, capabilities, expiresAt, constants.SystemPseudonymID, "", nil)
 			if err != nil {
 				log.Error().Str("role", role.RoleName).Str("scope", scope).Err(err).Msg("Failed to create new role key")
 				continue

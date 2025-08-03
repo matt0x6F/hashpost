@@ -9,8 +9,8 @@ import (
 )
 
 // RegisterModerationRoutes registers moderation-related routes
-func RegisterModerationRoutes(api huma.API, reportDAO *dao.ReportDAO, moderationActionDAO *dao.ModerationActionDAO, userBanDAO *dao.UserBanDAO, securePseudonymDAO *dao.PseudonymDAO, subforumDAO *dao.SubforumDAO, postDAO *dao.PostDAO, commentDAO *dao.CommentDAO, voteDAO *dao.VoteDAO, permissionDAO *dao.PermissionDAO) {
-	moderationHandler := handlers.NewModerationHandler(reportDAO, moderationActionDAO, userBanDAO, securePseudonymDAO, subforumDAO, postDAO, commentDAO, voteDAO, permissionDAO)
+func RegisterModerationRoutes(api huma.API, reportDAO *dao.ReportDAO, moderationActionDAO *dao.ModerationActionDAO, userBanDAO *dao.UserBanDAO, pseudonymDAO *dao.PseudonymDAO, subforumDAO *dao.SubforumDAO, postDAO *dao.PostDAO, commentDAO *dao.CommentDAO, voteDAO *dao.VoteDAO, permissionDAO *dao.PermissionDAO) {
+	moderationHandler := handlers.NewModerationHandler(reportDAO, moderationActionDAO, userBanDAO, pseudonymDAO, subforumDAO, postDAO, commentDAO, voteDAO, permissionDAO)
 
 	// Moderation dashboard statistics
 	huma.Register(api, huma.Operation{

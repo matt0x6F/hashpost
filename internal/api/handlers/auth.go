@@ -31,7 +31,7 @@ type AuthHandler struct {
 	config                    *config.Config
 	db                        bob.Executor
 	userDAO                   dao.UserDAOInterface
-	securePseudonymDAO        dao.PseudonymDAOInterface
+	pseudonymDAO              dao.PseudonymDAOInterface
 	identityMappingDAO        dao.IdentityMappingDAOInterface
 	roleKeyDAO                dao.RoleKeyDAOInterface
 	ibeSystem                 *ibe.IBESystem
@@ -48,7 +48,7 @@ func NewAuthHandler(
 	cfg *config.Config,
 	db bob.Executor,
 	userDAO dao.UserDAOInterface,
-	securePseudonymDAO dao.PseudonymDAOInterface,
+	pseudonymDAO dao.PseudonymDAOInterface,
 	identityMappingDAO dao.IdentityMappingDAOInterface,
 	roleKeyDAO dao.RoleKeyDAOInterface,
 	ibeSystem *ibe.IBESystem,
@@ -82,7 +82,7 @@ func NewAuthHandler(
 			return nil
 		}
 
-		securePseudonymDAO = dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAOImpl, userDAOImpl, roleKeyDAOImpl, userBlocksDAO)
+		pseudonymDAO = dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAOImpl, userDAOImpl, roleKeyDAOImpl, userBlocksDAO)
 		subforumDAO = dao.NewSubforumDAO(db)
 		permissionDAO = dao.NewPermissionDAO(db)
 	}
@@ -91,7 +91,7 @@ func NewAuthHandler(
 		config:                    cfg,
 		db:                        db,
 		userDAO:                   userDAO,
-		securePseudonymDAO:        securePseudonymDAO,
+		pseudonymDAO:              pseudonymDAO,
 		identityMappingDAO:        identityMappingDAO,
 		roleKeyDAO:                roleKeyDAO,
 		ibeSystem:                 ibeSystem,
@@ -192,17 +192,27 @@ func (h *AuthHandler) RegisterUser(ctx context.Context, input *apimodels.UserReg
 		}
 	}
 
-	// Create default role keys for the user
-	if err := h.roleKeyDAO.EnsureDefaultKeys(ctx, h.ibeSystem, user.UserID); err != nil {
+	// Create default pseudonym for the user first
+	defaultPseudonym, err := h.pseudonymDAO.CreatePseudonymWithIdentityMapping(ctx, user.UserID, "Default")
+	if err != nil {
 		log.Error().
 			Err(err).
 			Int64("user_id", user.UserID).
-			Msg("Failed to create default role keys")
+			Msg("Failed to create default pseudonym for user")
+		return nil, fmt.Errorf("failed to create default pseudonym: %w", err)
+	}
+
+	if err := h.roleKeyDAO.EnsureDefaultKeys(ctx, h.ibeSystem, defaultPseudonym.PseudonymID, []string{"user"}); err != nil {
+		log.Error().
+			Err(err).
+			Int64("user_id", user.UserID).
+			Str("pseudonym_id", defaultPseudonym.PseudonymID).
+			Msg("Failed to create default role keys for user")
 		return nil, fmt.Errorf("failed to create default role keys: %w", err)
 	}
 
 	// Create pseudonym for the user
-	pseudonym, err := h.securePseudonymDAO.CreatePseudonymWithIdentityMapping(ctx, user.UserID, input.Body.DisplayName)
+	pseudonym, err := h.pseudonymDAO.CreatePseudonymWithIdentityMapping(ctx, user.UserID, input.Body.DisplayName)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -603,7 +613,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 	// Use IBE-based correlation to get user's pseudonyms
 	// Use the user's actual roles, not hardcoded "user"
 	primaryRole := roles[0] // Use the first role for authentication
-	pseudonyms, err := h.securePseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, primaryRole, constants.ScopeAuthentication)
+	pseudonyms, err := h.pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, primaryRole, constants.ScopeAuthentication)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -622,7 +632,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 	}
 
 	// Get the default pseudonym for the user
-	defaultPseudonym, err := h.securePseudonymDAO.GetDefaultPseudonymByUserID(ctx, user.UserID, primaryRole, constants.ScopeAuthentication)
+	defaultPseudonym, err := h.pseudonymDAO.GetDefaultPseudonymByUserID(ctx, user.UserID, primaryRole, constants.ScopeAuthentication)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -917,7 +927,7 @@ func (h *AuthHandler) GetCurrentUserSession(ctx context.Context, input *middlewa
 	// Use IBE-based correlation to get user's pseudonyms
 	// Use the user's actual roles, not hardcoded "user"
 	primaryRole := roles[0] // Use the first role for authentication
-	pseudonyms, err := h.securePseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, primaryRole, constants.ScopeAuthentication)
+	pseudonyms, err := h.pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, primaryRole, constants.ScopeAuthentication)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -1124,7 +1134,7 @@ func (h *AuthHandler) GetCurrentUserSessionForSubforum(ctx context.Context, inpu
 	// Use IBE-based correlation to get user's pseudonyms
 	// Use the user's actual roles, not hardcoded "user"
 	primaryRole := roles[0] // Use the first role for authentication
-	pseudonyms, err := h.securePseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, primaryRole, constants.ScopeAuthentication)
+	pseudonyms, err := h.pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, primaryRole, constants.ScopeAuthentication)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -1239,7 +1249,7 @@ func (h *AuthHandler) SwitchPseudonym(ctx context.Context, input *struct {
 	}
 
 	// Get the target pseudonym
-	targetPseudonym, err := h.securePseudonymDAO.GetPseudonymByID(ctx, input.Body.PseudonymID)
+	targetPseudonym, err := h.pseudonymDAO.GetPseudonymByID(ctx, input.Body.PseudonymID)
 	if err != nil {
 		log.Error().Err(err).Str("pseudonym_id", input.Body.PseudonymID).Msg("Failed to get target pseudonym")
 		return nil, huma.Error404NotFound("Target pseudonym not found")
@@ -1255,7 +1265,7 @@ func (h *AuthHandler) SwitchPseudonym(ctx context.Context, input *struct {
 
 	// Try each role with authentication scope first
 	for _, role := range userCtx.Roles {
-		ownsPseudonym, ownershipErr = h.securePseudonymDAO.VerifyPseudonymOwnership(ctx, input.Body.PseudonymID, userCtx.UserID, role, constants.ScopeAuthentication)
+		ownsPseudonym, ownershipErr = h.pseudonymDAO.VerifyPseudonymOwnership(ctx, input.Body.PseudonymID, userCtx.UserID, role, constants.ScopeAuthentication)
 		if ownershipErr == nil && ownsPseudonym {
 			break
 		}
@@ -1264,7 +1274,7 @@ func (h *AuthHandler) SwitchPseudonym(ctx context.Context, input *struct {
 	// If authentication scope fails, try self-correlation scope
 	if !ownsPseudonym {
 		for _, role := range userCtx.Roles {
-			ownsPseudonym, ownershipErr = h.securePseudonymDAO.VerifyPseudonymOwnership(ctx, input.Body.PseudonymID, userCtx.UserID, role, constants.ScopeSelfCorrelation)
+			ownsPseudonym, ownershipErr = h.pseudonymDAO.VerifyPseudonymOwnership(ctx, input.Body.PseudonymID, userCtx.UserID, role, constants.ScopeSelfCorrelation)
 			if ownershipErr == nil && ownsPseudonym {
 				break
 			}
@@ -1280,7 +1290,7 @@ func (h *AuthHandler) SwitchPseudonym(ctx context.Context, input *struct {
 	}
 
 	// Update last active timestamp for the target pseudonym
-	err = h.securePseudonymDAO.UpdateLastActive(ctx, input.Body.PseudonymID)
+	err = h.pseudonymDAO.UpdateLastActive(ctx, input.Body.PseudonymID)
 	if err != nil {
 		log.Error().Err(err).Str("pseudonym_id", input.Body.PseudonymID).Msg("Failed to update pseudonym last active timestamp")
 		// Don't fail the request for this error
@@ -1338,7 +1348,7 @@ func (h *AuthHandler) DeactivatePseudonym(ctx context.Context, input *struct {
 	}
 
 	// Deactivate the pseudonym using self-correlation scope (user can only deactivate their own pseudonyms)
-	err = h.securePseudonymDAO.DeactivatePseudonym(ctx, input.Body.PseudonymID, userCtx.UserID, "user", constants.ScopeSelfCorrelation)
+	err = h.pseudonymDAO.DeactivatePseudonym(ctx, input.Body.PseudonymID, userCtx.UserID, "user", constants.ScopeSelfCorrelation)
 	if err != nil {
 		log.Error().Err(err).
 			Int64("user_id", userCtx.UserID).

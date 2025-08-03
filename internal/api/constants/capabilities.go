@@ -83,6 +83,9 @@ const (
 	// SystemAdmin allows full system administration
 	CapabilitySystemAdmin = "system_admin"
 
+	// System pseudonym ID for privileged operations
+	SystemPseudonymID = "system-admin"
+
 	// UserManagement allows managing user accounts
 	CapabilityUserManagement = "user_management"
 )

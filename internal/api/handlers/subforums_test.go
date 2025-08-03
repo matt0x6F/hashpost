@@ -95,7 +95,6 @@ func TestSubforumHandler_GetSubforums(t *testing.T) {
 			mockSubforumDAO := mocks.NewMockSubforumDAO()
 			mockSubforumSubscriptionDAO := mocks.NewMockSubforumSubscriptionDAO()
 			mockPermissionDAO := mocks.NewMockPermissionDAO()
-			mockSubforumModeratorDAO := mocks.NewMockSubforumModeratorDAO()
 
 			// Set up mock data
 			mockSubforumDAO.InjectAllSubforums([]*dbmodels.Subforum{fixtures.CreateTestSubforum(), fixtures.CreateTestPrivateSubforum()})
@@ -108,8 +107,6 @@ func TestSubforumHandler_GetSubforums(t *testing.T) {
 			mockPermissionDAO.On("CanAccessPrivateSubforumWithActivePseudonym", mock.Anything, int64(1), int32(1), "test-pseudonym-id").Return(true, nil)
 			mockPermissionDAO.SetDefaultBehavior()
 
-			mockSubforumModeratorDAO.SetDefaultBehavior()
-
 			// Create mock identity mapping DAO
 			mockIdentityMappingDAO := mocks.NewMockIdentityMappingDAO()
 
@@ -120,10 +117,13 @@ func TestSubforumHandler_GetSubforums(t *testing.T) {
 			mockPostDAO.SetDefaultBehavior()
 
 			// Create mock pseudonym DAO
-			mockPseudonymDAO := mocks.NewMockSecurePseudonymDAO()
+			mockPseudonymDAO := mocks.NewMockPseudonymDAO()
+
+			// Create mock role key DAO
+			mockRoleKeyDAO := mocks.NewMockRoleKeyDAO()
 
 			// Create handler with mocks
-			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPseudonymDAO, mockPostDAO)
+			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockIdentityMappingDAO, mockPseudonymDAO, mockPostDAO, mockRoleKeyDAO)
 
 			// Create context
 			ctx := context.Background()
@@ -206,7 +206,6 @@ func TestSubforumHandler_GetSubforumDetails(t *testing.T) {
 			mockSubforumDAO := mocks.NewMockSubforumDAO()
 			mockSubforumSubscriptionDAO := mocks.NewMockSubforumSubscriptionDAO()
 			mockPermissionDAO := mocks.NewMockPermissionDAO()
-			mockSubforumModeratorDAO := mocks.NewMockSubforumModeratorDAO()
 
 			// Set up mock data
 			switch tt.input.SubforumName {
@@ -226,8 +225,6 @@ func TestSubforumHandler_GetSubforumDetails(t *testing.T) {
 			mockPermissionDAO.On("CanAccessPrivateSubforumWithActivePseudonym", mock.Anything, int64(1), int32(1), "test-pseudonym-id").Return(true, nil)
 			mockPermissionDAO.SetDefaultBehavior()
 
-			mockSubforumModeratorDAO.SetDefaultBehavior()
-
 			// Create mock identity mapping DAO
 			mockIdentityMappingDAO := mocks.NewMockIdentityMappingDAO()
 
@@ -238,10 +235,16 @@ func TestSubforumHandler_GetSubforumDetails(t *testing.T) {
 			mockPostDAO.SetDefaultBehavior()
 
 			// Create mock pseudonym DAO
-			mockPseudonymDAO := mocks.NewMockSecurePseudonymDAO()
+			mockPseudonymDAO := mocks.NewMockPseudonymDAO()
+
+			// Create mock role key DAO
+			mockRoleKeyDAO := mocks.NewMockRoleKeyDAO()
+
+			// Set up mock expectations for GetModeratorsForSubforum
+			mockRoleKeyDAO.On("GetModeratorsForSubforum", mock.Anything, int32(1)).Return([]*dbmodels.RoleKey{}, nil)
 
 			// Create handler with mocks
-			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPseudonymDAO, mockPostDAO)
+			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockIdentityMappingDAO, mockPseudonymDAO, mockPostDAO, mockRoleKeyDAO)
 
 			// Create context
 			ctx := context.Background()
@@ -328,7 +331,6 @@ func TestSubforumHandler_SubscribeToSubforum(t *testing.T) {
 			mockSubforumDAO := mocks.NewMockSubforumDAO()
 			mockSubforumSubscriptionDAO := mocks.NewMockSubforumSubscriptionDAO()
 			mockPermissionDAO := mocks.NewMockPermissionDAO()
-			mockSubforumModeratorDAO := mocks.NewMockSubforumModeratorDAO()
 
 			// Set up mock data
 			if tt.input.SubforumName == "test-subforum" {
@@ -341,7 +343,6 @@ func TestSubforumHandler_SubscribeToSubforum(t *testing.T) {
 			mockSubforumSubscriptionDAO.SetDefaultBehavior()
 
 			mockPermissionDAO.SetDefaultBehavior()
-			mockSubforumModeratorDAO.SetDefaultBehavior()
 
 			// Create mock identity mapping DAO
 			mockIdentityMappingDAO := mocks.NewMockIdentityMappingDAO()
@@ -353,10 +354,13 @@ func TestSubforumHandler_SubscribeToSubforum(t *testing.T) {
 			mockPostDAO.SetDefaultBehavior()
 
 			// Create mock pseudonym DAO
-			mockPseudonymDAO := mocks.NewMockSecurePseudonymDAO()
+			mockPseudonymDAO := mocks.NewMockPseudonymDAO()
+
+			// Create mock role key DAO
+			mockRoleKeyDAO := mocks.NewMockRoleKeyDAO()
 
 			// Create handler with mocks
-			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPseudonymDAO, mockPostDAO)
+			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockIdentityMappingDAO, mockPseudonymDAO, mockPostDAO, mockRoleKeyDAO)
 
 			// Create context
 			ctx := context.Background()
@@ -443,7 +447,6 @@ func TestSubforumHandler_UnsubscribeFromSubforum(t *testing.T) {
 			mockSubforumDAO := mocks.NewMockSubforumDAO()
 			mockSubforumSubscriptionDAO := mocks.NewMockSubforumSubscriptionDAO()
 			mockPermissionDAO := mocks.NewMockPermissionDAO()
-			mockSubforumModeratorDAO := mocks.NewMockSubforumModeratorDAO()
 
 			// Set up mock data
 			if tt.input.SubforumName == "test-subforum" {
@@ -465,7 +468,6 @@ func TestSubforumHandler_UnsubscribeFromSubforum(t *testing.T) {
 			mockSubforumSubscriptionDAO.SetDefaultBehavior()
 
 			mockPermissionDAO.SetDefaultBehavior()
-			mockSubforumModeratorDAO.SetDefaultBehavior()
 
 			// Create mock identity mapping DAO
 			mockIdentityMappingDAO := mocks.NewMockIdentityMappingDAO()
@@ -477,10 +479,13 @@ func TestSubforumHandler_UnsubscribeFromSubforum(t *testing.T) {
 			mockPostDAO.SetDefaultBehavior()
 
 			// Create mock pseudonym DAO
-			mockPseudonymDAO := mocks.NewMockSecurePseudonymDAO()
+			mockPseudonymDAO := mocks.NewMockPseudonymDAO()
+
+			// Create mock role key DAO
+			mockRoleKeyDAO := mocks.NewMockRoleKeyDAO()
 
 			// Create handler with mocks
-			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPseudonymDAO, mockPostDAO)
+			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockIdentityMappingDAO, mockPseudonymDAO, mockPostDAO, mockRoleKeyDAO)
 
 			// Create context
 			ctx := context.Background()
@@ -688,13 +693,11 @@ func TestSubforumHandler_CreateSubforum(t *testing.T) {
 			mockSubforumDAO := mocks.NewMockSubforumDAO()
 			mockSubforumSubscriptionDAO := mocks.NewMockSubforumSubscriptionDAO()
 			mockPermissionDAO := mocks.NewMockPermissionDAO()
-			mockSubforumModeratorDAO := mocks.NewMockSubforumModeratorDAO()
 
 			// Set up mock data
 			mockSubforumDAO.SetDefaultBehavior()
 			mockSubforumSubscriptionDAO.SetDefaultBehavior()
 			mockPermissionDAO.SetDefaultBehavior()
-			mockSubforumModeratorDAO.SetDefaultBehavior()
 
 			// Create mock identity mapping DAO
 			mockIdentityMappingDAO := mocks.NewMockIdentityMappingDAO()
@@ -706,10 +709,13 @@ func TestSubforumHandler_CreateSubforum(t *testing.T) {
 			mockPostDAO.SetDefaultBehavior()
 
 			// Create mock pseudonym DAO
-			mockPseudonymDAO := mocks.NewMockSecurePseudonymDAO()
+			mockPseudonymDAO := mocks.NewMockPseudonymDAO()
+
+			// Create mock role key DAO
+			mockRoleKeyDAO := mocks.NewMockRoleKeyDAO()
 
 			// Create handler with mocks
-			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPseudonymDAO, mockPostDAO)
+			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockIdentityMappingDAO, mockPseudonymDAO, mockPostDAO, mockRoleKeyDAO)
 
 			// Create context
 			ctx := context.Background()
@@ -754,13 +760,11 @@ func TestGovernanceStyleEnforcement(t *testing.T) {
 			mockSubforumDAO := mocks.NewMockSubforumDAO()
 			mockSubforumSubscriptionDAO := mocks.NewMockSubforumSubscriptionDAO()
 			mockPermissionDAO := mocks.NewMockPermissionDAO()
-			mockSubforumModeratorDAO := mocks.NewMockSubforumModeratorDAO()
 
 			// Set up mock data
 			mockSubforumDAO.SetDefaultBehavior()
 			mockSubforumSubscriptionDAO.SetDefaultBehavior()
 			mockPermissionDAO.SetDefaultBehavior()
-			mockSubforumModeratorDAO.SetDefaultBehavior()
 
 			// Create mock identity mapping DAO
 			mockIdentityMappingDAO := mocks.NewMockIdentityMappingDAO()
@@ -772,10 +776,13 @@ func TestGovernanceStyleEnforcement(t *testing.T) {
 			mockPostDAO.SetDefaultBehavior()
 
 			// Create mock pseudonym DAO
-			mockPseudonymDAO := mocks.NewMockSecurePseudonymDAO()
+			mockPseudonymDAO := mocks.NewMockPseudonymDAO()
+
+			// Create mock role key DAO
+			mockRoleKeyDAO := mocks.NewMockRoleKeyDAO()
 
 			// Create handler with mocks
-			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPseudonymDAO, mockPostDAO)
+			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockIdentityMappingDAO, mockPseudonymDAO, mockPostDAO, mockRoleKeyDAO)
 
 			// Create test input
 			input := &models.SubforumCreateInput{
@@ -816,13 +823,11 @@ func TestCommunityTypeValidation(t *testing.T) {
 			mockSubforumDAO := mocks.NewMockSubforumDAO()
 			mockSubforumSubscriptionDAO := mocks.NewMockSubforumSubscriptionDAO()
 			mockPermissionDAO := mocks.NewMockPermissionDAO()
-			mockSubforumModeratorDAO := mocks.NewMockSubforumModeratorDAO()
 
 			// Set up mock data
 			mockSubforumDAO.SetDefaultBehavior()
 			mockSubforumSubscriptionDAO.SetDefaultBehavior()
 			mockPermissionDAO.SetDefaultBehavior()
-			mockSubforumModeratorDAO.SetDefaultBehavior()
 
 			// Create mock identity mapping DAO
 			mockIdentityMappingDAO := mocks.NewMockIdentityMappingDAO()
@@ -834,9 +839,13 @@ func TestCommunityTypeValidation(t *testing.T) {
 			mockPostDAO.SetDefaultBehavior()
 
 			// Create mock pseudonym DAO
-			mockPseudonymDAO := mocks.NewMockSecurePseudonymDAO()
+			mockPseudonymDAO := mocks.NewMockPseudonymDAO()
+
+			// Create mock role key DAO
+			mockRoleKeyDAO := mocks.NewMockRoleKeyDAO()
+
 			// Create handler with mocks
-			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPseudonymDAO, mockPostDAO)
+			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockIdentityMappingDAO, mockPseudonymDAO, mockPostDAO, mockRoleKeyDAO)
 
 			// Create test input with invalid community type
 			input := &models.SubforumCreateInput{
@@ -882,13 +891,11 @@ func TestOwnerAssignment(t *testing.T) {
 			mockSubforumDAO := mocks.NewMockSubforumDAO()
 			mockSubforumSubscriptionDAO := mocks.NewMockSubforumSubscriptionDAO()
 			mockPermissionDAO := mocks.NewMockPermissionDAO()
-			mockSubforumModeratorDAO := mocks.NewMockSubforumModeratorDAO()
 
 			// Set up mock data
 			mockSubforumDAO.SetDefaultBehavior()
 			mockSubforumSubscriptionDAO.SetDefaultBehavior()
 			mockPermissionDAO.SetDefaultBehavior()
-			mockSubforumModeratorDAO.SetDefaultBehavior()
 
 			// Create mock identity mapping DAO
 			mockIdentityMappingDAO := mocks.NewMockIdentityMappingDAO()
@@ -900,10 +907,13 @@ func TestOwnerAssignment(t *testing.T) {
 			mockPostDAO.SetDefaultBehavior()
 
 			// Create mock pseudonym DAO
-			mockPseudonymDAO := mocks.NewMockSecurePseudonymDAO()
+			mockPseudonymDAO := mocks.NewMockPseudonymDAO()
+
+			// Create mock role key DAO
+			mockRoleKeyDAO := mocks.NewMockRoleKeyDAO()
 
 			// Create handler with mocks
-			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPseudonymDAO, mockPostDAO)
+			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockIdentityMappingDAO, mockPseudonymDAO, mockPostDAO, mockRoleKeyDAO)
 
 			// Create user context with specific active pseudonym
 			userCtx := &middleware.UserContext{
@@ -1010,7 +1020,6 @@ func TestSubforumHandler_GetPseudonymSubscriptions(t *testing.T) {
 			mockSubforumDAO := mocks.NewMockSubforumDAO()
 			mockSubforumSubscriptionDAO := mocks.NewMockSubforumSubscriptionDAO()
 			mockPermissionDAO := mocks.NewMockPermissionDAO()
-			mockSubforumModeratorDAO := mocks.NewMockSubforumModeratorDAO()
 
 			// Set up mock data
 			mockSubforumDAO.InjectSubforum(fixtures.CreateTestSubforum())
@@ -1018,7 +1027,6 @@ func TestSubforumHandler_GetPseudonymSubscriptions(t *testing.T) {
 			mockSubforumSubscriptionDAO.InjectSubscriptionsByPseudonym("moderator-pseudonym-123", []*dbmodels.SubforumSubscription{fixtures.CreateTestSubforumSubscription()})
 			mockSubforumSubscriptionDAO.SetDefaultBehavior()
 			mockPermissionDAO.SetDefaultBehavior()
-			mockSubforumModeratorDAO.SetDefaultBehavior()
 
 			// Create mock identity mapping DAO
 			mockIdentityMappingDAO := mocks.NewMockIdentityMappingDAO()
@@ -1040,10 +1048,13 @@ func TestSubforumHandler_GetPseudonymSubscriptions(t *testing.T) {
 			mockPostDAO.SetDefaultBehavior()
 
 			// Create mock pseudonym DAO
-			mockPseudonymDAO := mocks.NewMockSecurePseudonymDAO()
+			mockPseudonymDAO := mocks.NewMockPseudonymDAO()
+
+			// Create mock role key DAO
+			mockRoleKeyDAO := mocks.NewMockRoleKeyDAO()
 
 			// Create handler with mocks
-			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockSubforumModeratorDAO, mockIdentityMappingDAO, mockPseudonymDAO, mockPostDAO)
+			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockIdentityMappingDAO, mockPseudonymDAO, mockPostDAO, mockRoleKeyDAO)
 
 			// Create context
 			ctx := context.Background()
@@ -1073,11 +1084,13 @@ func TestNewSubforumHandler(t *testing.T) {
 		mockSubforumDAO := &mocks.MockSubforumDAO{}
 		mockSubforumSubscriptionDAO := &mocks.MockSubforumSubscriptionDAO{}
 		mockPermissionDAO := &mocks.MockPermissionDAO{}
-		mockSubforumModeratorDAO := &mocks.MockSubforumModeratorDAO{}
 		mockIdentityMappingDAO := &mocks.MockIdentityMappingDAO{}
 		mockPostDAO := &mocks.MockPostDAO{}
 		// Create mock pseudonym DAO
-		mockPseudonymDAO := mocks.NewMockSecurePseudonymDAO()
+		mockPseudonymDAO := mocks.NewMockPseudonymDAO()
+
+		// Create mock role key DAO
+		mockRoleKeyDAO := mocks.NewMockRoleKeyDAO()
 
 		// Create handler with dependencies
 		handler := NewSubforumHandler(
@@ -1085,10 +1098,10 @@ func TestNewSubforumHandler(t *testing.T) {
 			mockSubforumDAO,
 			mockSubforumSubscriptionDAO,
 			mockPermissionDAO,
-			mockSubforumModeratorDAO,
 			mockIdentityMappingDAO,
 			mockPseudonymDAO,
 			mockPostDAO,
+			mockRoleKeyDAO,
 		)
 
 		// Verify handler is created
@@ -1451,7 +1464,6 @@ func TestSubforumHandler_GetModeratorTeam(t *testing.T) {
 		}
 		userCtx        *middleware.UserContext
 		mockSubforum   *dbmodels.Subforum
-		mockModerators []*dbmodels.SubforumModerator
 		wantErr        bool
 		expectedStatus int
 	}{
@@ -1482,24 +1494,6 @@ func TestSubforumHandler_GetModeratorTeam(t *testing.T) {
 				Name:             "hashpost",
 				OwnerPseudonymID: sql.Null[string]{V: "owner-pseudonym-123", Valid: true},
 			},
-			mockModerators: []*dbmodels.SubforumModerator{
-				{
-					SubforumID:         1,
-					PseudonymID:        "owner-pseudonym-123",
-					Role:               "subforum_owner",
-					Permissions:        sql.Null[types.JSON[json.RawMessage]]{Valid: true},
-					AddedAt:            sql.Null[time.Time]{V: time.Now(), Valid: true},
-					AddedByPseudonymID: sql.Null[string]{V: "admin-pseudonym-123", Valid: true},
-				},
-				{
-					SubforumID:         1,
-					PseudonymID:        "moderator-pseudonym-123",
-					Role:               "moderator",
-					Permissions:        sql.Null[types.JSON[json.RawMessage]]{Valid: true},
-					AddedAt:            sql.Null[time.Time]{V: time.Now(), Valid: true},
-					AddedByPseudonymID: sql.Null[string]{V: "owner-pseudonym-123", Valid: true},
-				},
-			},
 			wantErr:        false,
 			expectedStatus: 200,
 		},
@@ -1519,7 +1513,6 @@ func TestSubforumHandler_GetModeratorTeam(t *testing.T) {
 			},
 			userCtx:        nil,
 			mockSubforum:   nil,
-			mockModerators: nil,
 			wantErr:        true,
 			expectedStatus: 401,
 		},
@@ -1546,7 +1539,6 @@ func TestSubforumHandler_GetModeratorTeam(t *testing.T) {
 				Capabilities:      []string{"create_content", "vote", "message", "report", "create_subforum"}, // No manage_moderators capability
 			},
 			mockSubforum:   fixtures.CreateTestSubforum(),
-			mockModerators: nil,
 			wantErr:        true,
 			expectedStatus: 403,
 		},
@@ -1556,14 +1548,14 @@ func TestSubforumHandler_GetModeratorTeam(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create mock DAOs
 			mockSubforumDAO := mocks.NewMockSubforumDAO()
-			mockSubforumModeratorDAO := mocks.NewMockSubforumModeratorDAO()
 
 			// Create mock DAOs for all dependencies
 			mockPermissionDAO := mocks.NewMockPermissionDAO()
-			mockPseudonymDAO := mocks.NewMockSecurePseudonymDAO()
+			mockPseudonymDAO := mocks.NewMockPseudonymDAO()
 			mockIdentityMappingDAO := mocks.NewMockIdentityMappingDAO()
 			mockSubforumSubscriptionDAO := mocks.NewMockSubforumSubscriptionDAO()
 			mockPostDAO := mocks.NewMockPostDAO()
+			mockRoleKeyDAO := mocks.NewMockRoleKeyDAO()
 
 			// Set up mock expectations for subforum lookup
 			if tt.mockSubforum != nil {
@@ -1572,9 +1564,29 @@ func TestSubforumHandler_GetModeratorTeam(t *testing.T) {
 				mockSubforumDAO.On("GetSubforumByCommunityTypeAndName", mock.Anything, tt.input.Type, tt.input.Name).Return(nil, nil)
 			}
 
-			// Set up mock expectations for moderator lookup (only for successful cases)
-			if tt.mockSubforum != nil && tt.mockModerators != nil && !tt.wantErr {
-				mockSubforumModeratorDAO.On("GetModeratorsBySubforum", mock.Anything, tt.mockSubforum.SubforumID).Return(tt.mockModerators, nil)
+			// Set up mock expectations for GetModeratorsForSubforum
+			if tt.mockSubforum != nil {
+				// Create a mock role key for the owner if the subforum has an owner
+				var roleKeys []*dbmodels.RoleKey
+				if tt.mockSubforum.OwnerPseudonymID.Valid {
+					roleKey := &dbmodels.RoleKey{
+						PseudonymID:  tt.mockSubforum.OwnerPseudonymID.V,
+						RoleName:     "moderator",
+						IsActive:     sql.Null[bool]{V: true, Valid: true},
+						CreatedAt:    sql.Null[time.Time]{V: time.Now(), Valid: true},
+						CreatedBy:    "system",
+						Capabilities: types.JSON[json.RawMessage]{},
+					}
+					roleKeys = append(roleKeys, roleKey)
+
+					// Set up mock expectation for GetPseudonymByID
+					mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, tt.mockSubforum.OwnerPseudonymID.V).Return(&dbmodels.Pseudonym{
+						PseudonymID: tt.mockSubforum.OwnerPseudonymID.V,
+						DisplayName: "Owner User",
+						IsDefault:   true,
+					}, nil)
+				}
+				mockRoleKeyDAO.On("GetModeratorsForSubforum", mock.Anything, tt.mockSubforum.SubforumID).Return(roleKeys, nil)
 			}
 
 			// Set up mock expectations for permission check
@@ -1587,29 +1599,10 @@ func TestSubforumHandler_GetModeratorTeam(t *testing.T) {
 			}
 
 			// Set up mock expectations for pseudonym lookups
-			if tt.mockModerators != nil {
-				for _, mod := range tt.mockModerators {
-					mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, mod.PseudonymID).Return(&dbmodels.Pseudonym{
-						PseudonymID:  mod.PseudonymID,
-						DisplayName:  "Test " + mod.PseudonymID,
-						KarmaScore:   sql.Null[int32]{V: 0, Valid: true},
-						CreatedAt:    sql.Null[time.Time]{V: time.Now(), Valid: true},
-						LastActiveAt: sql.Null[time.Time]{V: time.Now(), Valid: true},
-						IsActive:     sql.Null[bool]{V: true, Valid: true},
-					}, nil)
-				}
-			}
+			// Note: This functionality has been moved to role keys system
 
 			// Create handler with all dependencies
-			handler := &SubforumHandler{
-				subforumDAO:             mockSubforumDAO,
-				subforumModeratorDAO:    mockSubforumModeratorDAO,
-				permissionDAO:           mockPermissionDAO,
-				pseudonymDAO:            mockPseudonymDAO,
-				identityMappingDAO:      mockIdentityMappingDAO,
-				subforumSubscriptionDAO: mockSubforumSubscriptionDAO,
-				postDAO:                 mockPostDAO,
-			}
+			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockIdentityMappingDAO, mockPseudonymDAO, mockPostDAO, mockRoleKeyDAO)
 
 			// Create context with user if provided
 			ctx := context.Background()
@@ -1628,14 +1621,12 @@ func TestSubforumHandler_GetModeratorTeam(t *testing.T) {
 				assert.NotNil(t, result)
 				assert.Equal(t, tt.mockSubforum.SubforumID, result.Body.SubforumID)
 				assert.Equal(t, tt.mockSubforum.Name, result.Body.Name)
-				assert.Len(t, result.Body.Members, len(tt.mockModerators)-1) // Excluding owner
 				assert.NotEmpty(t, result.Body.Owner.PseudonymID)
 			}
 
 			// Verify mocks only for successful cases
 			if !tt.wantErr {
 				mockSubforumDAO.AssertExpectations(t)
-				mockSubforumModeratorDAO.AssertExpectations(t)
 			}
 		})
 	}
@@ -1754,12 +1745,12 @@ func TestSubforumHandler_AddModerator(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create mock DAOs for all dependencies
 			mockSubforumDAO := mocks.NewMockSubforumDAO()
-			mockSubforumModeratorDAO := mocks.NewMockSubforumModeratorDAO()
 			mockPermissionDAO := mocks.NewMockPermissionDAO()
-			mockPseudonymDAO := mocks.NewMockSecurePseudonymDAO()
+			mockPseudonymDAO := mocks.NewMockPseudonymDAO()
 			mockIdentityMappingDAO := mocks.NewMockIdentityMappingDAO()
 			mockSubforumSubscriptionDAO := mocks.NewMockSubforumSubscriptionDAO()
 			mockPostDAO := mocks.NewMockPostDAO()
+			mockRoleKeyDAO := mocks.NewMockRoleKeyDAO()
 
 			// Set up mock expectations for subforum lookup
 			if tt.mockSubforum != nil {
@@ -1780,18 +1771,21 @@ func TestSubforumHandler_AddModerator(t *testing.T) {
 
 			// Set up mock expectations for moderator creation
 			if tt.userCtx != nil && tt.mockSubforum != nil && !tt.wantErr {
-				mockSubforumModeratorDAO.On("CreateModerator", mock.Anything, tt.mockSubforum.SubforumID, tt.input.Body.PseudonymID, tt.input.Body.Role, tt.userCtx.ActivePseudonymID).Return(&dbmodels.SubforumModerator{}, nil)
+				// Mock role key check - no existing moderator
+				mockRoleKeyDAO.On("GetRoleKey", mock.Anything, tt.input.Body.PseudonymID, "moderation", &tt.mockSubforum.SubforumID).Return(nil, nil)
+				// Mock role key creation
+				mockRoleKeyDAO.On("CreateRoleKey", mock.Anything, "moderator", "moderation", []byte{}, mock.Anything, mock.Anything, tt.userCtx.ActivePseudonymID, tt.input.Body.PseudonymID, &tt.mockSubforum.SubforumID).Return(&dbmodels.RoleKey{}, nil)
 			}
 
 			// Create handler with all dependencies
 			handler := &SubforumHandler{
 				subforumDAO:             mockSubforumDAO,
-				subforumModeratorDAO:    mockSubforumModeratorDAO,
 				permissionDAO:           mockPermissionDAO,
 				pseudonymDAO:            mockPseudonymDAO,
 				identityMappingDAO:      mockIdentityMappingDAO,
 				subforumSubscriptionDAO: mockSubforumSubscriptionDAO,
 				postDAO:                 mockPostDAO,
+				roleKeyDAO:              mockRoleKeyDAO,
 			}
 
 			// Create context with user if provided
@@ -1816,7 +1810,7 @@ func TestSubforumHandler_AddModerator(t *testing.T) {
 
 			// Verify mocks
 			mockSubforumDAO.AssertExpectations(t)
-			mockSubforumModeratorDAO.AssertExpectations(t)
+			mockRoleKeyDAO.AssertExpectations(t)
 		})
 	}
 }
@@ -1905,12 +1899,12 @@ func TestSubforumHandler_UpdateModerator(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create mock DAOs for all dependencies
 			mockSubforumDAO := mocks.NewMockSubforumDAO()
-			mockSubforumModeratorDAO := mocks.NewMockSubforumModeratorDAO()
 			mockPermissionDAO := mocks.NewMockPermissionDAO()
-			mockPseudonymDAO := mocks.NewMockSecurePseudonymDAO()
+			mockPseudonymDAO := mocks.NewMockPseudonymDAO()
 			mockIdentityMappingDAO := mocks.NewMockIdentityMappingDAO()
 			mockSubforumSubscriptionDAO := mocks.NewMockSubforumSubscriptionDAO()
 			mockPostDAO := mocks.NewMockPostDAO()
+			mockRoleKeyDAO := mocks.NewMockRoleKeyDAO()
 
 			// Set up mock expectations for subforum lookup
 			if tt.mockSubforum != nil {
@@ -1931,18 +1925,19 @@ func TestSubforumHandler_UpdateModerator(t *testing.T) {
 
 			// Set up mock expectations for moderator update
 			if tt.userCtx != nil && tt.mockSubforum != nil && !tt.wantErr {
-				mockSubforumModeratorDAO.On("UpdateModeratorRole", mock.Anything, tt.input.PseudonymID, tt.mockSubforum.SubforumID, tt.input.Body.Role).Return(nil)
+				// Mock role key check - existing moderator found
+				mockRoleKeyDAO.On("GetRoleKey", mock.Anything, tt.input.PseudonymID, "moderation", &tt.mockSubforum.SubforumID).Return(&dbmodels.RoleKey{}, nil)
 			}
 
 			// Create handler with all dependencies
 			handler := &SubforumHandler{
 				subforumDAO:             mockSubforumDAO,
-				subforumModeratorDAO:    mockSubforumModeratorDAO,
 				permissionDAO:           mockPermissionDAO,
 				pseudonymDAO:            mockPseudonymDAO,
 				identityMappingDAO:      mockIdentityMappingDAO,
 				subforumSubscriptionDAO: mockSubforumSubscriptionDAO,
 				postDAO:                 mockPostDAO,
+				roleKeyDAO:              mockRoleKeyDAO,
 			}
 
 			// Create context with user if provided
@@ -1967,7 +1962,7 @@ func TestSubforumHandler_UpdateModerator(t *testing.T) {
 
 			// Verify mocks
 			mockSubforumDAO.AssertExpectations(t)
-			mockSubforumModeratorDAO.AssertExpectations(t)
+			mockRoleKeyDAO.AssertExpectations(t)
 		})
 	}
 }
@@ -2042,12 +2037,12 @@ func TestSubforumHandler_RemoveModerator(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create mock DAOs for all dependencies
 			mockSubforumDAO := mocks.NewMockSubforumDAO()
-			mockSubforumModeratorDAO := mocks.NewMockSubforumModeratorDAO()
 			mockPermissionDAO := mocks.NewMockPermissionDAO()
-			mockPseudonymDAO := mocks.NewMockSecurePseudonymDAO()
+			mockPseudonymDAO := mocks.NewMockPseudonymDAO()
 			mockIdentityMappingDAO := mocks.NewMockIdentityMappingDAO()
 			mockSubforumSubscriptionDAO := mocks.NewMockSubforumSubscriptionDAO()
 			mockPostDAO := mocks.NewMockPostDAO()
+			mockRoleKeyDAO := mocks.NewMockRoleKeyDAO()
 
 			// Set up mock expectations for subforum lookup
 			if tt.mockSubforum != nil {
@@ -2068,18 +2063,21 @@ func TestSubforumHandler_RemoveModerator(t *testing.T) {
 
 			// Set up mock expectations for moderator removal
 			if tt.userCtx != nil && tt.mockSubforum != nil && !tt.wantErr {
-				mockSubforumModeratorDAO.On("DeleteModerator", mock.Anything, tt.input.PseudonymID, tt.mockSubforum.SubforumID).Return(nil)
+				// Mock role key check - existing moderator found
+				mockRoleKeyDAO.On("GetRoleKey", mock.Anything, tt.input.PseudonymID, "moderation", &tt.mockSubforum.SubforumID).Return(&dbmodels.RoleKey{KeyID: [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}}, nil)
+				// Mock role key deactivation
+				mockRoleKeyDAO.On("DeactivateRoleKey", mock.Anything, mock.Anything).Return(nil)
 			}
 
 			// Create handler with all dependencies
 			handler := &SubforumHandler{
 				subforumDAO:             mockSubforumDAO,
-				subforumModeratorDAO:    mockSubforumModeratorDAO,
 				permissionDAO:           mockPermissionDAO,
 				pseudonymDAO:            mockPseudonymDAO,
 				identityMappingDAO:      mockIdentityMappingDAO,
 				subforumSubscriptionDAO: mockSubforumSubscriptionDAO,
 				postDAO:                 mockPostDAO,
+				roleKeyDAO:              mockRoleKeyDAO,
 			}
 
 			// Create context with user if provided
@@ -2103,7 +2101,7 @@ func TestSubforumHandler_RemoveModerator(t *testing.T) {
 
 			// Verify mocks
 			mockSubforumDAO.AssertExpectations(t)
-			mockSubforumModeratorDAO.AssertExpectations(t)
+			mockRoleKeyDAO.AssertExpectations(t)
 		})
 	}
 }

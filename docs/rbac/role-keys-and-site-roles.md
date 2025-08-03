@@ -124,7 +124,7 @@ Role keys are used to authorize specific operations:
 
 ```go
 // Example: Getting user pseudonyms
-func (dao *SecurePseudonymDAO) GetPseudonymsByUserID(ctx context.Context, userID int64, roleName, scope string) ([]*models.Pseudonym, error) {
+func (dao *PseudonymDAO) GetPseudonymsByUserID(ctx context.Context, userID int64, roleName, scope string) ([]*models.Pseudonym, error) {
     // Validate that the key has the required capability
     hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, roleName, scope, "access_own_pseudonyms")
     if err != nil {

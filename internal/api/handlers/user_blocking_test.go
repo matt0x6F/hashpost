@@ -17,16 +17,16 @@ import (
 )
 
 // NewUserHandlerWithMocksForBlockingForBlocking creates a new user handler with mock DAOs for blocking tests
-func NewUserHandlerWithMocksForBlocking() (*UserHandler, *mocks.MockSecurePseudonymDAO, *mocks.MockUserBlocksDAO) {
-	mockSecurePseudonymDAO := mocks.NewMockSecurePseudonymDAO()
+func NewUserHandlerWithMocksForBlocking() (*UserHandler, *mocks.MockPseudonymDAO, *mocks.MockUserBlocksDAO) {
+	mockPseudonymDAO := mocks.NewMockPseudonymDAO()
 	mockUserBlocksDAO := &mocks.MockUserBlocksDAO{}
 
 	handler := &UserHandler{
-		securePseudonymDAO: mockSecurePseudonymDAO,
-		userBlocksDAO:      mockUserBlocksDAO,
+		pseudonymDAO:  mockPseudonymDAO,
+		userBlocksDAO: mockUserBlocksDAO,
 	}
 
-	return handler, mockSecurePseudonymDAO, mockUserBlocksDAO
+	return handler, mockPseudonymDAO, mockUserBlocksDAO
 }
 
 // TestUserHandler_BlockUser tests the user blocking functionality
@@ -39,7 +39,7 @@ func TestUserHandler_BlockUser(t *testing.T) {
 	}, &config.SecurityConfig{}))
 
 	t.Run("BlockPseudonymLevel", func(t *testing.T) {
-		handler, mockSecurePseudonymDAO, mockUserBlocksDAO := NewUserHandlerWithMocksForBlocking()
+		handler, mockPseudonymDAO, mockUserBlocksDAO := NewUserHandlerWithMocksForBlocking()
 
 		// Test data
 		blockerUserID := int64(1)
@@ -48,10 +48,10 @@ func TestUserHandler_BlockUser(t *testing.T) {
 
 		// Mock blocked pseudonym retrieval
 		mockBlockedPseudonym := fixtures.CreateTestPseudonymForBlocking(blockedPseudonymID, "BlockedUser")
-		mockSecurePseudonymDAO.On("GetPseudonymByID", mock.Anything, blockedPseudonymID).Return(mockBlockedPseudonym, nil)
+		mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, blockedPseudonymID).Return(mockBlockedPseudonym, nil)
 
 		// Mock ownership verification (should return false since it's not the same user)
-		mockSecurePseudonymDAO.On("VerifyPseudonymOwnership", mock.Anything, blockedPseudonymID, blockerUserID, "user", "self_correlation").Return(false, nil)
+		mockPseudonymDAO.On("VerifyPseudonymOwnership", mock.Anything, blockedPseudonymID, blockerUserID, "user", "self_correlation").Return(false, nil)
 
 		// Mock user block creation
 		mockUserBlock := fixtures.CreateTestUserBlock(1, blockerPseudonymID, blockedPseudonymID, 0)
@@ -86,12 +86,12 @@ func TestUserHandler_BlockUser(t *testing.T) {
 		assert.Equal(t, blockedPseudonymID, response.Body.BlockedPseudonymID)
 
 		// Verify mocks were called
-		mockSecurePseudonymDAO.AssertExpectations(t)
+		mockPseudonymDAO.AssertExpectations(t)
 		mockUserBlocksDAO.AssertExpectations(t)
 	})
 
 	t.Run("BlockFingerprintLevel", func(t *testing.T) {
-		handler, mockSecurePseudonymDAO, mockUserBlocksDAO := NewUserHandlerWithMocksForBlocking()
+		handler, mockPseudonymDAO, mockUserBlocksDAO := NewUserHandlerWithMocksForBlocking()
 
 		// Test data
 		blockerUserID := int64(1)
@@ -101,13 +101,13 @@ func TestUserHandler_BlockUser(t *testing.T) {
 
 		// Mock blocked pseudonym retrieval
 		mockBlockedPseudonym := fixtures.CreateTestPseudonymForBlocking(blockedPseudonymID, "BlockedUser")
-		mockSecurePseudonymDAO.On("GetPseudonymByID", mock.Anything, blockedPseudonymID).Return(mockBlockedPseudonym, nil)
+		mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, blockedPseudonymID).Return(mockBlockedPseudonym, nil)
 
 		// Mock ownership verification (should return false since it's not the same user)
-		mockSecurePseudonymDAO.On("VerifyPseudonymOwnership", mock.Anything, blockedPseudonymID, blockerUserID, "user", "self_correlation").Return(false, nil)
+		mockPseudonymDAO.On("VerifyPseudonymOwnership", mock.Anything, blockedPseudonymID, blockerUserID, "user", "self_correlation").Return(false, nil)
 
 		// Mock getting user ID by pseudonym
-		mockSecurePseudonymDAO.On("GetUserIDByPseudonym", mock.Anything, blockedPseudonymID, "user", "self_correlation").Return(blockedUserID, nil)
+		mockPseudonymDAO.On("GetUserIDByPseudonym", mock.Anything, blockedPseudonymID, "user", "self_correlation").Return(blockedUserID, nil)
 
 		// Mock user block creation (fingerprint level)
 		mockUserBlock := fixtures.CreateTestUserBlock(1, blockerPseudonymID, "", blockedUserID)
@@ -142,12 +142,12 @@ func TestUserHandler_BlockUser(t *testing.T) {
 		assert.Equal(t, blockedPseudonymID, response.Body.BlockedPseudonymID)
 
 		// Verify mocks were called
-		mockSecurePseudonymDAO.AssertExpectations(t)
+		mockPseudonymDAO.AssertExpectations(t)
 		mockUserBlocksDAO.AssertExpectations(t)
 	})
 
 	t.Run("BlockSelfPrevention", func(t *testing.T) {
-		handler, mockSecurePseudonymDAO, mockUserBlocksDAO := NewUserHandlerWithMocksForBlocking()
+		handler, mockPseudonymDAO, mockUserBlocksDAO := NewUserHandlerWithMocksForBlocking()
 
 		// Test data
 		blockerUserID := int64(1)
@@ -156,10 +156,10 @@ func TestUserHandler_BlockUser(t *testing.T) {
 
 		// Mock blocked pseudonym retrieval
 		mockBlockedPseudonym := fixtures.CreateTestPseudonymForBlocking(blockedPseudonymID, "SelfUser")
-		mockSecurePseudonymDAO.On("GetPseudonymByID", mock.Anything, blockedPseudonymID).Return(mockBlockedPseudonym, nil)
+		mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, blockedPseudonymID).Return(mockBlockedPseudonym, nil)
 
 		// Mock ownership verification (should return true since it's the same user)
-		mockSecurePseudonymDAO.On("VerifyPseudonymOwnership", mock.Anything, blockedPseudonymID, blockerUserID, "user", "self_correlation").Return(true, nil)
+		mockPseudonymDAO.On("VerifyPseudonymOwnership", mock.Anything, blockedPseudonymID, blockerUserID, "user", "self_correlation").Return(true, nil)
 
 		// Create input
 		blockAllPersonas := false
@@ -189,12 +189,12 @@ func TestUserHandler_BlockUser(t *testing.T) {
 		assert.Contains(t, err.Error(), "Cannot block yourself")
 
 		// Verify mocks were called
-		mockSecurePseudonymDAO.AssertExpectations(t)
+		mockPseudonymDAO.AssertExpectations(t)
 		mockUserBlocksDAO.AssertExpectations(t)
 	})
 
 	t.Run("BlockNonExistentPseudonym", func(t *testing.T) {
-		handler, mockSecurePseudonymDAO, mockUserBlocksDAO := NewUserHandlerWithMocksForBlocking()
+		handler, mockPseudonymDAO, mockUserBlocksDAO := NewUserHandlerWithMocksForBlocking()
 
 		// Test data
 		blockerUserID := int64(1)
@@ -202,7 +202,7 @@ func TestUserHandler_BlockUser(t *testing.T) {
 		blockedPseudonymID := "nonexistent-pseudonym-123"
 
 		// Mock blocked pseudonym retrieval (should return nil, not found)
-		mockSecurePseudonymDAO.On("GetPseudonymByID", mock.Anything, blockedPseudonymID).Return(nil, nil)
+		mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, blockedPseudonymID).Return(nil, nil)
 
 		// Create input
 		blockAllPersonas := false
@@ -232,7 +232,7 @@ func TestUserHandler_BlockUser(t *testing.T) {
 		assert.Contains(t, err.Error(), "not found")
 
 		// Verify mocks were called
-		mockSecurePseudonymDAO.AssertExpectations(t)
+		mockPseudonymDAO.AssertExpectations(t)
 		mockUserBlocksDAO.AssertExpectations(t)
 	})
 }
@@ -286,7 +286,7 @@ func TestUserHandler_UnblockUser(t *testing.T) {
 	})
 
 	t.Run("UnblockFingerprintLevel", func(t *testing.T) {
-		handler, mockSecurePseudonymDAO, mockUserBlocksDAO := NewUserHandlerWithMocksForBlocking()
+		handler, mockPseudonymDAO, mockUserBlocksDAO := NewUserHandlerWithMocksForBlocking()
 
 		// Test data
 		blockerPseudonymID := "blocker-pseudonym-123"
@@ -297,7 +297,7 @@ func TestUserHandler_UnblockUser(t *testing.T) {
 		mockUserBlocksDAO.On("GetUserBlock", mock.Anything, blockerPseudonymID, blockedPseudonymID).Return(nil, nil)
 
 		// Mock getting user ID by pseudonym
-		mockSecurePseudonymDAO.On("GetUserIDByPseudonym", mock.Anything, blockedPseudonymID, "user", "self_correlation").Return(blockedUserID, nil)
+		mockPseudonymDAO.On("GetUserIDByPseudonym", mock.Anything, blockedPseudonymID, "user", "self_correlation").Return(blockedUserID, nil)
 
 		// Mock fingerprint-level blocks
 		mockUserBlock := fixtures.CreateTestUserBlock(1, blockerPseudonymID, "", blockedUserID)
@@ -328,12 +328,12 @@ func TestUserHandler_UnblockUser(t *testing.T) {
 		assert.Equal(t, blockedPseudonymID, response.Body.BlockedPseudonymID)
 
 		// Verify mocks were called
-		mockSecurePseudonymDAO.AssertExpectations(t)
+		mockPseudonymDAO.AssertExpectations(t)
 		mockUserBlocksDAO.AssertExpectations(t)
 	})
 
 	t.Run("UnblockNonExistentBlock", func(t *testing.T) {
-		handler, mockSecurePseudonymDAO, mockUserBlocksDAO := NewUserHandlerWithMocksForBlocking()
+		handler, mockPseudonymDAO, mockUserBlocksDAO := NewUserHandlerWithMocksForBlocking()
 
 		// Test data
 		blockerPseudonymID := "blocker-pseudonym-123"
@@ -344,7 +344,7 @@ func TestUserHandler_UnblockUser(t *testing.T) {
 		mockUserBlocksDAO.On("GetUserBlock", mock.Anything, blockerPseudonymID, blockedPseudonymID).Return(nil, nil)
 
 		// Mock getting user ID by pseudonym
-		mockSecurePseudonymDAO.On("GetUserIDByPseudonym", mock.Anything, blockedPseudonymID, "user", "self_correlation").Return(blockedUserID, nil)
+		mockPseudonymDAO.On("GetUserIDByPseudonym", mock.Anything, blockedPseudonymID, "user", "self_correlation").Return(blockedUserID, nil)
 
 		// Mock no fingerprint-level blocks found
 		mockUserBlocksDAO.On("GetFingerprintLevelBlocks", mock.Anything, blockedUserID).Return([]*dbmodels.UserBlock{}, nil)
@@ -371,7 +371,7 @@ func TestUserHandler_UnblockUser(t *testing.T) {
 		assert.Contains(t, err.Error(), "Block not found")
 
 		// Verify mocks were called
-		mockSecurePseudonymDAO.AssertExpectations(t)
+		mockPseudonymDAO.AssertExpectations(t)
 		mockUserBlocksDAO.AssertExpectations(t)
 	})
 }

@@ -7,27 +7,27 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// MockSecurePseudonymDAO is a mock implementation of SecurePseudonymDAOInterface with data injection support
-type MockSecurePseudonymDAO struct {
+// MockPseudonymDAO is a mock implementation of PseudonymDAOInterface with data injection support
+type MockPseudonymDAO struct {
 	mock.Mock
 	// Custom data that can be injected for testing
 	pseudonyms map[string]*models.Pseudonym
 }
 
-// NewMockSecurePseudonymDAO creates a new mock SecurePseudonymDAO with optional initial data
-func NewMockSecurePseudonymDAO() *MockSecurePseudonymDAO {
-	return &MockSecurePseudonymDAO{
+// NewMockPseudonymDAO creates a new mock PseudonymDAO with optional initial data
+func NewMockPseudonymDAO() *MockPseudonymDAO {
+	return &MockPseudonymDAO{
 		pseudonyms: make(map[string]*models.Pseudonym),
 	}
 }
 
 // InjectPseudonym injects a pseudonym into the mock for testing
-func (m *MockSecurePseudonymDAO) InjectPseudonym(pseudonym *models.Pseudonym) {
+func (m *MockPseudonymDAO) InjectPseudonym(pseudonym *models.Pseudonym) {
 	m.pseudonyms[pseudonym.PseudonymID] = pseudonym
 }
 
 // SetDefaultBehavior sets up default mock behavior for common operations
-func (m *MockSecurePseudonymDAO) SetDefaultBehavior() {
+func (m *MockPseudonymDAO) SetDefaultBehavior() {
 	// Default behavior for GetPseudonymByID
 	m.On("GetPseudonymByID", mock.Anything, mock.AnythingOfType("string")).Return(
 		func(ctx context.Context, pseudonymID string) (*models.Pseudonym, error) {
@@ -47,7 +47,7 @@ func (m *MockSecurePseudonymDAO) SetDefaultBehavior() {
 	)
 }
 
-func (m *MockSecurePseudonymDAO) CreatePseudonymWithIdentityMapping(ctx context.Context, userID int64, displayName string) (*models.Pseudonym, error) {
+func (m *MockPseudonymDAO) CreatePseudonymWithIdentityMapping(ctx context.Context, userID int64, displayName string) (*models.Pseudonym, error) {
 	args := m.Called(ctx, userID, displayName)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -55,7 +55,7 @@ func (m *MockSecurePseudonymDAO) CreatePseudonymWithIdentityMapping(ctx context.
 	return args.Get(0).(*models.Pseudonym), args.Error(1)
 }
 
-func (m *MockSecurePseudonymDAO) GetPseudonymByID(ctx context.Context, pseudonymID string) (*models.Pseudonym, error) {
+func (m *MockPseudonymDAO) GetPseudonymByID(ctx context.Context, pseudonymID string) (*models.Pseudonym, error) {
 	args := m.Called(ctx, pseudonymID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -73,7 +73,7 @@ func (m *MockSecurePseudonymDAO) GetPseudonymByID(ctx context.Context, pseudonym
 	return args.Get(0).(*models.Pseudonym), args.Error(1)
 }
 
-func (m *MockSecurePseudonymDAO) GetPseudonymByDisplayName(ctx context.Context, displayName string) (*models.Pseudonym, error) {
+func (m *MockPseudonymDAO) GetPseudonymByDisplayName(ctx context.Context, displayName string) (*models.Pseudonym, error) {
 	args := m.Called(ctx, displayName)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -81,7 +81,7 @@ func (m *MockSecurePseudonymDAO) GetPseudonymByDisplayName(ctx context.Context, 
 	return args.Get(0).(*models.Pseudonym), args.Error(1)
 }
 
-func (m *MockSecurePseudonymDAO) GetPseudonymsByUserID(ctx context.Context, userID int64, roleName, scope string) ([]*models.Pseudonym, error) {
+func (m *MockPseudonymDAO) GetPseudonymsByUserID(ctx context.Context, userID int64, roleName, scope string) ([]*models.Pseudonym, error) {
 	args := m.Called(ctx, userID, roleName, scope)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -89,7 +89,7 @@ func (m *MockSecurePseudonymDAO) GetPseudonymsByUserID(ctx context.Context, user
 	return args.Get(0).([]*models.Pseudonym), args.Error(1)
 }
 
-func (m *MockSecurePseudonymDAO) GetDefaultPseudonymByUserID(ctx context.Context, userID int64, roleName, scope string) (*models.Pseudonym, error) {
+func (m *MockPseudonymDAO) GetDefaultPseudonymByUserID(ctx context.Context, userID int64, roleName, scope string) (*models.Pseudonym, error) {
 	args := m.Called(ctx, userID, roleName, scope)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -97,22 +97,22 @@ func (m *MockSecurePseudonymDAO) GetDefaultPseudonymByUserID(ctx context.Context
 	return args.Get(0).(*models.Pseudonym), args.Error(1)
 }
 
-func (m *MockSecurePseudonymDAO) UpdatePseudonym(ctx context.Context, pseudonymID string, updates *models.PseudonymSetter) error {
+func (m *MockPseudonymDAO) UpdatePseudonym(ctx context.Context, pseudonymID string, updates *models.PseudonymSetter) error {
 	args := m.Called(ctx, pseudonymID, updates)
 	return args.Error(0)
 }
 
-func (m *MockSecurePseudonymDAO) DeletePseudonym(ctx context.Context, pseudonymID string) error {
+func (m *MockPseudonymDAO) DeletePseudonym(ctx context.Context, pseudonymID string) error {
 	args := m.Called(ctx, pseudonymID)
 	return args.Error(0)
 }
 
-func (m *MockSecurePseudonymDAO) VerifyPseudonymOwnership(ctx context.Context, pseudonymID string, userID int64, roleName, scope string) (bool, error) {
+func (m *MockPseudonymDAO) VerifyPseudonymOwnership(ctx context.Context, pseudonymID string, userID int64, roleName, scope string) (bool, error) {
 	args := m.Called(ctx, pseudonymID, userID, roleName, scope)
 	return args.Bool(0), args.Error(1)
 }
 
-func (m *MockSecurePseudonymDAO) GetUserIDByPseudonym(ctx context.Context, pseudonymID, roleName, scope string) (int64, error) {
+func (m *MockPseudonymDAO) GetUserIDByPseudonym(ctx context.Context, pseudonymID, roleName, scope string) (int64, error) {
 	args := m.Called(ctx, pseudonymID, roleName, scope)
 
 	// Check if the return value is a function
@@ -124,12 +124,12 @@ func (m *MockSecurePseudonymDAO) GetUserIDByPseudonym(ctx context.Context, pseud
 	return args.Get(0).(int64), args.Error(1)
 }
 
-func (m *MockSecurePseudonymDAO) UpdateLastActive(ctx context.Context, pseudonymID string) error {
+func (m *MockPseudonymDAO) UpdateLastActive(ctx context.Context, pseudonymID string) error {
 	args := m.Called(ctx, pseudonymID)
 	return args.Error(0)
 }
 
-func (m *MockSecurePseudonymDAO) DeactivatePseudonym(ctx context.Context, pseudonymID string, userID int64, roleName, scope string) error {
+func (m *MockPseudonymDAO) DeactivatePseudonym(ctx context.Context, pseudonymID string, userID int64, roleName, scope string) error {
 	args := m.Called(ctx, pseudonymID, userID, roleName, scope)
 	return args.Error(0)
 }

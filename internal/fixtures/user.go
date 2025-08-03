@@ -2,6 +2,7 @@ package fixtures
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	"github.com/matt0x6f/hashpost/internal/database/models"
+	"github.com/stephenafamo/bob/types"
 )
 
 // CreateTestUserContext creates a test user context
@@ -136,12 +138,18 @@ func MustGenerateTestJWTToken(userID int64, activePseudonymID string) string {
 func CreateTestRoleKey(keyID string, roleName, scope string, capabilities []string) *models.RoleKey {
 	// Create a UUID from the string keyID for testing
 	uuid, _ := uuid.FromString(keyID)
+
 	return &models.RoleKey{
-		KeyID:     uuid,
-		RoleName:  roleName,
-		Scope:     scope,
-		KeyData:   []byte("test_key_data"),
-		ExpiresAt: time.Now().AddDate(1, 0, 0),
-		CreatedBy: 1,
+		KeyID:        uuid,
+		RoleName:     roleName,
+		Scope:        scope,
+		KeyData:      []byte("test_key_data"),
+		Capabilities: types.NewJSON(json.RawMessage(`["test-capability"]`)),
+		ExpiresAt:    time.Now().AddDate(1, 0, 0),
+		IsActive:     sql.Null[bool]{V: true, Valid: true},
+		CreatedAt:    sql.Null[time.Time]{V: time.Now(), Valid: true},
+		CreatedBy:    "test-pseudonym-id",
+		PseudonymID:  "test-pseudonym-id",
+		SubforumID:   sql.Null[int32]{Valid: false},
 	}
 }

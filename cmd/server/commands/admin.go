@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/matt0x6f/hashpost/internal/api/constants"
 	"github.com/matt0x6f/hashpost/internal/config"
@@ -251,14 +252,8 @@ func CreateAdminUser() error {
 		log.Info().Int64("user_id", user.UserID).Msg("New admin user created")
 	}
 
-	// Ensure default role keys for the admin user
-	roleKeyDAO := dao.NewRoleKeyDAO(db)
-	if err := roleKeyDAO.EnsureDefaultKeys(ctx, ibeSystem, user.UserID); err != nil {
-		return fmt.Errorf("failed to create default role keys for admin user: %w", err)
-	}
-
 	// Create a pseudonym for the admin user with identity mapping
-	securePseudonymDAO := dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO, dao.NewUserDAO(db), dao.NewRoleKeyDAO(db), dao.NewUserBlocksDAO(db))
+	pseudonymDAO := dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO, dao.NewUserDAO(db), dao.NewRoleKeyDAO(db), dao.NewUserBlocksDAO(db))
 
 	// Use display name for pseudonym (it's required)
 	displayName := input.DisplayName
@@ -267,7 +262,7 @@ func CreateAdminUser() error {
 	}
 
 	// Check if user already has a pseudonym
-	existingPseudonyms, err := securePseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, input.AdminRole, "authentication")
+	existingPseudonyms, err := pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, input.AdminRole, "authentication")
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to check existing pseudonyms, will create new one")
 	}
@@ -279,7 +274,7 @@ func CreateAdminUser() error {
 		log.Info().Str("pseudonym_id", pseudonym.PseudonymID).Msg("Using existing pseudonym")
 	} else {
 		// Create new pseudonym and identity mapping
-		pseudonym, err = securePseudonymDAO.CreatePseudonymWithIdentityMapping(ctx, user.UserID, displayName)
+		pseudonym, err = pseudonymDAO.CreatePseudonymWithIdentityMapping(ctx, user.UserID, displayName)
 		if err != nil {
 			return fmt.Errorf("failed to create pseudonym for admin user: %w", err)
 		}
@@ -301,11 +296,17 @@ func CreateAdminUser() error {
 			Capabilities: &capabilitiesNull,
 		}
 
-		if err := securePseudonymDAO.UpdatePseudonym(ctx, pseudonym.PseudonymID, pseudonymUpdates); err != nil {
+		if err := pseudonymDAO.UpdatePseudonym(ctx, pseudonym.PseudonymID, pseudonymUpdates); err != nil {
 			return fmt.Errorf("failed to update pseudonym with admin capabilities: %w", err)
 		}
 
 		log.Info().Str("pseudonym_id", pseudonym.PseudonymID).Msg("Created new pseudonym with admin capabilities")
+	}
+
+	// Ensure default role keys for the admin user's pseudonym
+	roleKeyDAO := dao.NewRoleKeyDAO(db)
+	if err := roleKeyDAO.EnsureDefaultKeys(ctx, ibeSystem, pseudonym.PseudonymID, []string{input.AdminRole}); err != nil {
+		return fmt.Errorf("failed to create default role keys for admin user: %w", err)
 	}
 
 	log.Info().
@@ -362,7 +363,9 @@ func SetModerator() error {
 
 	// Create DAOs
 	subforumDAO := dao.NewSubforumDAO(db)
-	pseudonymDAO := dao.NewPseudonymDAO(db, ibe.NewIBESystemFromEnv(), dao.NewIdentityMappingDAO(db), dao.NewUserDAO(db), dao.NewRoleKeyDAO(db), dao.NewUserBlocksDAO(db))
+	roleKeyDAO := dao.NewRoleKeyDAO(db)
+	ibeSystem := ibe.NewIBESystemFromEnv()
+	pseudonymDAO := dao.NewPseudonymDAO(db, ibeSystem, dao.NewIdentityMappingDAO(db), dao.NewUserDAO(db), roleKeyDAO, dao.NewUserBlocksDAO(db))
 
 	ctx := context.Background()
 
@@ -384,23 +387,39 @@ func SetModerator() error {
 		return fmt.Errorf("pseudonym '%s' not found", input.PseudonymID)
 	}
 
-	// Check if pseudonym is already a moderator
-	existingModerators, err := subforumDAO.GetSubforumModerators(ctx, subforum.SubforumID)
+	// Check if pseudonym already has moderator role keys for this subforum
+	existingModeratorKey, err := roleKeyDAO.GetRoleKey(ctx, input.PseudonymID, "moderation", &subforum.SubforumID)
 	if err != nil {
-		return fmt.Errorf("failed to get existing moderators: %w", err)
+		return fmt.Errorf("failed to check existing moderator role keys: %w", err)
 	}
 
-	for _, mod := range existingModerators {
-		if mod.PseudonymID == input.PseudonymID {
-			fmt.Printf("✅ Pseudonym '%s' is already a moderator of subforum '%s'\n", input.PseudonymID, input.SubforumName)
-			return nil
+	if existingModeratorKey != nil {
+		fmt.Printf("✅ Pseudonym '%s' is already a moderator of subforum '%s'\n", input.PseudonymID, input.SubforumName)
+		return nil
+	}
+
+	// Create moderator role keys for the pseudonym in this subforum
+	// Get the moderator role definition
+	moderatorRole := constants.GetRoleDefinition(constants.RoleModerator)
+	if moderatorRole == nil {
+		return fmt.Errorf("failed to get moderator role definition")
+	}
+
+	// Create role keys for each scope that the moderator role has
+	for _, scope := range moderatorRole.Scopes {
+		capabilities := moderatorRole.Capabilities[scope]
+		if len(capabilities) == 0 {
+			continue
 		}
-	}
 
-	// Add the pseudonym as a moderator
-	err = subforumDAO.AddSubforumModerator(ctx, subforum.SubforumID, input.PseudonymID, "admin", "system")
-	if err != nil {
-		return fmt.Errorf("failed to add moderator: %w", err)
+		// Generate role key for this scope
+		keyData := ibeSystem.GenerateRoleKey(constants.RoleModerator, scope, time.Now().AddDate(1, 0, 0))
+
+		// Store the role key
+		_, err = roleKeyDAO.CreateRoleKey(ctx, constants.RoleModerator, scope, keyData, capabilities, time.Now().AddDate(1, 0, 0), constants.SystemPseudonymID, input.PseudonymID, &subforum.SubforumID)
+		if err != nil {
+			return fmt.Errorf("failed to create role key for scope %s: %w", scope, err)
+		}
 	}
 
 	log.Info().
@@ -443,7 +462,7 @@ func DeleteUser() error {
 	roleKeyDAO := dao.NewRoleKeyDAO(db)
 	identityMappingDAO := dao.NewIdentityMappingDAO(db)
 	userBlocksDAO := dao.NewUserBlocksDAO(db)
-	securePseudonymDAO := dao.NewPseudonymDAO(db, ibe.NewIBESystemFromEnv(), identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
+	pseudonymDAO := dao.NewPseudonymDAO(db, ibe.NewIBESystemFromEnv(), identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
 	emailVerificationTokenDAO := dao.NewEmailVerificationTokenDAO(db)
 	passwordResetTokenDAO := dao.NewPasswordResetTokenDAO(db)
 
@@ -508,7 +527,7 @@ func DeleteUser() error {
 	log.Info().Msg("Deleted password reset tokens")
 
 	// 3. Delete pseudonyms (before identity mappings since pseudonym deletion depends on them)
-	if err := securePseudonymDAO.DeleteByUserID(ctx, user.UserID); err != nil {
+	if err := pseudonymDAO.DeleteByUserID(ctx, user.UserID); err != nil {
 		return fmt.Errorf("failed to delete pseudonyms: %w", err)
 	}
 	log.Info().Msg("Deleted pseudonyms")
@@ -519,9 +538,16 @@ func DeleteUser() error {
 	}
 	log.Info().Msg("Deleted identity mappings")
 
-	// 5. Delete role keys
-	if err := roleKeyDAO.DeleteByUserID(ctx, user.UserID); err != nil {
-		return fmt.Errorf("failed to delete role keys: %w", err)
+	// 5. Delete role keys for all pseudonyms
+	pseudonyms, err := pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, "", "authentication")
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to get pseudonyms for role key deletion, continuing")
+	} else {
+		for _, pseudonym := range pseudonyms {
+			if err := roleKeyDAO.DeleteByPseudonymID(ctx, pseudonym.PseudonymID); err != nil {
+				log.Warn().Err(err).Str("pseudonym_id", pseudonym.PseudonymID).Msg("Failed to delete role keys for pseudonym")
+			}
+		}
 	}
 	log.Info().Msg("Deleted role keys")
 

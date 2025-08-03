@@ -36,7 +36,9 @@ type RoleKey struct {
 	CreatedAt    sql.Null[time.Time]         `db:"created_at" scan:"created_at" json:"created_at"`
 	ExpiresAt    time.Time                   `db:"expires_at" scan:"expires_at" json:"expires_at"`
 	IsActive     sql.Null[bool]              `db:"is_active" scan:"is_active" json:"is_active"`
-	CreatedBy    int64                       `db:"created_by" scan:"created_by" json:"created_by"`
+	CreatedBy    string                      `db:"created_by" scan:"created_by" json:"created_by"`
+	PseudonymID  string                      `db:"pseudonym_id" scan:"pseudonym_id" json:"pseudonym_id"`
+	SubforumID   sql.Null[int32]             `db:"subforum_id" scan:"subforum_id" json:"subforum_id"`
 
 	R roleKeyR `db:"-" scan:"rel" json:"rel"`
 }
@@ -53,8 +55,10 @@ type RoleKeysQuery = *psql.ViewQuery[*RoleKey, RoleKeySlice]
 
 // roleKeyR is where relationships are stored.
 type roleKeyR struct {
-	KeyKeyUsageAudits KeyUsageAuditSlice `scan:"KeyKeyUsageAudits" json:"KeyKeyUsageAudits"` // key_usage_audit.key_usage_audit_key_id_fkey
-	CreatedByUser     *User              `scan:"CreatedByUser" json:"CreatedByUser"`         // role_keys.role_keys_created_by_fkey
+	KeyKeyUsageAudits  KeyUsageAuditSlice `scan:"KeyKeyUsageAudits" json:"KeyKeyUsageAudits"`   // key_usage_audit.key_usage_audit_key_id_fkey
+	CreatedByPseudonym *Pseudonym         `scan:"CreatedByPseudonym" json:"CreatedByPseudonym"` // role_keys.role_keys_created_by_fkey
+	Pseudonym          *Pseudonym         `scan:"Pseudonym" json:"Pseudonym"`                   // role_keys.role_keys_pseudonym_id_fkey
+	Subforum           *Subforum          `scan:"Subforum" json:"Subforum"`                     // role_keys.role_keys_subforum_id_fkey
 }
 
 type roleKeyColumnNames struct {
@@ -68,6 +72,8 @@ type roleKeyColumnNames struct {
 	ExpiresAt    string
 	IsActive     string
 	CreatedBy    string
+	PseudonymID  string
+	SubforumID   string
 }
 
 var RoleKeyColumns = buildRoleKeyColumns("role_keys")
@@ -84,6 +90,8 @@ type roleKeyColumns struct {
 	ExpiresAt    psql.Expression
 	IsActive     psql.Expression
 	CreatedBy    psql.Expression
+	PseudonymID  psql.Expression
+	SubforumID   psql.Expression
 }
 
 func (c roleKeyColumns) Alias() string {
@@ -107,6 +115,8 @@ func buildRoleKeyColumns(alias string) roleKeyColumns {
 		ExpiresAt:    psql.Quote(alias, "expires_at"),
 		IsActive:     psql.Quote(alias, "is_active"),
 		CreatedBy:    psql.Quote(alias, "created_by"),
+		PseudonymID:  psql.Quote(alias, "pseudonym_id"),
+		SubforumID:   psql.Quote(alias, "subforum_id"),
 	}
 }
 
@@ -120,7 +130,9 @@ type roleKeyWhere[Q psql.Filterable] struct {
 	CreatedAt    psql.WhereNullMod[Q, time.Time]
 	ExpiresAt    psql.WhereMod[Q, time.Time]
 	IsActive     psql.WhereNullMod[Q, bool]
-	CreatedBy    psql.WhereMod[Q, int64]
+	CreatedBy    psql.WhereMod[Q, string]
+	PseudonymID  psql.WhereMod[Q, string]
+	SubforumID   psql.WhereNullMod[Q, int32]
 }
 
 func (roleKeyWhere[Q]) AliasedAs(alias string) roleKeyWhere[Q] {
@@ -138,7 +150,9 @@ func buildRoleKeyWhere[Q psql.Filterable](cols roleKeyColumns) roleKeyWhere[Q] {
 		CreatedAt:    psql.WhereNull[Q, time.Time](cols.CreatedAt),
 		ExpiresAt:    psql.Where[Q, time.Time](cols.ExpiresAt),
 		IsActive:     psql.WhereNull[Q, bool](cols.IsActive),
-		CreatedBy:    psql.Where[Q, int64](cols.CreatedBy),
+		CreatedBy:    psql.Where[Q, string](cols.CreatedBy),
+		PseudonymID:  psql.Where[Q, string](cols.PseudonymID),
+		SubforumID:   psql.WhereNull[Q, int32](cols.SubforumID),
 	}
 }
 
@@ -168,11 +182,13 @@ type RoleKeySetter struct {
 	CreatedAt    *sql.Null[time.Time]         `db:"created_at" scan:"created_at" json:"created_at"`
 	ExpiresAt    *time.Time                   `db:"expires_at" scan:"expires_at" json:"expires_at"`
 	IsActive     *sql.Null[bool]              `db:"is_active" scan:"is_active" json:"is_active"`
-	CreatedBy    *int64                       `db:"created_by" scan:"created_by" json:"created_by"`
+	CreatedBy    *string                      `db:"created_by" scan:"created_by" json:"created_by"`
+	PseudonymID  *string                      `db:"pseudonym_id" scan:"pseudonym_id" json:"pseudonym_id"`
+	SubforumID   *sql.Null[int32]             `db:"subforum_id" scan:"subforum_id" json:"subforum_id"`
 }
 
 func (s RoleKeySetter) SetColumns() []string {
-	vals := make([]string, 0, 10)
+	vals := make([]string, 0, 12)
 	if s.KeyID != nil {
 		vals = append(vals, "key_id")
 	}
@@ -213,6 +229,14 @@ func (s RoleKeySetter) SetColumns() []string {
 		vals = append(vals, "created_by")
 	}
 
+	if s.PseudonymID != nil {
+		vals = append(vals, "pseudonym_id")
+	}
+
+	if s.SubforumID != nil {
+		vals = append(vals, "subforum_id")
+	}
+
 	return vals
 }
 
@@ -247,6 +271,12 @@ func (s RoleKeySetter) Overwrite(t *RoleKey) {
 	if s.CreatedBy != nil {
 		t.CreatedBy = *s.CreatedBy
 	}
+	if s.PseudonymID != nil {
+		t.PseudonymID = *s.PseudonymID
+	}
+	if s.SubforumID != nil {
+		t.SubforumID = *s.SubforumID
+	}
 }
 
 func (s *RoleKeySetter) Apply(q *dialect.InsertQuery) {
@@ -255,7 +285,7 @@ func (s *RoleKeySetter) Apply(q *dialect.InsertQuery) {
 	})
 
 	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
-		vals := make([]bob.Expression, 10)
+		vals := make([]bob.Expression, 12)
 		if s.KeyID != nil {
 			vals[0] = psql.Arg(*s.KeyID)
 		} else {
@@ -316,6 +346,18 @@ func (s *RoleKeySetter) Apply(q *dialect.InsertQuery) {
 			vals[9] = psql.Raw("DEFAULT")
 		}
 
+		if s.PseudonymID != nil {
+			vals[10] = psql.Arg(*s.PseudonymID)
+		} else {
+			vals[10] = psql.Raw("DEFAULT")
+		}
+
+		if s.SubforumID != nil {
+			vals[11] = psql.Arg(*s.SubforumID)
+		} else {
+			vals[11] = psql.Raw("DEFAULT")
+		}
+
 		return bob.ExpressSlice(ctx, w, d, start, vals, "", ", ", "")
 	}))
 }
@@ -325,7 +367,7 @@ func (s RoleKeySetter) UpdateMod() bob.Mod[*dialect.UpdateQuery] {
 }
 
 func (s RoleKeySetter) Expressions(prefix ...string) []bob.Expression {
-	exprs := make([]bob.Expression, 0, 10)
+	exprs := make([]bob.Expression, 0, 12)
 
 	if s.KeyID != nil {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
@@ -394,6 +436,20 @@ func (s RoleKeySetter) Expressions(prefix ...string) []bob.Expression {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "created_by")...),
 			psql.Arg(s.CreatedBy),
+		}})
+	}
+
+	if s.PseudonymID != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "pseudonym_id")...),
+			psql.Arg(s.PseudonymID),
+		}})
+	}
+
+	if s.SubforumID != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "subforum_id")...),
+			psql.Arg(s.SubforumID),
 		}})
 	}
 
@@ -624,9 +680,11 @@ func (o RoleKeySlice) ReloadAll(ctx context.Context, exec bob.Executor) error {
 }
 
 type roleKeyJoins[Q dialect.Joinable] struct {
-	typ               string
-	KeyKeyUsageAudits modAs[Q, keyUsageAuditColumns]
-	CreatedByUser     modAs[Q, userColumns]
+	typ                string
+	KeyKeyUsageAudits  modAs[Q, keyUsageAuditColumns]
+	CreatedByPseudonym modAs[Q, pseudonymColumns]
+	Pseudonym          modAs[Q, pseudonymColumns]
+	Subforum           modAs[Q, subforumColumns]
 }
 
 func (j roleKeyJoins[Q]) aliasedAs(alias string) roleKeyJoins[Q] {
@@ -650,14 +708,42 @@ func buildRoleKeyJoins[Q dialect.Joinable](cols roleKeyColumns, typ string) role
 				return mods
 			},
 		},
-		CreatedByUser: modAs[Q, userColumns]{
-			c: UserColumns,
-			f: func(to userColumns) bob.Mod[Q] {
+		CreatedByPseudonym: modAs[Q, pseudonymColumns]{
+			c: PseudonymColumns,
+			f: func(to pseudonymColumns) bob.Mod[Q] {
 				mods := make(mods.QueryMods[Q], 0, 1)
 
 				{
-					mods = append(mods, dialect.Join[Q](typ, Users.Name().As(to.Alias())).On(
-						to.UserID.EQ(cols.CreatedBy),
+					mods = append(mods, dialect.Join[Q](typ, Pseudonyms.Name().As(to.Alias())).On(
+						to.PseudonymID.EQ(cols.CreatedBy),
+					))
+				}
+
+				return mods
+			},
+		},
+		Pseudonym: modAs[Q, pseudonymColumns]{
+			c: PseudonymColumns,
+			f: func(to pseudonymColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, Pseudonyms.Name().As(to.Alias())).On(
+						to.PseudonymID.EQ(cols.PseudonymID),
+					))
+				}
+
+				return mods
+			},
+		},
+		Subforum: modAs[Q, subforumColumns]{
+			c: SubforumColumns,
+			f: func(to subforumColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, Subforums.Name().As(to.Alias())).On(
+						to.SubforumID.EQ(cols.SubforumID),
 					))
 				}
 
@@ -688,24 +774,66 @@ func (os RoleKeySlice) KeyKeyUsageAudits(mods ...bob.Mod[*dialect.SelectQuery]) 
 	)...)
 }
 
-// CreatedByUser starts a query for related objects on users
-func (o *RoleKey) CreatedByUser(mods ...bob.Mod[*dialect.SelectQuery]) UsersQuery {
-	return Users.Query(append(mods,
-		sm.Where(UserColumns.UserID.EQ(psql.Arg(o.CreatedBy))),
+// CreatedByPseudonym starts a query for related objects on pseudonyms
+func (o *RoleKey) CreatedByPseudonym(mods ...bob.Mod[*dialect.SelectQuery]) PseudonymsQuery {
+	return Pseudonyms.Query(append(mods,
+		sm.Where(PseudonymColumns.PseudonymID.EQ(psql.Arg(o.CreatedBy))),
 	)...)
 }
 
-func (os RoleKeySlice) CreatedByUser(mods ...bob.Mod[*dialect.SelectQuery]) UsersQuery {
-	pkCreatedBy := make(pgtypes.Array[int64], len(os))
+func (os RoleKeySlice) CreatedByPseudonym(mods ...bob.Mod[*dialect.SelectQuery]) PseudonymsQuery {
+	pkCreatedBy := make(pgtypes.Array[string], len(os))
 	for i, o := range os {
 		pkCreatedBy[i] = o.CreatedBy
 	}
 	PKArgExpr := psql.Select(sm.Columns(
-		psql.F("unnest", psql.Cast(psql.Arg(pkCreatedBy), "bigint[]")),
+		psql.F("unnest", psql.Cast(psql.Arg(pkCreatedBy), "character varying[]")),
 	))
 
-	return Users.Query(append(mods,
-		sm.Where(psql.Group(UserColumns.UserID).OP("IN", PKArgExpr)),
+	return Pseudonyms.Query(append(mods,
+		sm.Where(psql.Group(PseudonymColumns.PseudonymID).OP("IN", PKArgExpr)),
+	)...)
+}
+
+// Pseudonym starts a query for related objects on pseudonyms
+func (o *RoleKey) Pseudonym(mods ...bob.Mod[*dialect.SelectQuery]) PseudonymsQuery {
+	return Pseudonyms.Query(append(mods,
+		sm.Where(PseudonymColumns.PseudonymID.EQ(psql.Arg(o.PseudonymID))),
+	)...)
+}
+
+func (os RoleKeySlice) Pseudonym(mods ...bob.Mod[*dialect.SelectQuery]) PseudonymsQuery {
+	pkPseudonymID := make(pgtypes.Array[string], len(os))
+	for i, o := range os {
+		pkPseudonymID[i] = o.PseudonymID
+	}
+	PKArgExpr := psql.Select(sm.Columns(
+		psql.F("unnest", psql.Cast(psql.Arg(pkPseudonymID), "character varying[]")),
+	))
+
+	return Pseudonyms.Query(append(mods,
+		sm.Where(psql.Group(PseudonymColumns.PseudonymID).OP("IN", PKArgExpr)),
+	)...)
+}
+
+// Subforum starts a query for related objects on subforums
+func (o *RoleKey) Subforum(mods ...bob.Mod[*dialect.SelectQuery]) SubforumsQuery {
+	return Subforums.Query(append(mods,
+		sm.Where(SubforumColumns.SubforumID.EQ(psql.Arg(o.SubforumID))),
+	)...)
+}
+
+func (os RoleKeySlice) Subforum(mods ...bob.Mod[*dialect.SelectQuery]) SubforumsQuery {
+	pkSubforumID := make(pgtypes.Array[sql.Null[int32]], len(os))
+	for i, o := range os {
+		pkSubforumID[i] = o.SubforumID
+	}
+	PKArgExpr := psql.Select(sm.Columns(
+		psql.F("unnest", psql.Cast(psql.Arg(pkSubforumID), "integer[]")),
+	))
+
+	return Subforums.Query(append(mods,
+		sm.Where(psql.Group(SubforumColumns.SubforumID).OP("IN", PKArgExpr)),
 	)...)
 }
 
@@ -729,16 +857,40 @@ func (o *RoleKey) Preload(name string, retrieved any) error {
 			}
 		}
 		return nil
-	case "CreatedByUser":
-		rel, ok := retrieved.(*User)
+	case "CreatedByPseudonym":
+		rel, ok := retrieved.(*Pseudonym)
 		if !ok {
 			return fmt.Errorf("roleKey cannot load %T as %q", retrieved, name)
 		}
 
-		o.R.CreatedByUser = rel
+		o.R.CreatedByPseudonym = rel
 
 		if rel != nil {
 			rel.R.CreatedByRoleKeys = RoleKeySlice{o}
+		}
+		return nil
+	case "Pseudonym":
+		rel, ok := retrieved.(*Pseudonym)
+		if !ok {
+			return fmt.Errorf("roleKey cannot load %T as %q", retrieved, name)
+		}
+
+		o.R.Pseudonym = rel
+
+		if rel != nil {
+			rel.R.RoleKeys = RoleKeySlice{o}
+		}
+		return nil
+	case "Subforum":
+		rel, ok := retrieved.(*Subforum)
+		if !ok {
+			return fmt.Errorf("roleKey cannot load %T as %q", retrieved, name)
+		}
+
+		o.R.Subforum = rel
+
+		if rel != nil {
+			rel.R.RoleKeys = RoleKeySlice{o}
 		}
 		return nil
 	default:
@@ -747,42 +899,86 @@ func (o *RoleKey) Preload(name string, retrieved any) error {
 }
 
 type roleKeyPreloader struct {
-	CreatedByUser func(...psql.PreloadOption) psql.Preloader
+	CreatedByPseudonym func(...psql.PreloadOption) psql.Preloader
+	Pseudonym          func(...psql.PreloadOption) psql.Preloader
+	Subforum           func(...psql.PreloadOption) psql.Preloader
 }
 
 func buildRoleKeyPreloader() roleKeyPreloader {
 	return roleKeyPreloader{
-		CreatedByUser: func(opts ...psql.PreloadOption) psql.Preloader {
-			return psql.Preload[*User, UserSlice](orm.Relationship{
-				Name: "CreatedByUser",
+		CreatedByPseudonym: func(opts ...psql.PreloadOption) psql.Preloader {
+			return psql.Preload[*Pseudonym, PseudonymSlice](orm.Relationship{
+				Name: "CreatedByPseudonym",
 				Sides: []orm.RelSide{
 					{
 						From: TableNames.RoleKeys,
-						To:   TableNames.Users,
+						To:   TableNames.Pseudonyms,
 						FromColumns: []string{
 							ColumnNames.RoleKeys.CreatedBy,
 						},
 						ToColumns: []string{
-							ColumnNames.Users.UserID,
+							ColumnNames.Pseudonyms.PseudonymID,
 						},
 					},
 				},
-			}, Users.Columns().Names(), opts...)
+			}, Pseudonyms.Columns().Names(), opts...)
+		},
+		Pseudonym: func(opts ...psql.PreloadOption) psql.Preloader {
+			return psql.Preload[*Pseudonym, PseudonymSlice](orm.Relationship{
+				Name: "Pseudonym",
+				Sides: []orm.RelSide{
+					{
+						From: TableNames.RoleKeys,
+						To:   TableNames.Pseudonyms,
+						FromColumns: []string{
+							ColumnNames.RoleKeys.PseudonymID,
+						},
+						ToColumns: []string{
+							ColumnNames.Pseudonyms.PseudonymID,
+						},
+					},
+				},
+			}, Pseudonyms.Columns().Names(), opts...)
+		},
+		Subforum: func(opts ...psql.PreloadOption) psql.Preloader {
+			return psql.Preload[*Subforum, SubforumSlice](orm.Relationship{
+				Name: "Subforum",
+				Sides: []orm.RelSide{
+					{
+						From: TableNames.RoleKeys,
+						To:   TableNames.Subforums,
+						FromColumns: []string{
+							ColumnNames.RoleKeys.SubforumID,
+						},
+						ToColumns: []string{
+							ColumnNames.Subforums.SubforumID,
+						},
+					},
+				},
+			}, Subforums.Columns().Names(), opts...)
 		},
 	}
 }
 
 type roleKeyThenLoader[Q orm.Loadable] struct {
-	KeyKeyUsageAudits func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	CreatedByUser     func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	KeyKeyUsageAudits  func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	CreatedByPseudonym func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	Pseudonym          func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	Subforum           func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 }
 
 func buildRoleKeyThenLoader[Q orm.Loadable]() roleKeyThenLoader[Q] {
 	type KeyKeyUsageAuditsLoadInterface interface {
 		LoadKeyKeyUsageAudits(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
-	type CreatedByUserLoadInterface interface {
-		LoadCreatedByUser(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	type CreatedByPseudonymLoadInterface interface {
+		LoadCreatedByPseudonym(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	}
+	type PseudonymLoadInterface interface {
+		LoadPseudonym(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	}
+	type SubforumLoadInterface interface {
+		LoadSubforum(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 
 	return roleKeyThenLoader[Q]{
@@ -792,10 +988,22 @@ func buildRoleKeyThenLoader[Q orm.Loadable]() roleKeyThenLoader[Q] {
 				return retrieved.LoadKeyKeyUsageAudits(ctx, exec, mods...)
 			},
 		),
-		CreatedByUser: thenLoadBuilder[Q](
-			"CreatedByUser",
-			func(ctx context.Context, exec bob.Executor, retrieved CreatedByUserLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
-				return retrieved.LoadCreatedByUser(ctx, exec, mods...)
+		CreatedByPseudonym: thenLoadBuilder[Q](
+			"CreatedByPseudonym",
+			func(ctx context.Context, exec bob.Executor, retrieved CreatedByPseudonymLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadCreatedByPseudonym(ctx, exec, mods...)
+			},
+		),
+		Pseudonym: thenLoadBuilder[Q](
+			"Pseudonym",
+			func(ctx context.Context, exec bob.Executor, retrieved PseudonymLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadPseudonym(ctx, exec, mods...)
+			},
+		),
+		Subforum: thenLoadBuilder[Q](
+			"Subforum",
+			func(ctx context.Context, exec bob.Executor, retrieved SubforumLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadSubforum(ctx, exec, mods...)
 			},
 		),
 	}
@@ -853,46 +1061,140 @@ func (os RoleKeySlice) LoadKeyKeyUsageAudits(ctx context.Context, exec bob.Execu
 	return nil
 }
 
-// LoadCreatedByUser loads the roleKey's CreatedByUser into the .R struct
-func (o *RoleKey) LoadCreatedByUser(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+// LoadCreatedByPseudonym loads the roleKey's CreatedByPseudonym into the .R struct
+func (o *RoleKey) LoadCreatedByPseudonym(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
 	if o == nil {
 		return nil
 	}
 
 	// Reset the relationship
-	o.R.CreatedByUser = nil
+	o.R.CreatedByPseudonym = nil
 
-	related, err := o.CreatedByUser(mods...).One(ctx, exec)
+	related, err := o.CreatedByPseudonym(mods...).One(ctx, exec)
 	if err != nil {
 		return err
 	}
 
 	related.R.CreatedByRoleKeys = RoleKeySlice{o}
 
-	o.R.CreatedByUser = related
+	o.R.CreatedByPseudonym = related
 	return nil
 }
 
-// LoadCreatedByUser loads the roleKey's CreatedByUser into the .R struct
-func (os RoleKeySlice) LoadCreatedByUser(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+// LoadCreatedByPseudonym loads the roleKey's CreatedByPseudonym into the .R struct
+func (os RoleKeySlice) LoadCreatedByPseudonym(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
 	if len(os) == 0 {
 		return nil
 	}
 
-	users, err := os.CreatedByUser(mods...).All(ctx, exec)
+	pseudonyms, err := os.CreatedByPseudonym(mods...).All(ctx, exec)
 	if err != nil {
 		return err
 	}
 
 	for _, o := range os {
-		for _, rel := range users {
-			if o.CreatedBy != rel.UserID {
+		for _, rel := range pseudonyms {
+			if o.CreatedBy != rel.PseudonymID {
 				continue
 			}
 
 			rel.R.CreatedByRoleKeys = append(rel.R.CreatedByRoleKeys, o)
 
-			o.R.CreatedByUser = rel
+			o.R.CreatedByPseudonym = rel
+			break
+		}
+	}
+
+	return nil
+}
+
+// LoadPseudonym loads the roleKey's Pseudonym into the .R struct
+func (o *RoleKey) LoadPseudonym(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if o == nil {
+		return nil
+	}
+
+	// Reset the relationship
+	o.R.Pseudonym = nil
+
+	related, err := o.Pseudonym(mods...).One(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	related.R.RoleKeys = RoleKeySlice{o}
+
+	o.R.Pseudonym = related
+	return nil
+}
+
+// LoadPseudonym loads the roleKey's Pseudonym into the .R struct
+func (os RoleKeySlice) LoadPseudonym(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if len(os) == 0 {
+		return nil
+	}
+
+	pseudonyms, err := os.Pseudonym(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range os {
+		for _, rel := range pseudonyms {
+			if o.PseudonymID != rel.PseudonymID {
+				continue
+			}
+
+			rel.R.RoleKeys = append(rel.R.RoleKeys, o)
+
+			o.R.Pseudonym = rel
+			break
+		}
+	}
+
+	return nil
+}
+
+// LoadSubforum loads the roleKey's Subforum into the .R struct
+func (o *RoleKey) LoadSubforum(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if o == nil {
+		return nil
+	}
+
+	// Reset the relationship
+	o.R.Subforum = nil
+
+	related, err := o.Subforum(mods...).One(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	related.R.RoleKeys = RoleKeySlice{o}
+
+	o.R.Subforum = related
+	return nil
+}
+
+// LoadSubforum loads the roleKey's Subforum into the .R struct
+func (os RoleKeySlice) LoadSubforum(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if len(os) == 0 {
+		return nil
+	}
+
+	subforums, err := os.Subforum(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range os {
+		for _, rel := range subforums {
+			if o.SubforumID.V != rel.SubforumID {
+				continue
+			}
+
+			rel.R.RoleKeys = append(rel.R.RoleKeys, o)
+
+			o.R.Subforum = rel
 			break
 		}
 	}
@@ -968,48 +1270,143 @@ func (roleKey0 *RoleKey) AttachKeyKeyUsageAudits(ctx context.Context, exec bob.E
 	return nil
 }
 
-func attachRoleKeyCreatedByUser0(ctx context.Context, exec bob.Executor, count int, roleKey0 *RoleKey, user1 *User) (*RoleKey, error) {
+func attachRoleKeyCreatedByPseudonym0(ctx context.Context, exec bob.Executor, count int, roleKey0 *RoleKey, pseudonym1 *Pseudonym) (*RoleKey, error) {
 	setter := &RoleKeySetter{
-		CreatedBy: &user1.UserID,
+		CreatedBy: &pseudonym1.PseudonymID,
 	}
 
 	err := roleKey0.Update(ctx, exec, setter)
 	if err != nil {
-		return nil, fmt.Errorf("attachRoleKeyCreatedByUser0: %w", err)
+		return nil, fmt.Errorf("attachRoleKeyCreatedByPseudonym0: %w", err)
 	}
 
 	return roleKey0, nil
 }
 
-func (roleKey0 *RoleKey) InsertCreatedByUser(ctx context.Context, exec bob.Executor, related *UserSetter) error {
-	user1, err := Users.Insert(related).One(ctx, exec)
+func (roleKey0 *RoleKey) InsertCreatedByPseudonym(ctx context.Context, exec bob.Executor, related *PseudonymSetter) error {
+	pseudonym1, err := Pseudonyms.Insert(related).One(ctx, exec)
 	if err != nil {
 		return fmt.Errorf("inserting related objects: %w", err)
 	}
 
-	_, err = attachRoleKeyCreatedByUser0(ctx, exec, 1, roleKey0, user1)
+	_, err = attachRoleKeyCreatedByPseudonym0(ctx, exec, 1, roleKey0, pseudonym1)
 	if err != nil {
 		return err
 	}
 
-	roleKey0.R.CreatedByUser = user1
+	roleKey0.R.CreatedByPseudonym = pseudonym1
 
-	user1.R.CreatedByRoleKeys = append(user1.R.CreatedByRoleKeys, roleKey0)
+	pseudonym1.R.CreatedByRoleKeys = append(pseudonym1.R.CreatedByRoleKeys, roleKey0)
 
 	return nil
 }
 
-func (roleKey0 *RoleKey) AttachCreatedByUser(ctx context.Context, exec bob.Executor, user1 *User) error {
+func (roleKey0 *RoleKey) AttachCreatedByPseudonym(ctx context.Context, exec bob.Executor, pseudonym1 *Pseudonym) error {
 	var err error
 
-	_, err = attachRoleKeyCreatedByUser0(ctx, exec, 1, roleKey0, user1)
+	_, err = attachRoleKeyCreatedByPseudonym0(ctx, exec, 1, roleKey0, pseudonym1)
 	if err != nil {
 		return err
 	}
 
-	roleKey0.R.CreatedByUser = user1
+	roleKey0.R.CreatedByPseudonym = pseudonym1
 
-	user1.R.CreatedByRoleKeys = append(user1.R.CreatedByRoleKeys, roleKey0)
+	pseudonym1.R.CreatedByRoleKeys = append(pseudonym1.R.CreatedByRoleKeys, roleKey0)
+
+	return nil
+}
+
+func attachRoleKeyPseudonym0(ctx context.Context, exec bob.Executor, count int, roleKey0 *RoleKey, pseudonym1 *Pseudonym) (*RoleKey, error) {
+	setter := &RoleKeySetter{
+		PseudonymID: &pseudonym1.PseudonymID,
+	}
+
+	err := roleKey0.Update(ctx, exec, setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachRoleKeyPseudonym0: %w", err)
+	}
+
+	return roleKey0, nil
+}
+
+func (roleKey0 *RoleKey) InsertPseudonym(ctx context.Context, exec bob.Executor, related *PseudonymSetter) error {
+	pseudonym1, err := Pseudonyms.Insert(related).One(ctx, exec)
+	if err != nil {
+		return fmt.Errorf("inserting related objects: %w", err)
+	}
+
+	_, err = attachRoleKeyPseudonym0(ctx, exec, 1, roleKey0, pseudonym1)
+	if err != nil {
+		return err
+	}
+
+	roleKey0.R.Pseudonym = pseudonym1
+
+	pseudonym1.R.RoleKeys = append(pseudonym1.R.RoleKeys, roleKey0)
+
+	return nil
+}
+
+func (roleKey0 *RoleKey) AttachPseudonym(ctx context.Context, exec bob.Executor, pseudonym1 *Pseudonym) error {
+	var err error
+
+	_, err = attachRoleKeyPseudonym0(ctx, exec, 1, roleKey0, pseudonym1)
+	if err != nil {
+		return err
+	}
+
+	roleKey0.R.Pseudonym = pseudonym1
+
+	pseudonym1.R.RoleKeys = append(pseudonym1.R.RoleKeys, roleKey0)
+
+	return nil
+}
+
+func attachRoleKeySubforum0(ctx context.Context, exec bob.Executor, count int, roleKey0 *RoleKey, subforum1 *Subforum) (*RoleKey, error) {
+	setter := &RoleKeySetter{
+		SubforumID: func() *sql.Null[int32] {
+			v := sql.Null[int32]{V: subforum1.SubforumID, Valid: true}
+			return &v
+		}(),
+	}
+
+	err := roleKey0.Update(ctx, exec, setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachRoleKeySubforum0: %w", err)
+	}
+
+	return roleKey0, nil
+}
+
+func (roleKey0 *RoleKey) InsertSubforum(ctx context.Context, exec bob.Executor, related *SubforumSetter) error {
+	subforum1, err := Subforums.Insert(related).One(ctx, exec)
+	if err != nil {
+		return fmt.Errorf("inserting related objects: %w", err)
+	}
+
+	_, err = attachRoleKeySubforum0(ctx, exec, 1, roleKey0, subforum1)
+	if err != nil {
+		return err
+	}
+
+	roleKey0.R.Subforum = subforum1
+
+	subforum1.R.RoleKeys = append(subforum1.R.RoleKeys, roleKey0)
+
+	return nil
+}
+
+func (roleKey0 *RoleKey) AttachSubforum(ctx context.Context, exec bob.Executor, subforum1 *Subforum) error {
+	var err error
+
+	_, err = attachRoleKeySubforum0(ctx, exec, 1, roleKey0, subforum1)
+	if err != nil {
+		return err
+	}
+
+	roleKey0.R.Subforum = subforum1
+
+	subforum1.R.RoleKeys = append(subforum1.R.RoleKeys, roleKey0)
 
 	return nil
 }

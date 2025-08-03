@@ -3,13 +3,11 @@ package dao
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/stephenafamo/bob"
-	"github.com/stephenafamo/bob/types"
 )
 
 // SubforumDAO provides data access operations for subforums
@@ -90,75 +88,6 @@ func (dao *SubforumDAO) ListSubforumsByCommunityType(ctx context.Context, commun
 	}
 
 	return subforums, nil
-}
-
-// GetSubforumModerators retrieves moderators for a subforum
-func (dao *SubforumDAO) GetSubforumModerators(ctx context.Context, subforumID int32) ([]*models.SubforumModerator, error) {
-	moderators, err := models.SubforumModerators.Query(
-		models.SelectWhere.SubforumModerators.SubforumID.EQ(subforumID),
-	).All(ctx, dao.db)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get subforum moderators: %w", err)
-	}
-
-	return moderators, nil
-}
-
-// AddSubforumModerator adds a moderator to a subforum
-func (dao *SubforumDAO) AddSubforumModerator(ctx context.Context, subforumID int32, pseudonymID, role string, addedByPseudonymID string) error {
-	// Check if moderator already exists
-	existing, err := models.SubforumModerators.Query(
-		models.SelectWhere.SubforumModerators.SubforumID.EQ(subforumID),
-		models.SelectWhere.SubforumModerators.PseudonymID.EQ(pseudonymID),
-	).All(ctx, dao.db)
-	if err != nil {
-		return fmt.Errorf("failed to check existing moderator: %w", err)
-	}
-	if len(existing) > 0 {
-		return fmt.Errorf("moderator already exists for this subforum")
-	}
-
-	// Create null types for optional fields
-	addedByPseudonymIDNull := sql.Null[string]{}
-	addedByPseudonymIDNull.Scan(addedByPseudonymID)
-
-	permissionsNull := sql.Null[types.JSON[json.RawMessage]]{}
-	permissionsNull.Scan(types.NewJSON[json.RawMessage]([]byte("{}")))
-
-	addedAtNull := sql.Null[time.Time]{}
-	addedAtNull.Scan(time.Now())
-
-	// Create the moderator using the setter pattern
-	moderatorSetter := &models.SubforumModeratorSetter{
-		SubforumID:         &subforumID,
-		PseudonymID:        &pseudonymID,
-		Role:               &role,
-		AddedByPseudonymID: &addedByPseudonymIDNull,
-		Permissions:        &permissionsNull,
-		AddedAt:            &addedAtNull,
-	}
-
-	// Insert into database using the generated table helper
-	_, err = models.SubforumModerators.Insert(moderatorSetter).One(ctx, dao.db)
-	if err != nil {
-		return fmt.Errorf("failed to add moderator: %w", err)
-	}
-
-	return nil
-}
-
-// RemoveSubforumModerator removes a moderator from a subforum
-func (dao *SubforumDAO) RemoveSubforumModerator(ctx context.Context, subforumID int32, pseudonymID string) error {
-	// Delete the moderator
-	_, err := models.SubforumModerators.Delete(
-		models.DeleteWhere.SubforumModerators.SubforumID.EQ(subforumID),
-		models.DeleteWhere.SubforumModerators.PseudonymID.EQ(pseudonymID),
-	).Exec(ctx, dao.db)
-	if err != nil {
-		return fmt.Errorf("failed to remove moderator: %w", err)
-	}
-
-	return nil
 }
 
 // CreateSubforum creates a new subforum with community type support

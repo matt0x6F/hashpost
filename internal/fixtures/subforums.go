@@ -2,9 +2,11 @@ package fixtures
 
 import (
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/matt0x6f/hashpost/internal/database/models"
+	"github.com/stephenafamo/bob/types"
 )
 
 // CreateTestPrivateSubforum creates a test private subforum
@@ -52,21 +54,26 @@ func CreateTestFavoriteSubscription() *models.SubforumSubscription {
 	return subscription
 }
 
-// CreateTestSubforumModerator creates a test subforum moderator
-func CreateTestSubforumModerator() *models.SubforumModerator {
-	return &models.SubforumModerator{
-		ModeratorID:        1,
-		SubforumID:         1,
-		PseudonymID:        "moderator-pseudonym-id",
-		Role:               "moderator",
-		AddedAt:            sql.Null[time.Time]{V: time.Now(), Valid: true},
-		AddedByPseudonymID: sql.Null[string]{V: "admin-pseudonym-id", Valid: true},
+// CreateTestModeratorRoleKey creates a test moderator role key
+func CreateTestModeratorRoleKey() *models.RoleKey {
+	return &models.RoleKey{
+		RoleName:     "moderator",
+		Scope:        "moderation",
+		KeyData:      []byte{},
+		KeyVersion:   1,
+		Capabilities: types.JSON[json.RawMessage]{},
+		CreatedAt:    sql.Null[time.Time]{V: time.Now(), Valid: true},
+		ExpiresAt:    time.Now().AddDate(1, 0, 0),
+		IsActive:     sql.Null[bool]{V: true, Valid: true},
+		CreatedBy:    "admin-pseudonym-id",
+		PseudonymID:  "moderator-pseudonym-id",
+		SubforumID:   sql.Null[int32]{V: 1, Valid: true},
 	}
 }
 
-// CreateTestAdminModerator creates a test admin moderator
-func CreateTestAdminModerator() *models.SubforumModerator {
-	moderator := CreateTestSubforumModerator()
-	moderator.Role = "admin"
-	return moderator
+// CreateTestAdminRoleKey creates a test admin role key
+func CreateTestAdminRoleKey() *models.RoleKey {
+	roleKey := CreateTestModeratorRoleKey()
+	roleKey.RoleName = "admin"
+	return roleKey
 }
