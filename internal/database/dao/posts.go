@@ -361,6 +361,73 @@ func (dao *PostDAO) CountPostsByPseudonym(ctx context.Context, pseudonymID strin
 	return count, nil
 }
 
+// GetPostsByPseudonym gets posts by a pseudonym with pagination
+func (dao *PostDAO) GetPostsByPseudonym(ctx context.Context, pseudonymID string, page, limit int, sortField string, sortDesc bool) ([]*models.Post, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 25
+	}
+
+	// Determine the column to sort by
+	var orderExpr psql.Expression
+	switch sortField {
+	case "score":
+		orderExpr = models.PostColumns.Score
+	case "created_at":
+		orderExpr = models.PostColumns.CreatedAt
+	case "updated_at":
+		orderExpr = models.PostColumns.UpdatedAt
+	case "comment_count":
+		orderExpr = models.PostColumns.CommentCount
+	case "view_count":
+		orderExpr = models.PostColumns.ViewCount
+	default:
+		orderExpr = models.PostColumns.CreatedAt // default
+	}
+
+	direction := "ASC"
+	if sortDesc {
+		direction = "DESC"
+	}
+
+	// Order by the selected field
+	orderByClause := fmt.Sprintf("%s %s", orderExpr, direction)
+
+	posts, err := models.Posts.Query(
+		models.SelectWhere.Posts.PseudonymID.EQ(pseudonymID),
+		sm.Where(psql.Group(psql.And(
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_removed").IsNull(),
+				psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
+			)),
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_deleted").IsNull(),
+				psql.Quote("posts", "is_deleted").EQ(psql.Arg(false)),
+			)),
+		))),
+		sm.OrderBy(orderByClause),
+		sm.Limit(limit),
+		sm.Offset((page-1)*limit),
+	).All(ctx, dao.db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get posts by pseudonym: %w", err)
+	}
+
+	// Load related data for paginated posts
+	for _, post := range posts {
+		if err := post.LoadPseudonym(ctx, dao.db); err != nil {
+			log.Warn().Err(err).Int64("post_id", post.PostID).Msg("Failed to load post pseudonym")
+		}
+		if err := post.LoadSubforum(ctx, dao.db); err != nil {
+			log.Warn().Err(err).Int64("post_id", post.PostID).Msg("Failed to load post subforum")
+		}
+	}
+
+	return posts, nil
+}
+
 // CountPostsByPseudonymInSubforum counts posts by a pseudonym in a specific subforum
 func (dao *PostDAO) CountPostsByPseudonymInSubforum(ctx context.Context, pseudonymID string, subforumID int32) (int64, error) {
 	count, err := models.Posts.Query(

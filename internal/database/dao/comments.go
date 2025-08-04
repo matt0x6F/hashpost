@@ -301,6 +301,67 @@ func (dao *CommentDAO) CountCommentsByPseudonym(ctx context.Context, pseudonymID
 	return count, nil
 }
 
+// GetCommentsByPseudonym gets comments by a pseudonym with pagination
+func (dao *CommentDAO) GetCommentsByPseudonym(ctx context.Context, pseudonymID string, page, limit int, sortField string, sortDesc bool) ([]*models.Comment, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 25
+	}
+
+	// Determine the column to sort by
+	var orderExpr psql.Expression
+	switch sortField {
+	case "score":
+		orderExpr = models.CommentColumns.Score
+	case "created_at":
+		orderExpr = models.CommentColumns.CreatedAt
+	case "updated_at":
+		orderExpr = models.CommentColumns.UpdatedAt
+	default:
+		orderExpr = models.CommentColumns.CreatedAt // default
+	}
+
+	direction := "ASC"
+	if sortDesc {
+		direction = "DESC"
+	}
+
+	// Order by the selected field
+	orderByClause := fmt.Sprintf("%s %s", orderExpr, direction)
+
+	comments, err := models.Comments.Query(
+		models.SelectWhere.Comments.PseudonymID.EQ(pseudonymID),
+		sm.Where(psql.Group(psql.Or(
+			psql.Quote("comments", "is_removed").IsNull(),
+			psql.Quote("comments", "is_removed").EQ(psql.Arg(false)),
+		))),
+		sm.Where(psql.Group(psql.Or(
+			psql.Quote("comments", "is_deleted").IsNull(),
+			psql.Quote("comments", "is_deleted").EQ(psql.Arg(false)),
+		))),
+		sm.OrderBy(orderByClause),
+		sm.Limit(limit),
+		sm.Offset((page-1)*limit),
+	).All(ctx, dao.db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get comments by pseudonym: %w", err)
+	}
+
+	// Load related data for paginated comments
+	for _, comment := range comments {
+		if err := comment.LoadPseudonym(ctx, dao.db); err != nil {
+			log.Warn().Err(err).Int64("comment_id", comment.CommentID).Msg("Failed to load comment pseudonym")
+		}
+		if err := comment.LoadPost(ctx, dao.db); err != nil {
+			log.Warn().Err(err).Int64("comment_id", comment.CommentID).Msg("Failed to load comment post")
+		}
+	}
+
+	return comments, nil
+}
+
 // CountCommentsByPseudonymInSubforum counts total comments by a pseudonym in a specific subforum
 func (dao *CommentDAO) CountCommentsByPseudonymInSubforum(ctx context.Context, pseudonymID string, subforumID int32) (int64, error) {
 	// Get all comments by the pseudonym

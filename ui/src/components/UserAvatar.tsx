@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { LogOut, User, Settings, Users } from "lucide-react";
 import { CreatePseudonymDialog } from "./CreatePseudonymDialog";
 import { switchPseudonym } from "@/lib/pseudonym-utils";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { authenticateUserForSubforum } from "@/lib/auth-utils";
 
 
@@ -17,6 +17,7 @@ export function UserAvatar() {
   const [showPseudonymManager, setShowPseudonymManager] = useState(false);
   const [showCreatePseudonym, setShowCreatePseudonym] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
 
   // Check if we're in a subforum context (any of the community type routes)
   const isInSubforumContext = pathname?.match(/^\/([tgbch])\/[^\/]+/);
@@ -104,7 +105,14 @@ export function UserAvatar() {
                     className="flex items-center w-full px-4 py-2 text-sm text-foreground hover:bg-foreground/10 dark:hover:bg-foreground/10 transition-colors"
                     onClick={() => {
                       setShowDropdown(false);
-                      // TODO: Navigate to profile
+                      // Navigate to the active pseudonym's profile
+                      const activePseudonym = user.pseudonyms.find(p => p.pseudonymId === user.activePseudonymId);
+                      if (activePseudonym?.slug) {
+                        router.push(`/profiles/${activePseudonym.slug}`);
+                      } else {
+                        // Fallback to pseudonym ID if no slug exists
+                        router.push(`/profiles/${activePseudonym?.pseudonymId}`);
+                      }
                     }}
                   >
                     <User className="w-4 h-4 mr-2" />

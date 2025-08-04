@@ -12,7 +12,7 @@ import (
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	apimodels "github.com/matt0x6f/hashpost/internal/api/models"
 	"github.com/matt0x6f/hashpost/internal/database/dao"
-	"github.com/matt0x6f/hashpost/internal/database/models"
+	dbmodels "github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/matt0x6f/hashpost/internal/ibe"
 	"github.com/rs/zerolog/log"
 	"github.com/stephenafamo/bob"
@@ -137,9 +137,407 @@ func (h *UserHandler) GetPseudonymProfile(ctx context.Context, input *apimodels.
 	}
 	postCount, _ := h.postDAO.CountPostsByPseudonym(ctx, pseudonymID)
 	commentCount, _ := h.commentDAO.CountCommentsByPseudonym(ctx, pseudonymID)
+	
+	// Calculate and update karma if it's 0 or not set
+	if karmaScore == 0 {
+		calculatedKarma, err := h.pseudonymDAO.CalculateKarmaForPseudonym(ctx, pseudonymID)
+		if err == nil {
+			// Update the karma in the database
+			h.pseudonymDAO.UpdateKarmaForPseudonym(ctx, pseudonymID)
+			karmaScore = int(calculatedKarma)
+		}
+	}
+	
 	response := apimodels.NewPseudonymProfileResponse(pseudonymID, displayName, bio, websiteURL, karmaScore, int(postCount), int(commentCount), showKarma, allowDirectMessages, createdAt, lastActiveAt)
+
+	// Add slug to response
+	pseudonymSlug := ""
+	if pseudonym.Slug.Valid {
+		pseudonymSlug = pseudonym.Slug.V
+	}
+	response.Body.Slug = pseudonymSlug
+
 	log.Info().Str("endpoint", "pseudonyms/profile").Str("component", "handler").Str("pseudonym_id", pseudonymID).Msg("Get pseudonym profile completed")
 	return response, nil
+}
+
+// GetPseudonymProfileBySlug handles getting a pseudonym's public profile by slug
+func (h *UserHandler) GetPseudonymProfileBySlug(ctx context.Context, input *apimodels.SlugPathParam) (*apimodels.PseudonymProfileResponse, error) {
+	slug := input.Slug
+
+	log.Info().
+		Str("endpoint", "pseudonyms/profile/slug").
+		Str("component", "handler").
+		Str("slug", slug).
+		Msg("Get pseudonym profile by slug requested")
+
+	// First try to find by slug
+	pseudonym, err := h.pseudonymDAO.GetPseudonymBySlug(ctx, slug)
+	if err != nil {
+		log.Error().Err(err).Str("slug", slug).Msg("Failed to get pseudonym from database")
+		return nil, fmt.Errorf("failed to get pseudonym: %w", err)
+	}
+	
+	// If not found by slug, try to find by pseudonym ID (for backward compatibility)
+	if pseudonym == nil {
+		log.Info().Str("slug", slug).Msg("Pseudonym not found by slug, trying by ID")
+		pseudonym, err = h.pseudonymDAO.GetPseudonymByID(ctx, slug)
+		if err != nil {
+			log.Error().Err(err).Str("slug", slug).Msg("Failed to get pseudonym by ID from database")
+			return nil, fmt.Errorf("failed to get pseudonym: %w", err)
+		}
+		
+		// If found by ID, generate a slug for it
+		if pseudonym != nil && (!pseudonym.Slug.Valid || pseudonym.Slug.V == "") {
+			log.Info().Str("pseudonym_id", pseudonym.PseudonymID).Str("display_name", pseudonym.DisplayName).Msg("Generating slug for existing pseudonym")
+			generatedSlug, err := h.pseudonymDAO.GenerateSlugFromDisplayName(ctx, pseudonym.DisplayName)
+			if err != nil {
+				log.Error().Err(err).Str("pseudonym_id", pseudonym.PseudonymID).Msg("Failed to generate slug")
+				return nil, fmt.Errorf("failed to generate slug: %w", err)
+			}
+			
+					// Update the pseudonym with the generated slug
+		updates := &dbmodels.PseudonymSetter{
+			Slug: &sql.Null[string]{V: generatedSlug, Valid: true},
+		}
+		err = h.pseudonymDAO.UpdatePseudonym(ctx, pseudonym.PseudonymID, updates)
+			if err != nil {
+				log.Error().Err(err).Str("pseudonym_id", pseudonym.PseudonymID).Str("slug", generatedSlug).Msg("Failed to update pseudonym with generated slug")
+				// Don't fail the request, just log the error
+			} else {
+				log.Info().Str("pseudonym_id", pseudonym.PseudonymID).Str("slug", generatedSlug).Msg("Successfully updated pseudonym with generated slug")
+				pseudonym.Slug = sql.Null[string]{V: generatedSlug, Valid: true}
+			}
+		}
+	}
+	
+	if pseudonym == nil {
+		log.Warn().Str("slug", slug).Msg("Pseudonym not found")
+		return nil, fmt.Errorf("pseudonym not found")
+	}
+	if !pseudonym.IsActive.Valid || !pseudonym.IsActive.V {
+		log.Warn().Str("slug", slug).Msg("Pseudonym is inactive")
+		return nil, fmt.Errorf("pseudonym is inactive")
+	}
+
+	displayName := pseudonym.DisplayName
+	bio := ""
+	if pseudonym.Bio.Valid {
+		bio = pseudonym.Bio.V
+	}
+	websiteURL := ""
+	if pseudonym.WebsiteURL.Valid {
+		websiteURL = pseudonym.WebsiteURL.V
+	}
+	karmaScore := 0
+	if pseudonym.KarmaScore.Valid {
+		karmaScore = int(pseudonym.KarmaScore.V)
+	}
+	showKarma := true
+	if pseudonym.ShowKarma.Valid {
+		showKarma = pseudonym.ShowKarma.V
+	}
+	allowDirectMessages := true
+	if pseudonym.AllowDirectMessages.Valid {
+		allowDirectMessages = pseudonym.AllowDirectMessages.V
+	}
+	createdAt := ""
+	if pseudonym.CreatedAt.Valid {
+		createdAt = pseudonym.CreatedAt.V.Format(time.RFC3339)
+	}
+	lastActiveAt := ""
+	if pseudonym.LastActiveAt.Valid {
+		lastActiveAt = pseudonym.LastActiveAt.V.Format(time.RFC3339)
+	}
+	pseudonymSlug := ""
+	if pseudonym.Slug.Valid {
+		pseudonymSlug = pseudonym.Slug.V
+	}
+	postCount, _ := h.postDAO.CountPostsByPseudonym(ctx, pseudonym.PseudonymID)
+	commentCount, _ := h.commentDAO.CountCommentsByPseudonym(ctx, pseudonym.PseudonymID)
+	
+	// Calculate and update karma if it's 0 or not set
+	if karmaScore == 0 {
+		calculatedKarma, err := h.pseudonymDAO.CalculateKarmaForPseudonym(ctx, pseudonym.PseudonymID)
+		if err == nil {
+			// Update the karma in the database
+			h.pseudonymDAO.UpdateKarmaForPseudonym(ctx, pseudonym.PseudonymID)
+			karmaScore = int(calculatedKarma)
+		}
+	}
+	
+	response := apimodels.NewPseudonymProfileResponse(pseudonym.PseudonymID, displayName, bio, websiteURL, karmaScore, int(postCount), int(commentCount), showKarma, allowDirectMessages, createdAt, lastActiveAt)
+	response.Body.Slug = pseudonymSlug
+	log.Info().Str("endpoint", "pseudonyms/profile/slug").Str("component", "handler").Str("slug", slug).Msg("Get pseudonym profile by slug completed")
+	return response, nil
+}
+
+// GetPostsByPseudonym handles getting posts by a pseudonym
+func (h *UserHandler) GetPostsByPseudonym(ctx context.Context, input *struct {
+	apimodels.SlugPathParam
+	Page  int `query:"page" example:"1"`
+	Limit int `query:"limit" example:"25"`
+	Sort  string `query:"sort" example:"created_at" enum:"created_at,score,title"`
+}) (*apimodels.PostsByPseudonymResponse, error) {
+	slug := input.Slug
+	page := input.Page
+	if page < 1 {
+		page = 1
+	}
+	limit := input.Limit
+	if limit < 1 {
+		limit = 25
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	sortField := input.Sort
+	if sortField == "" {
+		sortField = "created_at"
+	}
+
+	log.Info().
+		Str("endpoint", "pseudonyms/posts").
+		Str("component", "handler").
+		Str("slug", slug).
+		Int("page", page).
+		Int("limit", limit).
+		Str("sort", sortField).
+		Msg("Get posts by pseudonym requested")
+
+	// First try to find by slug
+	pseudonym, err := h.pseudonymDAO.GetPseudonymBySlug(ctx, slug)
+	if err != nil {
+		log.Error().Err(err).Str("slug", slug).Msg("Failed to get pseudonym from database")
+		return nil, fmt.Errorf("failed to get pseudonym: %w", err)
+	}
+	
+	// If not found by slug, try to find by pseudonym ID (for backward compatibility)
+	if pseudonym == nil {
+		log.Info().Str("slug", slug).Msg("Pseudonym not found by slug, trying by ID")
+		pseudonym, err = h.pseudonymDAO.GetPseudonymByID(ctx, slug)
+		if err != nil {
+			log.Error().Err(err).Str("slug", slug).Msg("Failed to get pseudonym by ID from database")
+			return nil, fmt.Errorf("failed to get pseudonym: %w", err)
+		}
+	}
+	
+	if pseudonym == nil {
+		log.Warn().Str("slug", slug).Msg("Pseudonym not found")
+		return nil, fmt.Errorf("pseudonym not found")
+	}
+
+	// Get posts by pseudonym
+	posts, err := h.postDAO.GetPostsByPseudonym(ctx, pseudonym.PseudonymID, page, limit, sortField, true)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", pseudonym.PseudonymID).Msg("Failed to get posts by pseudonym")
+		return nil, fmt.Errorf("failed to get posts: %w", err)
+	}
+
+	// Convert posts to API models
+	apiPosts := make([]apimodels.Post, 0, len(posts))
+	for _, post := range posts {
+		apiPost := h.convertDBPostToAPIPost(ctx, post)
+		apiPosts = append(apiPosts, apiPost)
+	}
+
+	// Get total count for pagination
+	totalCount, err := h.postDAO.CountPostsByPseudonym(ctx, pseudonym.PseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", pseudonym.PseudonymID).Msg("Failed to count posts by pseudonym")
+		return nil, fmt.Errorf("failed to count posts: %w", err)
+	}
+
+	response := &apimodels.PostsByPseudonymResponse{
+		Posts:      apiPosts,
+		TotalCount: int(totalCount),
+		Page:       page,
+		Limit:      limit,
+		TotalPages: int((totalCount + int64(limit) - 1) / int64(limit)),
+	}
+
+	log.Info().Str("endpoint", "pseudonyms/posts").Str("component", "handler").Str("slug", slug).Msg("Get posts by pseudonym completed")
+	return response, nil
+}
+
+// GetCommentsByPseudonym handles getting comments by a pseudonym
+func (h *UserHandler) GetCommentsByPseudonym(ctx context.Context, input *struct {
+	apimodels.SlugPathParam
+	Page  int `query:"page" example:"1"`
+	Limit int `query:"limit" example:"25"`
+	Sort  string `query:"sort" example:"created_at" enum:"created_at,score"`
+}) (*apimodels.CommentsByPseudonymResponse, error) {
+	slug := input.Slug
+	page := input.Page
+	if page < 1 {
+		page = 1
+	}
+	limit := input.Limit
+	if limit < 1 {
+		limit = 25
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	sortField := input.Sort
+	if sortField == "" {
+		sortField = "created_at"
+	}
+
+	log.Info().
+		Str("endpoint", "pseudonyms/comments").
+		Str("component", "handler").
+		Str("slug", slug).
+		Int("page", page).
+		Int("limit", limit).
+		Str("sort", sortField).
+		Msg("Get comments by pseudonym requested")
+
+	// First try to find by slug
+	pseudonym, err := h.pseudonymDAO.GetPseudonymBySlug(ctx, slug)
+	if err != nil {
+		log.Error().Err(err).Str("slug", slug).Msg("Failed to get pseudonym from database")
+		return nil, fmt.Errorf("failed to get pseudonym: %w", err)
+	}
+	
+	// If not found by slug, try to find by pseudonym ID (for backward compatibility)
+	if pseudonym == nil {
+		log.Info().Str("slug", slug).Msg("Pseudonym not found by slug, trying by ID")
+		pseudonym, err = h.pseudonymDAO.GetPseudonymByID(ctx, slug)
+		if err != nil {
+			log.Error().Err(err).Str("slug", slug).Msg("Failed to get pseudonym by ID from database")
+			return nil, fmt.Errorf("failed to get pseudonym: %w", err)
+		}
+	}
+	
+	if pseudonym == nil {
+		log.Warn().Str("slug", slug).Msg("Pseudonym not found")
+		return nil, fmt.Errorf("pseudonym not found")
+	}
+
+	// Get comments by pseudonym
+	comments, err := h.commentDAO.GetCommentsByPseudonym(ctx, pseudonym.PseudonymID, page, limit, sortField, true)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", pseudonym.PseudonymID).Msg("Failed to get comments by pseudonym")
+		return nil, fmt.Errorf("failed to get comments: %w", err)
+	}
+
+	// Convert comments to API models
+	apiComments := make([]apimodels.Comment, 0, len(comments))
+	for _, comment := range comments {
+		apiComment := h.convertDBCommentToAPIComment(ctx, comment)
+		apiComments = append(apiComments, apiComment)
+	}
+
+	// Get total count for pagination
+	totalCount, err := h.commentDAO.CountCommentsByPseudonym(ctx, pseudonym.PseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", pseudonym.PseudonymID).Msg("Failed to count comments by pseudonym")
+		return nil, fmt.Errorf("failed to count comments: %w", err)
+	}
+
+	response := &apimodels.CommentsByPseudonymResponse{
+		Comments:   apiComments,
+		TotalCount: int(totalCount),
+		Page:       page,
+		Limit:      limit,
+		TotalPages: int((totalCount + int64(limit) - 1) / int64(limit)),
+	}
+
+	log.Info().Str("endpoint", "pseudonyms/comments").Str("component", "handler").Str("slug", slug).Msg("Get comments by pseudonym completed")
+	return response, nil
+}
+
+// convertDBPostToAPIPost converts a database post to an API post model
+func (h *UserHandler) convertDBPostToAPIPost(ctx context.Context, dbPost *dbmodels.Post) apimodels.Post {
+	post := apimodels.Post{
+		PostID:      int(dbPost.PostID),
+		Title:       dbPost.Title,
+		Content:     "",
+		PostType:    dbPost.PostType,
+		URL:         "",
+		IsNSFW:      false,
+		IsSpoiler:   false,
+		Score:       0,
+		Upvotes:     0,
+		Downvotes:   0,
+		CommentCount: 0,
+		CreatedAt:   "",
+		IsLocked:    false,
+		IsSticky:    false,
+		IsRemoved:   false,
+		IsDeleted:   false,
+	}
+
+	if dbPost.Content.Valid {
+		post.Content = dbPost.Content.V
+	}
+	if dbPost.URL.Valid {
+		post.URL = dbPost.URL.V
+	}
+	if dbPost.IsNSFW.Valid {
+		post.IsNSFW = dbPost.IsNSFW.V
+	}
+	if dbPost.IsSpoiler.Valid {
+		post.IsSpoiler = dbPost.IsSpoiler.V
+	}
+	if dbPost.Score.Valid {
+		post.Score = int(dbPost.Score.V)
+	}
+	if dbPost.Upvotes.Valid {
+		post.Upvotes = int(dbPost.Upvotes.V)
+	}
+	if dbPost.Downvotes.Valid {
+		post.Downvotes = int(dbPost.Downvotes.V)
+	}
+	if dbPost.CommentCount.Valid {
+		post.CommentCount = int(dbPost.CommentCount.V)
+	}
+	if dbPost.CreatedAt.Valid {
+		post.CreatedAt = dbPost.CreatedAt.V.Format(time.RFC3339)
+	}
+	if dbPost.IsLocked.Valid {
+		post.IsLocked = dbPost.IsLocked.V
+	}
+	if dbPost.IsRemoved.Valid {
+		post.IsRemoved = dbPost.IsRemoved.V
+	}
+	if dbPost.IsDeleted.Valid {
+		post.IsDeleted = dbPost.IsDeleted.V
+	}
+
+	// For now, we'll skip loading related data to avoid database access issues
+	// The posts will still be functional without the author/subforum details
+
+	return post
+}
+
+// convertDBCommentToAPIComment converts a database comment to an API comment model
+func (h *UserHandler) convertDBCommentToAPIComment(ctx context.Context, dbComment *dbmodels.Comment) apimodels.Comment {
+	comment := apimodels.Comment{
+		CommentID:   int(dbComment.CommentID),
+		Content:     dbComment.Content,
+		Score:       0,
+		CreatedAt:   "",
+		ParentCommentID: nil,
+		Replies:     []apimodels.Comment{},
+	}
+
+	if dbComment.Score.Valid {
+		comment.Score = int(dbComment.Score.V)
+	}
+	if dbComment.CreatedAt.Valid {
+		comment.CreatedAt = dbComment.CreatedAt.V.Format(time.RFC3339)
+	}
+	if dbComment.ParentCommentID.Valid {
+		parentID := int(dbComment.ParentCommentID.V)
+		comment.ParentCommentID = &parentID
+	}
+
+	// For now, we'll skip loading related data to avoid database access issues
+	// The comments will still be functional without the author details
+
+	return comment
 }
 
 // UpdatePseudonymProfile handles updating the current user's pseudonym profile
@@ -189,8 +587,30 @@ func (h *UserHandler) UpdatePseudonymProfile(ctx context.Context, input *struct 
 			return nil, fmt.Errorf("display name is already taken")
 		}
 	}
-	updates := &models.PseudonymSetter{
+
+	// Handle slug updates
+	var slugToSet *sql.Null[string]
+	if input.Body.Slug != "" {
+		// Check if slug is already taken by another pseudonym
+		existing, _ := h.pseudonymDAO.GetPseudonymBySlug(ctx, input.Body.Slug)
+		if existing != nil && existing.PseudonymID != pseudonymID {
+			return nil, fmt.Errorf("slug is already taken")
+		}
+		slug := sql.Null[string]{V: input.Body.Slug, Valid: true}
+		slugToSet = &slug
+	} else {
+		// Generate slug from display name if not provided
+		generatedSlug, err := h.pseudonymDAO.GenerateSlugFromDisplayName(ctx, input.Body.DisplayName)
+		if err != nil {
+			log.Error().Err(err).Str("pseudonym_id", pseudonymID).Msg("Failed to generate slug")
+			return nil, fmt.Errorf("failed to generate slug: %w", err)
+		}
+		slug := sql.Null[string]{V: generatedSlug, Valid: true}
+		slugToSet = &slug
+	}
+	updates := &dbmodels.PseudonymSetter{
 		DisplayName: &input.Body.DisplayName,
+		Slug:        slugToSet,
 	}
 	if input.Body.Bio != "" {
 		bio := sql.Null[string]{V: input.Body.Bio, Valid: true}
@@ -288,6 +708,27 @@ func (h *UserHandler) CreatePseudonym(ctx context.Context, input *struct {
 		return nil, fmt.Errorf("display name is already taken")
 	}
 
+	// Handle slug generation
+	var slugToSet *sql.Null[string]
+	if input.Body.Slug != "" {
+		// Check if slug is already taken
+		existing, _ := h.pseudonymDAO.GetPseudonymBySlug(ctx, input.Body.Slug)
+		if existing != nil {
+			return nil, fmt.Errorf("slug is already taken")
+		}
+		slug := sql.Null[string]{V: input.Body.Slug, Valid: true}
+		slugToSet = &slug
+	} else {
+		// Generate slug from display name if not provided
+		generatedSlug, err := h.pseudonymDAO.GenerateSlugFromDisplayName(ctx, displayName)
+		if err != nil {
+			log.Error().Err(err).Int("user_id", userID).Str("display_name", displayName).Msg("Failed to generate slug")
+			return nil, fmt.Errorf("failed to generate slug: %w", err)
+		}
+		slug := sql.Null[string]{V: generatedSlug, Valid: true}
+		slugToSet = &slug
+	}
+
 	// ✅ Use new method that creates pseudonym and identity mapping together
 	pseudonym, err := h.pseudonymDAO.CreatePseudonymWithIdentityMapping(ctx, int64(userID), displayName)
 	if err != nil {
@@ -295,7 +736,9 @@ func (h *UserHandler) CreatePseudonym(ctx context.Context, input *struct {
 		return nil, fmt.Errorf("failed to create pseudonym: %w", err)
 	}
 
-	updates := &models.PseudonymSetter{}
+	updates := &dbmodels.PseudonymSetter{
+		Slug: slugToSet,
+	}
 	if bio != "" {
 		bioVal := sql.Null[string]{V: bio, Valid: true}
 		updates.Bio = &bioVal
@@ -515,7 +958,7 @@ func (h *UserHandler) UpdateUserPreferences(ctx context.Context, input *struct {
 	}
 	userID := int64(userCtx.UserID)
 	log.Info().Str("endpoint", "users/preferences").Str("component", "handler").Int64("user_id", userID).Msg("Update user preferences requested")
-	updates := &models.UserPreferenceSetter{}
+	updates := &dbmodels.UserPreferenceSetter{}
 	if input.Body.Timezone != "" {
 		timezone := sql.Null[string]{V: input.Body.Timezone, Valid: true}
 		updates.Timezone = &timezone

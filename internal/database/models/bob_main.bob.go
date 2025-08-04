@@ -365,6 +365,7 @@ var ColumnNames = struct {
 		ShowKarma:           "show_karma",
 		AllowDirectMessages: "allow_direct_messages",
 		IsDefault:           "is_default",
+		Slug:                "slug",
 	},
 	Reports: reportColumnNames{
 		ReportID:              "report_id",

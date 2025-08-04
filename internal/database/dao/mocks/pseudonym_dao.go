@@ -133,3 +133,16 @@ func (m *MockPseudonymDAO) DeactivatePseudonym(ctx context.Context, pseudonymID 
 	args := m.Called(ctx, pseudonymID, userID, roleName, scope)
 	return args.Error(0)
 }
+
+func (m *MockPseudonymDAO) GetPseudonymBySlug(ctx context.Context, slug string) (*models.Pseudonym, error) {
+	args := m.Called(ctx, slug)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Pseudonym), args.Error(1)
+}
+
+func (m *MockPseudonymDAO) GenerateSlugFromDisplayName(ctx context.Context, displayName string) (string, error) {
+	args := m.Called(ctx, displayName)
+	return args.String(0), args.Error(1)
+}

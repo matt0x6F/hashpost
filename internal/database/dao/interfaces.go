@@ -26,6 +26,7 @@ type PseudonymDAOInterface interface {
 	CreatePseudonymWithIdentityMapping(ctx context.Context, userID int64, displayName string) (*models.Pseudonym, error)
 	GetPseudonymByID(ctx context.Context, pseudonymID string) (*models.Pseudonym, error)
 	GetPseudonymByDisplayName(ctx context.Context, displayName string) (*models.Pseudonym, error)
+	GetPseudonymBySlug(ctx context.Context, slug string) (*models.Pseudonym, error)
 	GetPseudonymsByUserID(ctx context.Context, userID int64, roleName, scope string) ([]*models.Pseudonym, error)
 	GetDefaultPseudonymByUserID(ctx context.Context, userID int64, roleName, scope string) (*models.Pseudonym, error)
 	UpdatePseudonym(ctx context.Context, pseudonymID string, updates *models.PseudonymSetter) error
@@ -34,6 +35,9 @@ type PseudonymDAOInterface interface {
 	VerifyPseudonymOwnership(ctx context.Context, pseudonymID string, userID int64, roleName, scope string) (bool, error)
 	GetUserIDByPseudonym(ctx context.Context, pseudonymID, roleName, scope string) (int64, error)
 	UpdateLastActive(ctx context.Context, pseudonymID string) error
+	GenerateSlugFromDisplayName(ctx context.Context, displayName string) (string, error)
+	CalculateKarmaForPseudonym(ctx context.Context, pseudonymID string) (int32, error)
+	UpdateKarmaForPseudonym(ctx context.Context, pseudonymID string) error
 }
 
 // IdentityMappingDAOInterface defines the interface for identity mapping data access operations
@@ -80,6 +84,7 @@ type PostDAOInterface interface {
 	GetPostsBySubforum(ctx context.Context, subforumID int32, page, limit int, sortField string, sortDesc bool) ([]*models.Post, error)
 	CountPostsBySubforum(ctx context.Context, subforumID int32) (int64, error)
 	CountPostsByPseudonym(ctx context.Context, pseudonymID string) (int64, error)
+	GetPostsByPseudonym(ctx context.Context, pseudonymID string, page, limit int, sortField string, sortDesc bool) ([]*models.Post, error)
 	CountPostsByPseudonymInSubforum(ctx context.Context, pseudonymID string, subforumID int32) (int64, error)
 	GetSubforumsByPseudonym(ctx context.Context, pseudonymID string) ([]int32, error)
 	GetPostBySubforumAndSlug(ctx context.Context, subforumID int32, slug string) (*models.Post, error)
@@ -105,6 +110,7 @@ type CommentDAOInterface interface {
 	GetCommentsByPostWithNestedReplies(ctx context.Context, postID int64) ([]*models.Comment, error)
 	CountCommentsByPost(ctx context.Context, postID int64) (int64, error)
 	CountCommentsByPseudonym(ctx context.Context, pseudonymID string) (int64, error)
+	GetCommentsByPseudonym(ctx context.Context, pseudonymID string, page, limit int, sortField string, sortDesc bool) ([]*models.Comment, error)
 	CountCommentsByPseudonymInSubforum(ctx context.Context, pseudonymID string, subforumID int32) (int64, error)
 	GetSubforumsByPseudonymComments(ctx context.Context, pseudonymID string) ([]int32, error)
 	UpdateCommentScore(ctx context.Context, commentID int64, score, upvotes, downvotes int32) error

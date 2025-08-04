@@ -22,13 +22,13 @@ func createBenchmarkCorrelationHandler() *CorrelationHandler {
 		ibe.DOMAIN_ADMIN_CORRELATION,
 		ibe.DOMAIN_LEGAL_CORRELATION,
 	}
-	
+
 	for _, domain := range domains {
 		key := make([]byte, 32) // 256-bit keys for production
 		rand.Read(key)
 		domainMasters[domain] = key
 	}
-	
+
 	// Create IBE system
 	ibeSystem := ibe.NewIBESystemWithOptions(ibe.IBEOptions{
 		DomainMasters: domainMasters,

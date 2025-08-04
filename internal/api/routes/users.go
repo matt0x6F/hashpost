@@ -23,6 +23,36 @@ func RegisterUserRoutes(api huma.API, userDAO *dao.UserDAO, pseudonymDAO *dao.Ps
 		Tags:        []string{"Pseudonyms"},
 	}, userHandler.GetPseudonymProfile)
 
+	// Get pseudonym profile by slug (public)
+	huma.Register(api, huma.Operation{
+		OperationID: "get-pseudonym-profile-by-slug",
+		Method:      http.MethodGet,
+		Path:        "/profiles/{slug}",
+		Summary:     "Get a pseudonym's public profile by slug",
+		Description: "Retrieves public profile information for a pseudonym by slug",
+		Tags:        []string{"Pseudonyms"},
+	}, userHandler.GetPseudonymProfileBySlug)
+
+	// Get posts by pseudonym (public)
+	huma.Register(api, huma.Operation{
+		OperationID: "get-posts-by-pseudonym",
+		Method:      http.MethodGet,
+		Path:        "/profiles/{slug}/posts",
+		Summary:     "Get posts by a pseudonym",
+		Description: "Retrieves posts created by a pseudonym with pagination",
+		Tags:        []string{"Pseudonyms"},
+	}, userHandler.GetPostsByPseudonym)
+
+	// Get comments by pseudonym (public)
+	huma.Register(api, huma.Operation{
+		OperationID: "get-comments-by-pseudonym",
+		Method:      http.MethodGet,
+		Path:        "/profiles/{slug}/comments",
+		Summary:     "Get comments by a pseudonym",
+		Description: "Retrieves comments created by a pseudonym with pagination",
+		Tags:        []string{"Pseudonyms"},
+	}, userHandler.GetCommentsByPseudonym)
+
 	// Update pseudonym profile
 	huma.Register(api, huma.Operation{
 		OperationID: "update-pseudonym-profile",

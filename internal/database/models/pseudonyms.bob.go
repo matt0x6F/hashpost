@@ -36,6 +36,7 @@ type Pseudonym struct {
 	ShowKarma           sql.Null[bool]      `db:"show_karma" scan:"show_karma" json:"show_karma"`
 	AllowDirectMessages sql.Null[bool]      `db:"allow_direct_messages" scan:"allow_direct_messages" json:"allow_direct_messages"`
 	IsDefault           bool                `db:"is_default" scan:"is_default" json:"is_default"`
+	Slug                sql.Null[string]    `db:"slug" scan:"slug" json:"slug"`
 
 	R pseudonymR `db:"-" scan:"rel" json:"rel"`
 }
@@ -90,6 +91,7 @@ type pseudonymColumnNames struct {
 	ShowKarma           string
 	AllowDirectMessages string
 	IsDefault           string
+	Slug                string
 }
 
 var PseudonymColumns = buildPseudonymColumns("pseudonyms")
@@ -108,6 +110,7 @@ type pseudonymColumns struct {
 	ShowKarma           psql.Expression
 	AllowDirectMessages psql.Expression
 	IsDefault           psql.Expression
+	Slug                psql.Expression
 }
 
 func (c pseudonymColumns) Alias() string {
@@ -133,6 +136,7 @@ func buildPseudonymColumns(alias string) pseudonymColumns {
 		ShowKarma:           psql.Quote(alias, "show_karma"),
 		AllowDirectMessages: psql.Quote(alias, "allow_direct_messages"),
 		IsDefault:           psql.Quote(alias, "is_default"),
+		Slug:                psql.Quote(alias, "slug"),
 	}
 }
 
@@ -149,6 +153,7 @@ type pseudonymWhere[Q psql.Filterable] struct {
 	ShowKarma           psql.WhereNullMod[Q, bool]
 	AllowDirectMessages psql.WhereNullMod[Q, bool]
 	IsDefault           psql.WhereMod[Q, bool]
+	Slug                psql.WhereNullMod[Q, string]
 }
 
 func (pseudonymWhere[Q]) AliasedAs(alias string) pseudonymWhere[Q] {
@@ -169,6 +174,7 @@ func buildPseudonymWhere[Q psql.Filterable](cols pseudonymColumns) pseudonymWher
 		ShowKarma:           psql.WhereNull[Q, bool](cols.ShowKarma),
 		AllowDirectMessages: psql.WhereNull[Q, bool](cols.AllowDirectMessages),
 		IsDefault:           psql.Where[Q, bool](cols.IsDefault),
+		Slug:                psql.WhereNull[Q, string](cols.Slug),
 	}
 }
 
@@ -210,10 +216,11 @@ type PseudonymSetter struct {
 	ShowKarma           *sql.Null[bool]      `db:"show_karma" scan:"show_karma" json:"show_karma"`
 	AllowDirectMessages *sql.Null[bool]      `db:"allow_direct_messages" scan:"allow_direct_messages" json:"allow_direct_messages"`
 	IsDefault           *bool                `db:"is_default" scan:"is_default" json:"is_default"`
+	Slug                *sql.Null[string]    `db:"slug" scan:"slug" json:"slug"`
 }
 
 func (s PseudonymSetter) SetColumns() []string {
-	vals := make([]string, 0, 12)
+	vals := make([]string, 0, 13)
 	if s.PseudonymID != nil {
 		vals = append(vals, "pseudonym_id")
 	}
@@ -262,6 +269,10 @@ func (s PseudonymSetter) SetColumns() []string {
 		vals = append(vals, "is_default")
 	}
 
+	if s.Slug != nil {
+		vals = append(vals, "slug")
+	}
+
 	return vals
 }
 
@@ -302,6 +313,9 @@ func (s PseudonymSetter) Overwrite(t *Pseudonym) {
 	if s.IsDefault != nil {
 		t.IsDefault = *s.IsDefault
 	}
+	if s.Slug != nil {
+		t.Slug = *s.Slug
+	}
 }
 
 func (s *PseudonymSetter) Apply(q *dialect.InsertQuery) {
@@ -310,7 +324,7 @@ func (s *PseudonymSetter) Apply(q *dialect.InsertQuery) {
 	})
 
 	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
-		vals := make([]bob.Expression, 12)
+		vals := make([]bob.Expression, 13)
 		if s.PseudonymID != nil {
 			vals[0] = psql.Arg(*s.PseudonymID)
 		} else {
@@ -383,6 +397,12 @@ func (s *PseudonymSetter) Apply(q *dialect.InsertQuery) {
 			vals[11] = psql.Raw("DEFAULT")
 		}
 
+		if s.Slug != nil {
+			vals[12] = psql.Arg(*s.Slug)
+		} else {
+			vals[12] = psql.Raw("DEFAULT")
+		}
+
 		return bob.ExpressSlice(ctx, w, d, start, vals, "", ", ", "")
 	}))
 }
@@ -392,7 +412,7 @@ func (s PseudonymSetter) UpdateMod() bob.Mod[*dialect.UpdateQuery] {
 }
 
 func (s PseudonymSetter) Expressions(prefix ...string) []bob.Expression {
-	exprs := make([]bob.Expression, 0, 12)
+	exprs := make([]bob.Expression, 0, 13)
 
 	if s.PseudonymID != nil {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
@@ -475,6 +495,13 @@ func (s PseudonymSetter) Expressions(prefix ...string) []bob.Expression {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "is_default")...),
 			psql.Arg(s.IsDefault),
+		}})
+	}
+
+	if s.Slug != nil {
+		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
+			psql.Quote(append(prefix, "slug")...),
+			psql.Arg(s.Slug),
 		}})
 	}
 

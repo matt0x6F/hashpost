@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -15,6 +16,8 @@ import (
 	"github.com/matt0x6f/hashpost/internal/ibe"
 	"github.com/rs/zerolog/log"
 	"github.com/stephenafamo/bob"
+	"github.com/stephenafamo/bob/dialect/psql"
+	"github.com/stephenafamo/bob/dialect/psql/sm"
 )
 
 // PseudonymDAO handles pseudonym operations with role-based access control
@@ -294,6 +297,132 @@ func (dao *PseudonymDAO) GetPseudonymByDisplayName(ctx context.Context, displayN
 		return nil, nil
 	}
 	return pseudonyms[0], nil
+}
+
+// GetPseudonymBySlug retrieves a pseudonym by slug
+func (dao *PseudonymDAO) GetPseudonymBySlug(ctx context.Context, slug string) (*models.Pseudonym, error) {
+	pseudonyms, err := models.Pseudonyms.Query(
+		models.SelectWhere.Pseudonyms.Slug.EQ(slug),
+	).All(ctx, dao.db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pseudonym by slug: %w", err)
+	}
+	if len(pseudonyms) == 0 {
+		return nil, nil
+	}
+	return pseudonyms[0], nil
+}
+
+// GenerateSlugFromDisplayName generates a URL-friendly slug from a display name
+func (dao *PseudonymDAO) GenerateSlugFromDisplayName(ctx context.Context, displayName string) (string, error) {
+	// Convert to lowercase and replace spaces with hyphens
+	slug := strings.ToLower(strings.ReplaceAll(displayName, " ", "-"))
+	
+	// Remove any non-alphanumeric characters except hyphens
+	slug = regexp.MustCompile(`[^a-z0-9-]`).ReplaceAllString(slug, "")
+	
+	// Remove multiple consecutive hyphens
+	slug = regexp.MustCompile(`-+`).ReplaceAllString(slug, "-")
+	
+	// Remove leading and trailing hyphens
+	slug = strings.Trim(slug, "-")
+	
+	// Ensure slug is not empty
+	if slug == "" {
+		slug = "user"
+	}
+	
+	// Check if slug already exists and append number if needed
+	originalSlug := slug
+	counter := 1
+	for {
+		existing, err := dao.GetPseudonymBySlug(ctx, slug)
+		if err != nil {
+			return "", fmt.Errorf("failed to check slug availability: %w", err)
+		}
+		if existing == nil {
+			break
+		}
+		slug = fmt.Sprintf("%s-%d", originalSlug, counter)
+		counter++
+	}
+	
+	return slug, nil
+}
+
+// CalculateKarmaForPseudonym calculates the total karma for a pseudonym based on their posts and comments
+func (dao *PseudonymDAO) CalculateKarmaForPseudonym(ctx context.Context, pseudonymID string) (int32, error) {
+	// Get all posts by the pseudonym
+	posts, err := models.Posts.Query(
+		models.SelectWhere.Posts.PseudonymID.EQ(pseudonymID),
+		sm.Where(psql.Group(psql.And(
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_removed").IsNull(),
+				psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
+			)),
+			psql.Group(psql.Or(
+				psql.Quote("posts", "is_deleted").IsNull(),
+				psql.Quote("posts", "is_deleted").EQ(psql.Arg(false)),
+			)),
+		))),
+	).All(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get posts for karma calculation: %w", err)
+	}
+
+	// Get all comments by the pseudonym
+	comments, err := models.Comments.Query(
+		models.SelectWhere.Comments.PseudonymID.EQ(pseudonymID),
+		sm.Where(psql.Group(psql.Or(
+			psql.Quote("comments", "is_removed").IsNull(),
+			psql.Quote("comments", "is_removed").EQ(psql.Arg(false)),
+		))),
+		sm.Where(psql.Group(psql.Or(
+			psql.Quote("comments", "is_deleted").IsNull(),
+			psql.Quote("comments", "is_deleted").EQ(psql.Arg(false)),
+		))),
+	).All(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get comments for karma calculation: %w", err)
+	}
+
+	// Calculate total karma from posts
+	postKarma := int32(0)
+	for _, post := range posts {
+		if post.Score.Valid {
+			postKarma += post.Score.V
+		}
+	}
+
+	// Calculate total karma from comments
+	commentKarma := int32(0)
+	for _, comment := range comments {
+		if comment.Score.Valid {
+			commentKarma += comment.Score.V
+		}
+	}
+
+	totalKarma := postKarma + commentKarma
+	return totalKarma, nil
+}
+
+// UpdateKarmaForPseudonym calculates and updates the karma for a pseudonym
+func (dao *PseudonymDAO) UpdateKarmaForPseudonym(ctx context.Context, pseudonymID string) error {
+	karma, err := dao.CalculateKarmaForPseudonym(ctx, pseudonymID)
+	if err != nil {
+		return fmt.Errorf("failed to calculate karma: %w", err)
+	}
+
+	updates := &models.PseudonymSetter{
+		KarmaScore: &sql.Null[int32]{V: karma, Valid: true},
+	}
+
+	err = dao.UpdatePseudonym(ctx, pseudonymID, updates)
+	if err != nil {
+		return fmt.Errorf("failed to update karma: %w", err)
+	}
+
+	return nil
 }
 
 // UpdatePseudonym updates a pseudonym
