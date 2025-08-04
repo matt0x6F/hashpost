@@ -719,17 +719,17 @@ func NewIBESystemFromEnv() *IBESystem {
 	if domainKeysDir == "" {
 		domainKeysDir = "./keys/domains"
 	}
-	keyVersion := 1
+	var keyVersion int32 = 1
 	if v := os.Getenv("IBE_KEY_VERSION"); v != "" {
-		if parsed, err := strconv.Atoi(v); err == nil {
-			keyVersion = parsed
+		if parsed, err := strconv.ParseInt(v, 10, 32); err == nil {
+			keyVersion = int32(parsed)
 		}
 	}
 	salt := os.Getenv("IBE_SALT")
 	if salt == "" {
 		salt = "fingerprint_salt_v1"
 	}
-	ibeSystem, err := NewIBESystemFromConfig(domainKeysDir, keyVersion, salt)
+	ibeSystem, err := NewIBESystemFromConfig(domainKeysDir, int(keyVersion), salt)
 	if err != nil {
 		panic("Failed to create IBE system from environment: " + err.Error())
 	}
