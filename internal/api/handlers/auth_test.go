@@ -44,6 +44,7 @@ func NewAuthHandlerWithMocks() (*handlers.AuthHandler, *mocks.MockUserDAO, *mock
 		},
 		Email: config.EmailConfig{
 			Validation: config.EmailValidationConfig{
+				Enabled:       true,                  // Enable email validation for tests
 				VerifierEmail: "noreply@example.com", // Default verifier email for tests
 			},
 		},
@@ -398,7 +399,10 @@ func TestAuthHandler_Registration(t *testing.T) {
 	})
 
 	t.Run("RegisterUserWithInvalidEmail", func(t *testing.T) {
-		handler, _, _, _, _, _, _ := NewAuthHandlerWithMocks()
+		handler, mockUserDAO, _, _, _, _, _ := NewAuthHandlerWithMocks()
+
+		// Mock that no user exists with this email (since it's invalid, it shouldn't exist)
+		mockUserDAO.On("GetUserByEmail", mock.Anything, "invalid-email").Return((*dbmodels.User)(nil), nil)
 
 		// Create registration input with invalid email
 		input := &apimodels.UserRegistrationInput{

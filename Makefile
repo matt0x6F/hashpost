@@ -35,6 +35,13 @@ help:
 	@echo "  test-dao-pattern Run DAO tests matching pattern (PATTERN=TestPostDAO)"
 	@echo "  test-models     Run database model tests only"
 	@echo ""
+	@echo "Benchmarking:"
+	@echo "  benchmark       Run all crypto operation benchmarks"
+	@echo "  benchmark-ibe   Run IBE crypto operation benchmarks"
+	@echo "  benchmark-auth  Run auth handler crypto operation benchmarks"
+	@echo "  benchmark-correlation Run correlation handler crypto operation benchmarks"
+	@echo "  benchmark-all   Run all benchmarks with memory profiling"
+	@echo ""
 	@echo "UI Development:"
 	@echo "  ui-install      Install UI dependencies"
 	@echo "  ui-generate-api Generate TypeScript API client from OpenAPI schema"
@@ -281,6 +288,34 @@ setup-dev: install-tools
 		exit 1; \
 	fi
 	@echo "Development environment setup complete"
+
+# Benchmark commands
+benchmark: benchmark-ibe benchmark-auth benchmark-correlation
+	@echo "✅ All benchmarks completed!"
+
+benchmark-ibe:
+	@echo "🧪 Running IBE crypto operation benchmarks..."
+	go test ./internal/ibe -bench=. -benchmem -run=^$
+
+benchmark-auth:
+	@echo "🧪 Running auth handler crypto operation benchmarks..."
+	go test ./internal/api/handlers -bench=BenchmarkPassword -benchmem -run=^$
+	go test ./internal/api/handlers -bench=BenchmarkJWT -benchmem -run=^$
+	go test ./internal/api/handlers -bench=BenchmarkSHA256 -benchmem -run=^$
+	go test ./internal/api/handlers -bench=BenchmarkRandomBytes -benchmem -run=^$
+	go test ./internal/api/handlers -bench=BenchmarkHex -benchmem -run=^$
+	go test ./internal/api/handlers -bench=BenchmarkBcrypt -benchmem -run=^$
+	@echo "🧪 Running auth handler integration benchmarks..."
+	go test ./internal/api/handlers -bench=BenchmarkAuthHandler -benchmem -run=^$
+
+benchmark-correlation:
+	@echo "🧪 Running correlation handler crypto operation benchmarks..."
+	go test ./internal/api/handlers -bench=Benchmark.*Correlation -benchmem -run=^$
+
+benchmark-all:
+	@echo "🧪 Running all crypto operation benchmarks..."
+	go test ./internal/ibe -bench=. -benchmem -run=^$
+	go test ./internal/api/handlers -bench=Benchmark.* -benchmem -run=^$
 
 # Show help by default
 .DEFAULT_GOAL := help
