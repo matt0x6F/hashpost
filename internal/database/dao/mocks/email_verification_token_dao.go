@@ -39,4 +39,4 @@ func (m *MockEmailVerificationTokenDAO) DeleteExpiredTokens(ctx context.Context)
 func (m *MockEmailVerificationTokenDAO) DeleteTokensByUserID(ctx context.Context, userID int64) error {
 	args := m.Called(ctx, userID)
 	return args.Error(0)
-} 
+}
