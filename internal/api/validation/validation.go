@@ -38,6 +38,10 @@ var commonPasswords = map[string]bool{
 
 // ValidateEmail validates an email address with configurable validation levels
 func ValidateEmail(email string, cfg *config.Config) error {
+	// Skip validation if email validation is disabled
+	if !cfg.Email.Validation.Enabled {
+		return nil
+	}
 
 	// Configure truemail for comprehensive validation
 	verifierEmail := cfg.Email.Validation.VerifierEmail

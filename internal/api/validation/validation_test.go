@@ -11,7 +11,7 @@ func TestValidateEmailBasic(t *testing.T) {
 	cfg := &config.Config{
 		Email: config.EmailConfig{
 			Validation: config.EmailValidationConfig{
-				Enabled:       false,                  // Disable validation for basic tests
+				Enabled:       true,                   // Enable validation for basic tests
 				VerifierEmail: "noreply@hashpost.dev", // Default verifier email
 			},
 		},
@@ -159,7 +159,7 @@ func TestValidateEmailRFC5322(t *testing.T) {
 	cfg := &config.Config{
 		Email: config.EmailConfig{
 			Validation: config.EmailValidationConfig{
-				Enabled:       false,                  // Disable validation for RFC tests
+				Enabled:       true,                   // Enable validation for RFC tests
 				VerifierEmail: "noreply@hashpost.dev", // Default verifier email
 			},
 		},

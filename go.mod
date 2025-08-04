@@ -14,6 +14,7 @@ require (
 	github.com/stephenafamo/bob v0.39.0
 	github.com/stretchr/testify v1.10.0
 	github.com/truemail-rb/truemail-go v1.1.4
+	golang.org/x/crypto v0.38.0
 	golang.org/x/term v0.33.0
 )
 
