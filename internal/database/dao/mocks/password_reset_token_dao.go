@@ -39,4 +39,4 @@ func (m *MockPasswordResetTokenDAO) DeleteExpiredTokens(ctx context.Context) err
 func (m *MockPasswordResetTokenDAO) DeleteTokensByUserID(ctx context.Context, userID int64) error {
 	args := m.Called(ctx, userID)
 	return args.Error(0)
-} 
+}
