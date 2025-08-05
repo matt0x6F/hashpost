@@ -227,6 +227,45 @@ func TestAuthHandler_Login(t *testing.T) {
 		mockUserDAO.AssertExpectations(t)
 	})
 
+	t.Run("LoginWithUnverifiedEmail", func(t *testing.T) {
+		handler, mockUserDAO, _, _, _, _, _ := NewAuthHandlerWithMocks()
+
+		// Test data
+		testEmail := "unverified@example.com"
+		testPassword := "TestPassword123!"
+		testUserID := int64(1)
+
+		// Mock user with unverified email
+		hashedPassword := hashPasswordSHA256(testPassword)
+		mockUser := &dbmodels.User{
+			UserID:        testUserID,
+			Email:         testEmail,
+			PasswordHash:  hashedPassword,
+			IsActive:      sql.Null[bool]{V: true, Valid: true},
+			EmailVerified: sql.Null[bool]{V: false, Valid: true},
+		}
+		mockUserDAO.On("GetUserByEmail", mock.Anything, testEmail).Return(mockUser, nil)
+
+		// Create login input
+		input := &apimodels.UserLoginInput{
+			Body: apimodels.UserLoginBody{
+				Email:    testEmail,
+				Password: testPassword,
+			},
+		}
+
+		// Call the handler
+		response, err := handler.LoginUser(context.Background(), input)
+
+		// Assert response
+		assert.Error(t, err)
+		assert.Nil(t, response)
+		assert.Contains(t, err.Error(), "email not verified")
+
+		// Verify mocks were called
+		mockUserDAO.AssertExpectations(t)
+	})
+
 	t.Run("LoginWithAdminUser", func(t *testing.T) {
 		handler, mockUserDAO, mockPseudonymDAO, _, _, _, _ := NewAuthHandlerWithMocks()
 

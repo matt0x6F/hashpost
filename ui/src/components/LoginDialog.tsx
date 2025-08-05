@@ -66,7 +66,20 @@ export function LoginDialog({ children, onLoginSuccess, onSignupSuccess }: Login
       }
     } catch (err) {
       const errorMessage = await extractApiErrorMessage(err);
-      setError(errorMessage);
+      
+      // Handle specific authentication errors with better UX
+      if (errorMessage.includes("email not verified")) {
+        setError("Please check your email and click the verification link before logging in. If you haven't received the email, check your spam folder or contact support to resend the verification email.");
+      } else if (errorMessage.includes("account inactive")) {
+        setError("Your account has been deactivated. Please contact support for assistance.");
+      } else if (errorMessage.includes("account suspended")) {
+        setError("Your account has been suspended. Please contact support for more information.");
+      } else if (errorMessage.includes("invalid credentials")) {
+        setError("Invalid email or password. Please check your credentials and try again.");
+      } else {
+        setError(errorMessage);
+      }
+      
       console.error(`${mode} failed:`, err);
     } finally {
       setIsLoading(false);
@@ -211,8 +224,17 @@ export function LoginDialog({ children, onLoginSuccess, onSignupSuccess }: Login
             )}
             
             {error && (
-              <div className="text-sm text-red-600 dark:text-red-400">
-                {error}
+              <div className="p-3 rounded-md border border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-800">
+                <div className="flex items-start space-x-2">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="text-sm text-red-700 dark:text-red-300">
+                    {error}
+                  </div>
+                </div>
               </div>
             )}
             

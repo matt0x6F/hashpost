@@ -568,7 +568,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 		log.Warn().
 			Str("email", input.Body.Email).
 			Msg("User not found")
-		return nil, fmt.Errorf("invalid credentials")
+		return nil, huma.Error401Unauthorized("invalid credentials")
 	}
 
 	// Check if user is active
@@ -576,7 +576,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 		log.Warn().
 			Int64("user_id", user.UserID).
 			Msg("User account is inactive")
-		return nil, fmt.Errorf("account inactive")
+		return nil, huma.Error401Unauthorized("account inactive")
 	}
 
 	// Check if user is suspended
@@ -584,7 +584,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 		log.Warn().
 			Int64("user_id", user.UserID).
 			Msg("User account is suspended")
-		return nil, fmt.Errorf("account suspended")
+		return nil, huma.Error401Unauthorized("account suspended")
 	}
 
 	// Check if email is verified
@@ -593,7 +593,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 			Int64("user_id", user.UserID).
 			Str("email", user.Email).
 			Msg("User attempted to login with unverified email")
-		return nil, fmt.Errorf("email not verified. Please check your email and click the verification link before logging in")
+		return nil, huma.Error401Unauthorized("email not verified. Please check your email and click the verification link before logging in")
 	}
 
 	// Verify password (in a real app, you'd use bcrypt.CompareHashAndPassword)
@@ -601,7 +601,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 		log.Warn().
 			Int64("user_id", user.UserID).
 			Msg("Invalid password")
-		return nil, fmt.Errorf("invalid credentials")
+		return nil, huma.Error401Unauthorized("invalid credentials")
 	}
 
 	// Update last active timestamp
@@ -644,7 +644,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 			Int64("user_id", user.UserID).
 			Str("role", primaryRole).
 			Msg("Failed to get user pseudonyms")
-		return nil, fmt.Errorf("failed to get user pseudonyms: %w", err)
+		return nil, huma.Error500InternalServerError("failed to get user pseudonyms")
 	}
 
 	// If user has no pseudonyms, this is a data error
@@ -652,7 +652,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 		log.Error().
 			Int64("user_id", user.UserID).
 			Msg("User has no pseudonyms; cannot proceed with login")
-		return nil, fmt.Errorf("user has no pseudonyms; please contact support")
+		return nil, huma.Error500InternalServerError("user has no pseudonyms; please contact support")
 	}
 
 	// Get the default pseudonym for the user
@@ -663,7 +663,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 			Int64("user_id", user.UserID).
 			Str("role", primaryRole).
 			Msg("Failed to get default pseudonym")
-		return nil, fmt.Errorf("failed to get default pseudonym: %w", err)
+		return nil, huma.Error500InternalServerError("failed to get default pseudonym")
 	}
 
 	// Convert to API models
@@ -727,7 +727,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 			Err(err).
 			Int64("user_id", user.UserID).
 			Msg("Failed to generate access token")
-		return nil, fmt.Errorf("failed to generate access token: %w", err)
+		return nil, huma.Error500InternalServerError("failed to generate access token")
 	}
 
 	// Generate refresh token (longer expiration)
@@ -737,7 +737,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 			Err(err).
 			Int64("user_id", user.UserID).
 			Msg("Failed to generate refresh token")
-		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
+		return nil, huma.Error500InternalServerError("failed to generate refresh token")
 	}
 
 	// JWT cookies are automatically set by Huma's response handling
