@@ -45,14 +45,6 @@ func (dao *IdentityMappingDAO) GetIdentityMappingsByFingerprint(ctx context.Cont
 	).All(ctx, dao.db)
 }
 
-// GetIdentityMappingsByUserID retrieves all identity mappings for a given user ID
-func (dao *IdentityMappingDAO) GetIdentityMappingsByUserID(ctx context.Context, userID int64) (models.IdentityMappingSlice, error) {
-	return models.IdentityMappings.Query(
-		models.SelectWhere.IdentityMappings.UserID.EQ(userID),
-		models.SelectWhere.IdentityMappings.IsActive.EQ(true),
-	).All(ctx, dao.db)
-}
-
 // GetAllActiveIdentityMappings retrieves all active identity mappings
 func (dao *IdentityMappingDAO) GetAllActiveIdentityMappings(ctx context.Context) (models.IdentityMappingSlice, error) {
 	return models.IdentityMappings.Query(

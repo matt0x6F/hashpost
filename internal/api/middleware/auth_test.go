@@ -230,7 +230,7 @@ func TestUserContext_HasCapability(t *testing.T) {
 		{"has vote", "vote", true},
 		{"has message", "message", true},
 		{"has report", "report", true},
-		{"does not have admin", "admin", false},
+		{"does not have platform_admin", "platform_admin", false},
 		{"does not have empty", "", false},
 	}
 
@@ -256,7 +256,7 @@ func TestUserContext_HasRole(t *testing.T) {
 	}{
 		{"has user", "user", true},
 		{"has moderator", "moderator", true},
-		{"does not have admin", "admin", false},
+		{"does not have platform_admin", "platform_admin", false},
 		{"does not have empty", "", false},
 	}
 

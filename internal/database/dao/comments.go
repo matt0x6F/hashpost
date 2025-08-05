@@ -357,6 +357,12 @@ func (dao *CommentDAO) GetCommentsByPseudonym(ctx context.Context, pseudonymID s
 		if err := comment.LoadPost(ctx, dao.db); err != nil {
 			log.Warn().Err(err).Int64("comment_id", comment.CommentID).Msg("Failed to load comment post")
 		}
+		// Load subforum data for the post
+		if comment.R.Post != nil {
+			if err := comment.R.Post.LoadSubforum(ctx, dao.db); err != nil {
+				log.Warn().Err(err).Int64("comment_id", comment.CommentID).Int64("post_id", comment.PostID).Msg("Failed to load comment post subforum")
+			}
+		}
 	}
 
 	return comments, nil

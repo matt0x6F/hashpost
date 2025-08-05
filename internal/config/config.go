@@ -62,6 +62,8 @@ type IBEConfig struct {
 		Interval    time.Duration
 		GracePeriod time.Duration
 	}
+	// Role-to-domain mapping for encryption
+	RoleDomainMapping map[string]string // Maps role names to domain names
 }
 
 // JWTConfig holds JWT configuration
@@ -172,6 +174,14 @@ func Load() (*Config, error) {
 				Enabled:     getEnvAsBool("IBE_KEY_ROTATION_ENABLED", false),
 				Interval:    getEnvAsDuration("IBE_KEY_ROTATION_INTERVAL", 365*24*time.Hour),    // 1 year
 				GracePeriod: getEnvAsDuration("IBE_KEY_ROTATION_GRACE_PERIOD", 30*24*time.Hour), // 30 days
+			},
+			RoleDomainMapping: map[string]string{
+				"user":           "user_self_correlation_v1",
+				"moderator":      "moderator_correlation_v1",
+				"subforum_owner": "moderator_correlation_v1",
+				"platform_admin": "admin_correlation_v1",
+				"trust_safety":   "admin_correlation_v1",
+				"legal_team":     "legal_correlation_v1",
 			},
 		},
 		JWT: JWTConfig{

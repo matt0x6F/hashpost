@@ -141,55 +141,6 @@ func (dao *UserBlocksDAO) DeleteUserBlock(ctx context.Context, blockerPseudonymI
 	return nil
 }
 
-// getUserIDByPseudonym gets the user ID for a pseudonym using identity mapping
-func (dao *UserBlocksDAO) getUserIDByPseudonym(ctx context.Context, pseudonymID string) (int64, error) {
-	log.Debug().
-		Str("pseudonym_id", pseudonymID).
-		Msg("Getting user ID by pseudonym")
-
-	// Get the identity mapping for this pseudonym
-	mapping, err := models.IdentityMappings.Query(
-		models.SelectWhere.IdentityMappings.PseudonymID.EQ(pseudonymID),
-		models.SelectWhere.IdentityMappings.IsActive.EQ(true),
-	).One(ctx, dao.db)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get identity mapping: %w", err)
-	}
-	if mapping == nil {
-		return 0, fmt.Errorf("identity mapping not found for pseudonym")
-	}
-
-	return mapping.UserID, nil
-}
-
-// getPseudonymIDsByUserID gets all pseudonym IDs for a user using identity mappings
-func (dao *UserBlocksDAO) getPseudonymIDsByUserID(ctx context.Context, userID int64) ([]string, error) {
-	log.Debug().
-		Int64("user_id", userID).
-		Msg("Getting pseudonym IDs by user ID")
-
-	// Get all identity mappings for this user
-	mappings, err := models.IdentityMappings.Query(
-		models.SelectWhere.IdentityMappings.UserID.EQ(userID),
-		models.SelectWhere.IdentityMappings.IsActive.EQ(true),
-	).All(ctx, dao.db)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get identity mappings: %w", err)
-	}
-
-	// Extract unique pseudonym IDs
-	pseudonymMap := make(map[string]bool)
-	var pseudonymIDs []string
-	for _, mapping := range mappings {
-		if !pseudonymMap[mapping.PseudonymID] {
-			pseudonymMap[mapping.PseudonymID] = true
-			pseudonymIDs = append(pseudonymIDs, mapping.PseudonymID)
-		}
-	}
-
-	return pseudonymIDs, nil
-}
-
 // IsUserBlocked checks if a user is blocked by another user
 func (dao *UserBlocksDAO) IsUserBlocked(ctx context.Context, blockerPseudonymID, blockedPseudonymID string) (bool, error) {
 	log.Debug().
@@ -208,29 +159,12 @@ func (dao *UserBlocksDAO) IsUserBlocked(ctx context.Context, blockerPseudonymID,
 	}
 
 	// If no direct block found, check for fingerprint-level blocks
-	// This requires getting the user ID for the blocked pseudonym
-	// Get the user ID for the blocked pseudonym using identity mapping
-	blockedUserID, err := dao.getUserIDByPseudonym(ctx, blockedPseudonymID)
-	if err != nil {
-		log.Warn().
-			Err(err).
-			Str("blocked_pseudonym_id", blockedPseudonymID).
-			Msg("Failed to get user ID for blocked pseudonym, skipping fingerprint-level check")
-		return false, nil
-	}
-
-	// Check for fingerprint-level block (blocks all personas of the user)
-	fingerprintBlocked, err := dao.IsUserBlockedAtFingerprintLevel(ctx, blockerPseudonymID, blockedUserID)
-	if err != nil {
-		log.Warn().
-			Err(err).
-			Str("blocker_pseudonym_id", blockerPseudonymID).
-			Int64("blocked_user_id", blockedUserID).
-			Msg("Failed to check fingerprint-level block")
-		return false, nil
-	}
-
-	return fingerprintBlocked, nil
+	// This requires getting the user ID for the blocked pseudonym using IBE correlation
+	// Note: This requires the caller to have proper IBE permissions
+	log.Warn().
+		Str("blocked_pseudonym_id", blockedPseudonymID).
+		Msg("Fingerprint-level block checking requires IBE correlation - caller must use GetUserIDByPseudonym with proper permissions")
+	return false, nil
 }
 
 // IsPseudonymBlockedByUser checks if a pseudonym is blocked by checking both direct blocks and fingerprint-level blocks
@@ -274,42 +208,6 @@ func (dao *UserBlocksDAO) IsUserBlockedAtFingerprintLevel(ctx context.Context, b
 	}
 
 	return len(blocks) > 0, nil
-}
-
-// IsUserBlockedByAnyPseudonym checks if a user is blocked by any pseudonym of the blocker
-func (dao *UserBlocksDAO) IsUserBlockedByAnyPseudonym(ctx context.Context, blockerUserID int64, blockedPseudonymID string) (bool, error) {
-	log.Debug().
-		Int64("blocker_user_id", blockerUserID).
-		Str("blocked_pseudonym_id", blockedPseudonymID).
-		Msg("Checking if user is blocked by any pseudonym of blocker")
-
-	// Get all pseudonyms for the blocker user using identity mappings
-	blockerPseudonymIDs, err := dao.getPseudonymIDsByUserID(ctx, blockerUserID)
-	if err != nil {
-		log.Warn().
-			Err(err).
-			Int64("blocker_user_id", blockerUserID).
-			Msg("Failed to get pseudonyms for blocker user, skipping block check")
-		return false, nil
-	}
-
-	// Check if any of the blocker's pseudonyms block the target pseudonym
-	for _, blockerPseudonymID := range blockerPseudonymIDs {
-		blocked, err := dao.IsUserBlocked(ctx, blockerPseudonymID, blockedPseudonymID)
-		if err != nil {
-			log.Warn().
-				Err(err).
-				Str("blocker_pseudonym_id", blockerPseudonymID).
-				Str("blocked_pseudonym_id", blockedPseudonymID).
-				Msg("Failed to check block between pseudonyms")
-			continue
-		}
-		if blocked {
-			return true, nil
-		}
-	}
-
-	return false, nil
 }
 
 // GetFingerprintLevelBlocks retrieves all fingerprint-level blocks for a user

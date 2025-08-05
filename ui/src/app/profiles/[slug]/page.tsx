@@ -28,35 +28,11 @@ interface PseudonymProfile {
   slug: string;
 }
 
-interface Post {
-  post_id: number;
-  title: string;
-  content: string;
-  post_type: string;
-  url?: string;
-  is_nsfw: boolean;
-  is_spoiler: boolean;
-  score: number;
-  upvotes: number;
-  downvotes: number;
-  view_count: number;
-  comment_count: number;
-  created_at: string;
-  subforum_name: string;
-  subforum_display_name: string;
-}
+import type { Post as APIPost, Comment as APIComment } from '@/generated/api/src/models';
 
-interface Comment {
-  comment_id: number;
-  content: string;
-  score: number;
-  upvotes: number;
-  downvotes: number;
-  created_at: string;
-  post_title: string;
-  post_id: number;
-  subforum_name: string;
-}
+// Use the API types directly since they already have the correct structure
+type Post = APIPost;
+type Comment = APIComment;
 
 export default function ProfilePage() {
   const params = useParams();
@@ -112,9 +88,29 @@ export default function ProfilePage() {
     });
   };
 
+  const getCommunityPrefix = (communityType: string) => {
+    switch (communityType) {
+      case 't': return 't/';
+      case 'g': return 'g/';
+      case 'b': return 'b/';
+      case 'c': return 'c/';
+      case 'h': return 'h/';
+      default: return 'r/';
+    }
+  };
+
   const formatTimeAgo = (dateString: string) => {
+    if (!dateString) return 'unknown time ago';
+    
     const now = new Date();
     const date = new Date(dateString);
+    
+    // Check if the date is valid
+    if (isNaN(date.getTime())) {
+      console.warn('Invalid date string:', dateString);
+      return 'unknown time ago';
+    }
+    
     const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
     if (diffInSeconds < 60) return `${diffInSeconds}s ago`;
@@ -127,9 +123,8 @@ export default function ProfilePage() {
     if (!profile) return;
     try {
       setPostsLoading(true);
-      await pseudonymsApi.getPostsByPseudonym(slug, 1, 25, GetPostsByPseudonymSortEnum.CREATED_AT);
-      // For now, we'll use the post count from the profile to show a placeholder
-      // TODO: Fix the API response type
+      const response = await pseudonymsApi.getPostsByPseudonym(slug, 1, 25, GetPostsByPseudonymSortEnum.CREATED_AT);
+      setPosts(response.posts || []);
     } catch (err) {
       console.error('Error fetching posts:', err);
     } finally {
@@ -141,9 +136,8 @@ export default function ProfilePage() {
     if (!profile) return;
     try {
       setCommentsLoading(true);
-      await pseudonymsApi.getCommentsByPseudonym(slug, 1, 25, GetCommentsByPseudonymSortEnum.CREATED_AT);
-      // For now, we'll use the comment count from the profile to show a placeholder
-      // TODO: Fix the API response type
+      const response = await pseudonymsApi.getCommentsByPseudonym(slug, 1, 25, GetCommentsByPseudonymSortEnum.CREATED_AT);
+      setComments(response.comments || []);
     } catch (err) {
       console.error('Error fetching comments:', err);
     } finally {
@@ -301,21 +295,21 @@ export default function ProfilePage() {
               ) : (
                 <div className="space-y-4">
                   {posts.map((post) => (
-                    <div key={post.post_id} className="border-b border-border pb-4 last:border-b-0">
+                    <div key={post.postId} className="border-b border-border pb-4 last:border-b-0">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <h3 className="font-semibold mb-1">
-                            <a href={`/posts/${post.post_id}`} className="hover:underline">
+                            <a href={`/posts/${post.postId}`} className="hover:underline">
                               {post.title}
                             </a>
                           </h3>
                           <p className="text-sm text-muted-foreground mb-2">
-                            Posted in r/{post.subforum_display_name} • {formatTimeAgo(post.created_at)}
+                            Posted in {getCommunityPrefix(post.subforum?.communityType || '')}{post.subforum?.displayName || 'unknown'} • {formatTimeAgo(post.createdAt)}
                           </p>
                           <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                             <span>{post.score} points</span>
-                            <span>{post.comment_count} comments</span>
-                            <span>{post.view_count} views</span>
+                            <span>{post.commentCount} comments</span>
+                            <span>0 views</span>
                           </div>
                         </div>
                       </div>
@@ -341,16 +335,16 @@ export default function ProfilePage() {
               ) : (
                 <div className="space-y-4">
                   {comments.map((comment) => (
-                    <div key={comment.comment_id} className="border-b border-border pb-4 last:border-b-0">
+                    <div key={comment.commentId} className="border-b border-border pb-4 last:border-b-0">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <p className="text-sm text-muted-foreground mb-1">
-                            Comment on &quot;{comment.post_title}&quot; in r/{comment.subforum_name}
+                            Comment on &quot;{comment.postTitle || 'Unknown Post'}&quot; in {getCommunityPrefix(comment.communityType || '')}{comment.subforumDisplayName || 'unknown'}
                           </p>
                           <p className="mb-2">{comment.content}</p>
                           <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                             <span>{comment.score} points</span>
-                            <span>{formatTimeAgo(comment.created_at)}</span>
+                            <span>{formatTimeAgo(comment.createdAt)}</span>
                           </div>
                         </div>
                       </div>

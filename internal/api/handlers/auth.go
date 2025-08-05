@@ -1136,8 +1136,8 @@ func (h *AuthHandler) GetCurrentUserSessionForSubforum(ctx context.Context, inpu
 					Msg("Found owner record - granting owner and moderator capabilities")
 
 				// Add owner role
-				if !contains(unifiedRoles, "owner") {
-					unifiedRoles = append(unifiedRoles, "owner")
+				if !contains(unifiedRoles, constants.RoleSubforumOwner) {
+					unifiedRoles = append(unifiedRoles, constants.RoleSubforumOwner)
 				}
 
 				// Add owner capabilities (all moderator capabilities plus owner-specific ones)

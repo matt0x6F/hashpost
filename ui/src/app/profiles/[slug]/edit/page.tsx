@@ -92,14 +92,20 @@ export default function ProfileEditPage() {
       const profileResponse = await pseudonymsApi.getPseudonymProfileBySlug(slug);
       const pseudonymId = profileResponse.pseudonymId;
 
-      await pseudonymsApi.updatePseudonymProfile(pseudonymId, {
+      // Create the request object with only the correct field names
+      const requestData = {
         displayName: formData.display_name,
         bio: formData.bio,
         websiteUrl: formData.website_url,
         slug: formData.slug,
         showKarma: formData.show_karma,
         allowDirectMessages: formData.allow_direct_messages,
-      });
+      };
+
+      // Debug: log what we're sending
+      console.log('Sending request data:', requestData);
+
+      await pseudonymsApi.updatePseudonymProfile(pseudonymId, requestData);
 
       setSuccess('Profile updated successfully!');
       
@@ -112,6 +118,7 @@ export default function ProfileEditPage() {
     } catch (err) {
       const errorMessage = await extractApiErrorMessage(err);
       setError(errorMessage);
+      console.error('Profile update error:', err);
     } finally {
       setSaving(false);
     }

@@ -623,6 +623,16 @@ func (h *SubforumHandler) CreateSubforum(ctx context.Context, input *models.Subf
 	}
 
 	// Create the subforum in the database
+	// Extract user context for owner assignment
+	ownerCtx, err := middleware.ExtractUserFromHumaInput(&middleware.AuthInput{
+		Authorization: input.Authorization,
+		AccessToken:   input.AccessToken,
+	})
+	if err != nil {
+		log.Error().Err(err).Msg("Authentication required for subforum creation")
+		return nil, huma.Error401Unauthorized("authentication required")
+	}
+
 	subforum, err := h.subforumDAO.CreateSubforum(
 		ctx,
 		input.Body.Slug, // Slug is used as the unique identifier (maps to db 'name')
@@ -635,11 +645,32 @@ func (h *SubforumHandler) CreateSubforum(ctx context.Context, input *models.Subf
 		isNSFW,
 		isPrivate,
 		isRestricted,
-		userCtx.ActivePseudonymID, // Owner is the creating user's active pseudonym
+		ownerCtx.ActivePseudonymID, // Owner is the creating user's active pseudonym
 	)
 	if err != nil {
 		log.Error().Err(err).Str("slug", input.Body.Slug).Msg("Failed to create subforum")
 		return nil, huma.Error400BadRequest(err.Error())
+	}
+
+	// Create role key for the subforum owner
+	ownerCapabilities := constants.GetRoleCapabilities(constants.RoleSubforumOwner)
+	_, err = h.roleKeyDAO.CreateRoleKeyWithIBE(
+		ctx,
+		constants.RoleSubforumOwner,
+		constants.ScopeModeration,
+		ownerCapabilities,
+		time.Now().AddDate(1, 0, 0), // 1 year expiration
+		ownerCtx.ActivePseudonymID,  // created_by_pseudonym_id
+		ownerCtx.ActivePseudonymID,  // pseudonym_id (owner's pseudonym)
+		&subforum.SubforumID,        // subforum_id
+	)
+	if err != nil {
+		log.Error().Err(err).
+			Str("subforum_id", fmt.Sprintf("%d", subforum.SubforumID)).
+			Str("owner_pseudonym_id", ownerCtx.ActivePseudonymID).
+			Msg("Failed to create role key for subforum owner")
+		// Don't fail the subforum creation, but log the error
+		// The owner can still be added manually later
 	}
 
 	// Convert to API model
@@ -977,9 +1008,9 @@ func (h *SubforumHandler) AddModerator(ctx context.Context, input *struct {
 		return nil, fmt.Errorf("moderator already exists")
 	}
 
-	// Create a new role key for the moderator
+	// Create a new role key for the moderator using proper IBE key generation
 	capabilities := []string{"moderate_content", "ban_users"}
-	_, err = h.roleKeyDAO.CreateRoleKey(ctx, "moderator", "moderation", []byte{}, capabilities, time.Now().AddDate(1, 0, 0), userCtx.ActivePseudonymID, input.Body.PseudonymID, &subforum.SubforumID)
+	_, err = h.roleKeyDAO.CreateRoleKeyWithIBE(ctx, "moderator", "moderation", capabilities, time.Now().AddDate(1, 0, 0), userCtx.ActivePseudonymID, input.Body.PseudonymID, &subforum.SubforumID)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to create moderator role key")
 		return nil, fmt.Errorf("failed to add moderator: %w", err)
@@ -1152,22 +1183,36 @@ func (h *SubforumHandler) GetPseudonymSubscriptions(ctx context.Context, input *
 	log.Info().Int64("user_id", userCtx.UserID).Str("pseudonym_id", input.PseudonymSubscriptionsInput.PseudonymID).Msg("Checking pseudonym ownership for subscriptions")
 
 	// Only allow if the pseudonym belongs to the user
-	identityMappings, err := h.identityMappingDAO.GetIdentityMappingsByUserID(ctx, userCtx.UserID)
-	if err != nil {
-		log.Error().Err(err).Int64("user_id", userCtx.UserID).Msg("Failed to fetch user identity mappings")
-		return nil, huma.Error500InternalServerError("Failed to fetch user pseudonyms")
-	}
+	// Use IBE-based ownership verification with multi-role fallback strategy
+	ownsPseudonym := false
+	var ownershipErr error
 
-	// Check if the requested pseudonym_id is owned by this user
-	userOwnsPseudonym := false
-	for _, mapping := range identityMappings {
-		if mapping.PseudonymID == input.PseudonymSubscriptionsInput.PseudonymID {
-			userOwnsPseudonym = true
+	// Try authentication scope first (users have this role key)
+	for _, role := range userCtx.Roles {
+		ownsPseudonym, ownershipErr = h.pseudonymDAO.VerifyPseudonymOwnership(ctx, input.PseudonymSubscriptionsInput.PseudonymID, userCtx.UserID, role, "authentication")
+		if ownershipErr == nil && ownsPseudonym {
 			break
 		}
 	}
 
-	if !userOwnsPseudonym {
+	// If authentication scope fails, try self_correlation scope for admin roles
+	if !ownsPseudonym {
+		for _, role := range userCtx.Roles {
+			if role == "platform_admin" || role == "trust_safety" || role == "legal_team" {
+				ownsPseudonym, ownershipErr = h.pseudonymDAO.VerifyPseudonymOwnership(ctx, input.PseudonymSubscriptionsInput.PseudonymID, userCtx.UserID, role, "self_correlation")
+				if ownershipErr == nil && ownsPseudonym {
+					break
+				}
+			}
+		}
+	}
+
+	if ownershipErr != nil {
+		log.Error().Err(ownershipErr).Int64("user_id", userCtx.UserID).Str("pseudonym_id", input.PseudonymSubscriptionsInput.PseudonymID).Msg("Failed to verify pseudonym ownership")
+		return nil, huma.Error500InternalServerError("Failed to verify pseudonym ownership")
+	}
+
+	if !ownsPseudonym {
 		log.Warn().Int64("user_id", userCtx.UserID).Str("pseudonym_id", input.PseudonymSubscriptionsInput.PseudonymID).Msg("User does not own the requested pseudonym")
 		return nil, huma.Error403Forbidden("Access denied: pseudonym not owned by user")
 	}

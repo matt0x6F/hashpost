@@ -12,7 +12,7 @@ type SlugPathParam struct {
 	Slug string `path:"slug" example:"user-slug" required:"true"`
 }
 
-type PostsByPseudonymResponse struct {
+type PostsByPseudonymResponseBody struct {
 	Posts      []Post `json:"posts"`
 	TotalCount int    `json:"total_count"`
 	Page       int    `json:"page"`
@@ -20,12 +20,22 @@ type PostsByPseudonymResponse struct {
 	TotalPages int    `json:"total_pages"`
 }
 
-type CommentsByPseudonymResponse struct {
+type CommentsByPseudonymResponseBody struct {
 	Comments   []Comment `json:"comments"`
 	TotalCount int       `json:"total_count"`
 	Page       int       `json:"page"`
 	Limit      int       `json:"limit"`
 	TotalPages int       `json:"total_pages"`
+}
+
+type PostsByPseudonymResponse struct {
+	Status int                          `json:"-" example:"200"`
+	Body   PostsByPseudonymResponseBody `json:"body"`
+}
+
+type CommentsByPseudonymResponse struct {
+	Status int                             `json:"-" example:"200"`
+	Body   CommentsByPseudonymResponseBody `json:"body"`
 }
 
 // PseudonymProfileBody represents the body of pseudonym profile update request

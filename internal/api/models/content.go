@@ -30,8 +30,9 @@ type Post struct {
 		DisplayName string `json:"display_name" example:"author_name"`
 	} `json:"author"`
 	Subforum struct {
-		Name        string `json:"name" example:"technology"`
-		DisplayName string `json:"display_name" example:"Technology"`
+		Name          string `json:"name" example:"technology"`
+		DisplayName   string `json:"display_name" example:"Technology"`
+		CommunityType string `json:"community_type" example:"t"`
 	} `json:"subforum"`
 	UserVote int       `json:"user_vote" example:"0"`
 	Comments []Comment `json:"comments"`
@@ -58,6 +59,12 @@ type Comment struct {
 	} `json:"author"`
 	UserVote int       `json:"user_vote" example:"0"`
 	Replies  []Comment `json:"replies"`
+	// Post information for comments in profile context
+	PostTitle           string `json:"post_title,omitempty" example:"My Post Title"`
+	PostID              int    `json:"post_id,omitempty" example:"123"`
+	SubforumName        string `json:"subforum_name,omitempty" example:"golang"`
+	SubforumDisplayName string `json:"subforum_display_name,omitempty" example:"Golang"`
+	CommunityType       string `json:"community_type,omitempty" example:"t"`
 	// User deletion fields
 	IsDeleted    bool   `json:"is_deleted" example:"false"`
 	DeletedAt    string `json:"deleted_at,omitempty" example:"2024-01-01T16:00:00Z"`

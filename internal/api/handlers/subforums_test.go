@@ -714,6 +714,11 @@ func TestSubforumHandler_CreateSubforum(t *testing.T) {
 			// Create mock role key DAO
 			mockRoleKeyDAO := mocks.NewMockRoleKeyDAO()
 
+			// Set up expectations for role key creation (only for successful subforum creation)
+			if !tt.wantErr {
+				mockRoleKeyDAO.On("CreateRoleKeyWithIBE", mock.Anything, "subforum_owner", "moderation", mock.Anything, mock.Anything, "test-pseudonym-id", "test-pseudonym-id", mock.Anything).Return(&dbmodels.RoleKey{}, nil)
+			}
+
 			// Create handler with mocks
 			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockIdentityMappingDAO, mockPseudonymDAO, mockPostDAO, mockRoleKeyDAO)
 
@@ -780,6 +785,9 @@ func TestGovernanceStyleEnforcement(t *testing.T) {
 
 			// Create mock role key DAO
 			mockRoleKeyDAO := mocks.NewMockRoleKeyDAO()
+
+			// Set up expectations for role key creation
+			mockRoleKeyDAO.On("CreateRoleKeyWithIBE", mock.Anything, "subforum_owner", "moderation", mock.Anything, mock.Anything, "test-pseudonym-id", "test-pseudonym-id", mock.Anything).Return(&dbmodels.RoleKey{}, nil)
 
 			// Create handler with mocks
 			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockIdentityMappingDAO, mockPseudonymDAO, mockPostDAO, mockRoleKeyDAO)
@@ -911,6 +919,9 @@ func TestOwnerAssignment(t *testing.T) {
 
 			// Create mock role key DAO
 			mockRoleKeyDAO := mocks.NewMockRoleKeyDAO()
+
+			// Set up expectations for role key creation
+			mockRoleKeyDAO.On("CreateRoleKeyWithIBE", mock.Anything, "subforum_owner", "moderation", mock.Anything, mock.Anything, tt.activePseudonymID, tt.activePseudonymID, mock.Anything).Return(&dbmodels.RoleKey{}, nil)
 
 			// Create handler with mocks
 			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockIdentityMappingDAO, mockPseudonymDAO, mockPostDAO, mockRoleKeyDAO)
@@ -1049,6 +1060,11 @@ func TestSubforumHandler_GetPseudonymSubscriptions(t *testing.T) {
 
 			// Create mock pseudonym DAO
 			mockPseudonymDAO := mocks.NewMockPseudonymDAO()
+
+			// Set up mock expectations for VerifyPseudonymOwnership
+			// The new logic tries authentication scope first, then self_correlation for admin roles
+			mockPseudonymDAO.On("VerifyPseudonymOwnership", mock.Anything, "moderator-pseudonym-123", int64(1), "user", "authentication").Return(true, nil)
+			mockPseudonymDAO.On("VerifyPseudonymOwnership", mock.Anything, "other-pseudonym-456", int64(1), "user", "authentication").Return(false, nil)
 
 			// Create mock role key DAO
 			mockRoleKeyDAO := mocks.NewMockRoleKeyDAO()
@@ -1773,8 +1789,8 @@ func TestSubforumHandler_AddModerator(t *testing.T) {
 			if tt.userCtx != nil && tt.mockSubforum != nil && !tt.wantErr {
 				// Mock role key check - no existing moderator
 				mockRoleKeyDAO.On("GetRoleKey", mock.Anything, tt.input.Body.PseudonymID, "moderation", &tt.mockSubforum.SubforumID).Return(nil, nil)
-				// Mock role key creation
-				mockRoleKeyDAO.On("CreateRoleKey", mock.Anything, "moderator", "moderation", []byte{}, mock.Anything, mock.Anything, tt.userCtx.ActivePseudonymID, tt.input.Body.PseudonymID, &tt.mockSubforum.SubforumID).Return(&dbmodels.RoleKey{}, nil)
+				// Mock role key creation with IBE
+				mockRoleKeyDAO.On("CreateRoleKeyWithIBE", mock.Anything, "moderator", "moderation", mock.Anything, mock.Anything, tt.userCtx.ActivePseudonymID, tt.input.Body.PseudonymID, &tt.mockSubforum.SubforumID).Return(&dbmodels.RoleKey{}, nil)
 			}
 
 			// Create handler with all dependencies

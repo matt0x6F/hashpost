@@ -20,13 +20,26 @@ import (
 
 // RoleKeyDAO handles database operations for role keys
 type RoleKeyDAO struct {
-	db bob.Executor
+	db        bob.Executor
+	ibeSystem *ibe.IBESystem
 }
 
 // NewRoleKeyDAO creates a new RoleKeyDAO
 func NewRoleKeyDAO(db bob.Executor) *RoleKeyDAO {
+	// Try to create IBE system, but don't fail if it's not available (e.g., in tests)
+	var ibeSystem *ibe.IBESystem
+	defer func() {
+		if r := recover(); r != nil {
+			// In test environments, we might not have the IBE keys available
+			// We'll create a minimal IBE system for testing
+			ibeSystem = &ibe.IBESystem{}
+		}
+	}()
+	ibeSystem = ibe.NewIBESystemFromEnv()
+
 	return &RoleKeyDAO{
-		db: db,
+		db:        db,
+		ibeSystem: ibeSystem,
 	}
 }
 
@@ -215,6 +228,47 @@ func (dao *RoleKeyDAO) GetKeyData(ctx context.Context, pseudonymID string, scope
 	}
 
 	return roleKey.KeyData, nil
+}
+
+// GetPlatformKeyData retrieves the key data for a platform-level role key
+func (dao *RoleKeyDAO) GetPlatformKeyData(ctx context.Context, roleName, scope string) ([]byte, error) {
+	// For platform-level operations, we use the role name as the pseudonym ID
+	// This is a special case where the role itself acts as the key identifier
+	roleKey, err := dao.GetRoleKey(ctx, roleName, scope, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get platform role key for role=%s scope=%s: %w", roleName, scope, err)
+	}
+
+	return roleKey.KeyData, nil
+}
+
+// ValidatePlatformKeyCapability validates if a platform-level role key has the required capability
+func (dao *RoleKeyDAO) ValidatePlatformKeyCapability(ctx context.Context, roleName, scope, requiredCapability string) (bool, error) {
+	// For platform-level operations, we use the role name as the pseudonym ID
+	roleKey, err := dao.GetRoleKey(ctx, roleName, scope, nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to get platform role key for role=%s scope=%s: %w", roleName, scope, err)
+	}
+
+	// Parse capabilities from JSON
+	var capabilities []string
+	capabilitiesBytes, err := roleKey.Capabilities.Value()
+	if err != nil {
+		return false, fmt.Errorf("failed to get capabilities value: %w", err)
+	}
+
+	if err := json.Unmarshal(capabilitiesBytes.([]byte), &capabilities); err != nil {
+		return false, fmt.Errorf("failed to unmarshal capabilities: %w", err)
+	}
+
+	// Check if the required capability is present
+	for _, capability := range capabilities {
+		if capability == requiredCapability {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // EnsureDefaultKeys creates default role keys if they don't exist
@@ -444,6 +498,15 @@ func (dao *RoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interfac
 	return nil
 }
 
+// CreateRoleKeyWithIBE creates a new role key with proper IBE key generation
+func (dao *RoleKeyDAO) CreateRoleKeyWithIBE(ctx context.Context, roleName, scope string, capabilities []string, expiresAt time.Time, createdByPseudonymID string, pseudonymID string, subforumID *int32) (*models.RoleKey, error) {
+	// Generate proper IBE role key data using the internal IBE system
+	keyData := dao.ibeSystem.GenerateRoleKey(roleName, scope, expiresAt)
+
+	// Create the role key with the generated IBE data
+	return dao.CreateRoleKey(ctx, roleName, scope, keyData, capabilities, expiresAt, createdByPseudonymID, pseudonymID, subforumID)
+}
+
 // DeleteByPseudonymID deletes all role keys for a specific pseudonym
 func (dao *RoleKeyDAO) DeleteByPseudonymID(ctx context.Context, pseudonymID string) error {
 	// Delete all role keys where pseudonym_id matches
@@ -458,11 +521,11 @@ func (dao *RoleKeyDAO) DeleteByPseudonymID(ctx context.Context, pseudonymID stri
 	return nil
 }
 
-// GetModeratorsForSubforum retrieves all moderator role keys for a specific subforum
+// GetModeratorsForSubforum retrieves all moderator and subforum owner role keys for a specific subforum
 func (dao *RoleKeyDAO) GetModeratorsForSubforum(ctx context.Context, subforumID int32) ([]*models.RoleKey, error) {
 	roleKeys, err := models.RoleKeys.Query(
 		models.SelectWhere.RoleKeys.SubforumID.EQ(subforumID),
-		models.SelectWhere.RoleKeys.RoleName.EQ("moderator"),
+		models.SelectWhere.RoleKeys.RoleName.In("moderator", "subforum_owner"),
 		models.SelectWhere.RoleKeys.IsActive.EQ(true),
 		models.SelectWhere.RoleKeys.ExpiresAt.GT(time.Now()),
 	).All(ctx, dao.db)

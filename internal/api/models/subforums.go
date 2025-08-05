@@ -28,7 +28,7 @@ type Subforum struct {
 type SubforumModerator struct {
 	PseudonymID   string `json:"pseudonym_id" example:"abc123"`
 	DisplayName   string `json:"display_name" example:"moderator1"`
-	ModeratorType string `json:"moderator_type" example:"admin"`
+	ModeratorType string `json:"moderator_type" example:"platform_admin"`
 	AddedAt       string `json:"added_at" example:"2023-01-01T00:00:00Z"`
 }
 

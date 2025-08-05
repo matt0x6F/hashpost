@@ -42,12 +42,15 @@ type PseudonymDAOInterface interface {
 
 // IdentityMappingDAOInterface defines the interface for identity mapping data access operations
 type IdentityMappingDAOInterface interface {
-	CreateIdentityMapping(ctx context.Context, mapping *models.IdentityMappingSetter) (*models.IdentityMapping, error)
 	GetIdentityMappingByPseudonymID(ctx context.Context, pseudonymID string) (*models.IdentityMapping, error)
 	GetIdentityMappingsByPseudonymID(ctx context.Context, pseudonymID string) (models.IdentityMappingSlice, error)
-	GetIdentityMappingsByUserID(ctx context.Context, userID int64) (models.IdentityMappingSlice, error)
 	GetIdentityMappingsByFingerprint(ctx context.Context, fingerprint string) (models.IdentityMappingSlice, error)
+	GetAllActiveIdentityMappings(ctx context.Context) (models.IdentityMappingSlice, error)
+	CreateIdentityMapping(ctx context.Context, mapping *models.IdentityMappingSetter) (*models.IdentityMapping, error)
+	UpdateIdentityMapping(ctx context.Context, mappingID string, updates *models.IdentityMappingSetter) error
+	DeleteByUserID(ctx context.Context, userID int64) error
 	DeactivateIdentityMapping(ctx context.Context, mappingID string) error
+	GetCorrelationData(ctx context.Context, pseudonymID string) (*models.IdentityMapping, models.IdentityMappingSlice, error)
 }
 
 // RoleKeyDAOInterface defines the interface for role key data access operations
@@ -61,6 +64,10 @@ type RoleKeyDAOInterface interface {
 	DeactivateRoleKey(ctx context.Context, keyID string) error
 	ValidateKeyCapability(ctx context.Context, pseudonymID string, scope, requiredCapability string, subforumID *int32) (bool, error)
 	GetKeyData(ctx context.Context, pseudonymID string, scope string, subforumID *int32) ([]byte, error)
+	// Platform-level operations that work with roles instead of pseudonyms
+	GetPlatformKeyData(ctx context.Context, roleName, scope string) ([]byte, error)
+	ValidatePlatformKeyCapability(ctx context.Context, roleName, scope, requiredCapability string) (bool, error)
+	CreateRoleKeyWithIBE(ctx context.Context, roleName, scope string, capabilities []string, expiresAt time.Time, createdByPseudonymID string, pseudonymID string, subforumID *int32) (*models.RoleKey, error)
 	EnsureDefaultKeys(ctx context.Context, ibeSystem interface{}, pseudonymID string, userRoles []string) error
 	DeleteByPseudonymID(ctx context.Context, pseudonymID string) error
 }
@@ -162,19 +169,18 @@ type APIKeyDAOInterface interface {
 	ValidateAPIKey(ctx context.Context, apiKeyHash string) (*models.APIKey, error)
 }
 
-// UserBlocksDAOInterface defines the interface for user blocks data access operations
+// UserBlocksDAOInterface defines the interface for user blocking data access operations
 type UserBlocksDAOInterface interface {
-	CreateUserBlock(ctx context.Context, blockerPseudonymID, blockedPseudonymID string, blockedUserID int64) (*models.UserBlock, error)
+	CreateUserBlock(ctx context.Context, blockerPseudonymID string, blockedPseudonymID string, blockedUserID int64) (*models.UserBlock, error)
 	GetUserBlock(ctx context.Context, blockerPseudonymID, blockedPseudonymID string) (*models.UserBlock, error)
 	GetUserBlocksByBlocker(ctx context.Context, blockerPseudonymID string) ([]*models.UserBlock, error)
 	GetUserBlocksByBlockedUser(ctx context.Context, blockedUserID int64) ([]*models.UserBlock, error)
 	DeleteUserBlock(ctx context.Context, blockerPseudonymID, blockedPseudonymID string) error
-	DeleteUserBlockByID(ctx context.Context, blockID int64) error
 	IsUserBlocked(ctx context.Context, blockerPseudonymID, blockedPseudonymID string) (bool, error)
 	IsPseudonymBlockedByUser(ctx context.Context, blockerPseudonymID, blockedPseudonymID string, blockedUserID int64) (bool, error)
 	IsUserBlockedAtFingerprintLevel(ctx context.Context, blockerPseudonymID string, blockedUserID int64) (bool, error)
-	IsUserBlockedByAnyPseudonym(ctx context.Context, blockerUserID int64, blockedPseudonymID string) (bool, error)
 	GetFingerprintLevelBlocks(ctx context.Context, blockedUserID int64) ([]*models.UserBlock, error)
+	DeleteUserBlockByID(ctx context.Context, blockID int64) error
 }
 
 // UserPreferencesDAOInterface defines the interface for user preferences data access operations

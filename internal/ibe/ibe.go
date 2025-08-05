@@ -280,6 +280,11 @@ func selectDomain(role string) string {
 	}
 }
 
+// GetDomainForRole returns the appropriate domain for a given role
+func (ibe *IBESystem) GetDomainForRole(role string) string {
+	return selectDomain(role)
+}
+
 // EncryptIdentityWithDomain encrypts identity mapping with domain-specific key
 func (ibe *IBESystem) EncryptIdentityWithDomain(realIdentity, pseudonymID string, domain string, adminKey []byte) ([]byte, error) {
 	// Use AES-GCM for authenticated encryption
