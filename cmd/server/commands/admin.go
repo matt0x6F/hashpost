@@ -28,9 +28,7 @@ import (
 type AdminCreateInput struct {
 	Email          string `doc:"Email address for the admin user" json:"email"`
 	Password       string `doc:"Password for the admin user" json:"password"`
-	AdminRole      string `doc:"Admin role (platform_admin, trust_safety, legal_team)" json:"admin_role" default:"platform_admin"`
 	DisplayName    string `doc:"Display name for the admin user" json:"display_name"`
-	AdminScope     string `doc:"Admin scope (optional)" json:"admin_scope"`
 	MFAEnabled     bool   `doc:"Enable MFA for the admin user" json:"mfa_enabled" default:"true"`
 	NonInteractive bool   `doc:"Non-interactive mode (requires all flags)" json:"non_interactive"`
 }
@@ -107,9 +105,12 @@ func CreateAdminUser() error {
 		// Generate admin password hash
 		adminPasswordHash := hashPassword(input.Password)
 
-		// Prepare roles and capabilities
-		roles := []string{"user", input.AdminRole} // Include both user and admin roles
-		capabilities := getCapabilitiesForRole(input.AdminRole)
+		// Prepare roles and capabilities for platform admin
+		adminRole := constants.RolePlatformAdmin
+		roles := []string{"user", adminRole} // Include both user and platform admin roles
+
+		// Get capabilities for platform admin role
+		capabilities := getCapabilitiesForRole(adminRole)
 
 		// Convert to JSON
 		rolesJSON, err := json.Marshal(roles)
@@ -148,11 +149,16 @@ func CreateAdminUser() error {
 			return fmt.Errorf("failed to scan MFA enabled: %w", err)
 		}
 
+		// Derive scopes from platform admin role
+		scopes := getScopesForRole(adminRole)
+		scopesJSON, err := json.Marshal(scopes)
+		if err != nil {
+			return fmt.Errorf("failed to marshal scopes: %w", err)
+		}
+
 		adminScopeNull := sql.Null[string]{}
-		if input.AdminScope != "" {
-			if err := adminScopeNull.Scan(input.AdminScope); err != nil {
-				return fmt.Errorf("failed to scan admin scope: %w", err)
-			}
+		if err := adminScopeNull.Scan(string(scopesJSON)); err != nil {
+			return fmt.Errorf("failed to scan admin scope: %w", err)
 		}
 
 		updates := &models.UserSetter{
@@ -183,9 +189,12 @@ func CreateAdminUser() error {
 		// Generate admin password hash
 		adminPasswordHash := hashPassword(input.Password)
 
-		// Prepare roles and capabilities
-		roles := []string{"user", input.AdminRole} // Include both user and admin roles
-		capabilities := getCapabilitiesForRole(input.AdminRole)
+		// Prepare roles and capabilities for platform admin
+		adminRole := constants.RolePlatformAdmin
+		roles := []string{"user", adminRole} // Include both user and platform admin roles
+
+		// Get capabilities for platform admin role
+		capabilities := getCapabilitiesForRole(adminRole)
 
 		// Convert to JSON
 		rolesJSON, err := json.Marshal(roles)
@@ -230,11 +239,16 @@ func CreateAdminUser() error {
 			return fmt.Errorf("failed to scan MFA enabled: %w", err)
 		}
 
+		// Derive scopes from platform admin role
+		scopes := getScopesForRole(adminRole)
+		scopesJSON, err := json.Marshal(scopes)
+		if err != nil {
+			return fmt.Errorf("failed to marshal scopes: %w", err)
+		}
+
 		adminScopeNull := sql.Null[string]{}
-		if input.AdminScope != "" {
-			if err := adminScopeNull.Scan(input.AdminScope); err != nil {
-				return fmt.Errorf("failed to scan admin scope: %w", err)
-			}
+		if err := adminScopeNull.Scan(string(scopesJSON)); err != nil {
+			return fmt.Errorf("failed to scan admin scope: %w", err)
 		}
 
 		updates := &models.UserSetter{
@@ -261,8 +275,11 @@ func CreateAdminUser() error {
 		return fmt.Errorf("display name is required for admin user creation")
 	}
 
+	// Define admin role for platform admin
+	adminRole := constants.RolePlatformAdmin
+
 	// Check if user already has a pseudonym
-	existingPseudonyms, err := pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, input.AdminRole, "authentication")
+	existingPseudonyms, err := pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, adminRole, "authentication")
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to check existing pseudonyms, will create new one")
 	}
@@ -284,7 +301,7 @@ func CreateAdminUser() error {
 
 	// Ensure default role keys for the admin user's pseudonym
 	roleKeyDAO := dao.NewRoleKeyDAO(db)
-	if err := roleKeyDAO.EnsureDefaultKeys(ctx, ibeSystem, pseudonym.PseudonymID, []string{input.AdminRole}); err != nil {
+	if err := roleKeyDAO.EnsureDefaultKeys(ctx, ibeSystem, pseudonym.PseudonymID, []string{adminRole}); err != nil {
 		return fmt.Errorf("failed to create default role keys for admin user: %w", err)
 	}
 
@@ -292,7 +309,7 @@ func CreateAdminUser() error {
 		Int64("user_id", user.UserID).
 		Str("email", input.Email).
 		Str("admin_username", adminUsername).
-		Str("role", input.AdminRole).
+		Str("role", adminRole).
 		Bool("mfa_enabled", input.MFAEnabled).
 		Str("pseudonym_id", pseudonym.PseudonymID).
 		Str("display_name", pseudonym.DisplayName).
@@ -307,13 +324,12 @@ func CreateAdminUser() error {
 	fmt.Printf("   User ID: %d\n", user.UserID)
 	fmt.Printf("   Email: %s\n", input.Email)
 	fmt.Printf("   Admin Username: %s\n", adminUsername)
-	fmt.Printf("   Role: %s\n", input.AdminRole)
+	fmt.Printf("   Role: %s\n", adminRole)
 	fmt.Printf("   MFA Enabled: %t\n", input.MFAEnabled)
 	fmt.Printf("   Pseudonym ID: %s\n", pseudonym.PseudonymID)
 	fmt.Printf("   Display Name: %s\n", pseudonym.DisplayName)
-	if input.AdminScope != "" {
-		fmt.Printf("   Admin Scope: %s\n", input.AdminScope)
-	}
+	scopes := getScopesForRole(adminRole)
+	fmt.Printf("   Admin Scopes: %s\n", strings.Join(scopes, ", "))
 
 	return nil
 }
@@ -558,9 +574,7 @@ func getAdminCreateInput() *AdminCreateInput {
 	cmd := cobra.Command{}
 	cmd.Flags().String("email", "", "")
 	cmd.Flags().String("password", "", "")
-	cmd.Flags().String("role", "platform_admin", "")
 	cmd.Flags().String("display-name", "", "")
-	cmd.Flags().String("scope", "", "")
 	cmd.Flags().Bool("mfa-enabled", true, "")
 	cmd.Flags().Bool("non-interactive", false, "")
 
@@ -575,9 +589,7 @@ func getAdminCreateInput() *AdminCreateInput {
 		// Non-interactive mode - get values from flags
 		email, _ := cmd.Flags().GetString("email")
 		password, _ := cmd.Flags().GetString("password")
-		role, _ := cmd.Flags().GetString("role")
 		displayName, _ := cmd.Flags().GetString("display-name")
-		scope, _ := cmd.Flags().GetString("scope")
 		mfaEnabled, _ := cmd.Flags().GetBool("mfa-enabled")
 
 		if email == "" || password == "" {
@@ -590,9 +602,7 @@ func getAdminCreateInput() *AdminCreateInput {
 
 		input.Email = email
 		input.Password = password
-		input.AdminRole = role
 		input.DisplayName = displayName
-		input.AdminScope = scope
 		input.MFAEnabled = mfaEnabled
 		input.NonInteractive = true
 
@@ -628,18 +638,9 @@ func getAdminCreateInput() *AdminCreateInput {
 		log.Fatal().Msg("display name cannot be the same as email address")
 	}
 
-	fmt.Print("Admin Role (platform_admin, trust_safety, legal_team) [platform_admin]: ")
-	if _, err := fmt.Scanln(&input.AdminRole); err != nil {
-		log.Fatal().Err(err).Msg("failed to read admin role")
-	}
-	if input.AdminRole == "" {
-		input.AdminRole = "platform_admin"
-	}
+		// Admin role is automatically set to platform_admin for initial admin creation
 
-	fmt.Print("Admin Scope (optional): ")
-	if _, err := fmt.Scanln(&input.AdminScope); err != nil {
-		log.Fatal().Err(err).Msg("failed to read admin scope")
-	}
+	// Scopes are automatically derived from roles, no need to prompt for them
 
 	fmt.Print("Enable MFA (y/n) [y]: ")
 	var mfaInput string
@@ -808,17 +809,7 @@ func validateAdminInput(input *AdminCreateInput) error {
 		return fmt.Errorf("display name must be 50 characters or less")
 	}
 
-	validRoles := []string{constants.RolePlatformAdmin, constants.RoleTrustSafety, constants.RoleLegalTeam}
-	roleValid := false
-	for _, role := range validRoles {
-		if input.AdminRole == role {
-			roleValid = true
-			break
-		}
-	}
-	if !roleValid {
-		return fmt.Errorf("invalid admin role: %s. Valid roles are: %v", input.AdminRole, validRoles)
-	}
+		// Admin role is automatically set to platform_admin, no validation needed
 
 	return nil
 }
@@ -881,4 +872,89 @@ func getCapabilitiesForRole(role string) []string {
 	capabilities = append(capabilities, roleCapabilities...)
 
 	return capabilities
+}
+
+// getCapabilitiesForRoles returns the capabilities for multiple roles
+func getCapabilitiesForRoles(roles []string) []string {
+	// Basic user capabilities that all users should have
+	basicUserCapabilities := []string{
+		constants.CapabilityCreateContent,
+		constants.CapabilityVote,
+		constants.CapabilityMessage,
+		constants.CapabilityReport,
+		constants.CapabilityCreateSubforum,
+	}
+
+	// Start with basic user capabilities
+	capabilities := append([]string{}, basicUserCapabilities...)
+
+	// Add capabilities from all roles
+	for _, role := range roles {
+		roleCapabilities := constants.GetRoleCapabilities(role)
+		capabilities = append(capabilities, roleCapabilities...)
+	}
+
+	return capabilities
+}
+
+// getScopesForRole returns the scopes for a single role
+func getScopesForRole(role string) []string {
+	// Always include basic scopes that every user should have
+	basicScopes := []string{
+		constants.ScopeAuthentication,
+		constants.ScopeSelfCorrelation,
+	}
+	
+	// Get scopes from the role
+	roleScopes := constants.GetRoleScopes(role)
+	
+	// Combine basic scopes with role scopes, avoiding duplicates
+	scopeSet := make(map[string]bool)
+	var allScopes []string
+	
+	// Add basic scopes first
+	for _, scope := range basicScopes {
+		scopeSet[scope] = true
+		allScopes = append(allScopes, scope)
+	}
+	
+	// Add role scopes
+	for _, scope := range roleScopes {
+		if !scopeSet[scope] {
+			scopeSet[scope] = true
+			allScopes = append(allScopes, scope)
+		}
+	}
+	
+	return allScopes
+}
+
+// getScopesForRoles returns the scopes for multiple roles
+func getScopesForRoles(roles []string) []string {
+	var allScopes []string
+	scopeSet := make(map[string]bool)
+
+	// Always include basic scopes that every user should have
+	basicScopes := []string{
+		constants.ScopeAuthentication,
+		constants.ScopeSelfCorrelation,
+	}
+	
+	for _, scope := range basicScopes {
+		scopeSet[scope] = true
+		allScopes = append(allScopes, scope)
+	}
+
+	// Collect additional scopes from all roles
+	for _, role := range roles {
+		roleScopes := constants.GetRoleScopes(role)
+		for _, scope := range roleScopes {
+			if !scopeSet[scope] {
+				scopeSet[scope] = true
+				allScopes = append(allScopes, scope)
+			}
+		}
+	}
+
+	return allScopes
 }
