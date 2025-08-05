@@ -60,6 +60,7 @@ type UsersQuery = *psql.ViewQuery[*User, UserSlice]
 
 // userR is where relationships are stored.
 type userR struct {
+	RemovedByUserComments          CommentSlice                `scan:"RemovedByUserComments" json:"RemovedByUserComments"`                   // comments.comments_removed_by_user_id_fkey
 	AssignedUserComplianceReports  ComplianceReportSlice       `scan:"AssignedUserComplianceReports" json:"AssignedUserComplianceReports"`   // compliance_reports.compliance_reports_assigned_user_id_fkey
 	CorrelationAudits              CorrelationAuditSlice       `scan:"CorrelationAudits" json:"CorrelationAudits"`                           // correlation_audit.correlation_audit_user_id_fkey
 	EmailVerificationTokens        EmailVerificationTokenSlice `scan:"EmailVerificationTokens" json:"EmailVerificationTokens"`               // email_verification_tokens.email_verification_tokens_user_id_fkey
@@ -69,6 +70,7 @@ type userR struct {
 	ModeratorUserModerationActions ModerationActionSlice       `scan:"ModeratorUserModerationActions" json:"ModeratorUserModerationActions"` // moderation_actions.moderation_actions_moderator_user_id_fkey
 	TargetUserModerationActions    ModerationActionSlice       `scan:"TargetUserModerationActions" json:"TargetUserModerationActions"`       // moderation_actions.moderation_actions_target_user_id_fkey
 	PasswordResetTokens            PasswordResetTokenSlice     `scan:"PasswordResetTokens" json:"PasswordResetTokens"`                       // password_reset_tokens.password_reset_tokens_user_id_fkey
+	RemovedByUserPosts             PostSlice                   `scan:"RemovedByUserPosts" json:"RemovedByUserPosts"`                         // posts.posts_removed_by_user_id_fkey
 	ForwardedByUserReports         ReportSlice                 `scan:"ForwardedByUserReports" json:"ForwardedByUserReports"`                 // reports.fk_reports_forwarded_by
 	ResolvedByUserReports          ReportSlice                 `scan:"ResolvedByUserReports" json:"ResolvedByUserReports"`                   // reports.reports_resolved_by_user_id_fkey
 	CreatedByUserSubforums         SubforumSlice               `scan:"CreatedByUserSubforums" json:"CreatedByUserSubforums"`                 // subforums.subforums_created_by_user_id_fkey
@@ -873,6 +875,7 @@ func (o UserSlice) ReloadAll(ctx context.Context, exec bob.Executor) error {
 
 type userJoins[Q dialect.Joinable] struct {
 	typ                            string
+	RemovedByUserComments          modAs[Q, commentColumns]
 	AssignedUserComplianceReports  modAs[Q, complianceReportColumns]
 	CorrelationAudits              modAs[Q, correlationAuditColumns]
 	EmailVerificationTokens        modAs[Q, emailVerificationTokenColumns]
@@ -882,6 +885,7 @@ type userJoins[Q dialect.Joinable] struct {
 	ModeratorUserModerationActions modAs[Q, moderationActionColumns]
 	TargetUserModerationActions    modAs[Q, moderationActionColumns]
 	PasswordResetTokens            modAs[Q, passwordResetTokenColumns]
+	RemovedByUserPosts             modAs[Q, postColumns]
 	ForwardedByUserReports         modAs[Q, reportColumns]
 	ResolvedByUserReports          modAs[Q, reportColumns]
 	CreatedByUserSubforums         modAs[Q, subforumColumns]
@@ -899,6 +903,20 @@ func (j userJoins[Q]) aliasedAs(alias string) userJoins[Q] {
 func buildUserJoins[Q dialect.Joinable](cols userColumns, typ string) userJoins[Q] {
 	return userJoins[Q]{
 		typ: typ,
+		RemovedByUserComments: modAs[Q, commentColumns]{
+			c: CommentColumns,
+			f: func(to commentColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, Comments.Name().As(to.Alias())).On(
+						to.RemovedByUserID.EQ(cols.UserID),
+					))
+				}
+
+				return mods
+			},
+		},
 		AssignedUserComplianceReports: modAs[Q, complianceReportColumns]{
 			c: ComplianceReportColumns,
 			f: func(to complianceReportColumns) bob.Mod[Q] {
@@ -1025,6 +1043,20 @@ func buildUserJoins[Q dialect.Joinable](cols userColumns, typ string) userJoins[
 				return mods
 			},
 		},
+		RemovedByUserPosts: modAs[Q, postColumns]{
+			c: PostColumns,
+			f: func(to postColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, Posts.Name().As(to.Alias())).On(
+						to.RemovedByUserID.EQ(cols.UserID),
+					))
+				}
+
+				return mods
+			},
+		},
 		ForwardedByUserReports: modAs[Q, reportColumns]{
 			c: ReportColumns,
 			f: func(to reportColumns) bob.Mod[Q] {
@@ -1138,6 +1170,27 @@ func buildUserJoins[Q dialect.Joinable](cols userColumns, typ string) userJoins[
 			},
 		},
 	}
+}
+
+// RemovedByUserComments starts a query for related objects on comments
+func (o *User) RemovedByUserComments(mods ...bob.Mod[*dialect.SelectQuery]) CommentsQuery {
+	return Comments.Query(append(mods,
+		sm.Where(CommentColumns.RemovedByUserID.EQ(psql.Arg(o.UserID))),
+	)...)
+}
+
+func (os UserSlice) RemovedByUserComments(mods ...bob.Mod[*dialect.SelectQuery]) CommentsQuery {
+	pkUserID := make(pgtypes.Array[int64], len(os))
+	for i, o := range os {
+		pkUserID[i] = o.UserID
+	}
+	PKArgExpr := psql.Select(sm.Columns(
+		psql.F("unnest", psql.Cast(psql.Arg(pkUserID), "bigint[]")),
+	))
+
+	return Comments.Query(append(mods,
+		sm.Where(psql.Group(CommentColumns.RemovedByUserID).OP("IN", PKArgExpr)),
+	)...)
 }
 
 // AssignedUserComplianceReports starts a query for related objects on compliance_reports
@@ -1329,6 +1382,27 @@ func (os UserSlice) PasswordResetTokens(mods ...bob.Mod[*dialect.SelectQuery]) P
 	)...)
 }
 
+// RemovedByUserPosts starts a query for related objects on posts
+func (o *User) RemovedByUserPosts(mods ...bob.Mod[*dialect.SelectQuery]) PostsQuery {
+	return Posts.Query(append(mods,
+		sm.Where(PostColumns.RemovedByUserID.EQ(psql.Arg(o.UserID))),
+	)...)
+}
+
+func (os UserSlice) RemovedByUserPosts(mods ...bob.Mod[*dialect.SelectQuery]) PostsQuery {
+	pkUserID := make(pgtypes.Array[int64], len(os))
+	for i, o := range os {
+		pkUserID[i] = o.UserID
+	}
+	PKArgExpr := psql.Select(sm.Columns(
+		psql.F("unnest", psql.Cast(psql.Arg(pkUserID), "bigint[]")),
+	))
+
+	return Posts.Query(append(mods,
+		sm.Where(psql.Group(PostColumns.RemovedByUserID).OP("IN", PKArgExpr)),
+	)...)
+}
+
 // ForwardedByUserReports starts a query for related objects on reports
 func (o *User) ForwardedByUserReports(mods ...bob.Mod[*dialect.SelectQuery]) ReportsQuery {
 	return Reports.Query(append(mods,
@@ -1503,6 +1577,20 @@ func (o *User) Preload(name string, retrieved any) error {
 	}
 
 	switch name {
+	case "RemovedByUserComments":
+		rels, ok := retrieved.(CommentSlice)
+		if !ok {
+			return fmt.Errorf("user cannot load %T as %q", retrieved, name)
+		}
+
+		o.R.RemovedByUserComments = rels
+
+		for _, rel := range rels {
+			if rel != nil {
+				rel.R.RemovedByUserUser = o
+			}
+		}
+		return nil
 	case "AssignedUserComplianceReports":
 		rels, ok := retrieved.(ComplianceReportSlice)
 		if !ok {
@@ -1626,6 +1714,20 @@ func (o *User) Preload(name string, retrieved any) error {
 		for _, rel := range rels {
 			if rel != nil {
 				rel.R.User = o
+			}
+		}
+		return nil
+	case "RemovedByUserPosts":
+		rels, ok := retrieved.(PostSlice)
+		if !ok {
+			return fmt.Errorf("user cannot load %T as %q", retrieved, name)
+		}
+
+		o.R.RemovedByUserPosts = rels
+
+		for _, rel := range rels {
+			if rel != nil {
+				rel.R.RemovedByUserUser = o
 			}
 		}
 		return nil
@@ -1771,6 +1873,7 @@ func buildUserPreloader() userPreloader {
 }
 
 type userThenLoader[Q orm.Loadable] struct {
+	RemovedByUserComments          func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	AssignedUserComplianceReports  func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	CorrelationAudits              func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	EmailVerificationTokens        func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
@@ -1780,6 +1883,7 @@ type userThenLoader[Q orm.Loadable] struct {
 	ModeratorUserModerationActions func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	TargetUserModerationActions    func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	PasswordResetTokens            func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	RemovedByUserPosts             func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	ForwardedByUserReports         func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	ResolvedByUserReports          func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	CreatedByUserSubforums         func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
@@ -1791,6 +1895,9 @@ type userThenLoader[Q orm.Loadable] struct {
 }
 
 func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
+	type RemovedByUserCommentsLoadInterface interface {
+		LoadRemovedByUserComments(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	}
 	type AssignedUserComplianceReportsLoadInterface interface {
 		LoadAssignedUserComplianceReports(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
@@ -1818,6 +1925,9 @@ func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
 	type PasswordResetTokensLoadInterface interface {
 		LoadPasswordResetTokens(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
+	type RemovedByUserPostsLoadInterface interface {
+		LoadRemovedByUserPosts(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	}
 	type ForwardedByUserReportsLoadInterface interface {
 		LoadForwardedByUserReports(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
@@ -1844,6 +1954,12 @@ func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
 	}
 
 	return userThenLoader[Q]{
+		RemovedByUserComments: thenLoadBuilder[Q](
+			"RemovedByUserComments",
+			func(ctx context.Context, exec bob.Executor, retrieved RemovedByUserCommentsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadRemovedByUserComments(ctx, exec, mods...)
+			},
+		),
 		AssignedUserComplianceReports: thenLoadBuilder[Q](
 			"AssignedUserComplianceReports",
 			func(ctx context.Context, exec bob.Executor, retrieved AssignedUserComplianceReportsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
@@ -1898,6 +2014,12 @@ func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
 				return retrieved.LoadPasswordResetTokens(ctx, exec, mods...)
 			},
 		),
+		RemovedByUserPosts: thenLoadBuilder[Q](
+			"RemovedByUserPosts",
+			func(ctx context.Context, exec bob.Executor, retrieved RemovedByUserPostsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadRemovedByUserPosts(ctx, exec, mods...)
+			},
+		),
 		ForwardedByUserReports: thenLoadBuilder[Q](
 			"ForwardedByUserReports",
 			func(ctx context.Context, exec bob.Executor, retrieved ForwardedByUserReportsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
@@ -1947,6 +2069,58 @@ func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
 			},
 		),
 	}
+}
+
+// LoadRemovedByUserComments loads the user's RemovedByUserComments into the .R struct
+func (o *User) LoadRemovedByUserComments(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if o == nil {
+		return nil
+	}
+
+	// Reset the relationship
+	o.R.RemovedByUserComments = nil
+
+	related, err := o.RemovedByUserComments(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, rel := range related {
+		rel.R.RemovedByUserUser = o
+	}
+
+	o.R.RemovedByUserComments = related
+	return nil
+}
+
+// LoadRemovedByUserComments loads the user's RemovedByUserComments into the .R struct
+func (os UserSlice) LoadRemovedByUserComments(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if len(os) == 0 {
+		return nil
+	}
+
+	comments, err := os.RemovedByUserComments(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range os {
+		o.R.RemovedByUserComments = nil
+	}
+
+	for _, o := range os {
+		for _, rel := range comments {
+			if o.UserID != rel.RemovedByUserID.V {
+				continue
+			}
+
+			rel.R.RemovedByUserUser = o
+
+			o.R.RemovedByUserComments = append(o.R.RemovedByUserComments, rel)
+		}
+	}
+
+	return nil
 }
 
 // LoadAssignedUserComplianceReports loads the user's AssignedUserComplianceReports into the .R struct
@@ -2417,6 +2591,58 @@ func (os UserSlice) LoadPasswordResetTokens(ctx context.Context, exec bob.Execut
 	return nil
 }
 
+// LoadRemovedByUserPosts loads the user's RemovedByUserPosts into the .R struct
+func (o *User) LoadRemovedByUserPosts(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if o == nil {
+		return nil
+	}
+
+	// Reset the relationship
+	o.R.RemovedByUserPosts = nil
+
+	related, err := o.RemovedByUserPosts(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, rel := range related {
+		rel.R.RemovedByUserUser = o
+	}
+
+	o.R.RemovedByUserPosts = related
+	return nil
+}
+
+// LoadRemovedByUserPosts loads the user's RemovedByUserPosts into the .R struct
+func (os UserSlice) LoadRemovedByUserPosts(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if len(os) == 0 {
+		return nil
+	}
+
+	posts, err := os.RemovedByUserPosts(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range os {
+		o.R.RemovedByUserPosts = nil
+	}
+
+	for _, o := range os {
+		for _, rel := range posts {
+			if o.UserID != rel.RemovedByUserID.V {
+				continue
+			}
+
+			rel.R.RemovedByUserUser = o
+
+			o.R.RemovedByUserPosts = append(o.R.RemovedByUserPosts, rel)
+		}
+	}
+
+	return nil
+}
+
 // LoadForwardedByUserReports loads the user's ForwardedByUserReports into the .R struct
 func (o *User) LoadForwardedByUserReports(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
 	if o == nil {
@@ -2823,6 +3049,80 @@ func (os UserSlice) LoadUserPreference(ctx context.Context, exec bob.Executor, m
 			o.R.UserPreference = rel
 			break
 		}
+	}
+
+	return nil
+}
+
+func insertUserRemovedByUserComments0(ctx context.Context, exec bob.Executor, comments1 []*CommentSetter, user0 *User) (CommentSlice, error) {
+	for i := range comments1 {
+		comments1[i].RemovedByUserID = func() *sql.Null[int64] {
+			v := sql.Null[int64]{V: user0.UserID, Valid: true}
+			return &v
+		}()
+	}
+
+	ret, err := Comments.Insert(bob.ToMods(comments1...)).All(ctx, exec)
+	if err != nil {
+		return ret, fmt.Errorf("insertUserRemovedByUserComments0: %w", err)
+	}
+
+	return ret, nil
+}
+
+func attachUserRemovedByUserComments0(ctx context.Context, exec bob.Executor, count int, comments1 CommentSlice, user0 *User) (CommentSlice, error) {
+	setter := &CommentSetter{
+		RemovedByUserID: func() *sql.Null[int64] {
+			v := sql.Null[int64]{V: user0.UserID, Valid: true}
+			return &v
+		}(),
+	}
+
+	err := comments1.UpdateAll(ctx, exec, *setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachUserRemovedByUserComments0: %w", err)
+	}
+
+	return comments1, nil
+}
+
+func (user0 *User) InsertRemovedByUserComments(ctx context.Context, exec bob.Executor, related ...*CommentSetter) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+
+	comments1, err := insertUserRemovedByUserComments0(ctx, exec, related, user0)
+	if err != nil {
+		return err
+	}
+
+	user0.R.RemovedByUserComments = append(user0.R.RemovedByUserComments, comments1...)
+
+	for _, rel := range comments1 {
+		rel.R.RemovedByUserUser = user0
+	}
+	return nil
+}
+
+func (user0 *User) AttachRemovedByUserComments(ctx context.Context, exec bob.Executor, related ...*Comment) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+	comments1 := CommentSlice(related)
+
+	_, err = attachUserRemovedByUserComments0(ctx, exec, len(related), comments1, user0)
+	if err != nil {
+		return err
+	}
+
+	user0.R.RemovedByUserComments = append(user0.R.RemovedByUserComments, comments1...)
+
+	for _, rel := range related {
+		rel.R.RemovedByUserUser = user0
 	}
 
 	return nil
@@ -3447,6 +3747,80 @@ func (user0 *User) AttachPasswordResetTokens(ctx context.Context, exec bob.Execu
 
 	for _, rel := range related {
 		rel.R.User = user0
+	}
+
+	return nil
+}
+
+func insertUserRemovedByUserPosts0(ctx context.Context, exec bob.Executor, posts1 []*PostSetter, user0 *User) (PostSlice, error) {
+	for i := range posts1 {
+		posts1[i].RemovedByUserID = func() *sql.Null[int64] {
+			v := sql.Null[int64]{V: user0.UserID, Valid: true}
+			return &v
+		}()
+	}
+
+	ret, err := Posts.Insert(bob.ToMods(posts1...)).All(ctx, exec)
+	if err != nil {
+		return ret, fmt.Errorf("insertUserRemovedByUserPosts0: %w", err)
+	}
+
+	return ret, nil
+}
+
+func attachUserRemovedByUserPosts0(ctx context.Context, exec bob.Executor, count int, posts1 PostSlice, user0 *User) (PostSlice, error) {
+	setter := &PostSetter{
+		RemovedByUserID: func() *sql.Null[int64] {
+			v := sql.Null[int64]{V: user0.UserID, Valid: true}
+			return &v
+		}(),
+	}
+
+	err := posts1.UpdateAll(ctx, exec, *setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachUserRemovedByUserPosts0: %w", err)
+	}
+
+	return posts1, nil
+}
+
+func (user0 *User) InsertRemovedByUserPosts(ctx context.Context, exec bob.Executor, related ...*PostSetter) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+
+	posts1, err := insertUserRemovedByUserPosts0(ctx, exec, related, user0)
+	if err != nil {
+		return err
+	}
+
+	user0.R.RemovedByUserPosts = append(user0.R.RemovedByUserPosts, posts1...)
+
+	for _, rel := range posts1 {
+		rel.R.RemovedByUserUser = user0
+	}
+	return nil
+}
+
+func (user0 *User) AttachRemovedByUserPosts(ctx context.Context, exec bob.Executor, related ...*Post) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+	posts1 := PostSlice(related)
+
+	_, err = attachUserRemovedByUserPosts0(ctx, exec, len(related), posts1, user0)
+	if err != nil {
+		return err
+	}
+
+	user0.R.RemovedByUserPosts = append(user0.R.RemovedByUserPosts, posts1...)
+
+	for _, rel := range related {
+		rel.R.RemovedByUserUser = user0
 	}
 
 	return nil

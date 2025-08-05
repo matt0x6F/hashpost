@@ -158,6 +158,7 @@ func TestUserHandler_CreatePseudonym(t *testing.T) {
 
 		// Set up mock expectations
 		mockPseudonymDAO.On("GetPseudonymByDisplayName", ctx, "NewPseudonym").Return(nil, nil)
+		mockPseudonymDAO.On("GenerateSlugFromDisplayName", ctx, "NewPseudonym").Return("new-pseudonym", nil)
 		mockPseudonymDAO.On("CreatePseudonymWithIdentityMapping", ctx, int64(1), "NewPseudonym").Return(testPseudonym, nil)
 		mockPseudonymDAO.On("UpdatePseudonym", ctx, "test-pseudonym-id", mock.AnythingOfType("*models.PseudonymSetter")).Return(nil)
 		mockPseudonymDAO.On("GetPseudonymByID", ctx, "test-pseudonym-id").Return(testPseudonym, nil)

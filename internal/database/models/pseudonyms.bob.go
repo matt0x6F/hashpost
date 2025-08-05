@@ -71,7 +71,6 @@ type pseudonymR struct {
 	CreatedByRoleKeys                   RoleKeySlice              `scan:"CreatedByRoleKeys" json:"CreatedByRoleKeys"`                                     // role_keys.role_keys_created_by_fkey
 	RoleKeys                            RoleKeySlice              `scan:"RoleKeys" json:"RoleKeys"`                                                       // role_keys.role_keys_pseudonym_id_fkey
 	SubforumSubscriptions               SubforumSubscriptionSlice `scan:"SubforumSubscriptions" json:"SubforumSubscriptions"`                             // subforum_subscriptions.subforum_subscriptions_pseudonym_id_fkey
-	OwnerPseudonymSubforums             SubforumSlice             `scan:"OwnerPseudonymSubforums" json:"OwnerPseudonymSubforums"`                         // subforums.fk_subforums_owner_pseudonym
 	BannedByPseudonymUserBans           UserBanSlice              `scan:"BannedByPseudonymUserBans" json:"BannedByPseudonymUserBans"`                     // user_bans.user_bans_banned_by_pseudonym_id_fkey
 	BlockedPseudonymUserBlocks          UserBlockSlice            `scan:"BlockedPseudonymUserBlocks" json:"BlockedPseudonymUserBlocks"`                   // user_blocks.user_blocks_blocked_pseudonym_id_fkey
 	BlockerPseudonymUserBlocks          UserBlockSlice            `scan:"BlockerPseudonymUserBlocks" json:"BlockerPseudonymUserBlocks"`                   // user_blocks.user_blocks_blocker_pseudonym_id_fkey
@@ -751,7 +750,6 @@ type pseudonymJoins[Q dialect.Joinable] struct {
 	CreatedByRoleKeys                   modAs[Q, roleKeyColumns]
 	RoleKeys                            modAs[Q, roleKeyColumns]
 	SubforumSubscriptions               modAs[Q, subforumSubscriptionColumns]
-	OwnerPseudonymSubforums             modAs[Q, subforumColumns]
 	BannedByPseudonymUserBans           modAs[Q, userBanColumns]
 	BlockedPseudonymUserBlocks          modAs[Q, userBlockColumns]
 	BlockerPseudonymUserBlocks          modAs[Q, userBlockColumns]
@@ -1011,20 +1009,6 @@ func buildPseudonymJoins[Q dialect.Joinable](cols pseudonymColumns, typ string) 
 				{
 					mods = append(mods, dialect.Join[Q](typ, SubforumSubscriptions.Name().As(to.Alias())).On(
 						to.PseudonymID.EQ(cols.PseudonymID),
-					))
-				}
-
-				return mods
-			},
-		},
-		OwnerPseudonymSubforums: modAs[Q, subforumColumns]{
-			c: SubforumColumns,
-			f: func(to subforumColumns) bob.Mod[Q] {
-				mods := make(mods.QueryMods[Q], 0, 1)
-
-				{
-					mods = append(mods, dialect.Join[Q](typ, Subforums.Name().As(to.Alias())).On(
-						to.OwnerPseudonymID.EQ(cols.PseudonymID),
 					))
 				}
 
@@ -1468,27 +1452,6 @@ func (os PseudonymSlice) SubforumSubscriptions(mods ...bob.Mod[*dialect.SelectQu
 	)...)
 }
 
-// OwnerPseudonymSubforums starts a query for related objects on subforums
-func (o *Pseudonym) OwnerPseudonymSubforums(mods ...bob.Mod[*dialect.SelectQuery]) SubforumsQuery {
-	return Subforums.Query(append(mods,
-		sm.Where(SubforumColumns.OwnerPseudonymID.EQ(psql.Arg(o.PseudonymID))),
-	)...)
-}
-
-func (os PseudonymSlice) OwnerPseudonymSubforums(mods ...bob.Mod[*dialect.SelectQuery]) SubforumsQuery {
-	pkPseudonymID := make(pgtypes.Array[string], len(os))
-	for i, o := range os {
-		pkPseudonymID[i] = o.PseudonymID
-	}
-	PKArgExpr := psql.Select(sm.Columns(
-		psql.F("unnest", psql.Cast(psql.Arg(pkPseudonymID), "character varying[]")),
-	))
-
-	return Subforums.Query(append(mods,
-		sm.Where(psql.Group(SubforumColumns.OwnerPseudonymID).OP("IN", PKArgExpr)),
-	)...)
-}
-
 // BannedByPseudonymUserBans starts a query for related objects on user_bans
 func (o *Pseudonym) BannedByPseudonymUserBans(mods ...bob.Mod[*dialect.SelectQuery]) UserBansQuery {
 	return UserBans.Query(append(mods,
@@ -1831,20 +1794,6 @@ func (o *Pseudonym) Preload(name string, retrieved any) error {
 			}
 		}
 		return nil
-	case "OwnerPseudonymSubforums":
-		rels, ok := retrieved.(SubforumSlice)
-		if !ok {
-			return fmt.Errorf("pseudonym cannot load %T as %q", retrieved, name)
-		}
-
-		o.R.OwnerPseudonymSubforums = rels
-
-		for _, rel := range rels {
-			if rel != nil {
-				rel.R.OwnerPseudonymPseudonym = o
-			}
-		}
-		return nil
 	case "BannedByPseudonymUserBans":
 		rels, ok := retrieved.(UserBanSlice)
 		if !ok {
@@ -1931,7 +1880,6 @@ type pseudonymThenLoader[Q orm.Loadable] struct {
 	CreatedByRoleKeys                   func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	RoleKeys                            func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	SubforumSubscriptions               func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	OwnerPseudonymSubforums             func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	BannedByPseudonymUserBans           func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	BlockedPseudonymUserBlocks          func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	BlockerPseudonymUserBlocks          func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
@@ -1992,9 +1940,6 @@ func buildPseudonymThenLoader[Q orm.Loadable]() pseudonymThenLoader[Q] {
 	}
 	type SubforumSubscriptionsLoadInterface interface {
 		LoadSubforumSubscriptions(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
-	}
-	type OwnerPseudonymSubforumsLoadInterface interface {
-		LoadOwnerPseudonymSubforums(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 	type BannedByPseudonymUserBansLoadInterface interface {
 		LoadBannedByPseudonymUserBans(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
@@ -2116,12 +2061,6 @@ func buildPseudonymThenLoader[Q orm.Loadable]() pseudonymThenLoader[Q] {
 			"SubforumSubscriptions",
 			func(ctx context.Context, exec bob.Executor, retrieved SubforumSubscriptionsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
 				return retrieved.LoadSubforumSubscriptions(ctx, exec, mods...)
-			},
-		),
-		OwnerPseudonymSubforums: thenLoadBuilder[Q](
-			"OwnerPseudonymSubforums",
-			func(ctx context.Context, exec bob.Executor, retrieved OwnerPseudonymSubforumsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
-				return retrieved.LoadOwnerPseudonymSubforums(ctx, exec, mods...)
 			},
 		),
 		BannedByPseudonymUserBans: thenLoadBuilder[Q](
@@ -3081,58 +3020,6 @@ func (os PseudonymSlice) LoadSubforumSubscriptions(ctx context.Context, exec bob
 			rel.R.Pseudonym = o
 
 			o.R.SubforumSubscriptions = append(o.R.SubforumSubscriptions, rel)
-		}
-	}
-
-	return nil
-}
-
-// LoadOwnerPseudonymSubforums loads the pseudonym's OwnerPseudonymSubforums into the .R struct
-func (o *Pseudonym) LoadOwnerPseudonymSubforums(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
-	if o == nil {
-		return nil
-	}
-
-	// Reset the relationship
-	o.R.OwnerPseudonymSubforums = nil
-
-	related, err := o.OwnerPseudonymSubforums(mods...).All(ctx, exec)
-	if err != nil {
-		return err
-	}
-
-	for _, rel := range related {
-		rel.R.OwnerPseudonymPseudonym = o
-	}
-
-	o.R.OwnerPseudonymSubforums = related
-	return nil
-}
-
-// LoadOwnerPseudonymSubforums loads the pseudonym's OwnerPseudonymSubforums into the .R struct
-func (os PseudonymSlice) LoadOwnerPseudonymSubforums(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
-	if len(os) == 0 {
-		return nil
-	}
-
-	subforums, err := os.OwnerPseudonymSubforums(mods...).All(ctx, exec)
-	if err != nil {
-		return err
-	}
-
-	for _, o := range os {
-		o.R.OwnerPseudonymSubforums = nil
-	}
-
-	for _, o := range os {
-		for _, rel := range subforums {
-			if o.PseudonymID != rel.OwnerPseudonymID.V {
-				continue
-			}
-
-			rel.R.OwnerPseudonymPseudonym = o
-
-			o.R.OwnerPseudonymSubforums = append(o.R.OwnerPseudonymSubforums, rel)
 		}
 	}
 
@@ -4608,80 +4495,6 @@ func (pseudonym0 *Pseudonym) AttachSubforumSubscriptions(ctx context.Context, ex
 
 	for _, rel := range related {
 		rel.R.Pseudonym = pseudonym0
-	}
-
-	return nil
-}
-
-func insertPseudonymOwnerPseudonymSubforums0(ctx context.Context, exec bob.Executor, subforums1 []*SubforumSetter, pseudonym0 *Pseudonym) (SubforumSlice, error) {
-	for i := range subforums1 {
-		subforums1[i].OwnerPseudonymID = func() *sql.Null[string] {
-			v := sql.Null[string]{V: pseudonym0.PseudonymID, Valid: true}
-			return &v
-		}()
-	}
-
-	ret, err := Subforums.Insert(bob.ToMods(subforums1...)).All(ctx, exec)
-	if err != nil {
-		return ret, fmt.Errorf("insertPseudonymOwnerPseudonymSubforums0: %w", err)
-	}
-
-	return ret, nil
-}
-
-func attachPseudonymOwnerPseudonymSubforums0(ctx context.Context, exec bob.Executor, count int, subforums1 SubforumSlice, pseudonym0 *Pseudonym) (SubforumSlice, error) {
-	setter := &SubforumSetter{
-		OwnerPseudonymID: func() *sql.Null[string] {
-			v := sql.Null[string]{V: pseudonym0.PseudonymID, Valid: true}
-			return &v
-		}(),
-	}
-
-	err := subforums1.UpdateAll(ctx, exec, *setter)
-	if err != nil {
-		return nil, fmt.Errorf("attachPseudonymOwnerPseudonymSubforums0: %w", err)
-	}
-
-	return subforums1, nil
-}
-
-func (pseudonym0 *Pseudonym) InsertOwnerPseudonymSubforums(ctx context.Context, exec bob.Executor, related ...*SubforumSetter) error {
-	if len(related) == 0 {
-		return nil
-	}
-
-	var err error
-
-	subforums1, err := insertPseudonymOwnerPseudonymSubforums0(ctx, exec, related, pseudonym0)
-	if err != nil {
-		return err
-	}
-
-	pseudonym0.R.OwnerPseudonymSubforums = append(pseudonym0.R.OwnerPseudonymSubforums, subforums1...)
-
-	for _, rel := range subforums1 {
-		rel.R.OwnerPseudonymPseudonym = pseudonym0
-	}
-	return nil
-}
-
-func (pseudonym0 *Pseudonym) AttachOwnerPseudonymSubforums(ctx context.Context, exec bob.Executor, related ...*Subforum) error {
-	if len(related) == 0 {
-		return nil
-	}
-
-	var err error
-	subforums1 := SubforumSlice(related)
-
-	_, err = attachPseudonymOwnerPseudonymSubforums0(ctx, exec, len(related), subforums1, pseudonym0)
-	if err != nil {
-		return err
-	}
-
-	pseudonym0.R.OwnerPseudonymSubforums = append(pseudonym0.R.OwnerPseudonymSubforums, subforums1...)
-
-	for _, rel := range related {
-		rel.R.OwnerPseudonymPseudonym = pseudonym0
 	}
 
 	return nil

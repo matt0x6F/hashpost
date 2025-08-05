@@ -223,3 +223,12 @@ func (m *MockCommentDAO) GetTotalCommentsCount(ctx context.Context, subforumPath
 	args := m.Called(ctx, subforumPath)
 	return args.Get(0).(int), args.Error(1)
 }
+
+// GetCommentsByPseudonym retrieves comments by pseudonym with pagination and sorting
+func (m *MockCommentDAO) GetCommentsByPseudonym(ctx context.Context, pseudonymID string, page, limit int, sortField string, sortDesc bool) ([]*models.Comment, error) {
+	args := m.Called(ctx, pseudonymID, page, limit, sortField, sortDesc)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.Comment), args.Error(1)
+}

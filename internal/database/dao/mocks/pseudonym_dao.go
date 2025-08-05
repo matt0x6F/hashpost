@@ -146,3 +146,13 @@ func (m *MockPseudonymDAO) GenerateSlugFromDisplayName(ctx context.Context, disp
 	args := m.Called(ctx, displayName)
 	return args.String(0), args.Error(1)
 }
+
+func (m *MockPseudonymDAO) CalculateKarmaForPseudonym(ctx context.Context, pseudonymID string) (int32, error) {
+	args := m.Called(ctx, pseudonymID)
+	return args.Get(0).(int32), args.Error(1)
+}
+
+func (m *MockPseudonymDAO) UpdateKarmaForPseudonym(ctx context.Context, pseudonymID string) error {
+	args := m.Called(ctx, pseudonymID)
+	return args.Error(0)
+}
