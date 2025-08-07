@@ -480,10 +480,11 @@ WHERE expires_at < CURRENT_TIMESTAMP
 AND is_active = TRUE;
 
 -- Update user capabilities based on role changes
-UPDATE users u
-JOIN role_definitions rd ON u.roles @> JSON_ARRAY(rd.role_name)
-SET u.capabilities = rd.capabilities
-WHERE rd.role_name IN ('moderator', 'subforum_owner', 'trust_safety');
+UPDATE role_keys rk
+JOIN role_definitions rd ON rk.role_name = rd.role_name
+SET rk.capabilities = rd.capabilities
+WHERE rd.role_name IN ('moderator', 'subforum_owner', 'trust_safety')
+AND rk.is_active = TRUE;
 ```
 
 ### Performance Optimization
@@ -557,15 +558,18 @@ LIMIT 20 OFFSET 0;
 -- Check user permissions for correlation
 SELECT 
     u.user_id,
-    u.roles,
-    u.capabilities,
+    rk.role_name,
+    rk.capabilities,
     rd.correlation_access,
     rd.scope,
     rd.time_window
 FROM users u
-JOIN role_definitions rd ON u.roles @> JSON_ARRAY(rd.role_name)
+JOIN identity_mappings im ON im.user_id = u.user_id AND im.is_active = TRUE
+JOIN role_keys rk ON rk.pseudonym_id = im.pseudonym_id
+JOIN role_definitions rd ON rk.role_name = rd.role_name
 WHERE u.user_id = 123
-AND u.is_active = TRUE;
+AND u.is_active = TRUE
+AND rk.is_active = TRUE;
 ```
 
 ## Backup and Recovery
@@ -686,17 +690,21 @@ ORDER BY correlation_count DESC;
 -- Track role assignments and changes
 SELECT 
     u.user_id,
-    u.pseudonym_id,
-    u.roles,
-    u.admin_username,
-    u.admin_scope,
-    u.created_at,
-    u.last_active_at
+    u.email,
+    rk.role_name,
+    rk.scope,
+    rk.capabilities,
+    rk.created_at,
+    rk.expires_at
 FROM users u
-WHERE u.roles @> JSON_ARRAY('moderator') 
-   OR u.roles @> JSON_ARRAY('trust_safety')
-   OR u.roles @> JSON_ARRAY('platform_admin')
-ORDER BY u.created_at DESC;
+JOIN role_keys rk ON rk.pseudonym_id IN (
+    SELECT im.pseudonym_id 
+    FROM identity_mappings im 
+    WHERE im.user_id = u.user_id AND im.is_active = TRUE
+)
+WHERE rk.role_name IN ('moderator', 'trust_safety', 'platform_admin')
+AND rk.is_active = TRUE
+ORDER BY rk.created_at DESC;
 ```
 
 #### 3. Failed Authentication Monitoring
@@ -784,21 +792,26 @@ ORDER BY date DESC;
 ```sql
 -- Monitor role distribution
 SELECT 
-    JSON_EXTRACT(role, '$') as role_name,
-    COUNT(*) as user_count
-FROM users u,
-JSON_TABLE(u.roles, '$[*]' COLUMNS (role VARCHAR(50) PATH '$')) as roles
+    rk.role_name,
+    COUNT(DISTINCT u.user_id) as user_count
+FROM users u
+JOIN identity_mappings im ON im.user_id = u.user_id AND im.is_active = TRUE
+JOIN role_keys rk ON rk.pseudonym_id = im.pseudonym_id
 WHERE u.is_active = TRUE
-GROUP BY role_name
+AND rk.is_active = TRUE
+GROUP BY rk.role_name
 ORDER BY user_count DESC;
 
 -- Monitor capability usage
 SELECT 
     JSON_EXTRACT(capability, '$') as capability_name,
-    COUNT(*) as user_count
-FROM users u,
-JSON_TABLE(u.capabilities, '$[*]' COLUMNS (capability VARCHAR(50) PATH '$')) as capabilities
+    COUNT(DISTINCT u.user_id) as user_count
+FROM users u
+JOIN identity_mappings im ON im.user_id = u.user_id AND im.is_active = TRUE
+JOIN role_keys rk ON rk.pseudonym_id = im.pseudonym_id,
+JSON_TABLE(rk.capabilities, '$[*]' COLUMNS (capability VARCHAR(50) PATH '$')) as capabilities
 WHERE u.is_active = TRUE
+AND rk.is_active = TRUE
 GROUP BY capability_name
 ORDER BY user_count DESC;
 ```
@@ -886,28 +899,34 @@ WHERE p.post_id IS NULL AND c.comment_id IS NULL;
 #### 4. Role and Permission Issues
 
 ```sql
--- Check for users with invalid roles
+-- Check for users with invalid role keys
 SELECT 
     u.user_id,
-    u.pseudonym_id,
-    u.roles,
-    u.capabilities
+    u.email,
+    rk.role_name,
+    rk.capabilities
 FROM users u
-WHERE NOT EXISTS (
+JOIN identity_mappings im ON im.user_id = u.user_id AND im.is_active = TRUE
+JOIN role_keys rk ON rk.pseudonym_id = im.pseudonym_id
+WHERE rk.is_active = TRUE
+AND NOT EXISTS (
     SELECT 1 FROM role_definitions rd 
-    WHERE u.roles @> JSON_ARRAY(rd.role_name)
+    WHERE rk.role_name = rd.role_name
 );
 
 -- Check for capability mismatches
 SELECT 
     u.user_id,
-    u.pseudonym_id,
-    u.roles,
-    u.capabilities,
+    u.email,
+    rk.role_name,
+    rk.capabilities,
     rd.capabilities as expected_capabilities
 FROM users u
-JOIN role_definitions rd ON u.roles @> JSON_ARRAY(rd.role_name)
-WHERE u.capabilities != rd.capabilities;
+JOIN identity_mappings im ON im.user_id = u.user_id AND im.is_active = TRUE
+JOIN role_keys rk ON rk.pseudonym_id = im.pseudonym_id
+JOIN role_definitions rd ON rk.role_name = rd.role_name
+WHERE rk.is_active = TRUE
+AND rk.capabilities != rd.capabilities;
 ```
 
-This operations guide provides comprehensive coverage of database operations for the HashPost platform, ensuring efficient and secure management of the single-user system with role-based access control. 
+This operations guide provides comprehensive coverage of database operations for the HashPost platform, ensuring efficient and secure management of the single-user system with role-based access control.

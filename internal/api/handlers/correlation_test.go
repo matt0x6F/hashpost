@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid/v5"
+	"github.com/matt0x6f/hashpost/internal/api/constants"
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	apimodels "github.com/matt0x6f/hashpost/internal/api/models"
 	"github.com/matt0x6f/hashpost/internal/config"
@@ -97,7 +98,7 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 
 		// Use IBE system to encrypt the identity mapping
 		ibeSystem := handler.ibeSystem
-		adminKey := ibeSystem.GenerateRoleKey("moderator", "subforum_correlation", time.Now().AddDate(0, 1, 0))
+		adminKey := ibeSystem.GenerateRoleKey("moderator", constants.ScopeCorrelation, time.Now().AddDate(0, 1, 0))
 
 		// Generate the actual fingerprint that will be used
 		realIdentity := "test-fingerprint-456:target-pseudonym-123"

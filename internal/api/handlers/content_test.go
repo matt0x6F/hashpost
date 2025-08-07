@@ -553,7 +553,7 @@ func TestContentHandler_GetPosts_PrivateSubforumAccess(t *testing.T) {
 
 // TestContentHandler_CreatePost_Success tests successful post creation
 func TestContentHandler_CreatePost_Success(t *testing.T) {
-	handler, mockPostDAO, _, _, mockSubforumDAO, _, _, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, _, _, mockSubforumDAO, mockPseudonymDAO, _, _ := NewContentHandlerWithMocks()
 
 	// Create test subforum
 	testSubforum := fixtures.CreateTestSubforum()
@@ -570,6 +570,7 @@ func TestContentHandler_CreatePost_Success(t *testing.T) {
 		},
 	)
 	mockPostDAO.On("CreatePost", mock.Anything, int32(1), "test-pseudonym-id", "Test Post", "Test content", "text", (*string)(nil), false, false).Return(testPost, nil)
+	mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
 
 	// Create test input
 	input := &apimodels.PostCreateInput{
@@ -603,6 +604,7 @@ func TestContentHandler_CreatePost_Success(t *testing.T) {
 	// Verify DAO calls
 	mockSubforumDAO.AssertExpectations(t)
 	mockPostDAO.AssertExpectations(t)
+	mockPseudonymDAO.AssertExpectations(t)
 }
 
 // TestContentHandler_CreatePost_ValidationErrors tests post creation validation
@@ -771,7 +773,7 @@ func TestContentHandler_GetPostBySlug_Success(t *testing.T) {
 
 // TestContentHandler_VoteOnPost_Success tests successful post voting
 func TestContentHandler_VoteOnPost_Success(t *testing.T) {
-	handler, mockPostDAO, _, mockVoteDAO, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, _, mockVoteDAO, _, mockPseudonymDAO, _, _ := NewContentHandlerWithMocks()
 
 	// Create test post
 	testPost := fixtures.CreateTestPost()
@@ -785,6 +787,7 @@ func TestContentHandler_VoteOnPost_Success(t *testing.T) {
 	mockVoteDAO.On("UpsertVote", mock.Anything, "test-pseudonym-id", "post", int64(123), int32(1)).Return(&models.Vote{VoteID: 1, VoteValue: 1}, nil)
 	mockVoteDAO.On("GetVoteSummaryByContent", mock.Anything, "post", int64(123)).Return(16, 6, 1, nil)
 	mockPostDAO.On("UpdatePostScore", mock.Anything, int64(123), int32(10), int32(16), int32(6)).Return(nil)
+	mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
 
 	// Create test input
 	input := &apimodels.PostVoteInput{
@@ -815,11 +818,12 @@ func TestContentHandler_VoteOnPost_Success(t *testing.T) {
 	// Verify DAO calls
 	mockPostDAO.AssertExpectations(t)
 	mockVoteDAO.AssertExpectations(t)
+	mockPseudonymDAO.AssertExpectations(t)
 }
 
 // TestContentHandler_VoteOnPost_RemoveVote tests removing a vote
 func TestContentHandler_VoteOnPost_RemoveVote(t *testing.T) {
-	handler, mockPostDAO, _, mockVoteDAO, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, _, mockVoteDAO, _, mockPseudonymDAO, _, _ := NewContentHandlerWithMocks()
 
 	// Create test post
 	testPost := fixtures.CreateTestPost()
@@ -840,6 +844,7 @@ func TestContentHandler_VoteOnPost_RemoveVote(t *testing.T) {
 	mockVoteDAO.On("DeleteVote", mock.Anything, int64(1)).Return(nil)
 	mockVoteDAO.On("GetVoteSummaryByContent", mock.Anything, "post", int64(123)).Return(14, 5, 0, nil)
 	mockPostDAO.On("UpdatePostScore", mock.Anything, int64(123), int32(9), int32(14), int32(5)).Return(nil)
+	mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
 
 	// Create test input
 	input := &apimodels.PostVoteInput{
@@ -869,6 +874,7 @@ func TestContentHandler_VoteOnPost_RemoveVote(t *testing.T) {
 	// Verify DAO calls
 	mockPostDAO.AssertExpectations(t)
 	mockVoteDAO.AssertExpectations(t)
+	mockPseudonymDAO.AssertExpectations(t)
 }
 
 // TestContentHandler_VoteOnPost_InvalidVoteValue tests invalid vote values
@@ -910,7 +916,7 @@ func TestContentHandler_VoteOnPost_InvalidVoteValue(t *testing.T) {
 
 // TestContentHandler_VoteOnComment_Success tests successful comment voting
 func TestContentHandler_VoteOnComment_Success(t *testing.T) {
-	handler, _, mockCommentDAO, mockVoteDAO, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, _, mockCommentDAO, mockVoteDAO, _, mockPseudonymDAO, _, _ := NewContentHandlerWithMocks()
 
 	// Create test comment
 	testComment := fixtures.CreateTestComment()
@@ -922,8 +928,9 @@ func TestContentHandler_VoteOnComment_Success(t *testing.T) {
 		},
 	)
 	mockVoteDAO.On("UpsertVote", mock.Anything, "test-pseudonym-id", "comment", int64(456), int32(-1)).Return(&models.Vote{VoteID: 1, VoteValue: -1}, nil)
-	mockVoteDAO.On("GetVoteSummaryByContent", mock.Anything, "comment", int64(456)).Return(7, 4, 1, nil)
-	mockCommentDAO.On("UpdateCommentScore", mock.Anything, int64(456), int32(3), int32(7), int32(4)).Return(nil)
+	mockVoteDAO.On("GetVoteSummaryByContent", mock.Anything, "comment", int64(456)).Return(14, 5, -1, nil)
+	mockCommentDAO.On("UpdateCommentScore", mock.Anything, int64(456), int32(9), int32(14), int32(5)).Return(nil)
+	mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
 
 	// Create test input
 	input := &apimodels.CommentVoteInput{
@@ -949,16 +956,17 @@ func TestContentHandler_VoteOnComment_Success(t *testing.T) {
 	assert.Equal(t, 200, response.Status)
 	assert.Equal(t, 456, response.Body.CommentID)
 	assert.Equal(t, -1, response.Body.VoteValue)
-	assert.Equal(t, 3, response.Body.Score)
+	assert.Equal(t, 9, response.Body.Score)
 
 	// Verify DAO calls
 	mockCommentDAO.AssertExpectations(t)
 	mockVoteDAO.AssertExpectations(t)
+	mockPseudonymDAO.AssertExpectations(t)
 }
 
 // TestContentHandler_VoteOnComment_RemoveVote tests removing a comment vote
 func TestContentHandler_VoteOnComment_RemoveVote(t *testing.T) {
-	handler, _, mockCommentDAO, mockVoteDAO, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, _, mockCommentDAO, mockVoteDAO, _, mockPseudonymDAO, _, _ := NewContentHandlerWithMocks()
 
 	// Create test comment
 	testComment := fixtures.CreateTestComment()
@@ -979,6 +987,7 @@ func TestContentHandler_VoteOnComment_RemoveVote(t *testing.T) {
 	mockVoteDAO.On("DeleteVote", mock.Anything, int64(1)).Return(nil)
 	mockVoteDAO.On("GetVoteSummaryByContent", mock.Anything, "comment", int64(456)).Return(8, 3, 0, nil)
 	mockCommentDAO.On("UpdateCommentScore", mock.Anything, int64(456), int32(5), int32(8), int32(3)).Return(nil)
+	mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
 
 	// Create test input
 	input := &apimodels.CommentVoteInput{
@@ -1008,11 +1017,12 @@ func TestContentHandler_VoteOnComment_RemoveVote(t *testing.T) {
 	// Verify DAO calls
 	mockCommentDAO.AssertExpectations(t)
 	mockVoteDAO.AssertExpectations(t)
+	mockPseudonymDAO.AssertExpectations(t)
 }
 
 // TestContentHandler_CreateComment_Success tests successful comment creation
 func TestContentHandler_CreateComment_Success(t *testing.T) {
-	handler, mockPostDAO, mockCommentDAO, _, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, mockCommentDAO, _, _, mockPseudonymDAO, _, _ := NewContentHandlerWithMocks()
 
 	// Create test post
 	testPost := fixtures.CreateTestPost()
@@ -1029,6 +1039,7 @@ func TestContentHandler_CreateComment_Success(t *testing.T) {
 	)
 	mockCommentDAO.On("CreateComment", mock.Anything, int64(123), "test-pseudonym-id", "Test comment", (*int64)(nil)).Return(testComment, nil)
 	mockPostDAO.On("UpdateCommentCount", mock.Anything, int64(123), int32(6)).Return(nil)
+	mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
 
 	// Create test input
 	input := &apimodels.CommentInput{
@@ -1058,6 +1069,7 @@ func TestContentHandler_CreateComment_Success(t *testing.T) {
 	// Verify DAO calls
 	mockPostDAO.AssertExpectations(t)
 	mockCommentDAO.AssertExpectations(t)
+	mockPseudonymDAO.AssertExpectations(t)
 }
 
 // TestContentHandler_CreateComment_ValidationErrors tests comment creation validation

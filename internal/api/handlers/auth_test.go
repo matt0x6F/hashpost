@@ -69,7 +69,7 @@ func NewAuthHandlerWithMocks() (*handlers.AuthHandler, *mocks.MockUserDAO, *mock
 // TestAuthHandler_Login tests the login functionality
 func TestAuthHandler_Login(t *testing.T) {
 	t.Run("LoginWithValidCredentials", func(t *testing.T) {
-		handler, mockUserDAO, mockPseudonymDAO, _, _, _, _ := NewAuthHandlerWithMocks()
+		handler, mockUserDAO, mockPseudonymDAO, _, mockRoleKeyDAO, _, _ := NewAuthHandlerWithMocks()
 
 		// Test data
 		testEmail := "test@example.com"
@@ -97,6 +97,9 @@ func TestAuthHandler_Login(t *testing.T) {
 		}
 		mockPseudonymDAO.On("GetPseudonymsByUserID", mock.Anything, testUserID, "user", "authentication").Return([]*dbmodels.Pseudonym{mockPseudonym}, nil)
 		mockPseudonymDAO.On("GetDefaultPseudonymByUserID", mock.Anything, testUserID, "user", "authentication").Return(mockPseudonym, nil)
+
+		// Mock role keys for the default pseudonym
+		mockRoleKeyDAO.On("ListRoleKeysByPseudonym", mock.Anything, testPseudonymID).Return([]*dbmodels.RoleKey{}, nil)
 
 		// Create login input
 		input := &apimodels.UserLoginInput{
@@ -227,8 +230,47 @@ func TestAuthHandler_Login(t *testing.T) {
 		mockUserDAO.AssertExpectations(t)
 	})
 
+	t.Run("LoginWithUnverifiedEmail", func(t *testing.T) {
+		handler, mockUserDAO, _, _, _, _, _ := NewAuthHandlerWithMocks()
+
+		// Test data
+		testEmail := "unverified@example.com"
+		testPassword := "TestPassword123!"
+		testUserID := int64(1)
+
+		// Mock user with unverified email
+		hashedPassword := hashPasswordSHA256(testPassword)
+		mockUser := &dbmodels.User{
+			UserID:        testUserID,
+			Email:         testEmail,
+			PasswordHash:  hashedPassword,
+			IsActive:      sql.Null[bool]{V: true, Valid: true},
+			EmailVerified: sql.Null[bool]{V: false, Valid: true},
+		}
+		mockUserDAO.On("GetUserByEmail", mock.Anything, testEmail).Return(mockUser, nil)
+
+		// Create login input
+		input := &apimodels.UserLoginInput{
+			Body: apimodels.UserLoginBody{
+				Email:    testEmail,
+				Password: testPassword,
+			},
+		}
+
+		// Call the handler
+		response, err := handler.LoginUser(context.Background(), input)
+
+		// Assert response
+		assert.Error(t, err)
+		assert.Nil(t, response)
+		assert.Contains(t, err.Error(), "email not verified")
+
+		// Verify mocks were called
+		mockUserDAO.AssertExpectations(t)
+	})
+
 	t.Run("LoginWithAdminUser", func(t *testing.T) {
-		handler, mockUserDAO, mockPseudonymDAO, _, _, _, _ := NewAuthHandlerWithMocks()
+		handler, mockUserDAO, mockPseudonymDAO, _, mockRoleKeyDAO, _, _ := NewAuthHandlerWithMocks()
 
 		// Test data
 		testEmail := "admin@example.com"
@@ -239,16 +281,12 @@ func TestAuthHandler_Login(t *testing.T) {
 
 		// Mock admin user lookup
 		hashedPassword := hashPasswordSHA256(testPassword)
-		rolesJSON, _ := json.Marshal([]string{"platform_admin"})
-		rolesNull := sql.Null[types.JSON[json.RawMessage]]{}
-		rolesNull.Scan(rolesJSON)
 		mockUser := &dbmodels.User{
 			UserID:        testUserID,
 			Email:         testEmail,
 			PasswordHash:  hashedPassword,
 			IsActive:      sql.Null[bool]{V: true, Valid: true},
 			EmailVerified: sql.Null[bool]{V: true, Valid: true},
-			Roles:         rolesNull,
 		}
 		mockUserDAO.On("GetUserByEmail", mock.Anything, testEmail).Return(mockUser, nil)
 		mockUserDAO.On("UpdateLastActive", mock.Anything, testUserID).Return(nil)
@@ -258,8 +296,11 @@ func TestAuthHandler_Login(t *testing.T) {
 			PseudonymID: testPseudonymID,
 			DisplayName: testDisplayName,
 		}
-		mockPseudonymDAO.On("GetPseudonymsByUserID", mock.Anything, testUserID, "platform_admin", "authentication").Return([]*dbmodels.Pseudonym{mockPseudonym}, nil)
-		mockPseudonymDAO.On("GetDefaultPseudonymByUserID", mock.Anything, testUserID, "platform_admin", "authentication").Return(mockPseudonym, nil)
+		mockPseudonymDAO.On("GetPseudonymsByUserID", mock.Anything, testUserID, "user", "authentication").Return([]*dbmodels.Pseudonym{mockPseudonym}, nil)
+		mockPseudonymDAO.On("GetDefaultPseudonymByUserID", mock.Anything, testUserID, "user", "authentication").Return(mockPseudonym, nil)
+
+		// Mock role keys for the default pseudonym
+		mockRoleKeyDAO.On("ListRoleKeysByPseudonym", mock.Anything, testPseudonymID).Return([]*dbmodels.RoleKey{}, nil)
 
 		// Create login input
 		input := &apimodels.UserLoginInput{
@@ -468,7 +509,7 @@ func TestAuthHandler_Registration(t *testing.T) {
 // TestAuthHandler_CurrentUserSession tests the current user session functionality
 func TestAuthHandler_CurrentUserSession(t *testing.T) {
 	t.Run("GetCurrentUserSession", func(t *testing.T) {
-		handler, mockUserDAO, mockPseudonymDAO, _, _, _, mockPermissionDAO := NewAuthHandlerWithMocks()
+		handler, mockUserDAO, mockPseudonymDAO, _, mockRoleKeyDAO, _, mockPermissionDAO := NewAuthHandlerWithMocks()
 
 		// Initialize global auth middleware for testing
 		middleware.SetGlobalAuthMiddleware(middleware.NewAuthMiddleware("test-secret", nil, &config.JWTConfig{
@@ -498,6 +539,10 @@ func TestAuthHandler_CurrentUserSession(t *testing.T) {
 			DisplayName: testDisplayName,
 		}
 		mockPseudonymDAO.On("GetPseudonymsByUserID", mock.Anything, testUserID, "user", "authentication").Return([]*dbmodels.Pseudonym{mockPseudonym}, nil)
+		mockPseudonymDAO.On("GetDefaultPseudonymByUserID", mock.Anything, testUserID, "user", "authentication").Return(mockPseudonym, nil)
+
+		// Mock role keys for the default pseudonym
+		mockRoleKeyDAO.On("ListRoleKeysByPseudonym", mock.Anything, testPseudonymID).Return([]*dbmodels.RoleKey{}, nil)
 
 		// Mock roles and capabilities for active pseudonym
 		mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities", mock.Anything, testUserID, testPseudonymID, (*int32)(nil)).Return([]string{"user"}, []string{"create_content", "vote", "message", "report", "create_subforum"}, nil)
@@ -534,6 +579,7 @@ func TestAuthHandler_CurrentUserSession(t *testing.T) {
 		// Verify mocks were called
 		mockUserDAO.AssertExpectations(t)
 		mockPseudonymDAO.AssertExpectations(t)
+		mockRoleKeyDAO.AssertExpectations(t)
 		mockPermissionDAO.AssertExpectations(t)
 	})
 
@@ -1104,7 +1150,7 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
 
 	t.Run("SuccessWithSubforumCapabilities", func(t *testing.T) {
-		handler, mockUserDAO, mockPseudonymDAO, _, _, mockSubforumDAO, mockPermissionDAO := NewAuthHandlerWithMocks()
+		handler, mockUserDAO, mockPseudonymDAO, _, mockRoleKeyDAO, mockSubforumDAO, mockPermissionDAO := NewAuthHandlerWithMocks()
 
 		// Test data
 		testUserID := int64(1)
@@ -1148,6 +1194,14 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 		}
 		mockPseudonymDAO.On("GetPseudonymsByUserID", mock.Anything, testUserID, "user", "authentication").Return([]*dbmodels.Pseudonym{mockPseudonym}, nil)
 
+		// Mock role keys for the active pseudonym with platform capabilities
+		mockRoleKey := &dbmodels.RoleKey{
+			PseudonymID:  testPseudonymID,
+			RoleName:     "user",
+			Capabilities: types.NewJSON[json.RawMessage]([]byte(`["create_content", "vote", "message", "report", "create_subforum"]`)),
+		}
+		mockRoleKeyDAO.On("ListRoleKeysByPseudonym", mock.Anything, testPseudonymID).Return([]*dbmodels.RoleKey{mockRoleKey}, nil)
+
 		// Mock unified roles and capabilities for active pseudonym with subforum context
 		subforumID := int32(testSubforumID)
 		mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities", mock.Anything, testUserID, testPseudonymID, &subforumID).Return([]string{"user", "moderator"}, []string{"create_content", "vote", "message", "report", "create_subforum", "moderate_content", "ban_users"}, nil)
@@ -1194,11 +1248,12 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 		// Verify mocks were called
 		mockUserDAO.AssertExpectations(t)
 		mockPseudonymDAO.AssertExpectations(t)
+		mockRoleKeyDAO.AssertExpectations(t)
 		mockSubforumDAO.AssertExpectations(t)
 	})
 
 	t.Run("SuccessWithSubforumModeratorCapabilities", func(t *testing.T) {
-		handler, mockUserDAO, mockPseudonymDAO, _, _, mockSubforumDAO, mockPermissionDAO := NewAuthHandlerWithMocks()
+		handler, mockUserDAO, mockPseudonymDAO, _, mockRoleKeyDAO, mockSubforumDAO, mockPermissionDAO := NewAuthHandlerWithMocks()
 
 		// Test data
 		testUserID := int64(1)
@@ -1242,6 +1297,14 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 		}
 		mockPseudonymDAO.On("GetPseudonymsByUserID", mock.Anything, testUserID, "user", "authentication").Return([]*dbmodels.Pseudonym{mockPseudonym}, nil)
 
+		// Mock role keys for the active pseudonym with platform capabilities
+		mockRoleKey := &dbmodels.RoleKey{
+			PseudonymID:  testPseudonymID,
+			RoleName:     "user",
+			Capabilities: types.NewJSON[json.RawMessage]([]byte(`["create_content", "vote", "message", "report", "create_subforum"]`)),
+		}
+		mockRoleKeyDAO.On("ListRoleKeysByPseudonym", mock.Anything, testPseudonymID).Return([]*dbmodels.RoleKey{mockRoleKey}, nil)
+
 		// Mock unified roles and capabilities for active pseudonym with subforum context
 		subforumID := int32(testSubforumID)
 		mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities", mock.Anything, testUserID, testPseudonymID, &subforumID).Return([]string{"user", "moderator"}, []string{"create_content", "vote", "message", "report", "create_subforum", "moderate_content", "ban_users"}, nil)
@@ -1288,6 +1351,7 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 		// Verify mocks were called
 		mockUserDAO.AssertExpectations(t)
 		mockPseudonymDAO.AssertExpectations(t)
+		mockRoleKeyDAO.AssertExpectations(t)
 		mockSubforumDAO.AssertExpectations(t)
 	})
 
@@ -1493,7 +1557,7 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 	})
 
 	t.Run("SubforumNotFound", func(t *testing.T) {
-		handler, mockUserDAO, mockPseudonymDAO, _, _, mockSubforumDAO, mockPermissionDAO := NewAuthHandlerWithMocks()
+		handler, mockUserDAO, mockPseudonymDAO, _, mockRoleKeyDAO, mockSubforumDAO, mockPermissionDAO := NewAuthHandlerWithMocks()
 
 		// Test data
 		testUserID := int64(1)
@@ -1524,6 +1588,14 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 			DisplayName: testDisplayName,
 		}
 		mockPseudonymDAO.On("GetPseudonymsByUserID", mock.Anything, testUserID, "user", "authentication").Return([]*dbmodels.Pseudonym{mockPseudonym}, nil)
+
+		// Mock role keys for the active pseudonym with platform capabilities
+		mockRoleKey := &dbmodels.RoleKey{
+			PseudonymID:  testPseudonymID,
+			RoleName:     "user",
+			Capabilities: types.NewJSON[json.RawMessage]([]byte(`["create_content", "vote", "message", "report", "create_subforum"]`)),
+		}
+		mockRoleKeyDAO.On("ListRoleKeysByPseudonym", mock.Anything, mock.Anything).Return([]*dbmodels.RoleKey{mockRoleKey}, nil).Maybe()
 
 		// Mock unified roles and capabilities for active pseudonym with subforum context (nil since subforum not found)
 		mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities", mock.Anything, testUserID, testPseudonymID, (*int32)(nil)).Return([]string{"user"}, []string{"create_content", "vote", "message", "report", "create_subforum"}, nil)
@@ -1562,13 +1634,14 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 		assert.Equal(t, int(testUserID), response.Body.UserID)
 		assert.Equal(t, testPseudonymID, response.Body.ActivePseudonymID)
 		assert.Equal(t, testDisplayName, response.Body.DisplayName)
-		// Should have no capabilities when subforum is not found
-		assert.Len(t, response.Body.Capabilities, 0)
+		// Should have only global capabilities when subforum is not found
+		assert.ElementsMatch(t, []string{"create_content", "vote", "message", "report", "create_subforum"}, response.Body.Capabilities)
 
 		// Verify mocks were called
 		mockUserDAO.AssertExpectations(t)
 		mockPseudonymDAO.AssertExpectations(t)
 		mockSubforumDAO.AssertExpectations(t)
+		mockRoleKeyDAO.AssertExpectations(t)
 	})
 
 	t.Run("DatabaseError", func(t *testing.T) {
@@ -1620,7 +1693,7 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 	})
 
 	t.Run("PseudonymRetrievalError", func(t *testing.T) {
-		handler, mockUserDAO, mockPseudonymDAO, _, _, mockSubforumDAO, mockPermissionDAO := NewAuthHandlerWithMocks()
+		handler, mockUserDAO, mockPseudonymDAO, _, mockRoleKeyDAO, mockSubforumDAO, mockPermissionDAO := NewAuthHandlerWithMocks()
 
 		// Test data
 		testUserID := int64(1)
@@ -1647,6 +1720,14 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 				return mockSubforum, nil
 			},
 		)
+
+		// Mock role keys for the active pseudonym with platform capabilities
+		mockRoleKey := &dbmodels.RoleKey{
+			PseudonymID:  "pseudonym-123",
+			RoleName:     "user",
+			Capabilities: types.NewJSON[json.RawMessage]([]byte(`["create_content", "vote", "message", "report", "create_subforum"]`)),
+		}
+		mockRoleKeyDAO.On("ListRoleKeysByPseudonym", mock.Anything, mock.Anything).Return([]*dbmodels.RoleKey{mockRoleKey}, nil).Maybe()
 
 		// Mock permission DAO - no capabilities for this test
 		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "moderate_content", "pseudonym-123").Return(false, nil)
@@ -1696,10 +1777,11 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 		mockUserDAO.AssertExpectations(t)
 		mockPseudonymDAO.AssertExpectations(t)
 		mockSubforumDAO.AssertExpectations(t)
+		mockRoleKeyDAO.AssertExpectations(t)
 	})
 
 	t.Run("UserWithMultipleRoles", func(t *testing.T) {
-		handler, mockUserDAO, mockPseudonymDAO, _, _, mockSubforumDAO, mockPermissionDAO := NewAuthHandlerWithMocks()
+		handler, mockUserDAO, mockPseudonymDAO, _, mockRoleKeyDAO, mockSubforumDAO, mockPermissionDAO := NewAuthHandlerWithMocks()
 
 		// Test data
 		testUserID := int64(1)
@@ -1710,14 +1792,11 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 		testSubforumID := int64(100)
 
 		// Mock user lookup with multiple roles
-		rolesJSON, _ := json.Marshal([]string{"user", "platform_admin"})
-		rolesNull := sql.Null[types.JSON[json.RawMessage]]{}
-		rolesNull.Scan(rolesJSON)
+
 		mockUser := &dbmodels.User{
 			UserID:   testUserID,
 			Email:    testEmail,
 			IsActive: sql.Null[bool]{V: true, Valid: true},
-			Roles:    rolesNull,
 		}
 		mockUserDAO.On("GetUserByID", mock.Anything, testUserID).Return(mockUser, nil)
 		mockUserDAO.On("UpdateLastActive", mock.Anything, testUserID).Return(nil)
@@ -1732,6 +1811,14 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 				return mockSubforum, nil
 			},
 		)
+
+		// Mock role keys for the active pseudonym with platform capabilities
+		mockRoleKey := &dbmodels.RoleKey{
+			PseudonymID:  testPseudonymID,
+			RoleName:     "user",
+			Capabilities: types.NewJSON[json.RawMessage]([]byte(`["create_content", "vote", "message", "report", "create_subforum"]`)),
+		}
+		mockRoleKeyDAO.On("ListRoleKeysByPseudonym", mock.Anything, mock.Anything).Return([]*dbmodels.RoleKey{mockRoleKey}, nil).Maybe()
 
 		// Mock permission DAO - user has admin capabilities
 		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "moderate_content", testPseudonymID).Return(true, nil)
@@ -1791,10 +1878,11 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 		mockUserDAO.AssertExpectations(t)
 		mockPseudonymDAO.AssertExpectations(t)
 		mockSubforumDAO.AssertExpectations(t)
+		mockRoleKeyDAO.AssertExpectations(t)
 	})
 
 	t.Run("FallbackToFirstPseudonym", func(t *testing.T) {
-		handler, mockUserDAO, mockPseudonymDAO, _, _, mockSubforumDAO, mockPermissionDAO := NewAuthHandlerWithMocks()
+		handler, mockUserDAO, mockPseudonymDAO, _, mockRoleKeyDAO, mockSubforumDAO, mockPermissionDAO := NewAuthHandlerWithMocks()
 
 		// Test data
 		testUserID := int64(1)
@@ -1823,6 +1911,14 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 				return mockSubforum, nil
 			},
 		)
+
+		// Mock role keys for the active pseudonym with platform capabilities
+		mockRoleKey := &dbmodels.RoleKey{
+			PseudonymID:  testPseudonymID,
+			RoleName:     "user",
+			Capabilities: types.NewJSON[json.RawMessage]([]byte(`["create_content", "vote", "message", "report", "create_subforum"]`)),
+		}
+		mockRoleKeyDAO.On("ListRoleKeysByPseudonym", mock.Anything, mock.Anything).Return([]*dbmodels.RoleKey{mockRoleKey}, nil).Maybe()
 
 		// Mock permission DAO - no capabilities for this test
 		mockPermissionDAO.On("GetUserSubforumCapabilities", mock.Anything, int64(testUserID), int32(testSubforumID)).Return(
@@ -1877,6 +1973,7 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 		mockUserDAO.AssertExpectations(t)
 		mockPseudonymDAO.AssertExpectations(t)
 		mockSubforumDAO.AssertExpectations(t)
+		mockRoleKeyDAO.AssertExpectations(t)
 	})
 }
 

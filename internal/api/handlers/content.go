@@ -488,6 +488,13 @@ func (h *ContentHandler) CreatePost(ctx context.Context, input *models.PostCreat
 		}
 	}
 
+	// Update last active timestamp for the pseudonym
+	err = h.pseudonymDAO.UpdateLastActive(ctx, pseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", pseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
+	}
+
 	// Get the slug from the created post
 	var slug string
 	if post.Slug.Valid {
@@ -757,6 +764,13 @@ func (h *ContentHandler) VoteOnPost(ctx context.Context, input *models.PostVoteI
 
 	score := upvotes - downvotes
 
+	// Update last active timestamp for the pseudonym
+	err = h.pseudonymDAO.UpdateLastActive(ctx, pseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", pseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
+	}
+
 	// Update post score in database
 	err = h.postDAO.UpdatePostScore(ctx, postID, int32(score), int32(upvotes), int32(downvotes))
 	if err != nil {
@@ -860,6 +874,13 @@ func (h *ContentHandler) CreateComment(ctx context.Context, input *models.Commen
 		return nil, err
 	}
 
+	// Update last active timestamp for the pseudonym
+	err = h.pseudonymDAO.UpdateLastActive(ctx, pseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", pseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
+	}
+
 	// Update post comment count
 	err = h.postDAO.UpdateCommentCount(ctx, postID, post.CommentCount.V+1)
 	if err != nil {
@@ -961,6 +982,13 @@ func (h *ContentHandler) VoteOnComment(ctx context.Context, input *models.Commen
 	}
 
 	score := upvotes - downvotes
+
+	// Update last active timestamp for the pseudonym
+	err = h.pseudonymDAO.UpdateLastActive(ctx, pseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", pseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
+	}
 
 	// Update comment score in database
 	err = h.commentDAO.UpdateCommentScore(ctx, commentID, int32(score), int32(upvotes), int32(downvotes))

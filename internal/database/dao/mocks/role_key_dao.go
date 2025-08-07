@@ -93,3 +93,24 @@ func (m *MockRoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interf
 	args := m.Called(ctx, ibeSystem, pseudonymID, userRoles)
 	return args.Error(0)
 }
+
+func (m *MockRoleKeyDAO) GetPlatformKeyData(ctx context.Context, roleName, scope string) ([]byte, error) {
+	args := m.Called(ctx, roleName, scope)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]byte), args.Error(1)
+}
+
+func (m *MockRoleKeyDAO) ValidatePlatformKeyCapability(ctx context.Context, roleName, scope, requiredCapability string) (bool, error) {
+	args := m.Called(ctx, roleName, scope, requiredCapability)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockRoleKeyDAO) CreateRoleKeyWithIBE(ctx context.Context, roleName, scope string, capabilities []string, expiresAt time.Time, createdByPseudonymID string, pseudonymID string, subforumID *int32) (*models.RoleKey, error) {
+	args := m.Called(ctx, roleName, scope, capabilities, expiresAt, createdByPseudonymID, pseudonymID, subforumID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.RoleKey), args.Error(1)
+}

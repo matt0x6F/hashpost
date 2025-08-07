@@ -296,3 +296,11 @@ func (m *MockPostDAO) GetTotalPostsCount(ctx context.Context, subforumPath strin
 	args := m.Called(ctx, subforumPath)
 	return args.Get(0).(int), args.Error(1)
 }
+
+func (m *MockPostDAO) GetPostsByPseudonym(ctx context.Context, pseudonymID string, page, limit int, sortField string, sortDesc bool) ([]*models.Post, error) {
+	args := m.Called(ctx, pseudonymID, page, limit, sortField, sortDesc)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.Post), args.Error(1)
+}

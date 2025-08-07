@@ -26,6 +26,7 @@ type PseudonymDAOInterface interface {
 	CreatePseudonymWithIdentityMapping(ctx context.Context, userID int64, displayName string) (*models.Pseudonym, error)
 	GetPseudonymByID(ctx context.Context, pseudonymID string) (*models.Pseudonym, error)
 	GetPseudonymByDisplayName(ctx context.Context, displayName string) (*models.Pseudonym, error)
+	GetPseudonymBySlug(ctx context.Context, slug string) (*models.Pseudonym, error)
 	GetPseudonymsByUserID(ctx context.Context, userID int64, roleName, scope string) ([]*models.Pseudonym, error)
 	GetDefaultPseudonymByUserID(ctx context.Context, userID int64, roleName, scope string) (*models.Pseudonym, error)
 	UpdatePseudonym(ctx context.Context, pseudonymID string, updates *models.PseudonymSetter) error
@@ -34,16 +35,22 @@ type PseudonymDAOInterface interface {
 	VerifyPseudonymOwnership(ctx context.Context, pseudonymID string, userID int64, roleName, scope string) (bool, error)
 	GetUserIDByPseudonym(ctx context.Context, pseudonymID, roleName, scope string) (int64, error)
 	UpdateLastActive(ctx context.Context, pseudonymID string) error
+	GenerateSlugFromDisplayName(ctx context.Context, displayName string) (string, error)
+	CalculateKarmaForPseudonym(ctx context.Context, pseudonymID string) (int32, error)
+	UpdateKarmaForPseudonym(ctx context.Context, pseudonymID string) error
 }
 
 // IdentityMappingDAOInterface defines the interface for identity mapping data access operations
 type IdentityMappingDAOInterface interface {
-	CreateIdentityMapping(ctx context.Context, mapping *models.IdentityMappingSetter) (*models.IdentityMapping, error)
 	GetIdentityMappingByPseudonymID(ctx context.Context, pseudonymID string) (*models.IdentityMapping, error)
 	GetIdentityMappingsByPseudonymID(ctx context.Context, pseudonymID string) (models.IdentityMappingSlice, error)
-	GetIdentityMappingsByUserID(ctx context.Context, userID int64) (models.IdentityMappingSlice, error)
 	GetIdentityMappingsByFingerprint(ctx context.Context, fingerprint string) (models.IdentityMappingSlice, error)
+	GetAllActiveIdentityMappings(ctx context.Context) (models.IdentityMappingSlice, error)
+	CreateIdentityMapping(ctx context.Context, mapping *models.IdentityMappingSetter) (*models.IdentityMapping, error)
+	UpdateIdentityMapping(ctx context.Context, mappingID string, updates *models.IdentityMappingSetter) error
+	DeleteByUserID(ctx context.Context, userID int64) error
 	DeactivateIdentityMapping(ctx context.Context, mappingID string) error
+	GetCorrelationData(ctx context.Context, pseudonymID string) (*models.IdentityMapping, models.IdentityMappingSlice, error)
 }
 
 // RoleKeyDAOInterface defines the interface for role key data access operations
@@ -57,6 +64,10 @@ type RoleKeyDAOInterface interface {
 	DeactivateRoleKey(ctx context.Context, keyID string) error
 	ValidateKeyCapability(ctx context.Context, pseudonymID string, scope, requiredCapability string, subforumID *int32) (bool, error)
 	GetKeyData(ctx context.Context, pseudonymID string, scope string, subforumID *int32) ([]byte, error)
+	// Platform-level operations that work with roles instead of pseudonyms
+	GetPlatformKeyData(ctx context.Context, roleName, scope string) ([]byte, error)
+	ValidatePlatformKeyCapability(ctx context.Context, roleName, scope, requiredCapability string) (bool, error)
+	CreateRoleKeyWithIBE(ctx context.Context, roleName, scope string, capabilities []string, expiresAt time.Time, createdByPseudonymID string, pseudonymID string, subforumID *int32) (*models.RoleKey, error)
 	EnsureDefaultKeys(ctx context.Context, ibeSystem interface{}, pseudonymID string, userRoles []string) error
 	DeleteByPseudonymID(ctx context.Context, pseudonymID string) error
 }
@@ -80,6 +91,7 @@ type PostDAOInterface interface {
 	GetPostsBySubforum(ctx context.Context, subforumID int32, page, limit int, sortField string, sortDesc bool) ([]*models.Post, error)
 	CountPostsBySubforum(ctx context.Context, subforumID int32) (int64, error)
 	CountPostsByPseudonym(ctx context.Context, pseudonymID string) (int64, error)
+	GetPostsByPseudonym(ctx context.Context, pseudonymID string, page, limit int, sortField string, sortDesc bool) ([]*models.Post, error)
 	CountPostsByPseudonymInSubforum(ctx context.Context, pseudonymID string, subforumID int32) (int64, error)
 	GetSubforumsByPseudonym(ctx context.Context, pseudonymID string) ([]int32, error)
 	GetPostBySubforumAndSlug(ctx context.Context, subforumID int32, slug string) (*models.Post, error)
@@ -105,6 +117,7 @@ type CommentDAOInterface interface {
 	GetCommentsByPostWithNestedReplies(ctx context.Context, postID int64) ([]*models.Comment, error)
 	CountCommentsByPost(ctx context.Context, postID int64) (int64, error)
 	CountCommentsByPseudonym(ctx context.Context, pseudonymID string) (int64, error)
+	GetCommentsByPseudonym(ctx context.Context, pseudonymID string, page, limit int, sortField string, sortDesc bool) ([]*models.Comment, error)
 	CountCommentsByPseudonymInSubforum(ctx context.Context, pseudonymID string, subforumID int32) (int64, error)
 	GetSubforumsByPseudonymComments(ctx context.Context, pseudonymID string) ([]int32, error)
 	UpdateCommentScore(ctx context.Context, commentID int64, score, upvotes, downvotes int32) error
@@ -156,19 +169,18 @@ type APIKeyDAOInterface interface {
 	ValidateAPIKey(ctx context.Context, apiKeyHash string) (*models.APIKey, error)
 }
 
-// UserBlocksDAOInterface defines the interface for user blocks data access operations
+// UserBlocksDAOInterface defines the interface for user blocking data access operations
 type UserBlocksDAOInterface interface {
-	CreateUserBlock(ctx context.Context, blockerPseudonymID, blockedPseudonymID string, blockedUserID int64) (*models.UserBlock, error)
+	CreateUserBlock(ctx context.Context, blockerPseudonymID string, blockedPseudonymID string, blockedUserID int64) (*models.UserBlock, error)
 	GetUserBlock(ctx context.Context, blockerPseudonymID, blockedPseudonymID string) (*models.UserBlock, error)
 	GetUserBlocksByBlocker(ctx context.Context, blockerPseudonymID string) ([]*models.UserBlock, error)
 	GetUserBlocksByBlockedUser(ctx context.Context, blockedUserID int64) ([]*models.UserBlock, error)
 	DeleteUserBlock(ctx context.Context, blockerPseudonymID, blockedPseudonymID string) error
-	DeleteUserBlockByID(ctx context.Context, blockID int64) error
 	IsUserBlocked(ctx context.Context, blockerPseudonymID, blockedPseudonymID string) (bool, error)
 	IsPseudonymBlockedByUser(ctx context.Context, blockerPseudonymID, blockedPseudonymID string, blockedUserID int64) (bool, error)
 	IsUserBlockedAtFingerprintLevel(ctx context.Context, blockerPseudonymID string, blockedUserID int64) (bool, error)
-	IsUserBlockedByAnyPseudonym(ctx context.Context, blockerUserID int64, blockedPseudonymID string) (bool, error)
 	GetFingerprintLevelBlocks(ctx context.Context, blockedUserID int64) ([]*models.UserBlock, error)
+	DeleteUserBlockByID(ctx context.Context, blockID int64) error
 }
 
 // UserPreferencesDAOInterface defines the interface for user preferences data access operations

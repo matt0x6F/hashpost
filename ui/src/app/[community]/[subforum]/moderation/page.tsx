@@ -73,16 +73,13 @@ export default function SubforumModerationPage() {
 
   // Check if user has moderator permissions - only after everything is loaded
   const hasModerateContent = user?.capabilities?.includes('moderate_content');
-  const hasModeratorRole = user?.roles?.includes('moderator') || user?.roles?.includes('admin');
-  const isModerator = hasModeratorRole || hasModerateContent;
+  const isModerator = hasModerateContent;
 
   // Debug logging
   console.log('Permission check:', {
     user: user?.email,
-    roles: user?.roles,
     capabilities: user?.capabilities,
     hasModerateContent,
-    hasModeratorRole,
     isModerator,
     isAuthenticated,
     subforumContextLoaded,
@@ -97,7 +94,7 @@ export default function SubforumModerationPage() {
         <div className="text-center py-12">
           <p className="text-muted-foreground">You do not have permission to access this page.</p>
           <p className="text-sm text-muted-foreground mt-2">
-            Debug: Auth={isAuthenticated}, Mod={isModerator}, Roles={user?.roles?.join(', ')}, Caps={user?.capabilities?.filter(c => c.includes('moderate')).join(', ')}
+            Debug: Auth={isAuthenticated}, Mod={isModerator}, Caps={user?.capabilities?.filter(c => c.includes('moderate')).join(', ')}
           </p>
         </div>
       </div>

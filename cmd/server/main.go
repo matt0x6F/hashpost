@@ -205,6 +205,26 @@ func main() {
 
 	cli.Root().AddCommand(deleteUserCmd)
 
+	// Add update-admin subcommand
+	updateAdminCmd := &cobra.Command{
+		Use:   "update-admin",
+		Short: "Update an admin user and fix their pseudonym mappings",
+		Long:  "Update an existing admin user's role and optionally fix missing identity mappings",
+		Run: humacli.WithOptions(func(cmd *cobra.Command, args []string, options *Options) {
+			if err := commands.UpdateAdminUserWithCommand(cmd); err != nil {
+				log.Fatal().Err(err).Msg("Failed to update admin user")
+			}
+		}),
+	}
+
+	// Add flags for update-admin command
+	updateAdminCmd.Flags().String("email", "", "Email address of the admin user to update")
+	updateAdminCmd.Flags().String("role", "platform_admin", "Admin role (platform_admin, trust_safety, legal_team)")
+	updateAdminCmd.Flags().Bool("fix-mappings", false, "Fix missing identity mappings for the user's pseudonyms")
+	updateAdminCmd.Flags().Bool("non-interactive", false, "Non-interactive mode (requires all flags)")
+
+	cli.Root().AddCommand(updateAdminCmd)
+
 	// Add generate-ibe-keys subcommand
 	generateIBEKeysCmd := &cobra.Command{
 		Use:   "generate-ibe-keys",

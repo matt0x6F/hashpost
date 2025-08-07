@@ -25,7 +25,7 @@ type SubforumInfo struct {
 type Moderator struct {
 	PseudonymID string `json:"pseudonym_id" example:"mod_pseudonym_id"`
 	DisplayName string `json:"display_name" example:"moderator_name"`
-	Role        string `json:"role" example:"owner"`
+	Role        string `json:"role" example:"subforum_owner"`
 }
 
 // Reporter represents a user who reported content

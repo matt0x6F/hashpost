@@ -35,14 +35,15 @@ export async function switchPseudonym(pseudonymId: string): Promise<PseudonymOpe
 /**
  * Create a new pseudonym
  */
-export async function createPseudonym(displayName: string, bio?: string, websiteUrl?: string): Promise<PseudonymOperationResult> {
+export async function createPseudonym(displayName: string, bio?: string, websiteUrl?: string, slug?: string): Promise<PseudonymOperationResult> {
   try {
     const response = await pseudonymsApi.createPseudonym({
       displayName,
       bio: bio || '',
       websiteUrl: websiteUrl || '',
       allowDirectMessages: true,
-      showKarma: true
+      showKarma: true,
+      slug: slug || ''
     });
     
     return {

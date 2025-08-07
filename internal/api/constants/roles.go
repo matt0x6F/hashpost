@@ -106,7 +106,7 @@ func GetRoleDefinitions() []RoleDefinition {
 		},
 		{
 			RoleName: RolePlatformAdmin,
-			Scopes:   []string{ScopeAuthentication, ScopeSelfCorrelation, ScopeModeration, ScopeAdministration, ScopeCorrelation},
+			Scopes:   []string{ScopeAuthentication, ScopeSelfCorrelation, ScopeAdministration, ScopeCorrelation},
 			Capabilities: map[string][]string{
 				ScopeAuthentication: {
 					CapabilityAccessOwnPseudonyms,
@@ -116,15 +116,6 @@ func GetRoleDefinitions() []RoleDefinition {
 				ScopeSelfCorrelation: {
 					CapabilityVerifyOwnPseudonymOwnership,
 					CapabilityManageOwnProfile,
-				},
-				ScopeModeration: {
-					CapabilityModerateContent,
-					CapabilityBanUsers,
-					CapabilityRemoveContent,
-					CapabilityManageModerators,
-					CapabilityReviewReports,
-					CapabilityForwardReports,
-					CapabilityManageSubforumRules,
 				},
 				ScopeAdministration: {
 					CapabilityModeration,
@@ -143,7 +134,7 @@ func GetRoleDefinitions() []RoleDefinition {
 		},
 		{
 			RoleName: RoleTrustSafety,
-			Scopes:   []string{ScopeAuthentication, ScopeSelfCorrelation, ScopeModeration, ScopeAdministration, ScopeCorrelation},
+			Scopes:   []string{ScopeAuthentication, ScopeSelfCorrelation, ScopeAdministration, ScopeCorrelation},
 			Capabilities: map[string][]string{
 				ScopeAuthentication: {
 					CapabilityAccessOwnPseudonyms,
@@ -153,15 +144,6 @@ func GetRoleDefinitions() []RoleDefinition {
 				ScopeSelfCorrelation: {
 					CapabilityVerifyOwnPseudonymOwnership,
 					CapabilityManageOwnProfile,
-				},
-				ScopeModeration: {
-					CapabilityModerateContent,
-					CapabilityBanUsers,
-					CapabilityRemoveContent,
-					CapabilityManageModerators,
-					CapabilityReviewReports,
-					CapabilityForwardReports,
-					CapabilityManageSubforumRules,
 				},
 				ScopeAdministration: {
 					CapabilityModeration,
@@ -178,7 +160,7 @@ func GetRoleDefinitions() []RoleDefinition {
 		},
 		{
 			RoleName: RoleLegalTeam,
-			Scopes:   []string{ScopeAuthentication, ScopeSelfCorrelation, ScopeModeration, ScopeAdministration, ScopeCorrelation},
+			Scopes:   []string{ScopeAuthentication, ScopeSelfCorrelation, ScopeAdministration, ScopeCorrelation},
 			Capabilities: map[string][]string{
 				ScopeAuthentication: {
 					CapabilityAccessOwnPseudonyms,
@@ -188,13 +170,6 @@ func GetRoleDefinitions() []RoleDefinition {
 				ScopeSelfCorrelation: {
 					CapabilityVerifyOwnPseudonymOwnership,
 					CapabilityManageOwnProfile,
-				},
-				ScopeModeration: {
-					CapabilityModerateContent,
-					CapabilityBanUsers,
-					CapabilityRemoveContent,
-					CapabilityReviewReports,
-					CapabilityForwardReports,
 				},
 				ScopeAdministration: {
 					CapabilityCompliance,

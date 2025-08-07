@@ -15,14 +15,14 @@ func TestAPIKeyDAO_CreateAndValidate(t *testing.T) {
 	t.Run("CreateAPIKey", func(t *testing.T) {
 		// Test creating an API key with permissions
 		permissions := &APIKeyPermissions{
-			Roles:        []string{"admin"},
+			Roles:        []string{"platform_admin"},
 			Capabilities: []string{"read", "write"},
 		}
 
 		// This would require a real database connection
 		// For now, just verify the structure is correct
 		assert.NotNil(t, permissions)
-		assert.Equal(t, []string{"admin"}, permissions.Roles)
+		assert.Equal(t, []string{"platform_admin"}, permissions.Roles)
 		assert.Equal(t, []string{"read", "write"}, permissions.Capabilities)
 	})
 
@@ -46,7 +46,7 @@ func TestAPIKeyPermissions_JSON(t *testing.T) {
 	t.Run("MarshalUnmarshal", func(t *testing.T) {
 		// Test JSON marshaling and unmarshaling
 		original := &APIKeyPermissions{
-			Roles:        []string{"admin", "moderator"},
+			Roles:        []string{"platform_admin", "moderator"},
 			Capabilities: []string{"read", "write", "delete"},
 		}
 

@@ -563,7 +563,7 @@ func TestPermissionChecker_CheckPrivateSubforumAccess(t *testing.T) {
 func TestPermissionChecker_GetUserSubforumRoles(t *testing.T) {
 	mockChecker := NewMockPermissionChecker()
 
-	expectedRoles := []string{"moderator", "admin"}
+	expectedRoles := []string{"moderator", "platform_admin"}
 	mockChecker.mockDAO.On("GetUserSubforumRoles", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int32")).Return(expectedRoles, nil)
 
 	ctx := context.Background()

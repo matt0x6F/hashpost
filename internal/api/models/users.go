@@ -7,6 +7,37 @@ type PseudonymIDPathParam struct {
 	PseudonymID string `path:"pseudonym_id" example:"abc123def456..." required:"true"`
 }
 
+// SlugPathParam represents the slug path parameter for profile routes
+type SlugPathParam struct {
+	Slug string `path:"slug" example:"user-slug" required:"true"`
+}
+
+type PostsByPseudonymResponseBody struct {
+	Posts      []Post `json:"posts"`
+	TotalCount int    `json:"total_count"`
+	Page       int    `json:"page"`
+	Limit      int    `json:"limit"`
+	TotalPages int    `json:"total_pages"`
+}
+
+type CommentsByPseudonymResponseBody struct {
+	Comments   []Comment `json:"comments"`
+	TotalCount int       `json:"total_count"`
+	Page       int       `json:"page"`
+	Limit      int       `json:"limit"`
+	TotalPages int       `json:"total_pages"`
+}
+
+type PostsByPseudonymResponse struct {
+	Status int                          `json:"-" example:"200"`
+	Body   PostsByPseudonymResponseBody `json:"body"`
+}
+
+type CommentsByPseudonymResponse struct {
+	Status int                             `json:"-" example:"200"`
+	Body   CommentsByPseudonymResponseBody `json:"body"`
+}
+
 // PseudonymProfileBody represents the body of pseudonym profile update request
 type PseudonymProfileBody struct {
 	DisplayName         string `json:"display_name" example:"new_display_name"`
@@ -14,6 +45,7 @@ type PseudonymProfileBody struct {
 	WebsiteURL          string `json:"website_url" example:"https://newwebsite.com"`
 	ShowKarma           *bool  `json:"show_karma" example:"false"`
 	AllowDirectMessages *bool  `json:"allow_direct_messages" example:"false"`
+	Slug                string `json:"slug" example:"user-slug"`
 }
 
 // PseudonymProfileInput represents pseudonym profile update request
@@ -46,6 +78,7 @@ type CreatePseudonymBody struct {
 	WebsiteURL          string `json:"website_url"`
 	ShowKarma           *bool  `json:"show_karma"`
 	AllowDirectMessages *bool  `json:"allow_direct_messages"`
+	Slug                string `json:"slug"`
 }
 
 // CreatePseudonymInput is for Huma schema definition only. Actual requests should send flat JSON, not nested under 'body'.
@@ -78,6 +111,7 @@ type PseudonymProfile struct {
 	AllowDirectMessages bool   `json:"allow_direct_messages" example:"true"`
 	PostCount           int    `json:"post_count" example:"45"`
 	CommentCount        int    `json:"comment_count" example:"230"`
+	Slug                string `json:"slug" example:"user-slug"`
 }
 
 // UserProfile represents user profile with multiple pseudonyms

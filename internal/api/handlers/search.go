@@ -341,7 +341,6 @@ func (h *SearchHandler) SearchUsers(ctx context.Context, input *models.SearchUse
 	if !user.HasRole("platform_admin") {
 		log.Warn().
 			Int64("user_id", user.UserID).
-			Str("roles", strings.Join(user.Roles, ",")).
 			Msg("Platform admin role required for user search")
 		return nil, fmt.Errorf("insufficient permissions: platform admin role required")
 	}

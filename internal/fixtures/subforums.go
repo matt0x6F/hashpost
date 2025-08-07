@@ -74,6 +74,6 @@ func CreateTestModeratorRoleKey() *models.RoleKey {
 // CreateTestAdminRoleKey creates a test admin role key
 func CreateTestAdminRoleKey() *models.RoleKey {
 	roleKey := CreateTestModeratorRoleKey()
-	roleKey.RoleName = "admin"
+	roleKey.RoleName = "platform_admin"
 	return roleKey
 }

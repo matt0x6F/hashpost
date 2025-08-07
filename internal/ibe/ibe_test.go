@@ -515,7 +515,7 @@ func TestMultiVersionKeyMigration(t *testing.T) {
 		ibeSystem.EnableMigrationMode()
 
 		// Test correlation key generation with different versions
-		role := "admin"
+		role := "platform_admin"
 		scope := "correlation"
 		timeWindow := 24 * time.Hour
 

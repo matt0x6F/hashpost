@@ -49,7 +49,6 @@ CREATE TABLE users (
     -- Indexes for performance
     INDEX idx_users_email (email),
     INDEX idx_users_admin_username (admin_username),
-    INDEX idx_users_roles (roles),
     INDEX idx_users_active (is_active),
     INDEX idx_users_last_active (last_active_at),
     INDEX idx_users_created_at (created_at)
@@ -57,7 +56,7 @@ CREATE TABLE users (
 ```
 
 ### `pseudonyms`
-Stores pseudonym-specific information (multiple per user) with their own roles and capabilities.
+Stores pseudonym-specific information (multiple per user). Roles and capabilities are managed through the role_keys table.
 
 ```sql
 CREATE TABLE pseudonyms (
@@ -68,10 +67,6 @@ CREATE TABLE pseudonyms (
     last_active_at TIMESTAMP,
     is_active BOOLEAN DEFAULT TRUE,
     is_default BOOLEAN NOT NULL DEFAULT FALSE,
-    
-    -- Pseudonym-specific roles and capabilities
-    roles JSONB DEFAULT '["user"]',
-    capabilities JSONB DEFAULT '["create_content", "vote", "message", "report"]',
     
     -- Profile metadata (optional)
     bio TEXT,
@@ -788,7 +783,7 @@ CREATE TABLE performance_metrics (
 ### Important Schema Notes
 
 - **Users table**: No longer has capabilities field - capabilities moved to pseudonyms
-- **Pseudonyms table**: Now has both `roles` and `capabilities` JSONB fields
+- **Pseudonyms table**: Roles and capabilities are managed through the role_keys table
 - **Subforum moderators**: Uses pseudonym_id instead of user_id for moderator identification
 - **Posts and comments**: Include slug field for URL-friendly identifiers
 - **API keys**: Associated with specific pseudonyms

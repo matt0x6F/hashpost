@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"html/template"
 	"os"
 	"path/filepath"
@@ -131,24 +130,24 @@ func TestEmailTemplates(t *testing.T) {
 
 		for _, tmpl := range testTemplates {
 			// Create HTML template
-			htmlContent := fmt.Sprintf(`<!DOCTYPE html>
+			htmlContent := `<!DOCTYPE html>
 <html>
 <head><title>{{.Subject}}</title></head>
 <body>
 <h1>Hello {{.ToName}}</h1>
 <p>{{.Data.message}}</p>
 </body>
-</html>`)
+</html>`
 			err := os.WriteFile(filepath.Join(tempDir, tmpl.htmlFile), []byte(htmlContent), 0644)
 			require.NoError(t, err)
 
 			// Create text template
-			textContent := fmt.Sprintf(`Hello {{.ToName}},
+			textContent := `Hello {{.ToName}},
 
 {{.Data.message}}
 
 Best regards,
-HashPost`)
+HashPost`
 			err = os.WriteFile(filepath.Join(tempDir, tmpl.textFile), []byte(textContent), 0644)
 			require.NoError(t, err)
 		}

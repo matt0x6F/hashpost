@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/shadcn/card';
 import { Shield } from 'lucide-react';
 import { getApi } from '@/lib/api-client';
-import { ModerationApi } from '@/generated/api/src';
+import { ModerationApi } from '@/generated/api/src/apis/ModerationApi';
 import Link from 'next/link';
 
 interface ReportCountsProps {

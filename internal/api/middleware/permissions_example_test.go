@@ -99,7 +99,7 @@ func ExamplePermissionChecker() {
 		func(ctx context.Context, userID int64, subforumID int32) ([]string, error) {
 			// Mock logic: user 123 is a moderator for subforum 456
 			if userID == 123 && subforumID == 456 {
-				return []string{"moderator", "admin"}, nil
+				return []string{"moderator", "platform_admin"}, nil
 			}
 			return []string{}, nil
 		},

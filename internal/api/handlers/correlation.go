@@ -11,6 +11,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofrs/uuid/v5"
+	"github.com/matt0x6f/hashpost/internal/api/constants"
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	"github.com/matt0x6f/hashpost/internal/api/models"
 	"github.com/matt0x6f/hashpost/internal/database/dao"
@@ -109,7 +110,7 @@ func (h *CorrelationHandler) RequestFingerprintCorrelation(ctx context.Context, 
 	}
 
 	// Generate admin key for decryption based on user's role
-	adminKey := h.ibeSystem.GenerateRoleKey("moderator", "subforum_correlation", time.Now().AddDate(0, 1, 0))
+	adminKey := h.ibeSystem.GenerateRoleKey("moderator", constants.ScopeCorrelation, time.Now().AddDate(0, 1, 0))
 
 	// Decrypt the identity mapping to get the fingerprint
 	decryptedMapping, _, err := h.ibeSystem.DecryptIdentity(identityMapping.EncryptedRealIdentity, adminKey)

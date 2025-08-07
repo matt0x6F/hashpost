@@ -222,20 +222,9 @@ func (h *AuthHandler) RegisterUser(ctx context.Context, input *apimodels.UserReg
 		return nil, fmt.Errorf("failed to create pseudonym: %w", err)
 	}
 
-	// Get user roles and capabilities from database
+	// Get user roles and capabilities from role keys
 	roles := []string{"user"}                                                                  // Default role
 	capabilities := []string{"create_content", "vote", "message", "report", "create_subforum"} // Default capabilities
-
-	// If user has roles/capabilities stored in database, use those
-	if user.Roles.Valid {
-		rawValue, err := user.Roles.V.Value()
-		if err == nil {
-			var userRoles []string
-			if err := json.Unmarshal(rawValue.([]byte), &userRoles); err == nil && len(userRoles) > 0 {
-				roles = userRoles
-			}
-		}
-	}
 
 	// Get pseudonym capabilities from role keys
 	roleKeys, err := h.roleKeyDAO.ListRoleKeysByPseudonym(ctx, pseudonym.PseudonymID)
@@ -568,7 +557,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 		log.Warn().
 			Str("email", input.Body.Email).
 			Msg("User not found")
-		return nil, fmt.Errorf("invalid credentials")
+		return nil, huma.Error401Unauthorized("invalid credentials")
 	}
 
 	// Check if user is active
@@ -576,7 +565,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 		log.Warn().
 			Int64("user_id", user.UserID).
 			Msg("User account is inactive")
-		return nil, fmt.Errorf("account inactive")
+		return nil, huma.Error401Unauthorized("account inactive")
 	}
 
 	// Check if user is suspended
@@ -584,7 +573,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 		log.Warn().
 			Int64("user_id", user.UserID).
 			Msg("User account is suspended")
-		return nil, fmt.Errorf("account suspended")
+		return nil, huma.Error401Unauthorized("account suspended")
 	}
 
 	// Check if email is verified
@@ -593,7 +582,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 			Int64("user_id", user.UserID).
 			Str("email", user.Email).
 			Msg("User attempted to login with unverified email")
-		return nil, fmt.Errorf("email not verified. Please check your email and click the verification link before logging in")
+		return nil, huma.Error401Unauthorized("email not verified. Please check your email and click the verification link before logging in")
 	}
 
 	// Verify password (in a real app, you'd use bcrypt.CompareHashAndPassword)
@@ -601,7 +590,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 		log.Warn().
 			Int64("user_id", user.UserID).
 			Msg("Invalid password")
-		return nil, fmt.Errorf("invalid credentials")
+		return nil, huma.Error401Unauthorized("invalid credentials")
 	}
 
 	// Update last active timestamp
@@ -616,22 +605,9 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 
 	// Note: Role keys are created during user registration, not during login
 
-	// Get user roles and capabilities from database
+	// Get user roles and capabilities from role keys
 	roles := []string{"user"}                                                                  // Default role
 	capabilities := []string{"create_content", "vote", "message", "report", "create_subforum"} // Default capabilities
-
-	// If user has roles/capabilities stored in database, use those
-	if user.Roles.Valid {
-		rawValue, err := user.Roles.V.Value()
-		if err == nil {
-			var userRoles []string
-			if err := json.Unmarshal(rawValue.([]byte), &userRoles); err == nil && len(userRoles) > 0 {
-				roles = userRoles
-			}
-		}
-	}
-
-	// Note: Capabilities will be set from the default pseudonym later in the method
 
 	// Get user's pseudonyms for the response
 	// Use IBE-based correlation to get user's pseudonyms
@@ -644,7 +620,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 			Int64("user_id", user.UserID).
 			Str("role", primaryRole).
 			Msg("Failed to get user pseudonyms")
-		return nil, fmt.Errorf("failed to get user pseudonyms: %w", err)
+		return nil, huma.Error500InternalServerError("failed to get user pseudonyms")
 	}
 
 	// If user has no pseudonyms, this is a data error
@@ -652,7 +628,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 		log.Error().
 			Int64("user_id", user.UserID).
 			Msg("User has no pseudonyms; cannot proceed with login")
-		return nil, fmt.Errorf("user has no pseudonyms; please contact support")
+		return nil, huma.Error500InternalServerError("user has no pseudonyms; please contact support")
 	}
 
 	// Get the default pseudonym for the user
@@ -663,7 +639,57 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 			Int64("user_id", user.UserID).
 			Str("role", primaryRole).
 			Msg("Failed to get default pseudonym")
-		return nil, fmt.Errorf("failed to get default pseudonym: %w", err)
+		return nil, huma.Error500InternalServerError("failed to get default pseudonym")
+	}
+
+	// Get pseudonym capabilities from role keys
+	roleKeys, err := h.roleKeyDAO.ListRoleKeysByPseudonym(ctx, defaultPseudonym.PseudonymID)
+	if err != nil {
+		log.Warn().Err(err).Str("pseudonym_id", defaultPseudonym.PseudonymID).Msg("Failed to get role keys for pseudonym, using default capabilities")
+	} else {
+		capabilitySet := make(map[string]bool)
+		for _, roleKey := range roleKeys {
+			// Skip subforum-specific keys for login
+			if roleKey.SubforumID.Valid {
+				continue
+			}
+
+			// Extract capabilities from JSON
+			rawValue, err := roleKey.Capabilities.Value()
+			if err == nil {
+				var roleCapabilities []string
+				if err := json.Unmarshal(rawValue.([]byte), &roleCapabilities); err == nil {
+					for _, capability := range roleCapabilities {
+						capabilitySet[capability] = true
+					}
+				}
+			}
+		}
+
+		// Convert set to slice
+		var pseudonymCapabilities []string
+		for capability := range capabilitySet {
+			pseudonymCapabilities = append(pseudonymCapabilities, capability)
+		}
+
+		if len(pseudonymCapabilities) > 0 {
+			capabilities = pseudonymCapabilities
+		}
+	}
+
+	// Note: Capabilities will be set from the default pseudonym later in the method
+
+	// Get user's pseudonyms for the response
+	// Use IBE-based correlation to get user's pseudonyms
+	// Use the user's actual roles, not hardcoded "user"
+	primaryRole = roles[0] // Use the first role for authentication
+	pseudonyms, err = h.pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, primaryRole, constants.ScopeAuthentication)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Int64("user_id", user.UserID).
+			Msg("Failed to get user pseudonyms")
+		return nil, huma.Error500InternalServerError("failed to get user pseudonyms")
 	}
 
 	// Convert to API models
@@ -727,7 +753,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 			Err(err).
 			Int64("user_id", user.UserID).
 			Msg("Failed to generate access token")
-		return nil, fmt.Errorf("failed to generate access token: %w", err)
+		return nil, huma.Error500InternalServerError("failed to generate access token")
 	}
 
 	// Generate refresh token (longer expiration)
@@ -737,7 +763,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 			Err(err).
 			Int64("user_id", user.UserID).
 			Msg("Failed to generate refresh token")
-		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
+		return nil, huma.Error500InternalServerError("failed to generate refresh token")
 	}
 
 	// JWT cookies are automatically set by Huma's response handling
@@ -931,17 +957,73 @@ func (h *AuthHandler) GetCurrentUserSession(ctx context.Context, input *middlewa
 		return nil, huma.Error403Forbidden("Account suspended")
 	}
 
-	// Get user roles from database
-	roles := []string{"user"} // Default role
+	// Get user roles from role keys
+	roles := []string{"user"}                                                                  // Default role
+	capabilities := []string{"create_content", "vote", "message", "report", "create_subforum"} // Default capabilities
 
-	// If user has roles stored in database, use those
-	if user.Roles.Valid {
-		rawValue, err := user.Roles.V.Value()
-		if err == nil {
-			var userRoles []string
-			if err := json.Unmarshal(rawValue.([]byte), &userRoles); err == nil && len(userRoles) > 0 {
-				roles = userRoles
+	// Get user's pseudonyms for the response
+	// Use IBE-based correlation to get user's pseudonyms
+	// Use the user's actual roles, not hardcoded "user"
+	primaryRole := roles[0] // Use the first role for authentication
+	pseudonyms, err := h.pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, primaryRole, constants.ScopeAuthentication)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Int("user_id", userID).
+			Msg("Failed to get user pseudonyms")
+		return nil, fmt.Errorf("failed to get user pseudonyms: %w", err)
+	}
+
+	// If user has no pseudonyms, this is a data error
+	if len(pseudonyms) == 0 {
+		log.Error().
+			Int("user_id", userID).
+			Msg("User has no pseudonyms; cannot proceed")
+		return nil, huma.Error500InternalServerError("user has no pseudonyms; please contact support")
+	}
+
+	// Get the default pseudonym for the user
+	defaultPseudonym, err := h.pseudonymDAO.GetDefaultPseudonymByUserID(ctx, user.UserID, primaryRole, constants.ScopeAuthentication)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Int("user_id", userID).
+			Msg("Failed to get default pseudonym")
+		return nil, huma.Error500InternalServerError("failed to get default pseudonym")
+	}
+
+	// Get pseudonym capabilities from role keys
+	roleKeys, err := h.roleKeyDAO.ListRoleKeysByPseudonym(ctx, defaultPseudonym.PseudonymID)
+	if err != nil {
+		log.Warn().Err(err).Str("pseudonym_id", defaultPseudonym.PseudonymID).Msg("Failed to get role keys for pseudonym, using default capabilities")
+	} else {
+		capabilitySet := make(map[string]bool)
+		for _, roleKey := range roleKeys {
+			// Skip subforum-specific keys for session
+			if roleKey.SubforumID.Valid {
+				continue
 			}
+
+			// Extract capabilities from JSON
+			rawValue, err := roleKey.Capabilities.Value()
+			if err == nil {
+				var roleCapabilities []string
+				if err := json.Unmarshal(rawValue.([]byte), &roleCapabilities); err == nil {
+					for _, capability := range roleCapabilities {
+						capabilitySet[capability] = true
+					}
+				}
+			}
+		}
+
+		// Convert set to slice
+		var pseudonymCapabilities []string
+		for capability := range capabilitySet {
+			pseudonymCapabilities = append(pseudonymCapabilities, capability)
+		}
+
+		if len(pseudonymCapabilities) > 0 {
+			capabilities = pseudonymCapabilities
 		}
 	}
 
@@ -950,8 +1032,8 @@ func (h *AuthHandler) GetCurrentUserSession(ctx context.Context, input *middlewa
 	// Get user's pseudonyms for the response
 	// Use IBE-based correlation to get user's pseudonyms
 	// Use the user's actual roles, not hardcoded "user"
-	primaryRole := roles[0] // Use the first role for authentication
-	pseudonyms, err := h.pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, primaryRole, constants.ScopeAuthentication)
+	primaryRole = roles[0] // Use the first role for authentication
+	pseudonyms, err = h.pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, primaryRole, constants.ScopeAuthentication)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -1014,7 +1096,7 @@ func (h *AuthHandler) GetCurrentUserSession(ctx context.Context, input *middlewa
 	}
 
 	// Get active pseudonym's roles and capabilities (global only, no subforum context)
-	activeRoles, activeCapabilities, err := h.permissionDAO.GetUnifiedActivePseudonymRolesAndCapabilities(ctx, int64(userID), activePseudonymID, nil)
+	activeRoles, _, err := h.permissionDAO.GetUnifiedActivePseudonymRolesAndCapabilities(ctx, int64(userID), activePseudonymID, nil)
 	if err != nil {
 		log.Error().Err(err).Int64("user_id", int64(userID)).Str("active_pseudonym_id", activePseudonymID).Msg("Failed to get active pseudonym roles and capabilities")
 		return nil, fmt.Errorf("failed to get active pseudonym roles and capabilities: %w", err)
@@ -1037,7 +1119,7 @@ func (h *AuthHandler) GetCurrentUserSession(ctx context.Context, input *middlewa
 		userID,
 		userCtx.Email,
 		activeRoles,
-		activeCapabilities,
+		capabilities,
 		activePseudonymID,
 		displayName,
 		pseudonymInfos,
@@ -1093,8 +1175,9 @@ func (h *AuthHandler) GetCurrentUserSessionForSubforum(ctx context.Context, inpu
 		return nil, huma.Error403Forbidden("Account suspended")
 	}
 
-	// Get user roles and capabilities from database
-	roles := []string{"user"} // Default role
+	// Get user roles and capabilities from role keys
+	roles := []string{"user"}                                                                  // Default role
+	capabilities := []string{"create_content", "vote", "message", "report", "create_subforum"} // Default capabilities
 
 	// Get subforum-specific capabilities
 	subforumCapabilities := []string{}
@@ -1136,8 +1219,8 @@ func (h *AuthHandler) GetCurrentUserSessionForSubforum(ctx context.Context, inpu
 					Msg("Found owner record - granting owner and moderator capabilities")
 
 				// Add owner role
-				if !contains(unifiedRoles, "owner") {
-					unifiedRoles = append(unifiedRoles, "owner")
+				if !contains(unifiedRoles, constants.RoleSubforumOwner) {
+					unifiedRoles = append(unifiedRoles, constants.RoleSubforumOwner)
 				}
 
 				// Add owner capabilities (all moderator capabilities plus owner-specific ones)
@@ -1152,7 +1235,39 @@ func (h *AuthHandler) GetCurrentUserSessionForSubforum(ctx context.Context, inpu
 
 	// Use the unified roles and capabilities (they already include both global and subforum-specific)
 	allRoles := roles
-	allCapabilities := subforumCapabilities
+	capabilities = subforumCapabilities // Always start with unified capabilities
+
+	// Get pseudonym capabilities from role keys
+	roleKeys, err := h.roleKeyDAO.ListRoleKeysByPseudonym(ctx, userCtx.ActivePseudonymID)
+	if err != nil {
+		log.Warn().Err(err).Str("pseudonym_id", userCtx.ActivePseudonymID).Msg("Failed to get role keys for pseudonym, using default capabilities")
+	} else {
+		capabilitySet := make(map[string]bool)
+		for _, cap := range capabilities {
+			capabilitySet[cap] = true
+		}
+		for _, roleKey := range roleKeys {
+			// Skip subforum-specific keys for session
+			if roleKey.SubforumID.Valid {
+				continue
+			}
+			// Extract capabilities from JSON
+			rawValue, err := roleKey.Capabilities.Value()
+			if err == nil {
+				var roleCapabilities []string
+				if err := json.Unmarshal(rawValue.([]byte), &roleCapabilities); err == nil {
+					for _, capability := range roleCapabilities {
+						capabilitySet[capability] = true
+					}
+				}
+			}
+		}
+		// Convert set to slice
+		capabilities = make([]string, 0, len(capabilitySet))
+		for cap := range capabilitySet {
+			capabilities = append(capabilities, cap)
+		}
+	}
 
 	// Get user's pseudonyms for the response
 	// Use IBE-based correlation to get user's pseudonyms
@@ -1238,8 +1353,8 @@ func (h *AuthHandler) GetCurrentUserSessionForSubforum(ctx context.Context, inpu
 	return apimodels.NewCurrentUserSessionResponse(
 		userID,
 		userCtx.Email,
-		allRoles,        // Use the updated roles array that includes subforum-specific roles
-		allCapabilities, // Include subforum-specific capabilities
+		allRoles,     // Use the updated roles array that includes subforum-specific roles
+		capabilities, // Use the capabilities from role keys
 		activePseudonymID,
 		displayName,
 		pseudonymInfos,

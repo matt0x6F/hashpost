@@ -110,17 +110,14 @@ export default function ModerationSettingsPage() {
 
   // Check if user has moderator permissions
   const hasModerateContent = user?.capabilities?.includes('moderate_content') || false;
-  const hasModeratorRole = user?.roles?.some(role => 
-    ['moderator', 'subforum_owner'].includes(role)
-  ) || false;
 
-  if (!hasModerateContent && !hasModeratorRole) {
+  if (!hasModerateContent) {
     return (
       <div className="max-w-7xl mx-auto p-4">
         <div className="text-center py-12">
           <p className="text-muted-foreground">You do not have permission to access this page.</p>
           <p className="text-sm text-muted-foreground mt-2">
-            Debug: Auth={isAuthenticated}, Mod={hasModerateContent}, Roles={user?.roles?.join(', ')}, Caps={user?.capabilities?.join(', ')}
+            Debug: Auth={isAuthenticated}, Mod={hasModerateContent}, Caps={user?.capabilities?.join(', ')}
           </p>
         </div>
       </div>

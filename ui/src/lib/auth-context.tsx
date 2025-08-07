@@ -30,6 +30,7 @@ export interface Pseudonym {
   createdAt: string;
   lastActiveAt: string;
   isActive: boolean;
+  slug?: string;
 }
 
 interface AuthContextType {

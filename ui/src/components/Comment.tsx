@@ -78,7 +78,7 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
                          (user.activePseudonymId === comment.author.pseudonymId);
   
   // Check if user is a moderator
-  const isModerator = user?.roles?.includes('moderator') || user?.capabilities?.includes('moderate_content');
+  const isModerator = user?.capabilities?.includes('moderate_content');
 
   // Check if comment is deleted by user
   const isDeletedByUser = comment.isDeleted;
