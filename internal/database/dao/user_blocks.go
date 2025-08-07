@@ -164,6 +164,9 @@ func (dao *UserBlocksDAO) IsUserBlocked(ctx context.Context, blockerPseudonymID,
 	log.Warn().
 		Str("blocked_pseudonym_id", blockedPseudonymID).
 		Msg("Fingerprint-level block checking requires IBE correlation - caller must use GetUserIDByPseudonym with proper permissions")
+	
+	// Return false for now since we can't perform fingerprint-level checking without user ID
+	// The caller should use IsPseudonymBlockedByUser instead with the user ID
 	return false, nil
 }
 

@@ -471,6 +471,7 @@ func (h *UserHandler) convertDBPostToAPIPost(ctx context.Context, dbPost *dbmode
 		Upvotes:      0,
 		Downvotes:    0,
 		CommentCount: 0,
+		ViewCount:    0,
 		CreatedAt:    "",
 		IsLocked:     false,
 		IsSticky:     false,
@@ -501,6 +502,9 @@ func (h *UserHandler) convertDBPostToAPIPost(ctx context.Context, dbPost *dbmode
 	}
 	if dbPost.CommentCount.Valid {
 		post.CommentCount = int(dbPost.CommentCount.V)
+	}
+	if dbPost.ViewCount.Valid {
+		post.ViewCount = int(dbPost.ViewCount.V)
 	}
 	if dbPost.CreatedAt.Valid {
 		post.CreatedAt = dbPost.CreatedAt.V.Format(time.RFC3339)

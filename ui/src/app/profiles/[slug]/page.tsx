@@ -309,7 +309,7 @@ export default function ProfilePage() {
                           <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                             <span>{post.score} points</span>
                             <span>{post.commentCount} comments</span>
-                            <span>0 views</span>
+                            <span>{post.viewCount || 0} views</span>
                           </div>
                         </div>
                       </div>

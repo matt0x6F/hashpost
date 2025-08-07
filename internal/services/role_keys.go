@@ -9,21 +9,24 @@ import (
 	"github.com/matt0x6f/hashpost/internal/database/dao"
 	"github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/matt0x6f/hashpost/internal/ibe"
+	"github.com/rs/zerolog/log"
 )
 
 // RoleKeyService handles role key operations with IBE integration
 type RoleKeyService struct {
-	roleKeyDAO *dao.RoleKeyDAO
-	userDAO    *dao.UserDAO
-	ibeSystem  *ibe.IBESystem
+	roleKeyDAO   *dao.RoleKeyDAO
+	userDAO      *dao.UserDAO
+	pseudonymDAO dao.PseudonymDAOInterface
+	ibeSystem    *ibe.IBESystem
 }
 
 // NewRoleKeyService creates a new RoleKeyService
-func NewRoleKeyService(roleKeyDAO *dao.RoleKeyDAO, userDAO *dao.UserDAO, ibeSystem *ibe.IBESystem) *RoleKeyService {
+func NewRoleKeyService(roleKeyDAO *dao.RoleKeyDAO, userDAO *dao.UserDAO, pseudonymDAO dao.PseudonymDAOInterface, ibeSystem *ibe.IBESystem) *RoleKeyService {
 	return &RoleKeyService{
-		roleKeyDAO: roleKeyDAO,
-		userDAO:    userDAO,
-		ibeSystem:  ibeSystem,
+		roleKeyDAO:   roleKeyDAO,
+		userDAO:      userDAO,
+		pseudonymDAO: pseudonymDAO,
+		ibeSystem:    ibeSystem,
 	}
 }
 
@@ -101,16 +104,38 @@ func (s *RoleKeyService) ListUserKeys(ctx context.Context, userID int64) ([]*mod
 		return nil, fmt.Errorf("user not found")
 	}
 
-	// Get all keys - since users don't have roles anymore, we'll return all keys
-	// In a more sophisticated implementation, we would filter based on pseudonym access
-	allKeys, err := s.roleKeyDAO.ListRoleKeys(ctx)
+	// Get user's pseudonyms using IBE correlation
+	// Use platform admin role for correlation since this is an admin operation
+	pseudonyms, err := s.pseudonymDAO.GetPseudonymsByUserID(ctx, userID, "platform_admin", "correlation")
 	if err != nil {
-		return nil, err
+		log.Warn().
+			Err(err).
+			Int64("user_id", userID).
+			Msg("Failed to get user's pseudonyms for role key filtering")
+		return []*models.RoleKey{}, nil
 	}
 
-	// For now, return all keys since users don't have direct roles
-	// In the future, this could be filtered based on pseudonym access patterns
-	return allKeys, nil
+	// Collect all role keys for the user's pseudonyms
+	var allRoleKeys []*models.RoleKey
+	for _, pseudonym := range pseudonyms {
+		roleKeys, err := s.roleKeyDAO.ListRoleKeysByPseudonym(ctx, pseudonym.PseudonymID)
+		if err != nil {
+			log.Warn().
+				Err(err).
+				Str("pseudonym_id", pseudonym.PseudonymID).
+				Msg("Failed to get role keys for pseudonym")
+			continue
+		}
+		allRoleKeys = append(allRoleKeys, roleKeys...)
+	}
+
+	log.Info().
+		Int64("user_id", userID).
+		Int("pseudonym_count", len(pseudonyms)).
+		Int("role_key_count", len(allRoleKeys)).
+		Msg("Retrieved role keys for user's pseudonyms")
+
+	return allRoleKeys, nil
 }
 
 // DeactivateKey deactivates a role key
