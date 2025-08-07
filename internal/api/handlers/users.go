@@ -471,6 +471,7 @@ func (h *UserHandler) convertDBPostToAPIPost(ctx context.Context, dbPost *dbmode
 		Upvotes:      0,
 		Downvotes:    0,
 		CommentCount: 0,
+		ViewCount:    0,
 		CreatedAt:    "",
 		IsLocked:     false,
 		IsSticky:     false,
@@ -501,6 +502,9 @@ func (h *UserHandler) convertDBPostToAPIPost(ctx context.Context, dbPost *dbmode
 	}
 	if dbPost.CommentCount.Valid {
 		post.CommentCount = int(dbPost.CommentCount.V)
+	}
+	if dbPost.ViewCount.Valid {
+		post.ViewCount = int(dbPost.ViewCount.V)
 	}
 	if dbPost.CreatedAt.Valid {
 		post.CreatedAt = dbPost.CreatedAt.V.Format(time.RFC3339)
@@ -845,7 +849,8 @@ func (h *UserHandler) GetUserProfile(ctx context.Context, input *middleware.Auth
 
 	// Use the first role for authentication
 	primaryRole := userRoles[0]
-	pseudonyms, err := h.pseudonymDAO.GetPseudonymsByUserID(ctx, int64(userID), primaryRole, constants.ScopeAuthentication)
+	// Get user's pseudonyms using the active pseudonym for authorization
+	pseudonyms, err := h.pseudonymDAO.GetPseudonymsByUserID(ctx, int64(userID), userCtx.ActivePseudonymID, primaryRole, constants.ScopeAuthentication)
 	if err != nil {
 		log.Error().Err(err).Int64("user_id", int64(userID)).Str("role", primaryRole).Msg("Failed to get user pseudonyms")
 		return nil, fmt.Errorf("failed to get pseudonyms: %w", err)
@@ -1081,7 +1086,7 @@ func (h *UserHandler) BlockUser(ctx context.Context, input *struct {
 	}
 
 	// Use role-based access control for ownership verification
-	ownsPseudonym, err := h.pseudonymDAO.VerifyPseudonymOwnership(ctx, blockedPseudonymID, userID, constants.RoleUser, constants.ScopeSelfCorrelation)
+	ownsPseudonym, err := h.pseudonymDAO.VerifyPseudonymOwnership(ctx, blockedPseudonymID, userID, userCtx.ActivePseudonymID, constants.RoleUser, constants.ScopeSelfCorrelation)
 	if err != nil {
 		log.Error().Err(err).Str("blocked_pseudonym_id", blockedPseudonymID).Int64("user_id", userID).Msg("Failed to verify pseudonym ownership")
 		return nil, fmt.Errorf("failed to verify ownership: %w", err)

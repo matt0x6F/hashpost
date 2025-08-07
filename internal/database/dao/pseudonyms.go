@@ -40,15 +40,19 @@ func NewPseudonymDAO(db bob.Executor, ibeSystem *ibe.IBESystem, identityMappingD
 }
 
 // GetPseudonymsByUserID retrieves all pseudonyms for a user using role-based access control
-func (dao *PseudonymDAO) GetPseudonymsByUserID(ctx context.Context, userID int64, roleName, scope string) ([]*models.Pseudonym, error) {
-	// Get the user's default pseudonym for validation
-	defaultPseudonym, err := dao.getDefaultPseudonymByUserID(ctx, userID)
+func (dao *PseudonymDAO) GetPseudonymsByUserID(ctx context.Context, userID int64, activePseudonymID, roleName, scope string) ([]*models.Pseudonym, error) {
+	// Validate that the active pseudonym belongs to the user
+	ownsPseudonym, err := dao.verifyPseudonymOwnershipWithKey(ctx, activePseudonymID, userID, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get default pseudonym for validation: %w", err)
+		return nil, fmt.Errorf("failed to verify active pseudonym ownership: %w", err)
 	}
 
-	// Validate that the key has the required capability using the default pseudonym
-	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, defaultPseudonym.PseudonymID, scope, constants.CapabilityAccessOwnPseudonyms, nil)
+	if !ownsPseudonym {
+		return nil, fmt.Errorf("active pseudonym does not belong to user")
+	}
+
+	// Validate that the key has the required capability using the active pseudonym
+	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, activePseudonymID, scope, constants.CapabilityAccessOwnPseudonyms, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate key capability: %w", err)
 	}
@@ -79,32 +83,36 @@ func (dao *PseudonymDAO) GetPseudonymsByRealIdentity(ctx context.Context, realId
 }
 
 // VerifyPseudonymOwnership verifies if a user owns a pseudonym using role-based access control
-func (dao *PseudonymDAO) VerifyPseudonymOwnership(ctx context.Context, pseudonymID string, userID int64, roleName, scope string) (bool, error) {
-	// Get the user's default pseudonym to use its role keys
-	defaultPseudonym, err := dao.getDefaultPseudonymByUserID(ctx, userID)
+func (dao *PseudonymDAO) VerifyPseudonymOwnership(ctx context.Context, pseudonymID string, userID int64, activePseudonymID, roleName, scope string) (bool, error) {
+	// Validate that the active pseudonym belongs to the user first
+	ownsActivePseudonym, err := dao.verifyPseudonymOwnershipWithKey(ctx, activePseudonymID, userID, nil)
 	if err != nil {
-		return false, fmt.Errorf("failed to get default pseudonym for validation: %w", err)
+		return false, fmt.Errorf("failed to verify active pseudonym ownership: %w", err)
+	}
+
+	if !ownsActivePseudonym {
+		return false, fmt.Errorf("active pseudonym does not belong to user")
 	}
 
 	log.Info().
-		Str("default_pseudonym_id", defaultPseudonym.PseudonymID).
+		Str("active_pseudonym_id", activePseudonymID).
 		Str("target_pseudonym_id", pseudonymID).
 		Str("scope", scope).
-		Msg("Verifying pseudonym ownership")
+		Msg("Verifying pseudonym ownership with active pseudonym")
 
-	// Get the role key for this operation using the user's pseudonym
-	keyData, err := dao.roleKeyDAO.GetKeyData(ctx, defaultPseudonym.PseudonymID, scope, nil)
+	// Get the role key for this operation using the active pseudonym
+	keyData, err := dao.roleKeyDAO.GetKeyData(ctx, activePseudonymID, scope, nil)
 	if err != nil {
 		log.Error().
 			Err(err).
-			Str("default_pseudonym_id", defaultPseudonym.PseudonymID).
+			Str("active_pseudonym_id", activePseudonymID).
 			Str("scope", scope).
 			Msg("Failed to get role key")
 		return false, fmt.Errorf("failed to get role key: %w", err)
 	}
 
 	log.Info().
-		Str("default_pseudonym_id", defaultPseudonym.PseudonymID).
+		Str("active_pseudonym_id", activePseudonymID).
 		Str("target_pseudonym_id", pseudonymID).
 		Str("scope", scope).
 		Msg("Got role key, verifying ownership")
@@ -868,53 +876,16 @@ func (dao *PseudonymDAO) GetUserIDByPseudonym(ctx context.Context, pseudonymID, 
 	return user.UserID, nil
 }
 
-// DeactivatePseudonym deactivates a pseudonym, preventing it from being used for new content
-// Users cannot reactivate deactivated pseudonyms
-func (dao *PseudonymDAO) DeactivatePseudonym(ctx context.Context, pseudonymID string, userID int64, roleName, scope string) error {
-	// Get the user's default pseudonym for validation
-	defaultPseudonym, err := dao.getDefaultPseudonymByUserID(ctx, userID)
-	if err != nil {
-		return fmt.Errorf("failed to get default pseudonym for validation: %w", err)
-	}
-
-	// Validate that the key has the required capability using the default pseudonym
-	hasCapability, err := dao.roleKeyDAO.ValidateKeyCapability(ctx, defaultPseudonym.PseudonymID, scope, constants.CapabilityManageOwnPseudonyms, nil)
-	if err != nil {
-		return fmt.Errorf("failed to validate key capability: %w", err)
-	}
-
-	if !hasCapability {
-		return fmt.Errorf("role key does not have permission to manage own pseudonyms")
-	}
-
-	// Verify that the user owns this pseudonym
-	ownsPseudonym, err := dao.VerifyPseudonymOwnership(ctx, pseudonymID, userID, roleName, scope)
+// DeactivatePseudonym deactivates a pseudonym using role-based access control
+func (dao *PseudonymDAO) DeactivatePseudonym(ctx context.Context, pseudonymID string, userID int64, activePseudonymID, roleName, scope string) error {
+	// Verify that the user owns this pseudonym using the active pseudonym
+	ownsPseudonym, err := dao.VerifyPseudonymOwnership(ctx, pseudonymID, userID, activePseudonymID, roleName, scope)
 	if err != nil {
 		return fmt.Errorf("failed to verify pseudonym ownership: %w", err)
 	}
 
 	if !ownsPseudonym {
 		return fmt.Errorf("user does not own this pseudonym")
-	}
-
-	// Get the pseudonym to check if it's already deactivated
-	pseudonym, err := dao.GetPseudonymByID(ctx, pseudonymID)
-	if err != nil {
-		return fmt.Errorf("failed to get pseudonym: %w", err)
-	}
-
-	if pseudonym == nil {
-		return fmt.Errorf("pseudonym not found")
-	}
-
-	// Check if pseudonym is already deactivated
-	if !pseudonym.IsActive.Valid || !pseudonym.IsActive.V {
-		return fmt.Errorf("pseudonym is already deactivated")
-	}
-
-	// Check if this is the user's default pseudonym
-	if pseudonym.IsDefault {
-		return fmt.Errorf("cannot deactivate default pseudonym")
 	}
 
 	// Deactivate the pseudonym

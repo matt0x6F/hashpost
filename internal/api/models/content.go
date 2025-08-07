@@ -24,6 +24,7 @@ type Post struct {
 	Upvotes      int    `json:"upvotes" example:"1300"`
 	Downvotes    int    `json:"downvotes" example:"50"`
 	CommentCount int    `json:"comment_count" example:"25"`
+	ViewCount    int    `json:"view_count" example:"150"`
 	CreatedAt    string `json:"created_at" example:"2024-01-01T12:00:00Z"`
 	Author       struct {
 		PseudonymID string `json:"pseudonym_id" example:"abc123def456..."`

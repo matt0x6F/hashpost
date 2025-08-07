@@ -613,12 +613,23 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 	// Use IBE-based correlation to get user's pseudonyms
 	// Use the user's actual roles, not hardcoded "user"
 	primaryRole := roles[0] // Use the first role for authentication
-	pseudonyms, err := h.pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, primaryRole, constants.ScopeAuthentication)
+
+	// Get the default pseudonym first to use as the active pseudonym for authorization
+	defaultPseudonym, err := h.pseudonymDAO.GetDefaultPseudonymByUserID(ctx, user.UserID, primaryRole, constants.ScopeAuthentication)
 	if err != nil {
 		log.Error().
 			Err(err).
 			Int64("user_id", user.UserID).
 			Str("role", primaryRole).
+			Msg("Failed to get default pseudonym")
+		return nil, huma.Error500InternalServerError("failed to get default pseudonym")
+	}
+
+	pseudonyms, err := h.pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, defaultPseudonym.PseudonymID, primaryRole, constants.ScopeAuthentication)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Int64("user_id", user.UserID).
 			Msg("Failed to get user pseudonyms")
 		return nil, huma.Error500InternalServerError("failed to get user pseudonyms")
 	}
@@ -632,7 +643,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 	}
 
 	// Get the default pseudonym for the user
-	defaultPseudonym, err := h.pseudonymDAO.GetDefaultPseudonymByUserID(ctx, user.UserID, primaryRole, constants.ScopeAuthentication)
+	defaultPseudonym, err = h.pseudonymDAO.GetDefaultPseudonymByUserID(ctx, user.UserID, primaryRole, constants.ScopeAuthentication)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -683,7 +694,7 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 	// Use IBE-based correlation to get user's pseudonyms
 	// Use the user's actual roles, not hardcoded "user"
 	primaryRole = roles[0] // Use the first role for authentication
-	pseudonyms, err = h.pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, primaryRole, constants.ScopeAuthentication)
+	pseudonyms, err = h.pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, defaultPseudonym.PseudonymID, primaryRole, constants.ScopeAuthentication)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -965,7 +976,7 @@ func (h *AuthHandler) GetCurrentUserSession(ctx context.Context, input *middlewa
 	// Use IBE-based correlation to get user's pseudonyms
 	// Use the user's actual roles, not hardcoded "user"
 	primaryRole := roles[0] // Use the first role for authentication
-	pseudonyms, err := h.pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, primaryRole, constants.ScopeAuthentication)
+	pseudonyms, err := h.pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, userCtx.ActivePseudonymID, primaryRole, constants.ScopeAuthentication)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -1017,13 +1028,9 @@ func (h *AuthHandler) GetCurrentUserSession(ctx context.Context, input *middlewa
 		}
 
 		// Convert set to slice
-		var pseudonymCapabilities []string
-		for capability := range capabilitySet {
-			pseudonymCapabilities = append(pseudonymCapabilities, capability)
-		}
-
-		if len(pseudonymCapabilities) > 0 {
-			capabilities = pseudonymCapabilities
+		capabilities = make([]string, 0, len(capabilitySet))
+		for cap := range capabilitySet {
+			capabilities = append(capabilities, cap)
 		}
 	}
 
@@ -1033,7 +1040,7 @@ func (h *AuthHandler) GetCurrentUserSession(ctx context.Context, input *middlewa
 	// Use IBE-based correlation to get user's pseudonyms
 	// Use the user's actual roles, not hardcoded "user"
 	primaryRole = roles[0] // Use the first role for authentication
-	pseudonyms, err = h.pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, primaryRole, constants.ScopeAuthentication)
+	pseudonyms, err = h.pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, userCtx.ActivePseudonymID, primaryRole, constants.ScopeAuthentication)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -1273,7 +1280,7 @@ func (h *AuthHandler) GetCurrentUserSessionForSubforum(ctx context.Context, inpu
 	// Use IBE-based correlation to get user's pseudonyms
 	// Use the user's actual roles, not hardcoded "user"
 	primaryRole := roles[0] // Use the first role for authentication
-	pseudonyms, err := h.pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, primaryRole, constants.ScopeAuthentication)
+	pseudonyms, err := h.pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, userCtx.ActivePseudonymID, primaryRole, constants.ScopeAuthentication)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -1404,7 +1411,7 @@ func (h *AuthHandler) SwitchPseudonym(ctx context.Context, input *struct {
 
 	// Try each role with authentication scope first
 	for _, role := range userCtx.Roles {
-		ownsPseudonym, ownershipErr = h.pseudonymDAO.VerifyPseudonymOwnership(ctx, input.Body.PseudonymID, userCtx.UserID, role, constants.ScopeAuthentication)
+		ownsPseudonym, ownershipErr = h.pseudonymDAO.VerifyPseudonymOwnership(ctx, input.Body.PseudonymID, userCtx.UserID, userCtx.ActivePseudonymID, role, constants.ScopeAuthentication)
 		if ownershipErr == nil && ownsPseudonym {
 			break
 		}
@@ -1413,7 +1420,7 @@ func (h *AuthHandler) SwitchPseudonym(ctx context.Context, input *struct {
 	// If authentication scope fails, try self-correlation scope
 	if !ownsPseudonym {
 		for _, role := range userCtx.Roles {
-			ownsPseudonym, ownershipErr = h.pseudonymDAO.VerifyPseudonymOwnership(ctx, input.Body.PseudonymID, userCtx.UserID, role, constants.ScopeSelfCorrelation)
+			ownsPseudonym, ownershipErr = h.pseudonymDAO.VerifyPseudonymOwnership(ctx, input.Body.PseudonymID, userCtx.UserID, userCtx.ActivePseudonymID, role, constants.ScopeSelfCorrelation)
 			if ownershipErr == nil && ownsPseudonym {
 				break
 			}
@@ -1486,8 +1493,8 @@ func (h *AuthHandler) DeactivatePseudonym(ctx context.Context, input *struct {
 		return nil, huma.Error400BadRequest("Cannot deactivate your active pseudonym. Please switch to a different pseudonym first.")
 	}
 
-	// Deactivate the pseudonym using self-correlation scope (user can only deactivate their own pseudonyms)
-	err = h.pseudonymDAO.DeactivatePseudonym(ctx, input.Body.PseudonymID, userCtx.UserID, "user", constants.ScopeSelfCorrelation)
+	// Deactivate the pseudonym using the active pseudonym for authorization
+	err = h.pseudonymDAO.DeactivatePseudonym(ctx, input.Body.PseudonymID, userCtx.UserID, userCtx.ActivePseudonymID, "user", constants.ScopeSelfCorrelation)
 	if err != nil {
 		log.Error().Err(err).
 			Int64("user_id", userCtx.UserID).

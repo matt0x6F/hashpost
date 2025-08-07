@@ -6,24 +6,28 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/matt0x6f/hashpost/internal/api/constants"
 	"github.com/matt0x6f/hashpost/internal/database/dao"
 	"github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/matt0x6f/hashpost/internal/ibe"
+	"github.com/rs/zerolog/log"
 )
 
 // RoleKeyService handles role key operations with IBE integration
 type RoleKeyService struct {
-	roleKeyDAO *dao.RoleKeyDAO
-	userDAO    *dao.UserDAO
-	ibeSystem  *ibe.IBESystem
+	roleKeyDAO   *dao.RoleKeyDAO
+	userDAO      *dao.UserDAO
+	pseudonymDAO dao.PseudonymDAOInterface
+	ibeSystem    *ibe.IBESystem
 }
 
 // NewRoleKeyService creates a new RoleKeyService
-func NewRoleKeyService(roleKeyDAO *dao.RoleKeyDAO, userDAO *dao.UserDAO, ibeSystem *ibe.IBESystem) *RoleKeyService {
+func NewRoleKeyService(roleKeyDAO *dao.RoleKeyDAO, userDAO *dao.UserDAO, pseudonymDAO dao.PseudonymDAOInterface, ibeSystem *ibe.IBESystem) *RoleKeyService {
 	return &RoleKeyService{
-		roleKeyDAO: roleKeyDAO,
-		userDAO:    userDAO,
-		ibeSystem:  ibeSystem,
+		roleKeyDAO:   roleKeyDAO,
+		userDAO:      userDAO,
+		pseudonymDAO: pseudonymDAO,
+		ibeSystem:    ibeSystem,
 	}
 }
 
@@ -91,7 +95,7 @@ func (s *RoleKeyService) EnsureDefaultKeys(ctx context.Context, pseudonymID stri
 }
 
 // ListUserKeys lists all role keys that a user can access
-func (s *RoleKeyService) ListUserKeys(ctx context.Context, userID int64) ([]*models.RoleKey, error) {
+func (s *RoleKeyService) ListUserKeys(ctx context.Context, userID int64, activePseudonymID string) ([]*models.RoleKey, error) {
 	// Fetch user from DB
 	user, err := s.userDAO.GetUserByID(ctx, userID)
 	if err != nil {
@@ -101,16 +105,124 @@ func (s *RoleKeyService) ListUserKeys(ctx context.Context, userID int64) ([]*mod
 		return nil, fmt.Errorf("user not found")
 	}
 
-	// Get all keys - since users don't have roles anymore, we'll return all keys
-	// In a more sophisticated implementation, we would filter based on pseudonym access
-	allKeys, err := s.roleKeyDAO.ListRoleKeys(ctx)
+	// Validate that the active pseudonym belongs to the user
+	// This ensures users can only access role keys for pseudonyms they own
+	ownsPseudonym, err := s.pseudonymDAO.VerifyPseudonymOwnership(ctx, activePseudonymID, userID, activePseudonymID, "user", "authentication")
 	if err != nil {
-		return nil, err
+		log.Warn().
+			Err(err).
+			Int64("user_id", userID).
+			Str("active_pseudonym_id", activePseudonymID).
+			Msg("Failed to verify pseudonym ownership")
+		return []*models.RoleKey{}, nil
 	}
 
-	// For now, return all keys since users don't have direct roles
-	// In the future, this could be filtered based on pseudonym access patterns
-	return allKeys, nil
+	if !ownsPseudonym {
+		log.Warn().
+			Int64("user_id", userID).
+			Str("active_pseudonym_id", activePseudonymID).
+			Msg("User does not own the active pseudonym")
+		return []*models.RoleKey{}, nil
+	}
+
+	// Check if user has correlation capability through their active pseudonym's role keys
+	hasCorrelationCapability, err := s.roleKeyDAO.ValidateKeyCapability(ctx, activePseudonymID, "correlation", constants.CapabilityAccessOwnPseudonyms, nil)
+	if err != nil {
+		log.Warn().
+			Err(err).
+			Int64("user_id", userID).
+			Str("active_pseudonym_id", activePseudonymID).
+			Msg("Failed to validate correlation capability")
+		return []*models.RoleKey{}, nil
+	}
+
+	if !hasCorrelationCapability {
+		log.Warn().
+			Int64("user_id", userID).
+			Str("active_pseudonym_id", activePseudonymID).
+			Msg("User lacks correlation capability for role key access")
+		return []*models.RoleKey{}, nil
+	}
+
+	// Get user's pseudonyms using their active pseudonym's role keys for correlation
+	// First, get the role keys for the active pseudonym to determine the user's role
+	roleKeys, err := s.roleKeyDAO.ListRoleKeysByPseudonym(ctx, activePseudonymID)
+	if err != nil {
+		log.Warn().
+			Err(err).
+			Str("active_pseudonym_id", activePseudonymID).
+			Msg("Failed to get role keys for active pseudonym")
+		return []*models.RoleKey{}, nil
+	}
+
+	// Determine the user's primary role from their role keys
+	// Look for correlation scope role keys to determine the user's role
+	var userRole string
+	for _, roleKey := range roleKeys {
+		if roleKey.Scope == "correlation" {
+			// Parse capabilities to check if this is a user-level role
+			capabilitiesBytes, err := roleKey.Capabilities.Value()
+			if err != nil {
+				continue
+			}
+			var capabilities []string
+			if err := json.Unmarshal(capabilitiesBytes.([]byte), &capabilities); err != nil {
+				continue
+			}
+
+			// Check if this role key has access to own pseudonyms
+			for _, capability := range capabilities {
+				if capability == constants.CapabilityAccessOwnPseudonyms {
+					userRole = roleKey.RoleName
+					break
+				}
+			}
+			if userRole != "" {
+				break
+			}
+		}
+	}
+
+	// If no role found, default to "user"
+	if userRole == "" {
+		userRole = "user"
+	}
+
+	// Get user's pseudonyms using the active pseudonym for authorization
+	pseudonyms, err := s.pseudonymDAO.GetPseudonymsByUserID(ctx, userID, activePseudonymID, userRole, "correlation")
+	if err != nil {
+		log.Warn().
+			Err(err).
+			Int64("user_id", userID).
+			Str("active_pseudonym_id", activePseudonymID).
+			Str("user_role", userRole).
+			Msg("Failed to get user's pseudonyms for role key filtering")
+		return []*models.RoleKey{}, nil
+	}
+
+	// Collect all role keys for the user's pseudonyms
+	var allRoleKeys []*models.RoleKey
+	for _, pseudonym := range pseudonyms {
+		roleKeys, err := s.roleKeyDAO.ListRoleKeysByPseudonym(ctx, pseudonym.PseudonymID)
+		if err != nil {
+			log.Warn().
+				Err(err).
+				Str("pseudonym_id", pseudonym.PseudonymID).
+				Msg("Failed to get role keys for pseudonym")
+			continue
+		}
+		allRoleKeys = append(allRoleKeys, roleKeys...)
+	}
+
+	log.Info().
+		Int64("user_id", userID).
+		Str("active_pseudonym_id", activePseudonymID).
+		Str("user_role", userRole).
+		Int("pseudonym_count", len(pseudonyms)).
+		Int("role_key_count", len(allRoleKeys)).
+		Msg("Retrieved role keys for user's pseudonyms")
+
+	return allRoleKeys, nil
 }
 
 // DeactivateKey deactivates a role key

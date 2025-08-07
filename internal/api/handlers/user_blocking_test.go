@@ -50,8 +50,8 @@ func TestUserHandler_BlockUser(t *testing.T) {
 		mockBlockedPseudonym := fixtures.CreateTestPseudonymForBlocking(blockedPseudonymID, "BlockedUser")
 		mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, blockedPseudonymID).Return(mockBlockedPseudonym, nil)
 
-		// Mock ownership verification (should return false since it's not the same user)
-		mockPseudonymDAO.On("VerifyPseudonymOwnership", mock.Anything, blockedPseudonymID, blockerUserID, "user", "self_correlation").Return(false, nil)
+		// Set up mock expectations for pseudonym ownership verification
+		mockPseudonymDAO.On("VerifyPseudonymOwnership", mock.Anything, blockedPseudonymID, blockerUserID, "blocker-pseudonym-123", "user", "self_correlation").Return(false, nil)
 
 		// Mock user block creation
 		mockUserBlock := fixtures.CreateTestUserBlock(1, blockerPseudonymID, blockedPseudonymID, 0)
@@ -103,8 +103,8 @@ func TestUserHandler_BlockUser(t *testing.T) {
 		mockBlockedPseudonym := fixtures.CreateTestPseudonymForBlocking(blockedPseudonymID, "BlockedUser")
 		mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, blockedPseudonymID).Return(mockBlockedPseudonym, nil)
 
-		// Mock ownership verification (should return false since it's not the same user)
-		mockPseudonymDAO.On("VerifyPseudonymOwnership", mock.Anything, blockedPseudonymID, blockerUserID, "user", "self_correlation").Return(false, nil)
+		// Set up mock expectations for pseudonym ownership verification
+		mockPseudonymDAO.On("VerifyPseudonymOwnership", mock.Anything, blockedPseudonymID, blockerUserID, "blocker-pseudonym-123", "user", "self_correlation").Return(false, nil)
 
 		// Mock getting user ID by pseudonym
 		mockPseudonymDAO.On("GetUserIDByPseudonym", mock.Anything, blockedPseudonymID, "user", "self_correlation").Return(blockedUserID, nil)
@@ -158,8 +158,8 @@ func TestUserHandler_BlockUser(t *testing.T) {
 		mockBlockedPseudonym := fixtures.CreateTestPseudonymForBlocking(blockedPseudonymID, "SelfUser")
 		mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, blockedPseudonymID).Return(mockBlockedPseudonym, nil)
 
-		// Mock ownership verification (should return true since it's the same user)
-		mockPseudonymDAO.On("VerifyPseudonymOwnership", mock.Anything, blockedPseudonymID, blockerUserID, "user", "self_correlation").Return(true, nil)
+		// Set up mock expectations for pseudonym ownership verification
+		mockPseudonymDAO.On("VerifyPseudonymOwnership", mock.Anything, blockedPseudonymID, blockerUserID, "self-pseudonym-123", "user", "self_correlation").Return(true, nil)
 
 		// Create input
 		blockAllPersonas := false

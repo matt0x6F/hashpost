@@ -1189,7 +1189,7 @@ func (h *SubforumHandler) GetPseudonymSubscriptions(ctx context.Context, input *
 
 	// Try authentication scope first (users have this role key)
 	for _, role := range userCtx.Roles {
-		ownsPseudonym, ownershipErr = h.pseudonymDAO.VerifyPseudonymOwnership(ctx, input.PseudonymSubscriptionsInput.PseudonymID, userCtx.UserID, role, "authentication")
+		ownsPseudonym, ownershipErr = h.pseudonymDAO.VerifyPseudonymOwnership(ctx, input.PseudonymSubscriptionsInput.PseudonymID, userCtx.UserID, userCtx.ActivePseudonymID, role, "authentication")
 		if ownershipErr == nil && ownsPseudonym {
 			break
 		}
@@ -1199,7 +1199,7 @@ func (h *SubforumHandler) GetPseudonymSubscriptions(ctx context.Context, input *
 	if !ownsPseudonym {
 		for _, role := range userCtx.Roles {
 			if role == "platform_admin" || role == "trust_safety" || role == "legal_team" {
-				ownsPseudonym, ownershipErr = h.pseudonymDAO.VerifyPseudonymOwnership(ctx, input.PseudonymSubscriptionsInput.PseudonymID, userCtx.UserID, role, "self_correlation")
+				ownsPseudonym, ownershipErr = h.pseudonymDAO.VerifyPseudonymOwnership(ctx, input.PseudonymSubscriptionsInput.PseudonymID, userCtx.UserID, userCtx.ActivePseudonymID, role, "self_correlation")
 				if ownershipErr == nil && ownsPseudonym {
 					break
 				}

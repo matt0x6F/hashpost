@@ -387,13 +387,41 @@ func (dao *PostDAO) GetPostsByPseudonym(ctx context.Context, pseudonymID string,
 		orderExpr = models.PostColumns.CreatedAt // default
 	}
 
-	direction := "ASC"
-	if sortDesc {
-		direction = "DESC"
+	// Build safe ordering using whitelisted field names
+	var orderByClause string
+	switch orderExpr {
+	case models.PostColumns.CreatedAt:
+		if sortDesc {
+			orderByClause = "created_at DESC"
+		} else {
+			orderByClause = "created_at ASC"
+		}
+	case models.PostColumns.UpdatedAt:
+		if sortDesc {
+			orderByClause = "updated_at DESC"
+		} else {
+			orderByClause = "updated_at ASC"
+		}
+	case models.PostColumns.CommentCount:
+		if sortDesc {
+			orderByClause = "comment_count DESC"
+		} else {
+			orderByClause = "comment_count ASC"
+		}
+	case models.PostColumns.ViewCount:
+		if sortDesc {
+			orderByClause = "view_count DESC"
+		} else {
+			orderByClause = "view_count ASC"
+		}
+	default:
+		// Default to created_at
+		if sortDesc {
+			orderByClause = "created_at DESC"
+		} else {
+			orderByClause = "created_at ASC"
+		}
 	}
-
-	// Order by the selected field
-	orderByClause := fmt.Sprintf("%s %s", orderExpr, direction)
 
 	posts, err := models.Posts.Query(
 		models.SelectWhere.Posts.PseudonymID.EQ(pseudonymID),
