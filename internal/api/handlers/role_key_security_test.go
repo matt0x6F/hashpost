@@ -74,10 +74,10 @@ func TestRoleKeySecurity(t *testing.T) {
 		testPseudonym.DisplayName = "AuthUser1"
 
 		// Mock pseudonym retrieval
-		mockPseudonymDAO.On("GetPseudonymsByUserID", mock.Anything, testUserID, "user", "authentication").Return([]*dbmodels.Pseudonym{testPseudonym}, nil)
+		mockPseudonymDAO.On("GetPseudonymsByUserID", mock.Anything, testUserID, testPseudonym.PseudonymID, "user", "authentication").Return([]*dbmodels.Pseudonym{testPseudonym}, nil)
 
 		// Call the method directly on the mock
-		pseudonyms, err := mockPseudonymDAO.GetPseudonymsByUserID(context.Background(), testUserID, "user", "authentication")
+		pseudonyms, err := mockPseudonymDAO.GetPseudonymsByUserID(context.Background(), testUserID, testPseudonym.PseudonymID, "user", "authentication")
 
 		// Assert response
 		require.NoError(t, err)
@@ -95,11 +95,11 @@ func TestRoleKeySecurity(t *testing.T) {
 		testUserID := int64(1)
 		testPseudonymID := "pseudonym-123"
 
-		// Mock ownership verification
-		mockPseudonymDAO.On("VerifyPseudonymOwnership", mock.Anything, testPseudonymID, testUserID, "user", "self_correlation").Return(true, nil)
+		// Set up mock expectations
+		mockPseudonymDAO.On("VerifyPseudonymOwnership", mock.Anything, testPseudonymID, testUserID, testPseudonymID, "user", "self_correlation").Return(true, nil)
 
-		// Call the method directly on the mock
-		ownsPseudonym, err := mockPseudonymDAO.VerifyPseudonymOwnership(context.Background(), testPseudonymID, testUserID, "user", "self_correlation")
+		// Test the method
+		ownsPseudonym, err := mockPseudonymDAO.VerifyPseudonymOwnership(context.Background(), testPseudonymID, testUserID, testPseudonymID, "user", "self_correlation")
 
 		// Assert response
 		require.NoError(t, err)

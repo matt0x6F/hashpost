@@ -270,7 +270,8 @@ func CreateAdminUser() error {
 	adminRole := constants.RolePlatformAdmin
 
 	// Check if user already has a pseudonym
-	existingPseudonyms, err := pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, adminRole, "authentication")
+	// Get user's pseudonyms using admin privileges
+	existingPseudonyms, err := pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, "admin-pseudonym", adminRole, "authentication")
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to check existing pseudonyms, will create new one")
 	}
@@ -633,7 +634,7 @@ func DeleteUser() error {
 	log.Info().Msg("Deleted identity mappings")
 
 	// 5. Delete role keys for all pseudonyms
-	pseudonyms, err := pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, "", "authentication")
+	pseudonyms, err := pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, "admin-pseudonym", "", "authentication")
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to get pseudonyms for role key deletion, continuing")
 	} else {
@@ -1008,7 +1009,7 @@ func fixUserPseudonymMappings(ctx context.Context, user *models.User, role strin
 	pseudonymDAO := dao.NewPseudonymDAO(db, ibe.NewIBESystemFromEnv(), identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
 
 	// Get user's pseudonyms
-	pseudonyms, err := pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, role, "authentication")
+	pseudonyms, err := pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, "admin-pseudonym", role, "authentication")
 	if err != nil {
 		return fmt.Errorf("failed to get user pseudonyms: %w", err)
 	}
@@ -1272,7 +1273,7 @@ func RecreateIdentityMappings(ctx context.Context, userID int64, db bob.Executor
 	}
 
 	// Get user's pseudonyms
-	pseudonyms, err := pseudonymDAO.GetPseudonymsByUserID(ctx, userID, "platform_admin", "authentication")
+	pseudonyms, err := pseudonymDAO.GetPseudonymsByUserID(ctx, userID, "admin-pseudonym", "platform_admin", "authentication")
 	if err != nil {
 		return fmt.Errorf("failed to get user pseudonyms: %w", err)
 	}

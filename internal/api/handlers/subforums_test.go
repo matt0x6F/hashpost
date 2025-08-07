@@ -1063,8 +1063,8 @@ func TestSubforumHandler_GetPseudonymSubscriptions(t *testing.T) {
 
 			// Set up mock expectations for VerifyPseudonymOwnership
 			// The new logic tries authentication scope first, then self_correlation for admin roles
-			mockPseudonymDAO.On("VerifyPseudonymOwnership", mock.Anything, "moderator-pseudonym-123", int64(1), "user", "authentication").Return(true, nil)
-			mockPseudonymDAO.On("VerifyPseudonymOwnership", mock.Anything, "other-pseudonym-456", int64(1), "user", "authentication").Return(false, nil)
+			mockPseudonymDAO.On("VerifyPseudonymOwnership", mock.Anything, "moderator-pseudonym-123", int64(1), "moderator-pseudonym-123", "user", "authentication").Return(true, nil)
+			mockPseudonymDAO.On("VerifyPseudonymOwnership", mock.Anything, "other-pseudonym-456", int64(1), "moderator-pseudonym-123", "user", "authentication").Return(false, nil)
 
 			// Create mock role key DAO
 			mockRoleKeyDAO := mocks.NewMockRoleKeyDAO()

@@ -81,8 +81,8 @@ func (m *MockPseudonymDAO) GetPseudonymByDisplayName(ctx context.Context, displa
 	return args.Get(0).(*models.Pseudonym), args.Error(1)
 }
 
-func (m *MockPseudonymDAO) GetPseudonymsByUserID(ctx context.Context, userID int64, roleName, scope string) ([]*models.Pseudonym, error) {
-	args := m.Called(ctx, userID, roleName, scope)
+func (m *MockPseudonymDAO) GetPseudonymsByUserID(ctx context.Context, userID int64, activePseudonymID, roleName, scope string) ([]*models.Pseudonym, error) {
+	args := m.Called(ctx, userID, activePseudonymID, roleName, scope)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -107,8 +107,8 @@ func (m *MockPseudonymDAO) DeletePseudonym(ctx context.Context, pseudonymID stri
 	return args.Error(0)
 }
 
-func (m *MockPseudonymDAO) VerifyPseudonymOwnership(ctx context.Context, pseudonymID string, userID int64, roleName, scope string) (bool, error) {
-	args := m.Called(ctx, pseudonymID, userID, roleName, scope)
+func (m *MockPseudonymDAO) VerifyPseudonymOwnership(ctx context.Context, pseudonymID string, userID int64, activePseudonymID, roleName, scope string) (bool, error) {
+	args := m.Called(ctx, pseudonymID, userID, activePseudonymID, roleName, scope)
 	return args.Bool(0), args.Error(1)
 }
 
@@ -129,8 +129,8 @@ func (m *MockPseudonymDAO) UpdateLastActive(ctx context.Context, pseudonymID str
 	return args.Error(0)
 }
 
-func (m *MockPseudonymDAO) DeactivatePseudonym(ctx context.Context, pseudonymID string, userID int64, roleName, scope string) error {
-	args := m.Called(ctx, pseudonymID, userID, roleName, scope)
+func (m *MockPseudonymDAO) DeactivatePseudonym(ctx context.Context, pseudonymID string, userID int64, activePseudonymID, roleName, scope string) error {
+	args := m.Called(ctx, pseudonymID, userID, activePseudonymID, roleName, scope)
 	return args.Error(0)
 }
 
@@ -155,4 +155,22 @@ func (m *MockPseudonymDAO) CalculateKarmaForPseudonym(ctx context.Context, pseud
 func (m *MockPseudonymDAO) UpdateKarmaForPseudonym(ctx context.Context, pseudonymID string) error {
 	args := m.Called(ctx, pseudonymID)
 	return args.Error(0)
+}
+
+func (m *MockPseudonymDAO) DeleteByUserID(ctx context.Context, userID int64) error {
+	args := m.Called(ctx, userID)
+	return args.Error(0)
+}
+
+func (m *MockPseudonymDAO) GetPseudonymsByRealIdentity(ctx context.Context, realIdentity string, roleName, scope string) ([]*models.Pseudonym, error) {
+	args := m.Called(ctx, realIdentity, roleName, scope)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.Pseudonym), args.Error(1)
+}
+
+func (m *MockPseudonymDAO) GetRealIdentityByPseudonym(ctx context.Context, pseudonymID, roleName, scope string) (string, error) {
+	args := m.Called(ctx, pseudonymID, roleName, scope)
+	return args.String(0), args.Error(1)
 }

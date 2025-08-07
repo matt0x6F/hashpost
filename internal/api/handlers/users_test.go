@@ -273,7 +273,7 @@ func TestUserHandler_GetUserProfile(t *testing.T) {
 		mockPseudonymDAO := mocks.NewMockPseudonymDAO()
 
 		mockUserDAO.On("GetUserByID", mock.Anything, int64(1)).Return(testUser, nil)
-		mockPseudonymDAO.On("GetPseudonymsByUserID", mock.Anything, int64(1), "user", "authentication").Return([]*models.Pseudonym{testPseudonym}, nil)
+		mockPseudonymDAO.On("GetPseudonymsByUserID", mock.Anything, int64(1), "test-pseudonym-id", "user", "authentication").Return([]*models.Pseudonym{testPseudonym}, nil)
 
 		// Create mock PostDAO and CommentDAO
 		mockPostDAO := mocks.NewMockPostDAO()

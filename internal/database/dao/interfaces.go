@@ -27,17 +27,20 @@ type PseudonymDAOInterface interface {
 	GetPseudonymByID(ctx context.Context, pseudonymID string) (*models.Pseudonym, error)
 	GetPseudonymByDisplayName(ctx context.Context, displayName string) (*models.Pseudonym, error)
 	GetPseudonymBySlug(ctx context.Context, slug string) (*models.Pseudonym, error)
-	GetPseudonymsByUserID(ctx context.Context, userID int64, roleName, scope string) ([]*models.Pseudonym, error)
+	GetPseudonymsByUserID(ctx context.Context, userID int64, activePseudonymID, roleName, scope string) ([]*models.Pseudonym, error)
 	GetDefaultPseudonymByUserID(ctx context.Context, userID int64, roleName, scope string) (*models.Pseudonym, error)
 	UpdatePseudonym(ctx context.Context, pseudonymID string, updates *models.PseudonymSetter) error
 	DeletePseudonym(ctx context.Context, pseudonymID string) error
-	DeactivatePseudonym(ctx context.Context, pseudonymID string, userID int64, roleName, scope string) error
-	VerifyPseudonymOwnership(ctx context.Context, pseudonymID string, userID int64, roleName, scope string) (bool, error)
+	DeactivatePseudonym(ctx context.Context, pseudonymID string, userID int64, activePseudonymID, roleName, scope string) error
+	VerifyPseudonymOwnership(ctx context.Context, pseudonymID string, userID int64, activePseudonymID, roleName, scope string) (bool, error)
 	GetUserIDByPseudonym(ctx context.Context, pseudonymID, roleName, scope string) (int64, error)
-	UpdateLastActive(ctx context.Context, pseudonymID string) error
-	GenerateSlugFromDisplayName(ctx context.Context, displayName string) (string, error)
+	GetRealIdentityByPseudonym(ctx context.Context, pseudonymID string, roleName, scope string) (string, error)
+	GetPseudonymsByRealIdentity(ctx context.Context, realIdentity string, roleName, scope string) ([]*models.Pseudonym, error)
 	CalculateKarmaForPseudonym(ctx context.Context, pseudonymID string) (int32, error)
 	UpdateKarmaForPseudonym(ctx context.Context, pseudonymID string) error
+	UpdateLastActive(ctx context.Context, pseudonymID string) error
+	GenerateSlugFromDisplayName(ctx context.Context, displayName string) (string, error)
+	DeleteByUserID(ctx context.Context, userID int64) error
 }
 
 // IdentityMappingDAOInterface defines the interface for identity mapping data access operations

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/matt0x6f/hashpost/internal/api/constants"
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	"github.com/matt0x6f/hashpost/internal/api/models"
 	"github.com/matt0x6f/hashpost/internal/database/dao"
@@ -380,8 +381,12 @@ func (h *SearchHandler) SearchUsers(ctx context.Context, input *models.SearchUse
 			createdAt = user.CreatedAt.V.Format("2006-01-02T15:04:05Z")
 		}
 
-		// Get default pseudonym for the user
-		pseudonym, err := h.pseudonymDAO.GetDefaultPseudonymByUserID(ctx, user.UserID, "user", "global")
+		// Get user's primary role for pseudonym access
+		// For search results, we'll use the default "user" role since we want consistent results
+		userRole := constants.RoleUser // Default role for search results
+
+		// Get default pseudonym for the user using the determined role
+		pseudonym, err := h.pseudonymDAO.GetDefaultPseudonymByUserID(ctx, user.UserID, userRole, "global")
 		if err != nil {
 			log.Warn().Err(err).Int64("user_id", user.UserID).Msg("Failed to get user pseudonym")
 			continue
@@ -451,8 +456,12 @@ func (h *SearchHandler) searchUsers(ctx context.Context, input *models.SearchUse
 
 	// Filter users by search criteria
 	for _, user := range users {
-		// Get default pseudonym for the user
-		pseudonym, err := h.pseudonymDAO.GetDefaultPseudonymByUserID(ctx, user.UserID, "user", "global")
+		// Get user's primary role for pseudonym access
+		// For search results, we'll use the default "user" role since we want consistent results
+		userRole := constants.RoleUser // Default role for search results
+
+		// Get default pseudonym for the user using the determined role
+		pseudonym, err := h.pseudonymDAO.GetDefaultPseudonymByUserID(ctx, user.UserID, userRole, "global")
 		if err != nil {
 			log.Warn().Err(err).Int64("user_id", user.UserID).Msg("Failed to get user pseudonym for search")
 			continue
@@ -501,8 +510,12 @@ func (h *SearchHandler) countSearchUsers(ctx context.Context, input *models.Sear
 
 	// Count matching users
 	for _, user := range users {
-		// Get default pseudonym for the user
-		pseudonym, err := h.pseudonymDAO.GetDefaultPseudonymByUserID(ctx, user.UserID, "user", "global")
+		// Get user's primary role for pseudonym access
+		// For search results, we'll use the default "user" role since we want consistent results
+		userRole := constants.RoleUser // Default role for search results
+
+		// Get default pseudonym for the user using the determined role
+		pseudonym, err := h.pseudonymDAO.GetDefaultPseudonymByUserID(ctx, user.UserID, userRole, "global")
 		if err != nil {
 			log.Warn().Err(err).Int64("user_id", user.UserID).Msg("Failed to get user pseudonym for counting")
 			continue
