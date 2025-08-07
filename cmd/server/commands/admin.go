@@ -25,6 +25,10 @@ import (
 	"golang.org/x/term"
 )
 
+const (
+	adminPseudonymType = "admin-pseudonym"
+)
+
 // AdminCreateInput defines the input for creating an admin user.
 type AdminCreateInput struct {
 	Email          string `doc:"Email address for the admin user" json:"email"`
@@ -271,7 +275,7 @@ func CreateAdminUser() error {
 
 	// Check if user already has a pseudonym
 	// Get user's pseudonyms using admin privileges
-	existingPseudonyms, err := pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, "admin-pseudonym", adminRole, "authentication")
+	existingPseudonyms, err := pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, adminPseudonymType, adminRole, "authentication")
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to check existing pseudonyms, will create new one")
 	}
@@ -1009,7 +1013,7 @@ func fixUserPseudonymMappings(ctx context.Context, user *models.User, role strin
 	pseudonymDAO := dao.NewPseudonymDAO(db, ibe.NewIBESystemFromEnv(), identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
 
 	// Get user's pseudonyms
-	pseudonyms, err := pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, "admin-pseudonym", role, "authentication")
+	pseudonyms, err := pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, adminPseudonymType, role, "authentication")
 	if err != nil {
 		return fmt.Errorf("failed to get user pseudonyms: %w", err)
 	}
@@ -1273,7 +1277,7 @@ func RecreateIdentityMappings(ctx context.Context, userID int64, db bob.Executor
 	}
 
 	// Get user's pseudonyms
-	pseudonyms, err := pseudonymDAO.GetPseudonymsByUserID(ctx, userID, "admin-pseudonym", "platform_admin", "authentication")
+	pseudonyms, err := pseudonymDAO.GetPseudonymsByUserID(ctx, userID, adminPseudonymType, "platform_admin", "authentication")
 	if err != nil {
 		return fmt.Errorf("failed to get user pseudonyms: %w", err)
 	}

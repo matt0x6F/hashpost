@@ -33,13 +33,13 @@ type PseudonymDAOInterface interface {
 	DeletePseudonym(ctx context.Context, pseudonymID string) error
 	DeactivatePseudonym(ctx context.Context, pseudonymID string, userID int64, activePseudonymID, roleName, scope string) error
 	VerifyPseudonymOwnership(ctx context.Context, pseudonymID string, userID int64, activePseudonymID, roleName, scope string) (bool, error)
-	GetUserIDByPseudonym(ctx context.Context, pseudonymID, roleName, scope string) (int64, error)
-	GetRealIdentityByPseudonym(ctx context.Context, pseudonymID string, roleName, scope string) (string, error)
 	GetPseudonymsByRealIdentity(ctx context.Context, realIdentity string, roleName, scope string) ([]*models.Pseudonym, error)
-	CalculateKarmaForPseudonym(ctx context.Context, pseudonymID string) (int32, error)
-	UpdateKarmaForPseudonym(ctx context.Context, pseudonymID string) error
+	GetRealIdentityByPseudonym(ctx context.Context, pseudonymID, roleName, scope string) (string, error)
+	GetUserIDByPseudonym(ctx context.Context, pseudonymID, roleName, scope string) (int64, error)
 	UpdateLastActive(ctx context.Context, pseudonymID string) error
 	GenerateSlugFromDisplayName(ctx context.Context, displayName string) (string, error)
+	CalculateKarmaForPseudonym(ctx context.Context, pseudonymID string) (int32, error)
+	UpdateKarmaForPseudonym(ctx context.Context, pseudonymID string) error
 	DeleteByUserID(ctx context.Context, userID int64) error
 }
 

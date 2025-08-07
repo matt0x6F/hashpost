@@ -107,7 +107,7 @@ func (s *RoleKeyService) ListUserKeys(ctx context.Context, userID int64, activeP
 
 	// Validate that the active pseudonym belongs to the user
 	// This ensures users can only access role keys for pseudonyms they own
-	ownsPseudonym, err := s.pseudonymDAO.VerifyPseudonymOwnership(ctx, activePseudonymID, userID, activePseudonymID, "", "")
+	ownsPseudonym, err := s.pseudonymDAO.VerifyPseudonymOwnership(ctx, activePseudonymID, userID, activePseudonymID, "user", "authentication")
 	if err != nil {
 		log.Warn().
 			Err(err).

@@ -892,13 +892,6 @@ func (dao *PseudonymDAO) DeactivatePseudonym(ctx context.Context, pseudonymID st
 	return dao.deactivatePseudonym(ctx, pseudonymID)
 }
 
-// DeactivatePseudonymWithActivePseudonym deactivates a pseudonym using the active pseudonym for authorization
-func (dao *PseudonymDAO) DeactivatePseudonymWithActivePseudonym(ctx context.Context, pseudonymID string, userID int64, activePseudonymID, roleName, scope string) error {
-	// This method is now redundant since we fixed the original DeactivatePseudonym method
-	// Call the original method instead
-	return dao.DeactivatePseudonym(ctx, pseudonymID, userID, activePseudonymID, roleName, scope)
-}
-
 // deactivatePseudonym deactivates a pseudonym using the provided key
 func (dao *PseudonymDAO) deactivatePseudonym(ctx context.Context, pseudonymID string) error {
 	// Update the pseudonym to set is_active to false
@@ -984,11 +977,4 @@ func (dao *PseudonymDAO) DeleteByUserID(ctx context.Context, userID int64) error
 	}
 
 	return nil
-}
-
-// VerifyPseudonymOwnershipWithActivePseudonym verifies if a user owns a pseudonym using the active pseudonym for authorization
-func (dao *PseudonymDAO) VerifyPseudonymOwnershipWithActivePseudonym(ctx context.Context, pseudonymID string, userID int64, activePseudonymID, roleName, scope string) (bool, error) {
-	// This method is now redundant since we fixed the original VerifyPseudonymOwnership method
-	// Call the original method instead
-	return dao.VerifyPseudonymOwnership(ctx, pseudonymID, userID, activePseudonymID, roleName, scope)
 }
