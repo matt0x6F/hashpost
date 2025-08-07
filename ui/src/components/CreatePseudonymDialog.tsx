@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from "react";
 import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
@@ -14,10 +16,22 @@ interface CreatePseudonymDialogProps {
 
 export function CreatePseudonymDialog({ isOpen, onClose, onSuccess }: CreatePseudonymDialogProps) {
   const [displayName, setDisplayName] = useState("");
+  const [slug, setSlug] = useState("");
   const [bio, setBio] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const { refreshUser } = useAuth();
+
+  // Auto-generate slug from display name
+  const handleDisplayNameChange = (value: string) => {
+    setDisplayName(value);
+    // Auto-generate slug from display name
+    const generatedSlug = value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    setSlug(generatedSlug);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,12 +39,13 @@ export function CreatePseudonymDialog({ isOpen, onClose, onSuccess }: CreatePseu
     setIsLoading(true);
 
     try {
-      const result = await createPseudonym(displayName, bio);
+      const result = await createPseudonym(displayName, bio, undefined, slug);
       if (result.success) {
         await refreshUser(); // Refresh user data to get the new pseudonym
         onSuccess();
         onClose();
         setDisplayName("");
+        setSlug("");
         setBio("");
       } else {
         setError(result.error || "Failed to create pseudonym");
@@ -60,7 +75,7 @@ export function CreatePseudonymDialog({ isOpen, onClose, onSuccess }: CreatePseu
               id="displayName"
               type="text"
               value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
+              onChange={(e) => handleDisplayNameChange(e.target.value)}
               placeholder="Enter display name"
               required
               minLength={3}
@@ -69,6 +84,24 @@ export function CreatePseudonymDialog({ isOpen, onClose, onSuccess }: CreatePseu
             />
             <p className="text-xs text-muted-foreground mt-1">
               Must be 3-50 characters, letters, numbers, and underscores only
+            </p>
+          </div>
+
+          <div>
+            <Label htmlFor="slug" className="text-foreground">URL Slug (Optional)</Label>
+            <Input
+              id="slug"
+              type="text"
+              value={slug}
+              onChange={(e) => setSlug(e.target.value)}
+              placeholder="url-slug"
+              maxLength={30}
+              pattern="[a-z0-9-]+"
+              title="Only lowercase letters, numbers, and hyphens allowed"
+              className="mt-1"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Auto-generated from display name. Used in your profile URL.
             </p>
           </div>
 

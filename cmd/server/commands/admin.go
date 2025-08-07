@@ -102,15 +102,6 @@ func CreateAdminUser() error {
 		// User exists - update them with admin role and capabilities
 		log.Info().Str("email", input.Email).Msg("User already exists, updating with admin role")
 
-		// Hash the password if provided
-		var passwordHash string
-		if input.Password != "" {
-			passwordHash = hashPassword(input.Password)
-		} else {
-			// Keep existing password if not provided
-			passwordHash = existingUser.PasswordHash
-		}
-
 		// Generate admin password hash
 		adminPasswordHash := hashPassword(input.Password)
 
@@ -171,12 +162,7 @@ func CreateAdminUser() error {
 		}
 
 		updates := &models.UserSetter{
-			PasswordHash:      &passwordHash,
-			Roles:             &rolesNull,
-			AdminUsername:     &adminUsernameNull,
-			AdminPasswordHash: &adminPasswordHashNull,
-			MfaEnabled:        &mfaEnabledNull,
-			AdminScope:        &adminScopeNull,
+			MfaEnabled: &mfaEnabledNull,
 		}
 
 		if err := userDAO.UpdateUser(ctx, existingUser.UserID, updates); err != nil {
@@ -261,11 +247,7 @@ func CreateAdminUser() error {
 		}
 
 		updates := &models.UserSetter{
-			Roles:             &rolesNull,
-			AdminUsername:     &adminUsernameNull,
-			AdminPasswordHash: &adminPasswordHashNull,
-			MfaEnabled:        &mfaEnabledNull,
-			AdminScope:        &adminScopeNull,
+			MfaEnabled: &mfaEnabledNull,
 		}
 
 		if err := userDAO.UpdateUser(ctx, user.UserID, updates); err != nil {
@@ -526,25 +508,8 @@ func UpdateAdminUserWithCommand(cmd *cobra.Command) error {
 		return fmt.Errorf("user with email %s not found", input.Email)
 	}
 
-	// Update user roles based on role
-	rolesJSON, err := json.Marshal([]string{input.Role})
-	if err != nil {
-		return fmt.Errorf("failed to marshal roles: %w", err)
-	}
-
-	// Create the proper JSON type for the database
-	rolesNull := sql.Null[types.JSON[json.RawMessage]]{}
-	rolesNull.Scan(json.RawMessage(rolesJSON))
-
-	// Update user
-	userUpdate := &models.UserSetter{
-		Roles: &rolesNull,
-	}
-
-	if err := userDAO.UpdateUser(ctx, user.UserID, userUpdate); err != nil {
-		return fmt.Errorf("failed to update user: %w", err)
-	}
-
+	// Update user with admin role via role keys instead of user.roles
+	// Role keys are managed separately and don't need to be updated here
 	log.Info().Str("email", input.Email).Str("role", input.Role).Msg("Admin user updated successfully")
 
 	// Fix pseudonym mappings if requested
@@ -1263,29 +1228,6 @@ func getCapabilitiesForRole(role string) []string {
 	return capabilities
 }
 
-// getCapabilitiesForRoles returns the capabilities for multiple roles
-func getCapabilitiesForRoles(roles []string) []string {
-	// Basic user capabilities that all users should have
-	basicUserCapabilities := []string{
-		constants.CapabilityCreateContent,
-		constants.CapabilityVote,
-		constants.CapabilityMessage,
-		constants.CapabilityReport,
-		constants.CapabilityCreateSubforum,
-	}
-
-	// Start with basic user capabilities
-	capabilities := append([]string{}, basicUserCapabilities...)
-
-	// Add capabilities from all roles
-	for _, role := range roles {
-		roleCapabilities := constants.GetRoleCapabilities(role)
-		capabilities = append(capabilities, roleCapabilities...)
-	}
-
-	return capabilities
-}
-
 // getScopesForRole returns the scopes for a single role
 func getScopesForRole(role string) []string {
 	// Always include basic scopes that every user should have
@@ -1318,36 +1260,6 @@ func getScopesForRole(role string) []string {
 	return allScopes
 }
 
-// getScopesForRoles returns the scopes for multiple roles
-func getScopesForRoles(roles []string) []string {
-	var allScopes []string
-	scopeSet := make(map[string]bool)
-
-	// Always include basic scopes that every user should have
-	basicScopes := []string{
-		constants.ScopeAuthentication,
-		constants.ScopeSelfCorrelation,
-	}
-
-	for _, scope := range basicScopes {
-		scopeSet[scope] = true
-		allScopes = append(allScopes, scope)
-	}
-
-	// Collect additional scopes from all roles
-	for _, role := range roles {
-		roleScopes := constants.GetRoleScopes(role)
-		for _, scope := range roleScopes {
-			if !scopeSet[scope] {
-				scopeSet[scope] = true
-				allScopes = append(allScopes, scope)
-			}
-		}
-	}
-
-	return allScopes
-}
-
 // RecreateIdentityMappings recreates identity mappings with current role keys
 func RecreateIdentityMappings(ctx context.Context, userID int64, db bob.Executor, ibeSystem *ibe.IBESystem, userDAO *dao.UserDAO, pseudonymDAO *dao.PseudonymDAO, identityMappingDAO *dao.IdentityMappingDAO, roleKeyDAO *dao.RoleKeyDAO) error {
 	// Get user
@@ -1369,14 +1281,30 @@ func RecreateIdentityMappings(ctx context.Context, userID int64, db bob.Executor
 		return fmt.Errorf("no pseudonyms found for user")
 	}
 
-	// Get user roles
+	// Get user roles from role keys
 	userRoles := []string{"user"} // Default role
-	if user.Roles.Valid {
-		var roles []string
-		rolesBytes, err := user.Roles.V.Value()
+
+	// Get the default pseudonym for the user
+	defaultPseudonym, err := pseudonymDAO.GetDefaultPseudonymByUserID(ctx, userID, "user", constants.ScopeAuthentication)
+	if err == nil && defaultPseudonym != nil {
+		// Get role keys for the default pseudonym
+		roleKeys, err := roleKeyDAO.ListRoleKeysByPseudonym(ctx, defaultPseudonym.PseudonymID)
 		if err == nil {
-			if err := json.Unmarshal(rolesBytes.([]byte), &roles); err == nil && len(roles) > 0 {
-				userRoles = roles
+			roleSet := make(map[string]bool)
+			for _, roleKey := range roleKeys {
+				// Skip subforum-specific keys for admin operations
+				if roleKey.SubforumID.Valid {
+					continue
+				}
+				roleSet[roleKey.RoleName] = true
+			}
+
+			// Convert set to slice
+			if len(roleSet) > 0 {
+				userRoles = make([]string, 0, len(roleSet))
+				for role := range roleSet {
+					userRoles = append(userRoles, role)
+				}
 			}
 		}
 	}

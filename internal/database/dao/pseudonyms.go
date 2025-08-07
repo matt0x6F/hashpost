@@ -3,7 +3,6 @@ package dao
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -248,7 +247,7 @@ func (dao *PseudonymDAO) verifyPseudonymOwnershipWithKey(ctx context.Context, ps
 
 	// 3. Compare fingerprints
 	userFingerprint := dao.ibeSystem.GenerateFingerprint(user.Email)
-	
+
 	log.Info().
 		Str("pseudonym_id", pseudonymID).
 		Str("pseudonym_fingerprint", pseudonymFingerprint).
@@ -292,7 +291,7 @@ func (dao *PseudonymDAO) getRealIdentityByPseudonymWithKey(ctx context.Context, 
 			Int("mapping_index", i).
 			Str("key_scope", mapping.KeyScope).
 			Msg("Trying to decrypt mapping")
-		
+
 		decrypted, _, err := dao.ibeSystem.DecryptIdentity(mapping.EncryptedRealIdentity, keyData)
 		if err == nil {
 			decryptedMapping = decrypted
@@ -613,12 +612,28 @@ func (dao *PseudonymDAO) CreatePseudonymWithIdentityMapping(ctx context.Context,
 
 	// 3. Determine the user's role for encryption
 	userRoles := []string{"user"} // Default role
-	if user.Roles.Valid {
-		var roles []string
-		rolesBytes, err := user.Roles.V.Value()
-		if err == nil {
-			if err := json.Unmarshal(rolesBytes.([]byte), &roles); err == nil && len(roles) > 0 {
-				userRoles = roles
+
+	// Get the default pseudonym for the user to determine roles
+	defaultPseudonym, err := dao.getDefaultPseudonymByUserID(ctx, userID)
+	if err == nil && defaultPseudonym != nil {
+		// Get role keys for the default pseudonym to determine user roles
+		roleKeys, err := dao.roleKeyDAO.ListRoleKeysByPseudonym(ctx, defaultPseudonym.PseudonymID)
+		if err == nil && len(roleKeys) > 0 {
+			roleSet := make(map[string]bool)
+			for _, roleKey := range roleKeys {
+				// Skip subforum-specific keys for role determination
+				if roleKey.SubforumID.Valid {
+					continue
+				}
+				roleSet[roleKey.RoleName] = true
+			}
+
+			// Convert set to slice
+			if len(roleSet) > 0 {
+				userRoles = make([]string, 0, len(roleSet))
+				for role := range roleSet {
+					userRoles = append(userRoles, role)
+				}
 			}
 		}
 	}

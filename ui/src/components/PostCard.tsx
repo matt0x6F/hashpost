@@ -85,7 +85,7 @@ export function PostCard({ post, subforumName }: PostCardProps) {
   // Remove the useEffect that calls authenticateUserForSubforum
   // This should be handled at a higher level to avoid multiple API calls
 
-  const isModerator = user?.roles?.includes('moderator') || user?.capabilities?.includes('moderate_content');
+  const isModerator = user?.capabilities?.includes('moderate_content');
 
   const isAuthor = user?.activePseudonymId === localPost.author.pseudonymId;
 

@@ -207,7 +207,7 @@ export default function PostPage() {
   };
 
   const isPostAuthor = user?.activePseudonymId && postDetails?.author?.pseudonymId && (user.activePseudonymId === postDetails.author.pseudonymId);
-  const isModerator = user?.roles?.includes('moderator') || user?.capabilities?.includes('moderate_content');
+  const isModerator = user?.capabilities?.includes('moderate_content');
   
   const handleModeratorAction = async (action: string, value: boolean) => {
     if (!isModerator || !postDetails) {

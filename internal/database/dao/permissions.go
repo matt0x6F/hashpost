@@ -28,32 +28,38 @@ func NewPermissionDAO(db bob.Executor) *PermissionDAO {
 // CanAccessPrivateSubforum checks if a user can access a private subforum
 // This method checks ALL of the user's pseudonyms (legacy behavior)
 func (dao *PermissionDAO) CanAccessPrivateSubforum(ctx context.Context, userID int64, subforumID int32) (bool, error) {
-	// Check if user has platform-wide roles that grant access
-	user, err := models.FindUser(ctx, dao.db, userID)
-	if err != nil {
-		return false, fmt.Errorf("failed to get user: %w", err)
-	}
-	if user == nil {
-		return false, fmt.Errorf("user not found")
-	}
+	// Check if user has global roles that grant access via role keys
+	// Get all pseudonyms for this user via identity mappings
+	mappings, err := models.IdentityMappings.Query(
+		models.SelectWhere.IdentityMappings.UserID.EQ(userID),
+		models.SelectWhere.IdentityMappings.IsActive.EQ(true),
+	).All(ctx, dao.db)
 
-	platformWideRoles := []string{"platform_admin", "trust_safety", "legal_team"}
-	if user.Roles.Valid {
-		rawValue, err := user.Roles.V.Value()
-		if err != nil {
-			return false, fmt.Errorf("failed to get user roles value: %w", err)
-		}
-		var roles []string
-		if err := json.Unmarshal(rawValue.([]byte), &roles); err == nil {
-			for _, role := range roles {
-				for _, platformRole := range platformWideRoles {
-					if role == platformRole {
-						log.Debug().
-							Int64("user_id", userID).
-							Int32("subforum_id", subforumID).
-							Str("role", role).
-							Msg("User has platform-wide role for private subforum access")
-						return true, nil
+	if err == nil && len(mappings) > 0 {
+		// Check if any of the user's pseudonyms have global role keys (no subforum_id)
+		for _, mapping := range mappings {
+			roleKeys, err := models.RoleKeys.Query(
+				models.SelectWhere.RoleKeys.PseudonymID.EQ(mapping.PseudonymID),
+				models.SelectWhere.RoleKeys.IsActive.EQ(true),
+			).All(ctx, dao.db)
+
+			if err == nil && len(roleKeys) > 0 {
+				for _, roleKey := range roleKeys {
+					// Check if this is a global role key (no subforum_id)
+					if !roleKey.SubforumID.Valid {
+						// Check if this role has access to private subforums
+						// Platform admin roles have access to all subforums
+						if roleKey.RoleName == constants.RolePlatformAdmin ||
+							roleKey.RoleName == constants.RoleTrustSafety ||
+							roleKey.RoleName == constants.RoleLegalTeam {
+							log.Debug().
+								Int64("user_id", userID).
+								Int32("subforum_id", subforumID).
+								Str("role", roleKey.RoleName).
+								Str("pseudonym_id", mapping.PseudonymID).
+								Msg("User has global role with access to private subforums")
+							return true, nil
+						}
 					}
 				}
 			}
@@ -63,13 +69,50 @@ func (dao *PermissionDAO) CanAccessPrivateSubforum(ctx context.Context, userID i
 	log.Debug().
 		Int64("user_id", userID).
 		Int32("subforum_id", subforumID).
-		Msg("User does not have access to private subforum")
+		Msg("User does not have access to private subforum (platform-wide roles not checked)")
 	return false, nil
 }
 
 // CanAccessPrivateSubforumWithActivePseudonym checks if a user can access a private subforum
 // This method checks ONLY the active pseudonym (secure behavior)
 func (dao *PermissionDAO) CanAccessPrivateSubforumWithActivePseudonym(ctx context.Context, userID int64, subforumID int32, activePseudonymID string) (bool, error) {
+	// Check if user has global roles that grant access via role keys
+	// Get all pseudonyms for this user via identity mappings
+	mappings, err := models.IdentityMappings.Query(
+		models.SelectWhere.IdentityMappings.UserID.EQ(userID),
+		models.SelectWhere.IdentityMappings.IsActive.EQ(true),
+	).All(ctx, dao.db)
+
+	if err == nil && len(mappings) > 0 {
+		// Check if any of the user's pseudonyms have global role keys (no subforum_id)
+		for _, mapping := range mappings {
+			roleKeys, err := models.RoleKeys.Query(
+				models.SelectWhere.RoleKeys.PseudonymID.EQ(mapping.PseudonymID),
+				models.SelectWhere.RoleKeys.IsActive.EQ(true),
+			).All(ctx, dao.db)
+
+			if err == nil && len(roleKeys) > 0 {
+				for _, roleKey := range roleKeys {
+					// Check if this is a global role key (no subforum_id)
+					if !roleKey.SubforumID.Valid {
+						// Platform admin roles have access to all subforums
+						if roleKey.RoleName == constants.RolePlatformAdmin ||
+							roleKey.RoleName == constants.RoleTrustSafety ||
+							roleKey.RoleName == constants.RoleLegalTeam {
+							log.Debug().
+								Int64("user_id", userID).
+								Int32("subforum_id", subforumID).
+								Str("role", roleKey.RoleName).
+								Str("pseudonym_id", mapping.PseudonymID).
+								Msg("User has global role with access to private subforums")
+							return true, nil
+						}
+					}
+				}
+			}
+		}
+	}
+
 	// Check if the active pseudonym has moderator role keys for this subforum
 	moderatorKey, err := models.RoleKeys.Query(
 		models.SelectWhere.RoleKeys.SubforumID.EQ(subforumID),
@@ -88,33 +131,32 @@ func (dao *PermissionDAO) CanAccessPrivateSubforumWithActivePseudonym(ctx contex
 		return true, nil
 	}
 
-	// Check if user has platform-wide roles that grant access
-	user, err := models.FindUser(ctx, dao.db, userID)
-	if err != nil {
-		return false, fmt.Errorf("failed to get user: %w", err)
-	}
-	if user == nil {
-		return false, fmt.Errorf("user not found")
-	}
+	// Check if user has platform-wide roles that grant access via role keys
+	// Get all pseudonyms for this user via identity mappings
+	mappings, err = models.IdentityMappings.Query(
+		models.SelectWhere.IdentityMappings.UserID.EQ(userID),
+		models.SelectWhere.IdentityMappings.IsActive.EQ(true),
+	).All(ctx, dao.db)
 
-	platformWideRoles := []string{"platform_admin", "trust_safety", "legal_team"}
-	if user.Roles.Valid {
-		rawValue, err := user.Roles.V.Value()
-		if err != nil {
-			return false, fmt.Errorf("failed to get user roles value: %w", err)
-		}
-		var roles []string
-		if err := json.Unmarshal(rawValue.([]byte), &roles); err == nil {
-			for _, role := range roles {
-				for _, platformRole := range platformWideRoles {
-					if role == platformRole {
-						log.Debug().
-							Int64("user_id", userID).
-							Int32("subforum_id", subforumID).
-							Str("role", role).
-							Msg("User has platform-wide role for private subforum access")
-						return true, nil
-					}
+	if err == nil && len(mappings) > 0 {
+		// Check if any of the user's pseudonyms have platform-wide role keys
+		platformWideRoles := []string{"platform_admin", "trust_safety", "legal_team"}
+		for _, mapping := range mappings {
+			for _, platformRole := range platformWideRoles {
+				roleKey, err := models.RoleKeys.Query(
+					models.SelectWhere.RoleKeys.PseudonymID.EQ(mapping.PseudonymID),
+					models.SelectWhere.RoleKeys.RoleName.EQ(platformRole),
+					models.SelectWhere.RoleKeys.IsActive.EQ(true),
+				).One(ctx, dao.db)
+
+				if err == nil && roleKey != nil {
+					log.Debug().
+						Int64("user_id", userID).
+						Int32("subforum_id", subforumID).
+						Str("role", platformRole).
+						Str("pseudonym_id", mapping.PseudonymID).
+						Msg("User has platform-wide role for private subforum access")
+					return true, nil
 				}
 			}
 		}
@@ -370,18 +412,9 @@ func (dao *PermissionDAO) GetUserSubforumRoles(ctx context.Context, userID int64
 		}
 	}
 
-	// Get platform-wide roles
-	if user.Roles.Valid {
-		rawValue, err := user.Roles.V.Value()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get user roles value: %w", err)
-		}
-		var userRoles []string
-		if err := json.Unmarshal(rawValue.([]byte), &userRoles); err == nil {
-			roles = append(roles, userRoles...)
-		}
-	}
-
+	// Get platform-wide roles from role keys instead of user.roles
+	// Since users don't have direct roles anymore, we'll only return subforum-specific roles
+	// Platform-wide roles are managed through role keys for specific pseudonyms
 	return roles, nil
 }
 

@@ -46,9 +46,8 @@ export default function NewPostPage() {
     try {
       const userData = await authenticateUserForSubforum(fullSubforumPath);
       if (userData) {
-        const hasModeratorRole = userData.roles?.includes('moderator');
         const hasModerateContentCapability = userData.capabilities?.includes('moderate_content');
-        setIsModerator(hasModeratorRole || hasModerateContentCapability);
+        setIsModerator(hasModerateContentCapability);
       }
     } catch (error) {
       console.error('Error loading subforum user context:', error);

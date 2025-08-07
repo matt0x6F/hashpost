@@ -8,8 +8,8 @@ The Unified Permission System resolves the incongruency between the global role 
 
 Previously, HashPost had two separate permission systems:
 
-1. **Global System**: Pseudonym capabilities stored in `pseudonyms.capabilities` (JSONB)
-2. **Subforum System**: Moderator capabilities stored in `subforum_moderators.permissions` (JSONB) + role-based capabilities
+1. **Global System**: Pseudonym capabilities stored in `pseudonyms.capabilities` (JSONB) - **DEPRECATED**
+2. **Subforum System**: Moderator capabilities stored in `subforum_moderators.permissions` (JSONB) + role-based capabilities - **DEPRECATED**
 
 This created confusion and inconsistency in how permissions were checked and assigned.
 
@@ -20,8 +20,8 @@ The unified system provides two new methods in the `PermissionDAO`:
 ### `GetUnifiedActivePseudonymRolesAndCapabilities(ctx, userID, activePseudonymID, subforumID)`
 
 This method combines:
-- **Global pseudonym capabilities** from `pseudonyms.capabilities`
-- **Subforum-specific capabilities** from `subforum_moderators.permissions` + role-based capabilities
+- **Global pseudonym capabilities** from role keys with `subforum_id = NULL`
+- **Subforum-specific capabilities** from role keys with specific `subforum_id`
 - **Automatic role assignment** - adds "moderator" role when subforum capabilities are present
 - **Duplicate removal** - ensures no duplicate capabilities in the result
 
@@ -53,27 +53,27 @@ roles, capabilities, err := permissionDAO.GetUnifiedActivePseudonymRolesAndCapab
 
 ## Capability Sources
 
-### Global Capabilities (from `pseudonyms.capabilities`)
+### Global Capabilities (from role_keys with subforum_id = NULL)
 - `create_content` - Create posts and comments
 - `vote` - Vote on content
 - `message` - Send direct messages
 - `report` - Report content or users
 - Platform-wide admin capabilities (if assigned)
 
-### Subforum-Specific Capabilities (from `subforum_moderators`)
-- Role-based capabilities from `moderator.Role`:
+### Subforum-Specific Capabilities (from role_keys with specific subforum_id)
+- Role-based capabilities from `role_keys.role_name`:
   - `moderate_content` - Moderate content
   - `ban_users` - Ban users from subforum
   - `remove_content` - Remove content
   - `manage_moderators` - Manage moderator assignments
-- Specific permissions from `moderator.Permissions` (JSONB):
+- Specific permissions from `role_keys.capabilities` (JSONB):
   - Custom capabilities assigned to specific moderators
   - Granular permissions like `sticky_post`, `lock_post`
 
 ## Role Assignment Logic
 
 ### Automatic Role Assignment
-- **"user"** - Default role for all pseudonyms
+- **"user"** - Default role for all pseudonyms (via role keys)
 - **"moderator"** - Automatically added when subforum-specific capabilities are present
 - **"owner"** - Manually added for subforum owners (not automatic)
 
@@ -89,22 +89,40 @@ Platform Admin (global)
 
 ## Database Schema
 
-### Pseudonyms Table
+### Role Keys Table (Primary Permission Storage)
 ```sql
-ALTER TABLE pseudonyms ADD COLUMN roles JSONB DEFAULT '["user"]';
-ALTER TABLE pseudonyms ADD COLUMN capabilities JSONB DEFAULT '["create_content", "vote", "message", "report"]';
+CREATE TABLE role_keys (
+    key_id UUID PRIMARY KEY,
+    role_name VARCHAR(100) NOT NULL,
+    scope VARCHAR(100) NOT NULL,
+    key_data BYTEA NOT NULL,
+    key_version INTEGER NOT NULL DEFAULT 1,
+    capabilities JSONB NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_by VARCHAR(64) NOT NULL,
+    pseudonym_id VARCHAR(64) NOT NULL,
+    subforum_id INTEGER NULL,
+    
+    FOREIGN KEY (pseudonym_id) REFERENCES pseudonyms(pseudonym_id),
+    FOREIGN KEY (subforum_id) REFERENCES subforums(subforum_id),
+    FOREIGN KEY (created_by) REFERENCES pseudonyms(pseudonym_id)
+);
 ```
 
-### Subforum Moderators Table
+### Users Table (No Roles or Capabilities)
 ```sql
-CREATE TABLE subforum_moderators (
-    subforum_id INT32,
-    pseudonym_id VARCHAR(255),
-    role VARCHAR(20), -- "moderator", "junior_moderator", etc.
-    permissions JSONB, -- Custom capabilities for this moderator
-    added_by_pseudonym_id VARCHAR(255),
-    added_at TIMESTAMP
-);
+-- Users do NOT have roles or capabilities columns
+-- All permissions are managed through role_keys table
+-- This ensures proper separation and cryptographic access control
+```
+
+### Pseudonyms Table (No Direct Roles/Capabilities)
+```sql
+-- Pseudonyms do NOT have roles or capabilities columns
+-- All permissions are managed through role_keys table
+-- This ensures proper separation and cryptographic access control
 ```
 
 ## Implementation Details
@@ -112,8 +130,8 @@ CREATE TABLE subforum_moderators (
 ### Helper Methods
 
 #### `getSubforumCapabilitiesForPseudonym(ctx, subforumID, pseudonymID)`
-- Queries `subforum_moderators` table
-- Combines role-based capabilities with specific permissions
+- Queries `role_keys` table for entries with specific `subforum_id` and `pseudonym_id`
+- Combines role-based capabilities with specific permissions from `capabilities` JSONB
 - Returns subforum-specific capabilities for a pseudonym
 
 #### `removeDuplicateCapabilities(capabilities []string)`
@@ -121,7 +139,7 @@ CREATE TABLE subforum_moderators (
 - Ensures clean, unique capability sets
 
 ### Error Handling
-- Graceful handling of missing moderator records
+- Graceful handling of missing role key records
 - Proper error propagation for database issues
 - Logging for debugging and monitoring
 

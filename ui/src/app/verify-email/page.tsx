@@ -69,7 +69,7 @@ export default function VerifyEmailPage() {
       login(loginResponse);
       toast.success("Logged in successfully!");
       // Redirect to home or dashboard
-      router.push("/");
+      window.location.href = "/";
     } catch (error) {
       console.error("Login failed:", error);
       setError("Login failed. Please check your email and password.");

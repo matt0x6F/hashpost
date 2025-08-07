@@ -23,11 +23,10 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
 
   // Check if user has moderator permissions
   const hasModerateContent = user?.capabilities?.includes('moderate_content');
-  const hasModeratorRole = user?.roles?.includes('moderator') || user?.roles?.includes('admin');
   
-  // Show moderation link if user has moderator role or moderate_content capability
-  // AND we're in a subforum context where the role would be assigned
-  const isModerator = (hasModeratorRole || hasModerateContent) && isInSubforumContext;
+  // Show moderation link if user has moderate_content capability
+  // AND we're in a subforum context where the capability would be assigned
+  const isModerator = hasModerateContent && isInSubforumContext;
 
 
 

@@ -18,9 +18,7 @@ export function DebugUserInfo() {
     return <div>Not authenticated</div>;
   }
 
-  const isModerator = user?.capabilities?.includes('moderate_content') || 
-                     user?.roles?.includes('moderator') ||
-                     user?.roles?.includes('admin');
+  const isModerator = user?.capabilities?.includes('moderate_content');
 
   return (
     <Card className="mb-4">
@@ -56,12 +54,10 @@ export function DebugUserInfo() {
             <div><strong>Email:</strong> {user.email}</div>
             <div><strong>Active Pseudonym:</strong> {user.activePseudonymId}</div>
             <div><strong>Display Name:</strong> {user.displayName}</div>
-            <div><strong>Roles:</strong> {user.roles?.join(', ') || 'None'}</div>
             <div><strong>Capabilities:</strong> {user.capabilities?.join(', ') || 'None'}</div>
             <div><strong>Is Moderator:</strong> {isModerator ? 'Yes' : 'No'}</div>
             <div><strong>Has moderate_content:</strong> {user.capabilities?.includes('moderate_content') ? 'Yes' : 'No'}</div>
-            <div><strong>Has moderator role:</strong> {user.roles?.includes('moderator') ? 'Yes' : 'No'}</div>
-            <div><strong>Has admin role:</strong> {user.roles?.includes('platform_admin') ? 'Yes' : 'No'}</div>
+            <div><strong>Has platform_admin:</strong> {user.capabilities?.includes('platform_admin') ? 'Yes' : 'No'}</div>
           </div>
         </CardContent>
       )}

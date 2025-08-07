@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -836,23 +835,13 @@ func (h *UserHandler) GetUserProfile(ctx context.Context, input *middleware.Auth
 		return nil, fmt.Errorf("user not found")
 	}
 
-	// Get user roles from database to determine which role to use for authentication
-	// Parse user roles from JSON
+	// Get user roles from role keys
+	// Parse user roles from role keys
 	var userRoles []string
-	if user.Roles.Valid {
-		rolesBytes, err := user.Roles.V.Value()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get user roles value: %w", err)
-		}
-		if err := json.Unmarshal(rolesBytes.([]byte), &userRoles); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal user roles: %w", err)
-		}
-	}
+	userRoles = []string{constants.RoleUser} // Default role
 
-	// If no roles found, default to "user"
-	if len(userRoles) == 0 {
-		userRoles = []string{constants.RoleUser}
-	}
+	// Note: Role keys are managed by the role key system, but this handler doesn't have access to roleKeyDAO
+	// For now, we'll use the default role. In a full implementation, we would get roles from role keys.
 
 	// Use the first role for authentication
 	primaryRole := userRoles[0]

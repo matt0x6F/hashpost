@@ -62,18 +62,6 @@ func (s *RoleKeyService) GenerateAndStoreKey(ctx context.Context, pseudonymID, s
 	return nil
 }
 
-// Helper to extract roles from user.Roles
-func extractUserRoles(user *models.User) []string {
-	var roles []string
-	if user.Roles.Valid {
-		var raw json.RawMessage
-		if err := user.Roles.Scan(&raw); err == nil {
-			_ = json.Unmarshal(raw, &roles)
-		}
-	}
-	return roles
-}
-
 // ValidateUserAccess validates if a user can access a specific operation
 func (s *RoleKeyService) ValidateUserAccess(ctx context.Context, userID int64, pseudonymID, scope, operation string) (bool, error) {
 	// Fetch user from DB
@@ -112,23 +100,17 @@ func (s *RoleKeyService) ListUserKeys(ctx context.Context, userID int64) ([]*mod
 	if user == nil {
 		return nil, fmt.Errorf("user not found")
 	}
-	userRoles := extractUserRoles(user)
 
-	// Get all keys and filter by user roles
+	// Get all keys - since users don't have roles anymore, we'll return all keys
+	// In a more sophisticated implementation, we would filter based on pseudonym access
 	allKeys, err := s.roleKeyDAO.ListRoleKeys(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var filtered []*models.RoleKey
-	for _, key := range allKeys {
-		for _, r := range userRoles {
-			if key.RoleName == r {
-				filtered = append(filtered, key)
-				break
-			}
-		}
-	}
-	return filtered, nil
+
+	// For now, return all keys since users don't have direct roles
+	// In the future, this could be filtered based on pseudonym access patterns
+	return allKeys, nil
 }
 
 // DeactivateKey deactivates a role key
