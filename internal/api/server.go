@@ -115,6 +115,30 @@ func NewServer() *Server {
 	}
 }
 
+// NewServerForOpenAPI creates a minimal server just for generating OpenAPI specs
+// This function doesn't require IBE or database connections
+func NewServerForOpenAPI() *Server {
+	// Create a new HTTP mux
+	mux := http.NewServeMux()
+
+	// Create Huma configuration
+	config := huma.DefaultConfig("HashPost API", "1.0.0")
+
+	// Create a new Huma API with humago adapter
+	api := humago.New(mux, config)
+
+	// Register only the routes that don't require IBE or database
+	// These are typically just the basic structure routes
+	routes.RegisterHealthRoutes(api)
+
+	return &Server{
+		API:       api,
+		Mux:       mux,
+		Config:    config,
+		AppConfig: nil, // No config needed for OpenAPI generation
+	}
+}
+
 // GetMux returns the HTTP mux for server setup
 func (s *Server) GetMux() *http.ServeMux {
 	return s.Mux

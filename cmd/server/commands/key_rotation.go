@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/matt0x6f/hashpost/internal/config"
+	"github.com/matt0x6f/hashpost/internal/database"
 	"github.com/matt0x6f/hashpost/internal/database/dao"
 	"github.com/matt0x6f/hashpost/internal/ibe"
 	"github.com/matt0x6f/hashpost/internal/services"
@@ -46,6 +48,152 @@ func (cmd *KeyRotationCommand) Command() *cobra.Command {
 	)
 
 	return keyRotationCmd
+}
+
+// Standalone command functions for direct CLI integration
+
+// StartKeyRotationMigration starts a new key rotation migration
+func StartKeyRotationMigration(domain string, oldKeyVersion, newKeyVersion int, createdBy int64) error {
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	// Create database connection
+	db, err := database.NewConnection(&cfg.Database)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	// Initialize IBE system
+	ibeSystem := ibe.NewIBESystemFromEnv()
+
+	// Create DAOs
+	migrationDAO := dao.NewKeyRotationMigrationDAO(db)
+	migrationService := services.NewResumableMigrationService(migrationDAO, ibeSystem)
+
+	// Start the migration
+	ctx := context.Background()
+	err = migrationService.StartOrResumeMigration(ctx, domain, oldKeyVersion, newKeyVersion, createdBy)
+	if err != nil {
+		return fmt.Errorf("failed to start migration: %w", err)
+	}
+
+	log.Info().Msg("Key rotation migration started successfully")
+	return nil
+}
+
+// GetKeyRotationStatus gets the current status of key rotation migrations
+func GetKeyRotationStatus() error {
+	// For now, we'll show a message since there's no ListMigrations method
+	// TODO: Add ListMigrations method to KeyRotationMigrationDAO
+	fmt.Println("Key Rotation Migration Status:")
+	fmt.Println("==============================")
+	fmt.Println("Status checking not yet implemented - requires ListMigrations method")
+	fmt.Println("Use individual migration commands with migration ID for now")
+
+	return nil
+}
+
+// PauseKeyRotationMigration pauses a running key rotation migration
+func PauseKeyRotationMigration(migrationID int64) error {
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	// Create database connection
+	db, err := database.NewConnection(&cfg.Database)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	// Create DAO
+	migrationDAO := dao.NewKeyRotationMigrationDAO(db)
+
+	// Pause the migration
+	ctx := context.Background()
+	err = migrationDAO.UpdateMigrationStatus(ctx, fmt.Sprintf("%d", migrationID), "paused")
+	if err != nil {
+		return fmt.Errorf("failed to pause migration: %w", err)
+	}
+
+	log.Info().Int64("migration_id", migrationID).Msg("Key rotation migration paused successfully")
+	return nil
+}
+
+// ResumeKeyRotationMigration resumes a paused key rotation migration
+func ResumeKeyRotationMigration(migrationID int64) error {
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	// Create database connection
+	db, err := database.NewConnection(&cfg.Database)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	// Create DAO
+	migrationDAO := dao.NewKeyRotationMigrationDAO(db)
+
+	// Resume the migration
+	ctx := context.Background()
+	err = migrationDAO.UpdateMigrationStatus(ctx, fmt.Sprintf("%d", migrationID), "running")
+	if err != nil {
+		return fmt.Errorf("failed to resume migration: %w", err)
+	}
+
+	log.Info().Int64("migration_id", migrationID).Msg("Key rotation migration resumed successfully")
+	return nil
+}
+
+// RecoverKeyRotationMigration recovers a failed key rotation migration
+func RecoverKeyRotationMigration(migrationID int64) error {
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	// Create database connection
+	db, err := database.NewConnection(&cfg.Database)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	// Initialize IBE system
+	ibeSystem := ibe.NewIBESystemFromEnv()
+
+	// Create DAOs
+	migrationDAO := dao.NewKeyRotationMigrationDAO(db)
+	migrationService := services.NewResumableMigrationService(migrationDAO, ibeSystem)
+
+	// Recover the migration using the correct method name
+	ctx := context.Background()
+	err = migrationService.RecoverFromFailure(ctx, fmt.Sprintf("%d", migrationID))
+	if err != nil {
+		return fmt.Errorf("failed to recover migration: %w", err)
+	}
+
+	log.Info().Int64("migration_id", migrationID).Msg("Key rotation migration recovered successfully")
+	return nil
+}
+
+// ListKeyRotationMigrations lists all key rotation migrations
+func ListKeyRotationMigrations() error {
+	// For now, we'll show a message since there's no ListMigrations method
+	// TODO: Add ListMigrations method to KeyRotationMigrationDAO
+	fmt.Println("Key Rotation Migrations:")
+	fmt.Println("=========================")
+	fmt.Println("Listing not yet implemented - requires ListMigrations method")
+	fmt.Println("Use individual migration commands with migration ID for now")
+
+	return nil
 }
 
 // startCommand creates the start migration command

@@ -659,9 +659,12 @@ func NewIBESystemFromConfig(domainKeysDir string, keyVersion int, salt string) (
 	if domainKeysDir != "" {
 		domainMasters, err := LoadDomainMastersFromDir(domainKeysDir)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load domain masters from %s: %w", domainKeysDir, err)
+			// Log the error but don't fail - this allows basic commands to run
+			// Domain masters will be nil, which means the system will work in limited mode
+			log.Warn().Err(err).Str("domain_keys_dir", domainKeysDir).Msg("Failed to load domain masters, IBE system will run in limited mode")
+		} else {
+			opts.DomainMasters = domainMasters
 		}
-		opts.DomainMasters = domainMasters
 	}
 
 	return NewIBESystemWithOptions(opts), nil
