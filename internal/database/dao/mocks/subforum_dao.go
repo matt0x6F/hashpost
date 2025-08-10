@@ -89,8 +89,8 @@ func (m *MockSubforumDAO) SetDefaultBehavior() {
 	)
 
 	// Default behavior for CreateSubforum
-	m.On("CreateSubforum", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("bool"), mock.AnythingOfType("bool"), mock.AnythingOfType("bool"), mock.AnythingOfType("string")).Return(
-		func(ctx context.Context, name, displayName, description, sidebarText, rulesText, communityType, governanceStyle string, isNSFW, isPrivate, isRestricted bool, ownerPseudonymID string) (*models.Subforum, error) {
+	m.On("CreateSubforum", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("bool"), mock.AnythingOfType("bool"), mock.AnythingOfType("bool"), mock.AnythingOfType("string")).Return(
+		func(ctx context.Context, name, displayName, description, sidebarText, communityType, governanceStyle string, isNSFW, isPrivate, isRestricted bool, ownerPseudonymID string) (*models.Subforum, error) {
 			// Create a mock subforum with the provided data
 			subforum := &models.Subforum{
 				SubforumID:       123, // Mock ID
@@ -98,7 +98,6 @@ func (m *MockSubforumDAO) SetDefaultBehavior() {
 				DisplayName:      displayName,
 				Description:      sql.Null[string]{V: description, Valid: true},
 				SidebarText:      sql.Null[string]{V: sidebarText, Valid: true},
-				RulesText:        sql.Null[string]{V: rulesText, Valid: true},
 				CommunityType:    communityType,
 				GovernanceStyle:  governanceStyle,
 				IsNSFW:           sql.Null[bool]{V: isNSFW, Valid: true},
@@ -124,12 +123,12 @@ func (m *MockSubforumDAO) SetDefaultBehavior() {
 }
 
 // CreateSubforum creates a new subforum
-func (m *MockSubforumDAO) CreateSubforum(ctx context.Context, name, displayName, description, sidebarText, rulesText, communityType, governanceStyle string, isNSFW, isPrivate, isRestricted bool, ownerPseudonymID string) (*models.Subforum, error) {
-	args := m.Called(ctx, name, displayName, description, sidebarText, rulesText, communityType, governanceStyle, isNSFW, isPrivate, isRestricted, ownerPseudonymID)
+func (m *MockSubforumDAO) CreateSubforum(ctx context.Context, name, displayName, description, sidebarText, communityType, governanceStyle string, isNSFW, isPrivate, isRestricted bool, ownerPseudonymID string) (*models.Subforum, error) {
+	args := m.Called(ctx, name, displayName, description, sidebarText, communityType, governanceStyle, isNSFW, isPrivate, isRestricted, ownerPseudonymID)
 
 	// Check if the return value is a function
-	if fn, ok := args.Get(0).(func(context.Context, string, string, string, string, string, string, string, bool, bool, bool, string) (*models.Subforum, error)); ok {
-		return fn(ctx, name, displayName, description, sidebarText, rulesText, communityType, governanceStyle, isNSFW, isPrivate, isRestricted, ownerPseudonymID)
+	if fn, ok := args.Get(0).(func(context.Context, string, string, string, string, string, string, bool, bool, bool, string) (*models.Subforum, error)); ok {
+		return fn(ctx, name, displayName, description, sidebarText, communityType, governanceStyle, isNSFW, isPrivate, isRestricted, ownerPseudonymID)
 	}
 
 	// Fallback to direct return values

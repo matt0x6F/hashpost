@@ -13,6 +13,7 @@ import { getApi } from '@/lib/api-client';
 import { SubforumsApi } from '@/generated/api/src/apis/SubforumsApi';
 import type { SubforumCreateBody } from '@/generated/api/src/models/SubforumCreateBody';
 import { toast } from 'sonner';
+import { RulesEditor, type Rule } from './RulesEditor';
 
 interface CreateForumDialogProps {
   onForumCreated?: (forumName: string) => void;
@@ -36,6 +37,7 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
     rulesText: '',
     sidebarText: '',
   });
+  const [rules, setRules] = useState<Rule[]>([]);
 
   const handleInputChange = (field: keyof SubforumCreateBody, value: string | boolean) => {
     setFormData(prev => ({
@@ -84,7 +86,14 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
 
     try {
       const subforumsApi = getApi(SubforumsApi);
-      const response = await subforumsApi.createSubforum(formData);
+      
+      // Convert structured rules to JSON string for backend compatibility
+      const rulesText = rules.length > 0 ? JSON.stringify(rules) : '';
+      
+      const response = await subforumsApi.createSubforum({
+        ...formData,
+        rulesText: rulesText,
+      });
       
       setOpen(false);
       setFormData({
@@ -98,6 +107,7 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
         rulesText: '',
         sidebarText: '',
       });
+      setRules([]);
       
       // Show success toast using Sonner
       toast.success(`Forum "${response.subforum.communityType}/${response.subforum.name}" created successfully!`, {
@@ -214,51 +224,49 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="communityType" className="mb-1 block">Community Type *</Label>
-                  <select
-                    id="communityType"
-                    value={formData.communityType}
-                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                      const newType = e.target.value;
-                      setFormData(prev => ({
-                        ...prev,
-                        communityType: newType,
-                      }));
-                    }}
-                    className="w-full h-10 px-3 py-2 border border-input bg-background rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    required
-                  >
-                    <option value="t">Topical (t/) - Generic subjects like programming, cooking (Democratic governance)</option>
-                    <option value="g">Geographic (g/) - Location-based like Seattle, Tacoma (Democratic governance)</option>
-                    <option value="b">Branded (b/) - Company/brand-owned like Apple, Minecraft (Owned governance)</option>
-                    <option value="c">Creator (c/) - Individual creator-owned communities (Owned governance)</option>
-                  </select>
-                </div>
+              <div>
+                <Label htmlFor="communityType" className="mb-1 block">Community Type *</Label>
+                <select
+                  id="communityType"
+                  value={formData.communityType}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                    const newType = e.target.value;
+                    setFormData(prev => ({
+                      ...prev,
+                      communityType: newType,
+                    }));
+                  }}
+                  className="w-full h-10 px-3 py-2 border border-input bg-background rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  required
+                >
+                  <option value="t">Topical (t/) - Generic subjects like programming, cooking (Democratic governance)</option>
+                  <option value="g">Geographic (g/) - Location-based like Seattle, Tacoma (Democratic governance)</option>
+                  <option value="b">Branded (b/) - Company/brand-owned like Apple, Minecraft (Owned governance)</option>
+                  <option value="c">Creator (c/) - Individual creator-owned communities (Owned governance)</option>
+                </select>
+              </div>
 
-                <div>
-                  <Label htmlFor="governanceStyle" className="mb-1 block">Governance Style</Label>
-                  <div className="w-full h-10 px-3 py-2 border border-input bg-background rounded-md text-sm flex items-center text-muted-foreground">
-                    {formData.communityType === 't' || formData.communityType === 'g' ? (
-                      <>
-                        <span className="font-medium text-foreground">Democratic</span>
-                        <span className="ml-2">- Owner commits to elected moderators</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="font-medium text-foreground">Owned</span>
-                        <span className="ml-2">- Owner directly manages all moderators</span>
-                      </>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {formData.communityType === 't' || formData.communityType === 'g' 
-                      ? 'Topical and Geographic communities use Democratic governance'
-                      : 'Branded and Creator communities use Owned governance'
-                    }
-                  </p>
+              <div>
+                <Label htmlFor="governanceStyle" className="mb-1 block">Governance Style</Label>
+                <div className="w-full h-10 px-3 py-2 border border-input bg-background rounded-md text-sm flex items-center text-muted-foreground">
+                  {formData.communityType === 't' || formData.communityType === 'g' ? (
+                    <>
+                      <span className="font-medium text-foreground">Democratic</span>
+                      <span className="ml-2">- Owner commits to elected moderators</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-medium text-foreground">Owned</span>
+                      <span className="ml-2">- Owner directly manages all moderators</span>
+                    </>
+                  )}
                 </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {formData.communityType === 't' || formData.communityType === 'g' 
+                    ? 'Topical and Geographic communities use Democratic governance'
+                    : 'Branded and Creator communities use Owned governance'
+                  }
+                </p>
               </div>
 
               <div className="space-y-3">
@@ -299,19 +307,13 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
               </div>
 
               <div>
-                <Label htmlFor="rulesText" className="mb-1 block">Rules (Optional)</Label>
-                <Textarea
-                  id="rulesText"
-                  value={formData.rulesText || ''}
-                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleInputChange('rulesText', e.target.value)}
-                  placeholder="Forum rules and guidelines"
-                  maxLength={2000}
-                  rows={4}
-                  className="mt-1"
+                <RulesEditor
+                  rules={rules}
+                  onChange={setRules}
+                  disabled={isLoading}
+                  showTitle={false}
+                  maxRules={5}
                 />
-                <p className="text-xs text-muted-foreground mt-1">
-                  {(formData.rulesText || '').length}/2000 characters
-                </p>
               </div>
 
               <div>

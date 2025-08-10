@@ -432,7 +432,6 @@ var ColumnNames = struct {
 		DisplayName:            "display_name",
 		Description:            "description",
 		SidebarText:            "sidebar_text",
-		RulesText:              "rules_text",
 		CreatedAt:              "created_at",
 		CreatedByUserID:        "created_by_user_id",
 		SubscriberCount:        "subscriber_count",

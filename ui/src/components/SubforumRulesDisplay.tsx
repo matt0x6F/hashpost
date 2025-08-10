@@ -5,15 +5,7 @@ import { ScrollArea } from '@/components/shadcn/scroll-area';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { getApi } from '@/lib/api-client';
 import { RulesApi } from '@/generated/api/src/apis';
-
-interface Rule {
-  code: string;
-  name: string;
-  description: string;
-  category: string;
-  severity: string;
-  active: boolean;
-}
+import { type Rule } from './RulesEditor';
 
 interface SubforumRulesDisplayProps {
   communityType: string;

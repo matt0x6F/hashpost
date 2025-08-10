@@ -31,7 +31,6 @@ type Subforum struct {
 	DisplayName            string                                `db:"display_name" scan:"display_name" json:"display_name"`
 	Description            sql.Null[string]                      `db:"description" scan:"description" json:"description"`
 	SidebarText            sql.Null[string]                      `db:"sidebar_text" scan:"sidebar_text" json:"sidebar_text"`
-	RulesText              sql.Null[string]                      `db:"rules_text" scan:"rules_text" json:"rules_text"`
 	CreatedAt              sql.Null[time.Time]                   `db:"created_at" scan:"created_at" json:"created_at"`
 	CreatedByUserID        sql.Null[int64]                       `db:"created_by_user_id" scan:"created_by_user_id" json:"created_by_user_id"`
 	SubscriberCount        sql.Null[int32]                       `db:"subscriber_count" scan:"subscriber_count" json:"subscriber_count"`
@@ -81,7 +80,6 @@ type subforumColumnNames struct {
 	DisplayName            string
 	Description            string
 	SidebarText            string
-	RulesText              string
 	CreatedAt              string
 	CreatedByUserID        string
 	SubscriberCount        string
@@ -112,7 +110,6 @@ type subforumColumns struct {
 	DisplayName            psql.Expression
 	Description            psql.Expression
 	SidebarText            psql.Expression
-	RulesText              psql.Expression
 	CreatedAt              psql.Expression
 	CreatedByUserID        psql.Expression
 	SubscriberCount        psql.Expression
@@ -150,7 +147,6 @@ func buildSubforumColumns(alias string) subforumColumns {
 		DisplayName:            psql.Quote(alias, "display_name"),
 		Description:            psql.Quote(alias, "description"),
 		SidebarText:            psql.Quote(alias, "sidebar_text"),
-		RulesText:              psql.Quote(alias, "rules_text"),
 		CreatedAt:              psql.Quote(alias, "created_at"),
 		CreatedByUserID:        psql.Quote(alias, "created_by_user_id"),
 		SubscriberCount:        psql.Quote(alias, "subscriber_count"),
@@ -179,7 +175,6 @@ type subforumWhere[Q psql.Filterable] struct {
 	DisplayName            psql.WhereMod[Q, string]
 	Description            psql.WhereNullMod[Q, string]
 	SidebarText            psql.WhereNullMod[Q, string]
-	RulesText              psql.WhereNullMod[Q, string]
 	CreatedAt              psql.WhereNullMod[Q, time.Time]
 	CreatedByUserID        psql.WhereNullMod[Q, int64]
 	SubscriberCount        psql.WhereNullMod[Q, int32]
@@ -212,7 +207,6 @@ func buildSubforumWhere[Q psql.Filterable](cols subforumColumns) subforumWhere[Q
 		DisplayName:            psql.Where[Q, string](cols.DisplayName),
 		Description:            psql.WhereNull[Q, string](cols.Description),
 		SidebarText:            psql.WhereNull[Q, string](cols.SidebarText),
-		RulesText:              psql.WhereNull[Q, string](cols.RulesText),
 		CreatedAt:              psql.WhereNull[Q, time.Time](cols.CreatedAt),
 		CreatedByUserID:        psql.WhereNull[Q, int64](cols.CreatedByUserID),
 		SubscriberCount:        psql.WhereNull[Q, int32](cols.SubscriberCount),
@@ -266,7 +260,6 @@ type SubforumSetter struct {
 	DisplayName            *string                                `db:"display_name" scan:"display_name" json:"display_name"`
 	Description            *sql.Null[string]                      `db:"description" scan:"description" json:"description"`
 	SidebarText            *sql.Null[string]                      `db:"sidebar_text" scan:"sidebar_text" json:"sidebar_text"`
-	RulesText              *sql.Null[string]                      `db:"rules_text" scan:"rules_text" json:"rules_text"`
 	CreatedAt              *sql.Null[time.Time]                   `db:"created_at" scan:"created_at" json:"created_at"`
 	CreatedByUserID        *sql.Null[int64]                       `db:"created_by_user_id" scan:"created_by_user_id" json:"created_by_user_id"`
 	SubscriberCount        *sql.Null[int32]                       `db:"subscriber_count" scan:"subscriber_count" json:"subscriber_count"`
@@ -289,7 +282,7 @@ type SubforumSetter struct {
 }
 
 func (s SubforumSetter) SetColumns() []string {
-	vals := make([]string, 0, 25)
+	vals := make([]string, 0, 24)
 	if s.SubforumID != nil {
 		vals = append(vals, "subforum_id")
 	}
@@ -308,10 +301,6 @@ func (s SubforumSetter) SetColumns() []string {
 
 	if s.SidebarText != nil {
 		vals = append(vals, "sidebar_text")
-	}
-
-	if s.RulesText != nil {
-		vals = append(vals, "rules_text")
 	}
 
 	if s.CreatedAt != nil {
@@ -409,9 +398,6 @@ func (s SubforumSetter) Overwrite(t *Subforum) {
 	if s.SidebarText != nil {
 		t.SidebarText = *s.SidebarText
 	}
-	if s.RulesText != nil {
-		t.RulesText = *s.RulesText
-	}
 	if s.CreatedAt != nil {
 		t.CreatedAt = *s.CreatedAt
 	}
@@ -477,7 +463,7 @@ func (s *SubforumSetter) Apply(q *dialect.InsertQuery) {
 	})
 
 	q.AppendValues(bob.ExpressionFunc(func(ctx context.Context, w io.Writer, d bob.Dialect, start int) ([]any, error) {
-		vals := make([]bob.Expression, 25)
+		vals := make([]bob.Expression, 24)
 		if s.SubforumID != nil {
 			vals[0] = psql.Arg(*s.SubforumID)
 		} else {
@@ -508,124 +494,118 @@ func (s *SubforumSetter) Apply(q *dialect.InsertQuery) {
 			vals[4] = psql.Raw("DEFAULT")
 		}
 
-		if s.RulesText != nil {
-			vals[5] = psql.Arg(*s.RulesText)
+		if s.CreatedAt != nil {
+			vals[5] = psql.Arg(*s.CreatedAt)
 		} else {
 			vals[5] = psql.Raw("DEFAULT")
 		}
 
-		if s.CreatedAt != nil {
-			vals[6] = psql.Arg(*s.CreatedAt)
+		if s.CreatedByUserID != nil {
+			vals[6] = psql.Arg(*s.CreatedByUserID)
 		} else {
 			vals[6] = psql.Raw("DEFAULT")
 		}
 
-		if s.CreatedByUserID != nil {
-			vals[7] = psql.Arg(*s.CreatedByUserID)
+		if s.SubscriberCount != nil {
+			vals[7] = psql.Arg(*s.SubscriberCount)
 		} else {
 			vals[7] = psql.Raw("DEFAULT")
 		}
 
-		if s.SubscriberCount != nil {
-			vals[8] = psql.Arg(*s.SubscriberCount)
+		if s.PostCount != nil {
+			vals[8] = psql.Arg(*s.PostCount)
 		} else {
 			vals[8] = psql.Raw("DEFAULT")
 		}
 
-		if s.PostCount != nil {
-			vals[9] = psql.Arg(*s.PostCount)
+		if s.IsPrivate != nil {
+			vals[9] = psql.Arg(*s.IsPrivate)
 		} else {
 			vals[9] = psql.Raw("DEFAULT")
 		}
 
-		if s.IsPrivate != nil {
-			vals[10] = psql.Arg(*s.IsPrivate)
+		if s.IsRestricted != nil {
+			vals[10] = psql.Arg(*s.IsRestricted)
 		} else {
 			vals[10] = psql.Raw("DEFAULT")
 		}
 
-		if s.IsRestricted != nil {
-			vals[11] = psql.Arg(*s.IsRestricted)
+		if s.IsNSFW != nil {
+			vals[11] = psql.Arg(*s.IsNSFW)
 		} else {
 			vals[11] = psql.Raw("DEFAULT")
 		}
 
-		if s.IsNSFW != nil {
-			vals[12] = psql.Arg(*s.IsNSFW)
+		if s.IsQuarantined != nil {
+			vals[12] = psql.Arg(*s.IsQuarantined)
 		} else {
 			vals[12] = psql.Raw("DEFAULT")
 		}
 
-		if s.IsQuarantined != nil {
-			vals[13] = psql.Arg(*s.IsQuarantined)
+		if s.AllowImages != nil {
+			vals[13] = psql.Arg(*s.AllowImages)
 		} else {
 			vals[13] = psql.Raw("DEFAULT")
 		}
 
-		if s.AllowImages != nil {
-			vals[14] = psql.Arg(*s.AllowImages)
+		if s.AllowVideos != nil {
+			vals[14] = psql.Arg(*s.AllowVideos)
 		} else {
 			vals[14] = psql.Raw("DEFAULT")
 		}
 
-		if s.AllowVideos != nil {
-			vals[15] = psql.Arg(*s.AllowVideos)
+		if s.AllowPolls != nil {
+			vals[15] = psql.Arg(*s.AllowPolls)
 		} else {
 			vals[15] = psql.Raw("DEFAULT")
 		}
 
-		if s.AllowPolls != nil {
-			vals[16] = psql.Arg(*s.AllowPolls)
+		if s.RequireFlair != nil {
+			vals[16] = psql.Arg(*s.RequireFlair)
 		} else {
 			vals[16] = psql.Raw("DEFAULT")
 		}
 
-		if s.RequireFlair != nil {
-			vals[17] = psql.Arg(*s.RequireFlair)
+		if s.MinimumAccountAgeHours != nil {
+			vals[17] = psql.Arg(*s.MinimumAccountAgeHours)
 		} else {
 			vals[17] = psql.Raw("DEFAULT")
 		}
 
-		if s.MinimumAccountAgeHours != nil {
-			vals[18] = psql.Arg(*s.MinimumAccountAgeHours)
+		if s.MinimumKarmaRequired != nil {
+			vals[18] = psql.Arg(*s.MinimumKarmaRequired)
 		} else {
 			vals[18] = psql.Raw("DEFAULT")
 		}
 
-		if s.MinimumKarmaRequired != nil {
-			vals[19] = psql.Arg(*s.MinimumKarmaRequired)
+		if s.UpdatedAt != nil {
+			vals[19] = psql.Arg(*s.UpdatedAt)
 		} else {
 			vals[19] = psql.Raw("DEFAULT")
 		}
 
-		if s.UpdatedAt != nil {
-			vals[20] = psql.Arg(*s.UpdatedAt)
+		if s.CommunityType != nil {
+			vals[20] = psql.Arg(*s.CommunityType)
 		} else {
 			vals[20] = psql.Raw("DEFAULT")
 		}
 
-		if s.CommunityType != nil {
-			vals[21] = psql.Arg(*s.CommunityType)
+		if s.GovernanceStyle != nil {
+			vals[21] = psql.Arg(*s.GovernanceStyle)
 		} else {
 			vals[21] = psql.Raw("DEFAULT")
 		}
 
-		if s.GovernanceStyle != nil {
-			vals[22] = psql.Arg(*s.GovernanceStyle)
+		if s.OwnerPseudonymID != nil {
+			vals[22] = psql.Arg(*s.OwnerPseudonymID)
 		} else {
 			vals[22] = psql.Raw("DEFAULT")
 		}
 
-		if s.OwnerPseudonymID != nil {
-			vals[23] = psql.Arg(*s.OwnerPseudonymID)
+		if s.SubforumRules != nil {
+			vals[23] = psql.Arg(*s.SubforumRules)
 		} else {
 			vals[23] = psql.Raw("DEFAULT")
-		}
-
-		if s.SubforumRules != nil {
-			vals[24] = psql.Arg(*s.SubforumRules)
-		} else {
-			vals[24] = psql.Raw("DEFAULT")
 		}
 
 		return bob.ExpressSlice(ctx, w, d, start, vals, "", ", ", "")
@@ -637,7 +617,7 @@ func (s SubforumSetter) UpdateMod() bob.Mod[*dialect.UpdateQuery] {
 }
 
 func (s SubforumSetter) Expressions(prefix ...string) []bob.Expression {
-	exprs := make([]bob.Expression, 0, 25)
+	exprs := make([]bob.Expression, 0, 24)
 
 	if s.SubforumID != nil {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
@@ -671,13 +651,6 @@ func (s SubforumSetter) Expressions(prefix ...string) []bob.Expression {
 		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
 			psql.Quote(append(prefix, "sidebar_text")...),
 			psql.Arg(s.SidebarText),
-		}})
-	}
-
-	if s.RulesText != nil {
-		exprs = append(exprs, expr.Join{Sep: " = ", Exprs: []bob.Expression{
-			psql.Quote(append(prefix, "rules_text")...),
-			psql.Arg(s.RulesText),
 		}})
 	}
 
