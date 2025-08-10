@@ -369,21 +369,18 @@ func (k *KeyRotationCommand) cancelMigration(ctx context.Context, migrationID st
 }
 
 // NewKeyRotationCommands returns all key rotation-related commands
-func NewKeyRotationCommands() []*cobra.Command {
-	// Load configuration
-	cfg, err := config.Load()
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to load configuration")
-	}
-
+func NewKeyRotationCommands(cfg *config.Config) []*cobra.Command {
 	// Create database connection
 	db, err := database.NewConnection(&cfg.Database)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to connect to database")
 	}
 
-	// Initialize IBE system
-	ibeSystem := ibe.NewIBESystemFromEnv()
+	// Initialize IBE system using configuration instead of hardcoded defaults
+	ibeSystem, err := ibe.NewIBESystemFromConfig(cfg.IBE.DomainKeysDir, cfg.IBE.KeyVersion, cfg.IBE.Salt)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize IBE system")
+	}
 
 	// Create DAOs and services
 	migrationDAO := dao.NewKeyRotationMigrationDAO(db)

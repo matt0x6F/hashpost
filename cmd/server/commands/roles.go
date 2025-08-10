@@ -18,7 +18,7 @@ import (
 )
 
 // NewRolesCommands returns all roles-related commands
-func NewRolesCommands() []*cobra.Command {
+func NewRolesCommands(cfg *config.Config) []*cobra.Command {
 	// Create the roles subcommand
 	rolesCmd := &cobra.Command{
 		Use:   "roles",
@@ -32,11 +32,7 @@ func NewRolesCommands() []*cobra.Command {
 		Short: "Setup role keys for all roles",
 		Long:  "Create the necessary role keys for all roles: user, moderator, subforum_owner, platform_admin, trust_safety, and legal_team",
 		Run: func(cmd *cobra.Command, args []string) {
-			// This command needs IBE - initialize it
-			if err := InitializeIBEForCommand(); err != nil {
-				log.Fatal().Err(err).Msg("Failed to initialize IBE system")
-			}
-			if err := SetupRoles(); err != nil {
+			if err := SetupRoles(cfg); err != nil {
 				log.Fatal().Err(err).Msg("Failed to setup roles")
 			}
 		},
@@ -80,7 +76,7 @@ func NewRolesCommands() []*cobra.Command {
 			// This command doesn't need IBE
 			roleName, _ := cmd.Flags().GetString("role")
 			force, _ := cmd.Flags().GetBool("force")
-			if err := RotateRoleKeys(roleName, force); err != nil {
+			if err := RotateRoleKeys(roleName, force, cfg); err != nil {
 				log.Fatal().Err(err).Msg("Failed to rotate role keys")
 			}
 		},
@@ -93,21 +89,18 @@ func NewRolesCommands() []*cobra.Command {
 }
 
 // SetupRoles creates the necessary role keys for all admin roles
-func SetupRoles() error {
-	// Load configuration
-	cfg, err := config.Load()
-	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
-	}
-
+func SetupRoles(cfg *config.Config) error {
 	// Create database connection
 	db, err := database.NewConnection(&cfg.Database)
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Initialize IBE system
-	ibeSystem := ibe.NewIBESystemFromEnv()
+	// Initialize IBE system using configuration instead of hardcoded defaults
+	ibeSystem, err := ibe.NewIBESystemFromConfig(cfg.IBE.DomainKeysDir, cfg.IBE.KeyVersion, cfg.IBE.Salt)
+	if err != nil {
+		return fmt.Errorf("failed to initialize IBE system: %w", err)
+	}
 
 	// Create role key DAO
 	roleKeyDAO := dao.NewRoleKeyDAO(db)
@@ -313,21 +306,18 @@ func ListRoleKeys() error {
 }
 
 // RotateRoleKeys rotates role keys for a specific role or all roles
-func RotateRoleKeys(roleName string, force bool) error {
-	// Load configuration
-	cfg, err := config.Load()
-	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
-	}
-
+func RotateRoleKeys(roleName string, force bool, cfg *config.Config) error {
 	// Create database connection
 	db, err := database.NewConnection(&cfg.Database)
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Initialize IBE system
-	ibeSystem := ibe.NewIBESystemFromEnv()
+	// Initialize IBE system using configuration instead of hardcoded defaults
+	ibeSystem, err := ibe.NewIBESystemFromConfig(cfg.IBE.DomainKeysDir, cfg.IBE.KeyVersion, cfg.IBE.Salt)
+	if err != nil {
+		return fmt.Errorf("failed to initialize IBE system: %w", err)
+	}
 
 	// Create role key DAO
 	roleKeyDAO := dao.NewRoleKeyDAO(db)

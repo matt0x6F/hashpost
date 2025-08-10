@@ -1,15 +1,22 @@
 package main
 
 import (
+	"context"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/danielgtaylor/huma/v2/humacli"
 	"github.com/matt0x6f/hashpost/cmd/server/commands"
+	"github.com/matt0x6f/hashpost/internal/api"
 	"github.com/matt0x6f/hashpost/internal/api/logger"
 	"github.com/matt0x6f/hashpost/internal/config"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
-// Options defines the CLI options
-type Options struct {
+// ServerOptions defines the CLI options for the server command
+type ServerOptions struct {
 	Debug bool   `doc:"Enable debug logging"`
 	Host  string `doc:"Hostname to listen on."`
 	Port  int    `doc:"Port to listen on." short:"p" default:"8888"`
@@ -35,45 +42,69 @@ func main() {
 		Long:    "HashPost is a modern forum platform with enhanced security and privacy features.",
 	}
 
-	// Add global flags
-	rootCmd.PersistentFlags().Bool("debug", false, "Enable debug logging")
-	rootCmd.PersistentFlags().String("host", "localhost", "Hostname to listen on")
-	rootCmd.PersistentFlags().IntP("port", "p", 8888, "Port to listen on")
-
-	// Create server command
+	// Create server command that uses the CLI
 	serverCmd := &cobra.Command{
 		Use:   "server",
 		Short: "Start the HashPost server",
 		Long:  "Start the HashPost server with the specified configuration",
 		Run: func(cmd *cobra.Command, args []string) {
-			// Create the CLI for server mode using the commands package
-			cli := commands.NewServerCommand()
+			// Create the CLI for the server - IBE system will be initialized only when server starts
+			cli := humacli.New(func(hooks humacli.Hooks, opts *ServerOptions) {
+				var httpServer *http.Server
 
-			// Run the server
+				hooks.OnStart(func() {
+					// Create the API server with all middleware and routes ONLY when starting
+					server := api.NewServer(cfg)
+
+					// Create the HTTP server with graceful shutdown
+					httpServer = &http.Server{
+						Addr:    fmt.Sprintf("%s:%d", opts.Host, opts.Port),
+						Handler: server.GetHandler(),
+					}
+
+					log.Info().Str("addr", httpServer.Addr).Msg("Server listening")
+					if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+						log.Fatal().Err(err).Msg("Error starting server")
+					}
+				})
+
+				hooks.OnStop(func() {
+					if httpServer == nil {
+						return
+					}
+					log.Info().Msg("Start shutdown")
+					ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+					defer cancel()
+
+					if err := httpServer.Shutdown(ctx); err != nil {
+						log.Error().Err(err).Msg("Could not stop server gracefully")
+						if err := httpServer.Close(); err != nil {
+							log.Fatal().Err(err).Msg("Could not force close server")
+						}
+					}
+					log.Info().Msg("Server stopped")
+				})
+			})
+
+			// Run the CLI
 			cli.Run()
 		},
-	}
-
-	// Set the default command to start the server
-	rootCmd.RunE = func(cmd *cobra.Command, args []string) error {
-		serverCmd.Run(cmd, args)
-		return nil
 	}
 
 	// Add server command
 	rootCmd.AddCommand(serverCmd)
 
 	// Add roles commands
-	rootCmd.AddCommand(commands.NewRolesCommands()...)
+	rootCmd.AddCommand(commands.NewRolesCommands(cfg)...)
 
 	// Add admin commands
-	rootCmd.AddCommand(commands.NewAdminCommands()...)
+	rootCmd.AddCommand(commands.NewAdminCommands(cfg)...)
 
 	// Add IBE keys command
-	rootCmd.AddCommand(commands.NewGenerateIBEKeysCommand())
+	rootCmd.AddCommand(commands.NewGenerateIBEKeysCommand(cfg))
 
-	// Add key-rotation commands
-	rootCmd.AddCommand(commands.NewKeyRotationCommands()...)
+	// Add key-rotation commands - TEMPORARILY DISABLED
+	// rootCmd.AddCommand(commands.NewKeyRotationCommands(cfg)...)
 
 	// Add openapi command
 	rootCmd.AddCommand(commands.NewOpenAPICommand())

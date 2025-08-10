@@ -25,12 +25,7 @@ type Server struct {
 }
 
 // NewServer creates a new API server with middleware and routes
-func NewServer() *Server {
-	// Load configuration
-	cfg, err := config.Load()
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to load configuration")
-	}
+func NewServer(cfg *config.Config) *Server {
 
 	// Create database connection
 	db, err := database.NewConnection(&cfg.Database)

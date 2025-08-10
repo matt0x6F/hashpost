@@ -29,21 +29,18 @@ type IBEKeyOptions struct {
 }
 
 // GenerateIBEKeys generates IBE keys for enhanced architecture
-func GenerateIBEKeys(options *IBEKeyOptions) error {
-	// Load configuration
-	cfg, err := config.Load()
-	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
-	}
-
+func GenerateIBEKeys(options *IBEKeyOptions, cfg *config.Config) error {
 	// Create database connection
 	db, err := database.NewConnection(&cfg.Database)
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Initialize IBE system
-	ibeSystem := ibe.NewIBESystemFromEnv()
+	// Initialize IBE system using configuration instead of hardcoded defaults
+	ibeSystem, err := ibe.NewIBESystemFromConfig(cfg.IBE.DomainKeysDir, cfg.IBE.KeyVersion, cfg.IBE.Salt)
+	if err != nil {
+		return fmt.Errorf("failed to initialize IBE system: %w", err)
+	}
 
 	// Create role key DAO
 	roleKeyDAO := dao.NewRoleKeyDAO(db)
@@ -333,7 +330,7 @@ func saveStringToFile(content string, path string) error {
 }
 
 // NewGenerateIBEKeysCommand creates and returns the generate-ibe-keys command
-func NewGenerateIBEKeysCommand() *cobra.Command {
+func NewGenerateIBEKeysCommand(cfg *config.Config) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "generate-ibe-keys",
 		Short: "Generate IBE keys for enhanced architecture",
@@ -348,6 +345,11 @@ func NewGenerateIBEKeysCommand() *cobra.Command {
 			nonInteractive, _ := cmd.Flags().GetBool("non-interactive")
 			keySize, _ := cmd.Flags().GetInt("key-size")
 
+			// Use configuration salt if not specified via command line
+			if salt == "" {
+				salt = cfg.IBE.Salt
+			}
+
 			// Create IBE key options
 			ibeOptions := &IBEKeyOptions{
 				OutputDir:      outputDir,
@@ -358,7 +360,7 @@ func NewGenerateIBEKeysCommand() *cobra.Command {
 			}
 
 			// Generate IBE keys
-			if err := GenerateIBEKeys(ibeOptions); err != nil {
+			if err := GenerateIBEKeys(ibeOptions, cfg); err != nil {
 				log.Fatal().Err(err).Msg("Failed to generate IBE keys")
 			}
 
@@ -374,7 +376,7 @@ func NewGenerateIBEKeysCommand() *cobra.Command {
 	// Add flags for generate-ibe-keys command
 	cmd.Flags().String("output-dir", "./keys", "Output directory for generated keys")
 	cmd.Flags().Int("key-version", 1, "Key version to generate")
-	cmd.Flags().String("salt", "fingerprint_salt_v1", "Salt for fingerprint generation")
+	cmd.Flags().String("salt", "", "Salt for fingerprint generation (defaults to config value)")
 	cmd.Flags().Bool("non-interactive", false, "Non-interactive mode")
 	cmd.Flags().Int("key-size", 32, "Key size in bytes (default 32, i.e., 256 bits)")
 
