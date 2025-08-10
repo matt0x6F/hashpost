@@ -20,8 +20,8 @@ const (
 
 // ResumableMigrationService handles key rotation migrations with fault tolerance
 type ResumableMigrationService struct {
-	migrationDAO *dao.KeyRotationMigrationDAO
-	ibeSystem    *ibe.IBESystem
+	migrationDAO dao.KeyRotationMigrationDAOInterface
+	ibeSystem    ibe.IBESystemInterface
 	batchSize    int
 	maxRetries   int
 	rateLimit    time.Duration
@@ -29,7 +29,7 @@ type ResumableMigrationService struct {
 }
 
 // NewResumableMigrationService creates a new resumable migration service
-func NewResumableMigrationService(migrationDAO *dao.KeyRotationMigrationDAO, ibeSystem *ibe.IBESystem) *ResumableMigrationService {
+func NewResumableMigrationService(migrationDAO dao.KeyRotationMigrationDAOInterface, ibeSystem ibe.IBESystemInterface) *ResumableMigrationService {
 	return &ResumableMigrationService{
 		migrationDAO: migrationDAO,
 		ibeSystem:    ibeSystem,
@@ -41,7 +41,7 @@ func NewResumableMigrationService(migrationDAO *dao.KeyRotationMigrationDAO, ibe
 }
 
 // StartOrResumeMigration starts a new migration or resumes an existing one
-func (s *ResumableMigrationService) StartOrResumeMigration(ctx context.Context, domain string, oldKeyVersion, newKeyVersion int, createdBy int64) error {
+func (s *ResumableMigrationService) StartOrResumeMigration(ctx context.Context, domain string, oldKeyVersion, newKeyVersion int32, createdBy int64) error {
 	// 1. Check for existing migration
 	existingMigration, err := s.migrationDAO.GetMigrationByDomain(ctx, domain, oldKeyVersion, newKeyVersion)
 	if err != nil {
@@ -62,8 +62,8 @@ func (s *ResumableMigrationService) StartOrResumeMigration(ctx context.Context, 
 		// Start new migration
 		s.logger.Info().
 			Str("domain", domain).
-			Int("old_version", oldKeyVersion).
-			Int("new_version", newKeyVersion).
+			Int32("old_version", oldKeyVersion).
+			Int32("new_version", newKeyVersion).
 			Msg("Starting new key rotation migration")
 
 		return s.startNewMigration(ctx, domain, oldKeyVersion, newKeyVersion, createdBy)
@@ -71,7 +71,7 @@ func (s *ResumableMigrationService) StartOrResumeMigration(ctx context.Context, 
 }
 
 // startNewMigration creates and starts a new migration
-func (s *ResumableMigrationService) startNewMigration(ctx context.Context, domain string, oldKeyVersion, newKeyVersion int, createdBy int64) error {
+func (s *ResumableMigrationService) startNewMigration(ctx context.Context, domain string, oldKeyVersion, newKeyVersion int32, createdBy int64) error {
 	// 1. Create migration record
 	migration, err := s.migrationDAO.CreateMigration(ctx, domain, oldKeyVersion, newKeyVersion, createdBy)
 	if err != nil {
@@ -212,7 +212,7 @@ func (s *ResumableMigrationService) migrateSingleRecordWithCheckpoint(ctx contex
 // attemptRecordMigration attempts to migrate a single record
 func (s *ResumableMigrationService) attemptRecordMigration(ctx context.Context, mapping *models.IdentityMapping) error {
 	// 1. Decrypt with old key version
-	decrypted, err := s.decryptWithOldKey(mapping.EncryptedRealIdentity, int(mapping.KeyVersion))
+	decrypted, err := s.decryptWithOldKey(mapping.EncryptedRealIdentity, mapping.KeyVersion)
 	if err != nil {
 		return fmt.Errorf("failed to decrypt with old key: %w", err)
 	}
@@ -224,7 +224,7 @@ func (s *ResumableMigrationService) attemptRecordMigration(ctx context.Context, 
 	}
 
 	// 3. Update the record with new key version
-	newVersion := int32(s.ibeSystem.GetKeyVersion())
+	newVersion := s.ibeSystem.GetKeyVersion()
 	setter := &models.IdentityMappingSetter{
 		EncryptedRealIdentity:     &reEncrypted,
 		EncryptedPseudonymMapping: &reEncrypted,
@@ -241,7 +241,7 @@ func (s *ResumableMigrationService) attemptRecordMigration(ctx context.Context, 
 }
 
 // decryptWithOldKey decrypts data using the old key version
-func (s *ResumableMigrationService) decryptWithOldKey(encryptedData []byte, keyVersion int) ([]byte, error) {
+func (s *ResumableMigrationService) decryptWithOldKey(encryptedData []byte, keyVersion int32) ([]byte, error) {
 	// Use the multi-version IBE system to decrypt with the old key version
 	// Parse the encrypted data to extract fingerprint and pseudonym ID
 	fingerprint, pseudonymID, err := s.ibeSystem.DecryptIdentityWithVersion(encryptedData, DOMAIN_USER_CORRELATION, keyVersion)

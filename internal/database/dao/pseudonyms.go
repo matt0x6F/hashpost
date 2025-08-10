@@ -698,12 +698,13 @@ func (dao *PseudonymDAO) CreatePseudonymWithIdentityMapping(ctx context.Context,
 	}
 
 	// Create authentication identity mapping using Bob ORM
+	keyVersion := dao.ibeSystem.GetKeyVersion()
 	authenticationMapping := &models.IdentityMappingSetter{
 		Fingerprint:               &fingerprint,
 		PseudonymID:               &pseudonym.PseudonymID,
 		EncryptedRealIdentity:     &authenticationFingerprint,
 		EncryptedPseudonymMapping: &authenticationFingerprint,
-		KeyVersion:                &[]int32{int32(dao.ibeSystem.GetKeyVersion())}[0],
+		KeyVersion:                &keyVersion,
 		UserID:                    &userID,
 		KeyScope:                  &[]string{constants.ScopeAuthentication}[0],
 	}
@@ -733,7 +734,7 @@ func (dao *PseudonymDAO) CreatePseudonymWithIdentityMapping(ctx context.Context,
 		PseudonymID:               &pseudonym.PseudonymID,
 		EncryptedRealIdentity:     &selfCorrelationFingerprint,
 		EncryptedPseudonymMapping: &selfCorrelationFingerprint,
-		KeyVersion:                &[]int32{int32(dao.ibeSystem.GetKeyVersion())}[0],
+		KeyVersion:                &keyVersion,
 		UserID:                    &userID,
 		KeyScope:                  &[]string{constants.ScopeSelfCorrelation}[0],
 	}

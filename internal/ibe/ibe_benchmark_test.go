@@ -17,13 +17,13 @@ func createBenchmarkIBESystem() *IBESystem {
 		DOMAIN_ADMIN_CORRELATION,
 		DOMAIN_LEGAL_CORRELATION,
 	}
-	
+
 	for _, domain := range domains {
 		key := make([]byte, 32) // 256-bit keys for production
 		rand.Read(key)
 		domainMasters[domain] = key
 	}
-	
+
 	return NewIBESystemWithOptions(IBEOptions{
 		DomainMasters: domainMasters,
 		KeyVersion:    1,
@@ -188,7 +188,7 @@ func BenchmarkIBESystem_EncryptIdentityWithVersion(b *testing.B) {
 	realIdentity := "user@example.com"
 	pseudonymID := "pseudonym_123"
 	domain := DOMAIN_USER_CORRELATION
-	version := 1
+	version := int32(1)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -204,7 +204,7 @@ func BenchmarkIBESystem_DecryptIdentityWithVersion(b *testing.B) {
 	realIdentity := "user@example.com"
 	pseudonymID := "pseudonym_123"
 	domain := DOMAIN_USER_CORRELATION
-	version := 1
+	version := int32(1)
 
 	encryptedData, err := ibeSystem.EncryptIdentityWithVersion(realIdentity, pseudonymID, domain, version)
 	if err != nil {
@@ -234,7 +234,7 @@ func BenchmarkIBESystem_EncryptFingerprintMapping(b *testing.B) {
 	fingerprint := "fingerprint_123"
 	pseudonymID := "pseudonym_123"
 	domain := DOMAIN_USER_CORRELATION
-	version := 1
+	version := int32(1)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

@@ -54,8 +54,8 @@ func (k *KeyRotationCommand) GetCommand() *cobra.Command {
 // getCreateCommand returns the create migration command
 func (k *KeyRotationCommand) getCreateCommand() *cobra.Command {
 	var domain string
-	var oldKeyVersion int
-	var newKeyVersion int
+	var oldKeyVersion int32
+	var newKeyVersion int32
 
 	cmd := &cobra.Command{
 		Use:   "create",
@@ -67,8 +67,8 @@ func (k *KeyRotationCommand) getCreateCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&domain, "domain", "", "Domain to migrate (required)")
-	cmd.Flags().IntVar(&oldKeyVersion, "old-version", 0, "Old key version (required)")
-	cmd.Flags().IntVar(&newKeyVersion, "new-version", 0, "New key version (required)")
+	cmd.Flags().Int32Var(&oldKeyVersion, "old-version", 0, "Old key version (required)")
+	cmd.Flags().Int32Var(&newKeyVersion, "new-version", 0, "New key version (required)")
 	cmd.MarkFlagRequired("domain")
 	cmd.MarkFlagRequired("old-version")
 	cmd.MarkFlagRequired("new-version")
@@ -192,11 +192,11 @@ func (k *KeyRotationCommand) getCancelCommand() *cobra.Command {
 }
 
 // createMigration creates a new key rotation migration
-func (k *KeyRotationCommand) createMigration(ctx context.Context, domain string, oldKeyVersion, newKeyVersion int) error {
+func (k *KeyRotationCommand) createMigration(ctx context.Context, domain string, oldKeyVersion, newKeyVersion int32) error {
 	log.Info().
 		Str("domain", domain).
-		Int("old_version", oldKeyVersion).
-		Int("new_version", newKeyVersion).
+		Int32("old_version", oldKeyVersion).
+		Int32("new_version", newKeyVersion).
 		Msg("Creating key rotation migration")
 
 	// Create migration using the service
@@ -208,8 +208,8 @@ func (k *KeyRotationCommand) createMigration(ctx context.Context, domain string,
 
 	log.Info().
 		Str("domain", domain).
-		Int("old_version", oldKeyVersion).
-		Int("new_version", newKeyVersion).
+		Int32("old_version", oldKeyVersion).
+		Int32("new_version", newKeyVersion).
 		Msg("Migration created and started successfully")
 
 	fmt.Printf("Migration created and started successfully:\n")

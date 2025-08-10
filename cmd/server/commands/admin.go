@@ -1232,7 +1232,7 @@ func createAuthenticationMapping(ctx context.Context, identityMappingDAO *dao.Id
 	}
 
 	// Create authentication identity mapping
-	keyVersion := int32(ibeSystem.GetKeyVersion())
+	keyVersion := ibeSystem.GetKeyVersion()
 	scopeAuth := constants.ScopeAuthentication
 	// Use the actual fingerprint (string) for the fingerprint field, not the encrypted data
 	fingerprint := ibeSystem.GenerateFingerprint(user.Email)
@@ -1269,7 +1269,7 @@ func createSelfCorrelationMapping(ctx context.Context, identityMappingDAO *dao.I
 	}
 
 	// Create self-correlation identity mapping
-	keyVersion := int32(ibeSystem.GetKeyVersion())
+	keyVersion := ibeSystem.GetKeyVersion()
 	scopeSelfCorr := constants.ScopeSelfCorrelation
 	// Use the actual fingerprint (string) for the fingerprint field, not the encrypted data
 	fingerprint := ibeSystem.GenerateFingerprint(user.Email)
@@ -1306,7 +1306,7 @@ func createCorrelationMapping(ctx context.Context, identityMappingDAO *dao.Ident
 	}
 
 	// Create correlation identity mapping
-	keyVersion := int32(ibeSystem.GetKeyVersion())
+	keyVersion := ibeSystem.GetKeyVersion()
 	scopeCorr := constants.ScopeCorrelation
 	// Use the actual fingerprint (string) for the fingerprint field, not the encrypted data
 	fingerprint := ibeSystem.GenerateFingerprint(user.Email)
@@ -1493,7 +1493,7 @@ func RecreateIdentityMappings(ctx context.Context, userID int64, db bob.Executor
 			}
 
 			fingerprint := ibeSystem.GenerateFingerprint(user.Email)
-			keyVersion := int32(ibeSystem.GetKeyVersion())
+			keyVersion := ibeSystem.GetKeyVersion()
 			scopeAuth := constants.ScopeAuthentication
 
 			authenticationMapping := &models.IdentityMappingSetter{

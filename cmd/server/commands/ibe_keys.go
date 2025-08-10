@@ -22,7 +22,7 @@ import (
 // IBEKeyOptions defines options for IBE key generation
 type IBEKeyOptions struct {
 	OutputDir      string
-	KeyVersion     int
+	KeyVersion     int32
 	Salt           string
 	NonInteractive bool
 	KeySize        int
@@ -340,7 +340,7 @@ func NewGenerateIBEKeysCommand(cfg *config.Config) *cobra.Command {
 
 			// Parse command line flags
 			outputDir, _ := cmd.Flags().GetString("output-dir")
-			keyVersion, _ := cmd.Flags().GetInt("key-version")
+			keyVersion, _ := cmd.Flags().GetInt32("key-version")
 			salt, _ := cmd.Flags().GetString("salt")
 			nonInteractive, _ := cmd.Flags().GetBool("non-interactive")
 			keySize, _ := cmd.Flags().GetInt("key-size")
@@ -375,7 +375,7 @@ func NewGenerateIBEKeysCommand(cfg *config.Config) *cobra.Command {
 
 	// Add flags for generate-ibe-keys command
 	cmd.Flags().String("output-dir", "./keys", "Output directory for generated keys")
-	cmd.Flags().Int("key-version", 1, "Key version to generate")
+	cmd.Flags().Int32("key-version", 1, "Key version to generate")
 	cmd.Flags().String("salt", "", "Salt for fingerprint generation (defaults to config value)")
 	cmd.Flags().Bool("non-interactive", false, "Non-interactive mode")
 	cmd.Flags().Int("key-size", 32, "Key size in bytes (default 32, i.e., 256 bits)")

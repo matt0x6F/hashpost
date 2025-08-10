@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/matt0x6f/hashpost/internal/database/models"
+	"github.com/stephenafamo/bob"
 )
 
 // UserDAOInterface defines the interface for user data access operations
@@ -272,4 +273,22 @@ type PermissionDAOInterface interface {
 	// Unified permission methods that combine global and subforum-specific capabilities
 	GetUnifiedActivePseudonymRolesAndCapabilities(ctx context.Context, userID int64, activePseudonymID string, subforumID *int32) ([]string, []string, error)
 	HasUnifiedCapability(ctx context.Context, userID int64, activePseudonymID string, capability string, subforumID *int32) (bool, error)
+}
+
+// KeyRotationMigrationDAOInterface defines the interface for key rotation migration operations
+type KeyRotationMigrationDAOInterface interface {
+	GetDB() bob.Executor
+	CreateMigration(ctx context.Context, domain string, oldKeyVersion, newKeyVersion int32, createdBy int64) (*MigrationState, error)
+	GetMigrationByDomain(ctx context.Context, domain string, oldKeyVersion, newKeyVersion int32) (*MigrationState, error)
+	GetMigrationByID(ctx context.Context, migrationID string) (*MigrationState, error)
+	UpdateMigrationStatus(ctx context.Context, migrationID, status string) error
+	UpdateMigrationProgress(ctx context.Context, migrationID string, processedRecords, failedRecords int64, lastProcessedID *string) error
+	GetUnmigratedBatch(ctx context.Context, migrationID, domain string, offset int, batchSize int, lastProcessedID *string) ([]*models.IdentityMapping, error)
+	MarkRecordProcessing(ctx context.Context, migrationID, mappingID string) error
+	MarkRecordCompleted(ctx context.Context, migrationID, mappingID string) error
+	MarkRecordFailed(ctx context.Context, migrationID, mappingID, errorMessage string) error
+	IsRecordAlreadyMigrated(ctx context.Context, migrationID, mappingID string) (bool, error)
+	GetStuckRecords(ctx context.Context, migrationID string, timeoutMinutes int) ([]*models.MigrationProgress, error)
+	ResetRecordStatus(ctx context.Context, migrationID, mappingID, status string) error
+	GetMigrationProgress(ctx context.Context, migrationID string) (*MigrationProgress, error)
 }

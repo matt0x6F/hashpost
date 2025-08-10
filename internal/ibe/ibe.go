@@ -27,7 +27,7 @@ const (
 
 // KeyVersionInfo represents a specific key version with its domain keys
 type KeyVersionInfo struct {
-	Version      int
+	Version      int32
 	DomainKeys   map[string][]byte
 	Salt         string
 	CreatedAt    time.Time
@@ -38,9 +38,9 @@ type KeyVersionInfo struct {
 
 // KeyVersionRegistry manages multiple key versions for migration scenarios
 type KeyVersionRegistry struct {
-	CurrentVersion     int
-	ActiveVersions     map[int]*KeyVersionInfo
-	DeprecatedVersions map[int]*KeyVersionInfo
+	CurrentVersion     int32
+	ActiveVersions     map[int32]*KeyVersionInfo
+	DeprecatedVersions map[int32]*KeyVersionInfo
 	MigrationMode      bool
 }
 
@@ -48,14 +48,14 @@ type KeyVersionRegistry struct {
 func NewKeyVersionRegistry() *KeyVersionRegistry {
 	return &KeyVersionRegistry{
 		CurrentVersion:     1,
-		ActiveVersions:     make(map[int]*KeyVersionInfo),
-		DeprecatedVersions: make(map[int]*KeyVersionInfo),
+		ActiveVersions:     make(map[int32]*KeyVersionInfo),
+		DeprecatedVersions: make(map[int32]*KeyVersionInfo),
 		MigrationMode:      false,
 	}
 }
 
 // AddKeyVersion adds a new key version to the registry
-func (r *KeyVersionRegistry) AddKeyVersion(version int, domainKeys map[string][]byte, salt string) {
+func (r *KeyVersionRegistry) AddKeyVersion(version int32, domainKeys map[string][]byte, salt string) {
 	keyInfo := &KeyVersionInfo{
 		Version:      version,
 		DomainKeys:   domainKeys,
@@ -69,7 +69,7 @@ func (r *KeyVersionRegistry) AddKeyVersion(version int, domainKeys map[string][]
 }
 
 // DeprecateKeyVersion marks a key version as deprecated (for migration)
-func (r *KeyVersionRegistry) DeprecateKeyVersion(version int) error {
+func (r *KeyVersionRegistry) DeprecateKeyVersion(version int32) error {
 	keyInfo, exists := r.ActiveVersions[version]
 	if !exists {
 		return fmt.Errorf("key version %d not found", version)
@@ -88,7 +88,7 @@ func (r *KeyVersionRegistry) DeprecateKeyVersion(version int) error {
 }
 
 // GetKeyVersionInfo retrieves key information for a specific version
-func (r *KeyVersionRegistry) GetKeyVersionInfo(version int) (*KeyVersionInfo, error) {
+func (r *KeyVersionRegistry) GetKeyVersionInfo(version int32) (*KeyVersionInfo, error) {
 	// Check active versions first
 	if keyInfo, exists := r.ActiveVersions[version]; exists {
 		return keyInfo, nil
@@ -103,7 +103,7 @@ func (r *KeyVersionRegistry) GetKeyVersionInfo(version int) (*KeyVersionInfo, er
 }
 
 // GetDomainKeyForVersion gets the domain key for a specific version and domain
-func (r *KeyVersionRegistry) GetDomainKeyForVersion(version int, domain string) ([]byte, error) {
+func (r *KeyVersionRegistry) GetDomainKeyForVersion(version int32, domain string) ([]byte, error) {
 	keyInfo, err := r.GetKeyVersionInfo(version)
 	if err != nil {
 		return nil, err
@@ -146,7 +146,7 @@ func (r *KeyVersionRegistry) DisableMigrationMode() {
 // allowing the system to operate in migration mode where both old and new keys are available.
 type IBESystem struct {
 	domainMasters map[string][]byte // Separate master key for each domain
-	keyVersion    int
+	keyVersion    int32
 	salt          []byte
 	keyRegistry   *KeyVersionRegistry // Multi-version key support
 }
@@ -154,13 +154,13 @@ type IBESystem struct {
 // IBEOptions defines configuration options for the IBE system
 type IBEOptions struct {
 	DomainMasters map[string][]byte   // Separate master keys for each domain
-	KeyVersion    int                 // Optional: defaults to 1
+	KeyVersion    int32               // Optional: defaults to 1
 	Salt          string              // Optional: salt for fingerprint generation, defaults to "fingerprint_salt_v1"
 	KeyRegistry   *KeyVersionRegistry // Optional: multi-version key registry
 }
 
 // NewIBESystem creates a new IBE system with true domain separation
-func NewIBESystem(domainMasters map[string][]byte, keyVersion int, salt []byte) *IBESystem {
+func NewIBESystem(domainMasters map[string][]byte, keyVersion int32, salt []byte) *IBESystem {
 	return &IBESystem{
 		domainMasters: domainMasters,
 		keyVersion:    keyVersion,
@@ -179,7 +179,7 @@ func (ibe *IBESystem) getDomainMaster(domain string) ([]byte, error) {
 }
 
 // getDomainMasterForVersion gets the master key for a specific domain and version
-func (ibe *IBESystem) getDomainMasterForVersion(domain string, version int) ([]byte, error) {
+func (ibe *IBESystem) getDomainMasterForVersion(domain string, version int32) ([]byte, error) {
 	// If we have a key registry with multiple versions, use it
 	if ibe.keyRegistry != nil && ibe.keyRegistry.MigrationMode {
 		return ibe.keyRegistry.GetDomainKeyForVersion(version, domain)
@@ -190,7 +190,7 @@ func (ibe *IBESystem) getDomainMasterForVersion(domain string, version int) ([]b
 }
 
 // GeneratePseudonym creates a pseudonym ID for a user with enhanced context separation
-func (ibe *IBESystem) GeneratePseudonym(userID int64, context string, version int) string {
+func (ibe *IBESystem) GeneratePseudonym(userID int64, context string, version int32) string {
 	domainMaster, err := ibe.getDomainMaster(DOMAIN_USER_PSEUDONYMS)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to get domain master")
@@ -242,7 +242,7 @@ func (ibe *IBESystem) GenerateCorrelationKey(role, scope string, timeWindow time
 }
 
 // GenerateCorrelationKeyForVersion creates a time-bounded correlation key for a specific version
-func (ibe *IBESystem) GenerateCorrelationKeyForVersion(role, scope string, timeWindow time.Duration, version int) []byte {
+func (ibe *IBESystem) GenerateCorrelationKeyForVersion(role, scope string, timeWindow time.Duration, version int32) []byte {
 	// Select appropriate domain based on role
 	domain := selectDomain(role)
 	domainMaster, err := ibe.getDomainMasterForVersion(domain, version)
@@ -318,7 +318,7 @@ func (ibe *IBESystem) EncryptIdentityWithDomain(realIdentity, pseudonymID string
 }
 
 // EncryptIdentityWithVersion encrypts identity mapping with version-specific key
-func (ibe *IBESystem) EncryptIdentityWithVersion(realIdentity, pseudonymID string, domain string, version int) ([]byte, error) {
+func (ibe *IBESystem) EncryptIdentityWithVersion(realIdentity, pseudonymID string, domain string, version int32) ([]byte, error) {
 	// Get domain key for specific version
 	domainKey, err := ibe.getDomainMasterForVersion(domain, version)
 	if err != nil {
@@ -329,7 +329,7 @@ func (ibe *IBESystem) EncryptIdentityWithVersion(realIdentity, pseudonymID strin
 }
 
 // DecryptIdentityWithVersion decrypts identity mapping with version-specific key
-func (ibe *IBESystem) DecryptIdentityWithVersion(encryptedData []byte, domain string, version int) (string, string, error) {
+func (ibe *IBESystem) DecryptIdentityWithVersion(encryptedData []byte, domain string, version int32) (string, string, error) {
 	// Get domain key for specific version
 	domainKey, err := ibe.getDomainMasterForVersion(domain, version)
 	if err != nil {
@@ -437,32 +437,6 @@ func NewIBESystemWithOptions(opts IBEOptions) *IBESystem {
 
 // Backward compatibility methods - maintain existing API
 
-// GetMasterSecret returns a copy of the master secret (for backward compatibility)
-// Note: This is deprecated - use GetDomainMasters instead
-func (ibe *IBESystem) GetMasterSecret() []byte {
-	// For backward compatibility, return the first domain master
-	for _, master := range ibe.domainMasters {
-		secret := make([]byte, len(master))
-		copy(secret, master)
-		return secret
-	}
-	return nil
-}
-
-// SetMasterSecret sets the master secret (for backward compatibility)
-// Note: This is deprecated - use SetDomainMasters instead
-func (ibe *IBESystem) SetMasterSecret(secret []byte) error {
-	if len(secret) < 32 {
-		return fmt.Errorf("master secret must be at least 32 bytes for security, got %d", len(secret))
-	}
-	// For backward compatibility, set all domains to use the same secret
-	for domain := range ibe.domainMasters {
-		ibe.domainMasters[domain] = make([]byte, len(secret))
-		copy(ibe.domainMasters[domain], secret)
-	}
-	return nil
-}
-
 // GetDomainMasters returns all domain masters (new API)
 func (ibe *IBESystem) GetDomainMasters() map[string][]byte {
 	result := make(map[string][]byte)
@@ -486,12 +460,12 @@ func (ibe *IBESystem) SetDomainMasters(domainMasters map[string][]byte) error {
 }
 
 // GetKeyVersion returns the current key version
-func (ibe *IBESystem) GetKeyVersion() int {
+func (ibe *IBESystem) GetKeyVersion() int32 {
 	return ibe.keyVersion
 }
 
 // SetKeyVersion sets the key version
-func (ibe *IBESystem) SetKeyVersion(version int) {
+func (ibe *IBESystem) SetKeyVersion(version int32) {
 	ibe.keyVersion = version
 }
 
@@ -527,14 +501,14 @@ func (ibe *IBESystem) DisableMigrationMode() {
 }
 
 // AddKeyVersion adds a new key version to the registry
-func (ibe *IBESystem) AddKeyVersion(version int, domainKeys map[string][]byte, salt string) {
+func (ibe *IBESystem) AddKeyVersion(version int32, domainKeys map[string][]byte, salt string) {
 	if ibe.keyRegistry != nil {
 		ibe.keyRegistry.AddKeyVersion(version, domainKeys, salt)
 	}
 }
 
 // DeprecateKeyVersion marks a key version as deprecated (for migration)
-func (ibe *IBESystem) DeprecateKeyVersion(version int) error {
+func (ibe *IBESystem) DeprecateKeyVersion(version int32) error {
 	if ibe.keyRegistry != nil {
 		return ibe.keyRegistry.DeprecateKeyVersion(version)
 	}
@@ -649,7 +623,7 @@ func (ibe *IBESystem) GenerateTimeBoundedKey(role, scope string, duration time.D
 }
 
 // NewIBESystemFromConfig creates a new IBE system from configuration
-func NewIBESystemFromConfig(domainKeysDir string, keyVersion int, salt string) (*IBESystem, error) {
+func NewIBESystemFromConfig(domainKeysDir string, keyVersion int32, salt string) (*IBESystem, error) {
 	opts := IBEOptions{
 		KeyVersion: keyVersion,
 		Salt:       salt,
@@ -740,7 +714,7 @@ func NewIBESystemFromEnv() *IBESystem {
 	if salt == "" {
 		salt = "fingerprint_salt_v1"
 	}
-	ibeSystem, err := NewIBESystemFromConfig(domainKeysDir, int(keyVersion), salt)
+	ibeSystem, err := NewIBESystemFromConfig(domainKeysDir, keyVersion, salt)
 	if err != nil {
 		panic("Failed to create IBE system from environment: " + err.Error())
 	}
@@ -768,7 +742,7 @@ func NewTestIBESystem() *IBESystem {
 }
 
 // EncryptFingerprintMapping encrypts a fingerprint-to-pseudonym mapping directly
-func (ibe *IBESystem) EncryptFingerprintMapping(fingerprint, pseudonymID string, domain string, version int) ([]byte, error) {
+func (ibe *IBESystem) EncryptFingerprintMapping(fingerprint, pseudonymID string, domain string, version int32) ([]byte, error) {
 	// Get domain key for specific version
 	domainKey, err := ibe.getDomainMasterForVersion(domain, version)
 	if err != nil {
