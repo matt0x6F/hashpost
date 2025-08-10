@@ -9,6 +9,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/stephenafamo/bob"
+	"github.com/stephenafamo/bob/dialect/psql/dialect"
 	"github.com/stephenafamo/bob/dialect/psql/sm"
 )
 
@@ -141,6 +142,31 @@ func (dao *KeyRotationMigrationDAO) GetMigrationByID(ctx context.Context, migrat
 	}
 
 	return dao.convertToMigrationState(migration), nil
+}
+
+// ListMigrations retrieves all migrations with optional filtering
+func (dao *KeyRotationMigrationDAO) ListMigrations(ctx context.Context, domain, status string) ([]*MigrationState, error) {
+	var conditions []bob.Mod[*dialect.SelectQuery]
+
+	if domain != "" {
+		conditions = append(conditions, models.SelectWhere.KeyRotationMigrations.Domain.EQ(domain))
+	}
+
+	if status != "" {
+		conditions = append(conditions, models.SelectWhere.KeyRotationMigrations.Status.EQ(status))
+	}
+
+	migrations, err := models.KeyRotationMigrations.Query(conditions...).All(ctx, dao.db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list migrations: %w", err)
+	}
+
+	result := make([]*MigrationState, len(migrations))
+	for i, migration := range migrations {
+		result[i] = dao.convertToMigrationState(migration)
+	}
+
+	return result, nil
 }
 
 // UpdateMigrationStatus updates the status of a migration

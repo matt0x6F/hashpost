@@ -29,6 +29,121 @@ const (
 	adminPseudonymType = "admin-pseudonym"
 )
 
+// NewAdminCommands creates and returns all admin-related commands
+func NewAdminCommands() []*cobra.Command {
+	return []*cobra.Command{
+		NewCreateAdminCommand(),
+		NewSetModeratorCommand(),
+		NewDeleteUserCommand(),
+		NewUpdateAdminCommand(),
+	}
+}
+
+// NewCreateAdminCommand creates the create-admin command
+func NewCreateAdminCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "create-admin",
+		Short: "Create a new admin user",
+		Long:  "Create a new admin user with specified role and capabilities",
+		Run: func(cmd *cobra.Command, args []string) {
+			// This command needs IBE - initialize it
+			if err := InitializeIBEForCommand(); err != nil {
+				log.Fatal().Err(err).Msg("Failed to initialize IBE system")
+			}
+			if err := CreateAdminUser(); err != nil {
+				log.Fatal().Err(err).Msg("Failed to create admin user")
+			}
+		},
+	}
+
+	// Add flags for create-admin command
+	cmd.Flags().String("email", "", "Email address for the admin user")
+	cmd.Flags().String("password", "", "Password for the admin user")
+	cmd.Flags().String("role", "platform_admin", "Admin role (platform_admin, trust_safety, legal_team)")
+	cmd.Flags().String("display-name", "", "Display name for the admin user")
+	cmd.Flags().String("scope", "", "Admin scope (optional)")
+	cmd.Flags().Bool("mfa-enabled", true, "Enable MFA for the admin user")
+	cmd.Flags().Bool("non-interactive", false, "Non-interactive mode (requires all flags)")
+
+	return cmd
+}
+
+// NewSetModeratorCommand creates the set-moderator command
+func NewSetModeratorCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "set-moderator",
+		Short: "Set a pseudonym as a forum moderator",
+		Long:  "Set a pseudonym as a moderator of a specific subforum",
+		Run: func(cmd *cobra.Command, args []string) {
+			// This command needs IBE - initialize it
+			if err := InitializeIBEForCommand(); err != nil {
+				log.Fatal().Err(err).Msg("Failed to initialize IBE system")
+			}
+			if err := SetModerator(); err != nil {
+				log.Fatal().Err(err).Msg("Failed to set moderator")
+			}
+		},
+	}
+
+	// Add flags for set-moderator command
+	cmd.Flags().String("subforum", "", "Name of the subforum")
+	cmd.Flags().String("pseudonym", "", "Pseudonym ID to set as moderator")
+	cmd.Flags().Bool("non-interactive", false, "Non-interactive mode (requires all flags)")
+
+	return cmd
+}
+
+// NewDeleteUserCommand creates the delete-user command
+func NewDeleteUserCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "delete-user",
+		Short: "Delete a user and all associated data",
+		Long:  "Delete a user account and all associated data including pseudonyms, role keys, and tokens",
+		Run: func(cmd *cobra.Command, args []string) {
+			// This command needs IBE - initialize it
+			if err := InitializeIBEForCommand(); err != nil {
+				log.Fatal().Err(err).Msg("Failed to initialize IBE system")
+			}
+			if err := DeleteUser(); err != nil {
+				log.Fatal().Err(err).Msg("Failed to delete user")
+			}
+		},
+	}
+
+	// Add flags for delete-user command
+	cmd.Flags().String("email", "", "Email address of the user to delete")
+	cmd.Flags().Bool("force", false, "Force deletion without confirmation")
+	cmd.Flags().Bool("non-interactive", false, "Non-interactive mode (requires all flags)")
+
+	return cmd
+}
+
+// NewUpdateAdminCommand creates the update-admin command
+func NewUpdateAdminCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "update-admin",
+		Short: "Update an admin user and fix their pseudonym mappings",
+		Long:  "Update an existing admin user's role and optionally fix missing identity mappings",
+		Run: func(cmd *cobra.Command, args []string) {
+			// This command needs IBE - initialize it
+			if err := InitializeIBEForCommand(); err != nil {
+				log.Fatal().Err(err).Msg("Failed to initialize IBE system")
+			}
+			if err := UpdateAdminUserWithCommand(cmd); err != nil {
+				log.Fatal().Err(err).Msg("Failed to update admin user")
+			}
+		},
+	}
+
+	// Add flags for update-admin command
+	cmd.Flags().String("email", "", "Email address of the admin user to update")
+	cmd.Flags().String("role", "platform_admin", "Admin role (platform_admin, trust_safety, legal_team)")
+	cmd.Flags().Bool("fix-mappings", false, "Fix missing identity mappings for the user's pseudonyms")
+	cmd.Flags().Bool("non-interactive", false, "Non-interactive mode (requires all flags)")
+
+	return cmd
+}
+
 // AdminCreateInput defines the input for creating an admin user.
 type AdminCreateInput struct {
 	Email          string `doc:"Email address for the admin user" json:"email"`
@@ -62,6 +177,8 @@ type UpdateAdminInput struct {
 
 // CreateAdminUser creates a new admin user
 func CreateAdminUser() error {
+	// Get admin create input
+	input := getAdminCreateInput()
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
@@ -73,9 +190,6 @@ func CreateAdminUser() error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
-
-	// Get admin creation input
-	input := getAdminCreateInput()
 
 	// Validate input
 	if err := validateAdminInput(input); err != nil {
@@ -426,13 +540,13 @@ func SetModerator() error {
 	return nil
 }
 
-// UpdateAdminUserWithCommand updates an existing admin user and optionally fixes their pseudonym mappings
-func UpdateAdminUserWithCommand(cmd *cobra.Command) error {
+// UpdateAdminUser updates an existing admin user and optionally fixes their pseudonym mappings
+func UpdateAdminUserWithCommand(cobraCmd *cobra.Command) error {
 	// Read flags from command line
-	email, _ := cmd.Flags().GetString("email")
-	role, _ := cmd.Flags().GetString("role")
-	fixMappings, _ := cmd.Flags().GetBool("fix-mappings")
-	nonInteractive, _ := cmd.Flags().GetBool("non-interactive")
+	email, _ := cobraCmd.Flags().GetString("email")
+	role, _ := cobraCmd.Flags().GetString("role")
+	fixMappings, _ := cobraCmd.Flags().GetBool("fix-mappings")
+	nonInteractive, _ := cobraCmd.Flags().GetBool("non-interactive")
 
 	// Create input from flags
 	input := &UpdateAdminInput{

@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -11,58 +12,72 @@ import (
 
 	"github.com/matt0x6f/hashpost/internal/api/constants"
 	"github.com/matt0x6f/hashpost/internal/config"
+	"github.com/matt0x6f/hashpost/internal/database"
+	"github.com/matt0x6f/hashpost/internal/database/dao"
 	"github.com/matt0x6f/hashpost/internal/ibe"
 	"github.com/rs/zerolog/log"
+	"github.com/spf13/cobra"
 )
 
-// IBEKeyOptions defines the options for IBE key generation
+// IBEKeyOptions defines options for IBE key generation
 type IBEKeyOptions struct {
-	OutputDir      string `doc:"Output directory for generated keys" json:"output_dir"`
-	KeyVersion     int    `doc:"Key version to generate" json:"key_version" default:"1"`
-	Salt           string `doc:"Salt for fingerprint generation" json:"salt" default:"fingerprint_salt_v1"`
-	KeySize        int    `doc:"Key size in bytes (default 32, i.e., 256 bits)" json:"key_size" default:"32"`
-	NonInteractive bool   `doc:"Non-interactive mode" json:"non_interactive"`
+	OutputDir      string
+	KeyVersion     int
+	Salt           string
+	NonInteractive bool
+	KeySize        int
 }
 
-// GenerateIBEKeys generates IBE keys for the enhanced architecture
-// This command automatically generates all necessary domain keys and role keys
-// based on the system's predefined role-domain-scope mappings
-func GenerateIBEKeys(opts *IBEKeyOptions) error {
-	// Load configuration (for future use)
-	_, err := config.Load()
+// GenerateIBEKeys generates IBE keys for enhanced architecture
+func GenerateIBEKeys(options *IBEKeyOptions) error {
+	// Load configuration
+	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	// Create output directory if it doesn't exist
-	if err := os.MkdirAll(opts.OutputDir, 0755); err != nil {
-		return fmt.Errorf("failed to create output directory: %w", err)
-	}
-
-	// Initialize IBE system with automatically generated domain keys
-	ibeSystem, err := initializeIBESystem(opts)
+	// Create database connection
+	db, err := database.NewConnection(&cfg.Database)
 	if err != nil {
-		return fmt.Errorf("failed to initialize IBE system: %w", err)
+		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Generate domain keys (all domains are automatically generated)
-	if err := generateDomainKeys(ibeSystem, opts.OutputDir); err != nil {
-		return fmt.Errorf("failed to generate domain keys: %w", err)
-	}
+	// Initialize IBE system
+	ibeSystem := ibe.NewIBESystemFromEnv()
 
-	// Generate role keys with automatic domain and scope mapping
-	if err := generateRoleKeys(ibeSystem, opts.OutputDir); err != nil {
-		return fmt.Errorf("failed to generate role keys: %w", err)
-	}
+	// Create role key DAO
+	roleKeyDAO := dao.NewRoleKeyDAO(db)
+	ctx := context.Background()
 
-	// Generate test keys for development
-	if err := generateTestKeys(ibeSystem, opts.OutputDir); err != nil {
-		return fmt.Errorf("failed to generate test keys: %w", err)
-	}
+	// Define all roles and their capabilities using constants
+	allRoles := constants.GetRoleDefinitions()
 
-	// Save configuration
-	if err := saveIBEConfiguration(ibeSystem, opts.OutputDir); err != nil {
-		return fmt.Errorf("failed to save IBE configuration: %w", err)
+	// Create role keys for each admin role
+	for _, adminRole := range allRoles {
+		log.Info().Str("role", adminRole.RoleName).Msg("Creating role keys")
+
+		for _, scope := range adminRole.Scopes {
+			capabilities := adminRole.Capabilities[scope]
+
+			// Check if role key already exists for this role
+			existingKey, err := roleKeyDAO.GetRoleKey(ctx, adminRole.RoleName, scope, nil)
+			if err == nil && existingKey != nil {
+				log.Info().Str("role", adminRole.RoleName).Str("scope", scope).Msg("Role key already exists, skipping")
+				continue
+			}
+
+			// Create the role key
+			expiresAt := time.Now().AddDate(1, 0, 0) // Expire in 1 year
+			keyData := ibeSystem.GenerateTestRoleKey(adminRole.RoleName, scope)
+
+			_, err = roleKeyDAO.CreateRoleKey(ctx, adminRole.RoleName, scope, keyData, capabilities, expiresAt, adminRole.RoleName, "", nil)
+			if err != nil {
+				log.Error().Str("role", adminRole.RoleName).Str("scope", scope).Err(err).Msg("Failed to create role key")
+				continue
+			}
+
+			log.Info().Str("role", adminRole.RoleName).Str("scope", scope).Strs("capabilities", capabilities).Msg("Role key created successfully")
+		}
 	}
 
 	log.Info().Msg("IBE key generation completed successfully")
@@ -315,4 +330,53 @@ func saveKeyToFile(key []byte, path string) error {
 
 func saveStringToFile(content string, path string) error {
 	return os.WriteFile(path, []byte(content), 0644)
+}
+
+// NewGenerateIBEKeysCommand creates and returns the generate-ibe-keys command
+func NewGenerateIBEKeysCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "generate-ibe-keys",
+		Short: "Generate IBE keys for enhanced architecture",
+		Long:  "Generate Identity-Based Encryption keys with automatic domain separation and role-scope mapping. This command automatically generates all necessary domain keys and role keys based on the system's predefined mappings.",
+		Run: func(cmd *cobra.Command, args []string) {
+			// This command generates IBE keys from scratch - no need to initialize existing system
+
+			// Parse command line flags
+			outputDir, _ := cmd.Flags().GetString("output-dir")
+			keyVersion, _ := cmd.Flags().GetInt("key-version")
+			salt, _ := cmd.Flags().GetString("salt")
+			nonInteractive, _ := cmd.Flags().GetBool("non-interactive")
+			keySize, _ := cmd.Flags().GetInt("key-size")
+
+			// Create IBE key options
+			ibeOptions := &IBEKeyOptions{
+				OutputDir:      outputDir,
+				KeyVersion:     keyVersion,
+				Salt:           salt,
+				NonInteractive: nonInteractive,
+				KeySize:        keySize,
+			}
+
+			// Generate IBE keys
+			if err := GenerateIBEKeys(ibeOptions); err != nil {
+				log.Fatal().Err(err).Msg("Failed to generate IBE keys")
+			}
+
+			fmt.Println("✅ IBE keys generated successfully!")
+			fmt.Printf("   Output directory: %s\n", outputDir)
+			fmt.Printf("   Key version: %d\n", keyVersion)
+			fmt.Printf("   Salt: %s\n", salt)
+			fmt.Println("   Generated domain keys for all domains")
+			fmt.Println("   Generated role keys for all roles with appropriate scopes")
+		},
+	}
+
+	// Add flags for generate-ibe-keys command
+	cmd.Flags().String("output-dir", "./keys", "Output directory for generated keys")
+	cmd.Flags().Int("key-version", 1, "Key version to generate")
+	cmd.Flags().String("salt", "fingerprint_salt_v1", "Salt for fingerprint generation")
+	cmd.Flags().Bool("non-interactive", false, "Non-interactive mode")
+	cmd.Flags().Int("key-size", 32, "Key size in bytes (default 32, i.e., 256 bits)")
+
+	return cmd
 }
