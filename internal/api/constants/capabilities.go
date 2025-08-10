@@ -40,6 +40,12 @@ const (
 
 	// CorrelateFingerprints allows correlating fingerprints within a subforum
 	CapabilityCorrelateFingerprints = "correlate_fingerprints"
+
+	// CorrelateIdentities allows correlating identities across the platform
+	CapabilityCorrelateIdentities = "correlate_identities"
+
+	// ViewCorrelationHistory allows viewing correlation audit history
+	CapabilityViewCorrelationHistory = "view_correlation_history"
 )
 
 // Moderation capabilities - used for content and user moderation

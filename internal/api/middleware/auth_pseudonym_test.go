@@ -11,10 +11,9 @@ import (
 func TestUserContext_PseudonymContext(t *testing.T) {
 	t.Run("UserContextWithPseudonym", func(t *testing.T) {
 		userCtx := &UserContext{
-			UserID:            123,
-			Email:             "test@example.com",
-			Roles:             []string{"user"},
-			Capabilities:      []string{"create_content", "vote", "message", "report"},
+			UserID: 123,
+			Email:  "test@example.com",
+			// roles and capabilities deprecated
 			MFAEnabled:        false,
 			ActivePseudonymID: "test_pseudonym_123",
 			DisplayName:       "Test User",
@@ -37,10 +36,9 @@ func TestUserContext_PseudonymContext(t *testing.T) {
 
 	t.Run("UserContextWithoutPseudonym", func(t *testing.T) {
 		userCtx := &UserContext{
-			UserID:            123,
-			Email:             "test@example.com",
-			Roles:             []string{"user"},
-			Capabilities:      []string{"create_content", "vote", "message", "report"},
+			UserID: 123,
+			Email:  "test@example.com",
+			// roles and capabilities deprecated
 			MFAEnabled:        false,
 			ActivePseudonymID: "", // No active pseudonym
 			DisplayName:       "",
@@ -61,10 +59,9 @@ func TestUserContext_PseudonymContext(t *testing.T) {
 func TestJWTClaims_PseudonymContext(t *testing.T) {
 	t.Run("JWTClaimsWithPseudonym", func(t *testing.T) {
 		claims := &JWTClaims{
-			UserID:            123,
-			Email:             "test@example.com",
-			Roles:             []string{"user"},
-			Capabilities:      []string{"create_content", "vote", "message", "report"},
+			UserID: 123,
+			Email:  "test@example.com",
+			// roles and capabilities deprecated
 			MFAEnabled:        false,
 			ActivePseudonymID: "test_pseudonym_123",
 			DisplayName:       "Test User",
@@ -82,10 +79,9 @@ func TestJWTClaims_PseudonymContext(t *testing.T) {
 
 	t.Run("JWTClaimsWithoutPseudonym", func(t *testing.T) {
 		claims := &JWTClaims{
-			UserID:            123,
-			Email:             "test@example.com",
-			Roles:             []string{"user"},
-			Capabilities:      []string{"create_content", "vote", "message", "report"},
+			UserID: 123,
+			Email:  "test@example.com",
+			// roles and capabilities deprecated
 			MFAEnabled:        false,
 			ActivePseudonymID: "", // No active pseudonym
 			DisplayName:       "",
@@ -105,10 +101,9 @@ func TestJWTClaims_PseudonymContext(t *testing.T) {
 func TestGenerateJWT_PseudonymContext(t *testing.T) {
 	t.Run("GenerateJWTWithPseudonym", func(t *testing.T) {
 		userCtx := &UserContext{
-			UserID:            123,
-			Email:             "test@example.com",
-			Roles:             []string{"user"},
-			Capabilities:      []string{"create_content", "vote", "message", "report"},
+			UserID: 123,
+			Email:  "test@example.com",
+			// roles and capabilities deprecated
 			MFAEnabled:        false,
 			ActivePseudonymID: "test_pseudonym_123",
 			DisplayName:       "Test User",
@@ -171,10 +166,9 @@ func TestGenerateJWT_PseudonymContext(t *testing.T) {
 
 	t.Run("GenerateJWTWithoutPseudonym", func(t *testing.T) {
 		userCtx := &UserContext{
-			UserID:            123,
-			Email:             "test@example.com",
-			Roles:             []string{"user"},
-			Capabilities:      []string{"create_content", "vote", "message", "report"},
+			UserID: 123,
+			Email:  "test@example.com",
+			// roles and capabilities deprecated
 			MFAEnabled:        false,
 			ActivePseudonymID: "", // No active pseudonym
 			DisplayName:       "",
@@ -235,25 +229,17 @@ func TestGenerateJWT_PseudonymContext(t *testing.T) {
 func TestUserContext_ModerationContext(t *testing.T) {
 	t.Run("ModeratorWithPseudonym", func(t *testing.T) {
 		userCtx := &UserContext{
-			UserID:            123,
-			Email:             "moderator@example.com",
-			Roles:             []string{"moderator"},
-			Capabilities:      []string{"moderate_content", "ban_users", "delete_posts"},
+			UserID: 123,
+			Email:  "moderator@example.com",
+			// roles and capabilities deprecated
 			MFAEnabled:        false,
 			ActivePseudonymID: "moderator_pseudonym_123",
 			DisplayName:       "Moderator User",
 			TokenType:         "jwt",
 		}
 
-		// Test that moderator has correct roles
-		if !userCtx.HasRole("moderator") {
-			t.Error("Expected user to have moderator role")
-		}
-
-		// Test that moderator has moderation capabilities
-		if !userCtx.HasCapability("moderate_content") {
-			t.Error("Expected user to have moderate_content capability")
-		}
+		// Note: Role and capability checks are now done via permissionDAO.HasUnifiedCapability()
+		// rather than cached in UserContext
 
 		// Test that pseudonym context is available for moderation actions
 		if userCtx.ActivePseudonymID == "" {
@@ -263,25 +249,20 @@ func TestUserContext_ModerationContext(t *testing.T) {
 
 	t.Run("RegularUserWithoutModeration", func(t *testing.T) {
 		userCtx := &UserContext{
-			UserID:            456,
-			Email:             "user@example.com",
-			Roles:             []string{"user"},
-			Capabilities:      []string{"create_content", "vote", "message", "report"},
+			UserID: 456,
+			Email:  "user@example.com",
+			// roles and capabilities deprecated
 			MFAEnabled:        false,
 			ActivePseudonymID: "user_pseudonym_456",
 			DisplayName:       "Regular User",
 			TokenType:         "jwt",
 		}
 
-		// Test that regular user doesn't have moderator role
-		if userCtx.HasRole("moderator") {
-			t.Error("Expected user to not have moderator role")
-		}
+		// Note: Role checks are now done via permissionDAO.HasUnifiedCapability()
+		// rather than cached in UserContext
 
-		// Test that regular user doesn't have moderation capabilities
-		if userCtx.HasCapability("moderate_content") {
-			t.Error("Expected user to not have moderate_content capability")
-		}
+		// Note: Capability checks are now done via permissionDAO.HasUnifiedCapability()
+		// rather than cached in UserContext
 
 		// Test that user still has pseudonym context for regular actions
 		if userCtx.ActivePseudonymID == "" {
@@ -296,10 +277,9 @@ func TestUserContext_MultiplePseudonyms(t *testing.T) {
 		// This would typically be tested in integration tests, but we can test the context here
 
 		userCtx := &UserContext{
-			UserID:            789,
-			Email:             "multipseud@example.com",
-			Roles:             []string{"user"},
-			Capabilities:      []string{"create_content", "vote", "message", "report"},
+			UserID: 789,
+			Email:  "multipseud@example.com",
+			// roles and capabilities deprecated
 			MFAEnabled:        false,
 			ActivePseudonymID: "primary_pseudonym_789", // Currently active pseudonym
 			DisplayName:       "Primary User",

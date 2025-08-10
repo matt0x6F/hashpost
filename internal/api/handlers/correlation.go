@@ -32,10 +32,11 @@ type CorrelationHandler struct {
 	commentDAO          dao.CommentDAOInterface
 	subforumDAO         dao.SubforumDAOInterface
 	correlationAuditDAO dao.CorrelationAuditDAOInterface
+	permissionDAO       dao.PermissionDAOInterface
 }
 
 // NewCorrelationHandler creates a new correlation handler
-func NewCorrelationHandler(db bob.Executor, ibeSystem *ibe.IBESystem, pseudonymDAO dao.PseudonymDAOInterface, identityMappingDAO dao.IdentityMappingDAOInterface, postDAO dao.PostDAOInterface, commentDAO dao.CommentDAOInterface, subforumDAO dao.SubforumDAOInterface, correlationAuditDAO dao.CorrelationAuditDAOInterface) *CorrelationHandler {
+func NewCorrelationHandler(db bob.Executor, ibeSystem *ibe.IBESystem, pseudonymDAO dao.PseudonymDAOInterface, identityMappingDAO dao.IdentityMappingDAOInterface, postDAO dao.PostDAOInterface, commentDAO dao.CommentDAOInterface, subforumDAO dao.SubforumDAOInterface, correlationAuditDAO dao.CorrelationAuditDAOInterface, permissionDAO dao.PermissionDAOInterface) *CorrelationHandler {
 	return &CorrelationHandler{
 		db:                  db,
 		ibeSystem:           ibeSystem,
@@ -45,6 +46,7 @@ func NewCorrelationHandler(db bob.Executor, ibeSystem *ibe.IBESystem, pseudonymD
 		commentDAO:          commentDAO,
 		subforumDAO:         subforumDAO,
 		correlationAuditDAO: correlationAuditDAO,
+		permissionDAO:       permissionDAO,
 	}
 }
 
@@ -70,7 +72,12 @@ func (h *CorrelationHandler) RequestFingerprintCorrelation(ctx context.Context, 
 		Msg("Fingerprint correlation requested")
 
 	// Validate admin permissions
-	if !userCtx.HasCapability("correlate_fingerprints") {
+	hasCapability, err := h.permissionDAO.HasUnifiedCapability(ctx, userCtx.UserID, userCtx.ActivePseudonymID, constants.CapabilityCorrelateFingerprints, nil)
+	if err != nil {
+		log.Error().Err(err).Int64("user_id", userCtx.UserID).Msg("Failed to check correlate_fingerprints capability")
+		return nil, fmt.Errorf("failed to check permissions: %w", err)
+	}
+	if !hasCapability {
 		log.Warn().
 			Int64("admin_id", adminID).
 			Msg("User lacks correlate_fingerprints capability")
@@ -283,7 +290,12 @@ func (h *CorrelationHandler) RequestIdentityCorrelation(ctx context.Context, inp
 		Msg("Identity correlation requested")
 
 	// Validate admin permissions for platform-wide correlation
-	if !userCtx.HasCapability("correlate_identities") {
+	hasCapability, err := h.permissionDAO.HasUnifiedCapability(ctx, userCtx.UserID, userCtx.ActivePseudonymID, constants.CapabilityCorrelateIdentities, nil)
+	if err != nil {
+		log.Error().Err(err).Int64("user_id", userCtx.UserID).Msg("Failed to check correlate_identities capability")
+		return nil, fmt.Errorf("failed to check permissions: %w", err)
+	}
+	if !hasCapability {
 		log.Warn().
 			Int64("admin_id", adminID).
 			Msg("User lacks correlate_identities capability")
@@ -551,7 +563,12 @@ func (h *CorrelationHandler) GetCorrelationHistory(ctx context.Context, input *m
 		Msg("Get correlation history requested")
 
 	// Validate admin permissions
-	if !userCtx.HasCapability("view_correlation_history") {
+	hasCapability, err := h.permissionDAO.HasUnifiedCapability(ctx, userCtx.UserID, userCtx.ActivePseudonymID, constants.CapabilityViewCorrelationHistory, nil)
+	if err != nil {
+		log.Error().Err(err).Int64("user_id", userCtx.UserID).Msg("Failed to check view_correlation_history capability")
+		return nil, fmt.Errorf("failed to check permissions: %w", err)
+	}
+	if !hasCapability {
 		log.Warn().
 			Int64("admin_id", adminID).
 			Msg("User lacks view_correlation_history capability")

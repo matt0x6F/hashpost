@@ -17,12 +17,13 @@ import (
 
 // SearchHandler handles search requests
 type SearchHandler struct {
-	db           bob.Executor
-	postDAO      dao.PostDAOInterface
-	userDAO      dao.UserDAOInterface
-	subforumDAO  dao.SubforumDAOInterface
-	pseudonymDAO dao.PseudonymDAOInterface
-	ibeSystem    *ibe.IBESystem
+	db            bob.Executor
+	postDAO       dao.PostDAOInterface
+	userDAO       dao.UserDAOInterface
+	subforumDAO   dao.SubforumDAOInterface
+	pseudonymDAO  dao.PseudonymDAOInterface
+	permissionDAO dao.PermissionDAOInterface
+	ibeSystem     *ibe.IBESystem
 }
 
 // NewSearchHandler creates a new search handler
@@ -34,6 +35,7 @@ func NewSearchHandler(
 	userDAO dao.UserDAOInterface,
 	subforumDAO dao.SubforumDAOInterface,
 	pseudonymDAO dao.PseudonymDAOInterface,
+	permissionDAO dao.PermissionDAOInterface,
 ) *SearchHandler {
 	if db != nil {
 		// Production mode - create real DAOs
@@ -45,21 +47,23 @@ func NewSearchHandler(
 		pseudonymDAO := dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
 
 		return &SearchHandler{
-			db:           db,
-			postDAO:      dao.NewPostDAO(db),
-			userDAO:      userDAO,
-			subforumDAO:  dao.NewSubforumDAO(db),
-			pseudonymDAO: pseudonymDAO,
-			ibeSystem:    ibeSystem,
+			db:            db,
+			postDAO:       dao.NewPostDAO(db),
+			userDAO:       userDAO,
+			subforumDAO:   dao.NewSubforumDAO(db),
+			pseudonymDAO:  pseudonymDAO,
+			permissionDAO: dao.NewPermissionDAO(db),
+			ibeSystem:     ibeSystem,
 		}
 	}
 
 	// Test mode - use provided mocked DAOs
 	return &SearchHandler{
-		postDAO:      postDAO,
-		userDAO:      userDAO,
-		subforumDAO:  subforumDAO,
-		pseudonymDAO: pseudonymDAO,
+		postDAO:       postDAO,
+		userDAO:       userDAO,
+		subforumDAO:   subforumDAO,
+		pseudonymDAO:  pseudonymDAO,
+		permissionDAO: permissionDAO,
 	}
 }
 
@@ -338,12 +342,17 @@ func (h *SearchHandler) SearchUsers(ctx context.Context, input *models.SearchUse
 		return nil, fmt.Errorf("authentication required: %w", err)
 	}
 
-	// Check if user has platform admin role
-	if !user.HasRole("platform_admin") {
+	// Check if user has platform admin capability via database
+	hasCapability, err := h.permissionDAO.HasUnifiedCapability(ctx, user.UserID, user.ActivePseudonymID, constants.CapabilitySystemAdmin, nil)
+	if err != nil {
+		log.Error().Err(err).Int64("user_id", user.UserID).Msg("Failed to check platform admin capability")
+		return nil, fmt.Errorf("failed to check permissions: %w", err)
+	}
+	if !hasCapability {
 		log.Warn().
 			Int64("user_id", user.UserID).
-			Msg("Platform admin role required for user search")
-		return nil, fmt.Errorf("insufficient permissions: platform admin role required")
+			Msg("Platform admin capability required for user search")
+		return nil, fmt.Errorf("insufficient permissions: platform admin capability required")
 	}
 
 	// Build request log fields

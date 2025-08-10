@@ -15,7 +15,6 @@ import (
 	dbmodels "github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/rs/zerolog/log"
 	"github.com/stephenafamo/bob"
-	"github.com/stephenafamo/bob/types"
 )
 
 // RulesHandler handles rule-related requests
@@ -230,21 +229,8 @@ func (h *RulesHandler) CreateSubforumRule(ctx context.Context, input *apimodels.
 		return nil, fmt.Errorf("failed to save rules: %w", err)
 	}
 
-	// Update subforum with new rules
-	updateSetter := &dbmodels.SubforumSetter{
-		UpdatedAt: &sql.Null[time.Time]{V: time.Now(), Valid: true},
-	}
-
-	// Set the JSON field properly
-	jsonValue := types.JSON[json.RawMessage]{}
-	if err := jsonValue.Scan(rulesJSON); err != nil {
-		log.Error().Err(err).Msg("Failed to scan rules JSON")
-		return nil, fmt.Errorf("failed to save rules: %w", err)
-	}
-	updateSetter.SubforumRules = &sql.Null[types.JSON[json.RawMessage]]{V: jsonValue, Valid: true}
-
-	// Use the Update method on the subforum model
-	if err := subforum.Update(ctx, h.db, updateSetter); err != nil {
+	// Update subforum with new rules through DAO
+	if err := h.subforumDAO.UpdateRules(ctx, subforum.SubforumID, rulesJSON); err != nil {
 		log.Error().Err(err).Msg("Failed to update subforum rules")
 		return nil, fmt.Errorf("failed to save rule: %w", err)
 	}
@@ -346,21 +332,8 @@ func (h *RulesHandler) UpdateSubforumRule(ctx context.Context, input *apimodels.
 		return nil, fmt.Errorf("failed to save rules: %w", err)
 	}
 
-	// Update subforum with updated rules
-	updateSetter := &dbmodels.SubforumSetter{
-		UpdatedAt: &sql.Null[time.Time]{V: time.Now(), Valid: true},
-	}
-
-	// Set the JSON field properly
-	jsonValue := types.JSON[json.RawMessage]{}
-	if err := jsonValue.Scan(rulesJSON); err != nil {
-		log.Error().Err(err).Msg("Failed to scan rules JSON")
-		return nil, fmt.Errorf("failed to save rules: %w", err)
-	}
-	updateSetter.SubforumRules = &sql.Null[types.JSON[json.RawMessage]]{V: jsonValue, Valid: true}
-
-	// Use the Update method on the subforum model
-	if err := subforum.Update(ctx, h.db, updateSetter); err != nil {
+	// Update subforum with updated rules through DAO
+	if err := h.subforumDAO.UpdateRules(ctx, subforum.SubforumID, rulesJSON); err != nil {
 		log.Error().Err(err).Msg("Failed to update subforum rules")
 		return nil, fmt.Errorf("failed to save rule: %w", err)
 	}
@@ -447,21 +420,8 @@ func (h *RulesHandler) DeleteSubforumRule(ctx context.Context, input *apimodels.
 		return nil, fmt.Errorf("failed to save rules: %w", err)
 	}
 
-	// Update subforum with updated rules
-	updateSetter := &dbmodels.SubforumSetter{
-		UpdatedAt: &sql.Null[time.Time]{V: time.Now(), Valid: true},
-	}
-
-	// Set the JSON field properly
-	jsonValue := types.JSON[json.RawMessage]{}
-	if err := jsonValue.Scan(rulesJSON); err != nil {
-		log.Error().Err(err).Msg("Failed to scan rules JSON")
-		return nil, fmt.Errorf("failed to save rules: %w", err)
-	}
-	updateSetter.SubforumRules = &sql.Null[types.JSON[json.RawMessage]]{V: jsonValue, Valid: true}
-
-	// Use the Update method on the subforum model
-	if err := subforum.Update(ctx, h.db, updateSetter); err != nil {
+	// Update subforum with updated rules through DAO
+	if err := h.subforumDAO.UpdateRules(ctx, subforum.SubforumID, rulesJSON); err != nil {
 		log.Error().Err(err).Msg("Failed to update subforum rules")
 		return nil, fmt.Errorf("failed to delete rule: %w", err)
 	}
@@ -600,7 +560,12 @@ func (h *RulesHandler) ForwardReportToPlatform(ctx context.Context, input *apimo
 	}
 
 	// Check specific capability for forwarding reports
-	if !userCtx.HasCapability(constants.CapabilityForwardReports) {
+	hasCapability, err := h.permissionDAO.HasUnifiedCapability(ctx, userCtx.UserID, userCtx.ActivePseudonymID, constants.CapabilityForwardReports, nil)
+	if err != nil {
+		log.Error().Err(err).Int64("user_id", userCtx.UserID).Msg("Failed to check forward_reports capability")
+		return nil, fmt.Errorf("failed to check permissions: %w", err)
+	}
+	if !hasCapability {
 		log.Error().Int("user_id", int(userCtx.UserID)).Msg("User lacks forward_reports capability")
 		return nil, fmt.Errorf("insufficient permissions: forward_reports capability required")
 	}

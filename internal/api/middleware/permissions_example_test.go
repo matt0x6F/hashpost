@@ -63,9 +63,9 @@ func ExamplePermissionMiddleware() {
 	// 5. Create a test request with user context
 	req := httptest.NewRequest("POST", "/moderate?subforum_id=456", nil)
 	userCtx := &UserContext{
-		UserID: 123,
-		Email:  "moderator@example.com",
-		Roles:  []string{"moderator"},
+		UserID:     123,
+		Email:      "moderator@example.com",
+		MFAEnabled: false, // roles deprecated
 	}
 	ctx := SetUserContext(req.Context(), userCtx)
 	req = req.WithContext(ctx)

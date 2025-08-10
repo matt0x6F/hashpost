@@ -2,17 +2,6 @@
 
 HashPost uses a role-based access control (RBAC) system to manage what users can do on the platform. Each pseudonym is assigned roles and capabilities via role keys.
 
-## Roles vs Capabilities
-
-**Important Distinction:**
-- **Roles** are what a user/pseudonym *has* (e.g., `platform_admin`, `moderator`, `user`)
-- **Capabilities** are what a user/pseudonym can *do* (e.g., `system_admin`, `moderate_content`, `create_content`)
-
-**Example:**
-- The `platform_admin` **role** includes the `system_admin` **capability** (among others)
-- When checking permissions in code, we check for **capabilities**, not roles
-- Roles are used to group related capabilities together
-
 **Important**: Permissions are managed at multiple levels:
 - **User Level**: Basic account management and authentication (no roles or capabilities)
 - **Pseudonym Level**: Content creation, voting, messaging, and personal pseudonym management via role keys

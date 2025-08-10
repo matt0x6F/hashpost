@@ -13,53 +13,76 @@
 - Frontend automatically reloads on TypeScript/React changes
 - No manual restarts needed for development
 
-## Permission Systems
+## Unified Permission System
 
-### Two Distinct Permission Systems
+### Single Permission System
+HashPost uses a **unified capability system** that leverages the `PermissionDAO.HasUnifiedCapability()` method for ALL permission checking. This system combines:
 
-#### 1. Global Permissions (User Context)
-- **Used for**: Global site-wide permissions (create content, vote, etc.)
-- **Method**: `userCtx.HasCapability(capability)`
-- **Source**: JWT token cached capabilities
-- **Example**: User can create posts, vote, etc. across all subforums
+- **Global capabilities** from role keys with `subforum_id = NULL`
+- **Subforum-specific capabilities** from role keys with specific `subforum_id`
+- **Automatic role assignment** (e.g., "moderator" role when subforum capabilities are present)
 
-#### 2. Subforum-Specific Permissions (Unified System)
-- **Used for**: Subforum-specific permissions (moderation, settings, etc.)
-- **Method**: `permissionDAO.HasUnifiedCapability(ctx, userID, pseudonymID, capability, &subforumID)`
-- **Source**: Database role assignments and specific permissions
-- **Example**: User can moderate specific subforum, manage settings, etc.
+### Standard Permission Check Pattern
 
-### When to Use Which System
+```go
+// Standard permission check pattern for ALL endpoints
+func (h *Handler) SomeEndpoint(ctx context.Context, input *models.Input) (*models.Response, error) {
+    // 1. Extract user context
+    userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+    if err != nil {
+        return nil, huma.Error401Unauthorized("authentication required")
+    }
+    
+    // 2. Check permissions using unified capability system
+    hasCapability, err := h.permissionDAO.HasUnifiedCapability(
+        ctx, userCtx.UserID, userCtx.ActivePseudonymID, 
+        constants.CapabilityRequired, subforumID) // nil for global, &subforumID for subforum-specific
+    if err != nil {
+        log.Error().Err(err).Int64("user_id", userCtx.UserID).Msg("Failed to check capability")
+        return nil, fmt.Errorf("failed to check permissions: %w", err)
+    }
+    if !hasCapability {
+        log.Warn().Int64("user_id", userCtx.UserID).Msg("User lacks required capability")
+        return nil, huma.Error403Forbidden("insufficient permissions")
+    }
+    
+    // 3. Proceed with business logic
+}
+```
 
-#### Use Global Permissions For:
+### Permission Context Usage
+
+#### Global Permissions (use `nil`)
 - Content creation (`create_content`)
-- Voting (`vote`)
-- User management (`manage_users`)
-- Site-wide actions
+- Voting (`vote`) 
+- User management (`user_management`)
+- System administration (`system_admin`)
+- Platform-wide actions
 
-#### Use Unified Permissions For:
+```go
+// Global capability check
+hasCapability, err := h.permissionDAO.HasUnifiedCapability(
+    ctx, userCtx.UserID, userCtx.ActivePseudonymID, 
+    constants.CapabilityCreateContent, nil) // nil = global scope
+```
+
+#### Subforum-Specific Permissions (use `&subforumID`)
 - Subforum moderation (`moderate_content`, `ban_users`)
 - Subforum settings (`manage_subforum_settings`)
 - Subforum rules (`manage_subforum_rules`)
 - Subforum-specific actions
 
-### Permission Checking Patterns
-
 ```go
-// Global permission check
-if !userCtx.HasCapability(constants.CapabilityCreateContent) {
-    return huma.Error403Forbidden("insufficient permissions")
-}
-
-// Subforum-specific permission check
-hasCapability, err := h.permissionDAO.HasUnifiedCapability(ctx, userCtx.UserID, userCtx.ActivePseudonymID, constants.CapabilityManageSubforumSettings, &subforum.SubforumID)
-if err != nil {
-    return fmt.Errorf("failed to check permissions: %w", err)
-}
-if !hasCapability {
-    return huma.Error403Forbidden("insufficient permissions")
-}
+// Subforum-specific capability check
+hasCapability, err := h.permissionDAO.HasUnifiedCapability(
+    ctx, userCtx.UserID, userCtx.ActivePseudonymID, 
+    constants.CapabilityModerateContent, &subforum.SubforumID) // specific subforum
 ```
+
+### Migration Status
+- ✅ **Current**: All handlers use unified capability system
+- ❌ **Deprecated**: `userCtx.HasCapability()` (JWT token cached capabilities)
+- ❌ **Deprecated**: Direct database queries for permissions
 
 ## Handler Patterns
 

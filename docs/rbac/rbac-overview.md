@@ -10,21 +10,23 @@ HashPost implements a sophisticated **Unified Permission System** that combines 
 - **Subforum Level**: Moderation capabilities specific to subforums via role keys
 - **Platform Level**: Administrative capabilities across all subforums via role keys
 
-### Two Permission Systems
+### Unified Permission System
 
-The system uses two distinct permission checking mechanisms:
+The system uses a **unified capability system** that leverages the `PermissionDAO.HasUnifiedCapability()` method for all permission checking. This system combines:
 
-#### 1. Global Permissions (User Context)
-- **Used for**: Global site-wide permissions (create content, vote, etc.)
-- **Method**: `userCtx.HasCapability(capability)`
-- **Source**: JWT token cached capabilities
-- **Example**: User can create posts, vote, etc. across all subforums
+- **Global capabilities** from role keys with `subforum_id = NULL`
+- **Subforum-specific capabilities** from role keys with specific `subforum_id`
+- **Automatic role assignment** (e.g., "moderator" role when subforum capabilities are present)
 
-#### 2. Subforum-Specific Permissions (Unified System)
-- **Used for**: Subforum-specific permissions (moderation, settings, etc.)
-- **Method**: `permissionDAO.HasUnifiedCapability(ctx, userID, pseudonymID, capability, &subforumID)`
-- **Source**: Database role assignments and specific permissions
-- **Example**: User can moderate specific subforum, manage settings, etc.
+#### Permission Checking Method
+- **Method**: `permissionDAO.HasUnifiedCapability(ctx, userID, pseudonymID, capability, subforumID)`
+- **Source**: Database role keys with cryptographic domain separation
+- **Context**: Use `nil` for global checks, `&subforumID` for subforum-specific checks
+
+#### Migration Status
+- ✅ **Current**: All handlers now use unified capability system
+- ❌ **Deprecated**: `userCtx.HasCapability()` (JWT token cached capabilities)
+- ❌ **Deprecated**: Direct database queries for permissions
 
 ## Architecture
 
@@ -46,20 +48,42 @@ User Authentication → Active Pseudonym → Role Key Resolution → Unified Cap
 
 ### Permission Checking Patterns
 
+All permission checking now uses the unified capability system. Here are the standard patterns:
+
 #### Global Permission Check
 ```go
-// Check global user capabilities (JWT token cached)
-if !userCtx.HasCapability(constants.CapabilityCreateContent) {
+// Check global capabilities (e.g., create content, system admin)
+hasCapability, err := h.permissionDAO.HasUnifiedCapability(
+    ctx, userCtx.UserID, userCtx.ActivePseudonymID, 
+    constants.CapabilityCreateContent, nil) // nil = global scope
+if err != nil {
+    return fmt.Errorf("failed to check permissions: %w", err)
+}
+if !hasCapability {
     return huma.Error403Forbidden("insufficient permissions")
 }
 ```
 
 #### Subforum-Specific Permission Check
 ```go
-// Check unified capabilities (database role keys)
+// Check subforum-specific capabilities (e.g., moderation)
 hasCapability, err := h.permissionDAO.HasUnifiedCapability(
     ctx, userCtx.UserID, userCtx.ActivePseudonymID, 
-    constants.CapabilityModerateContent, &subforumID)
+    constants.CapabilityModerateContent, &subforumID) // specific subforum
+if err != nil {
+    return fmt.Errorf("failed to check permissions: %w", err)
+}
+if !hasCapability {
+    return huma.Error403Forbidden("insufficient permissions")
+}
+```
+
+#### Platform-Wide Administrative Check
+```go
+// Check platform-wide administrative capabilities
+hasCapability, err := h.permissionDAO.HasUnifiedCapability(
+    ctx, userCtx.UserID, userCtx.ActivePseudonymID, 
+    constants.CapabilitySystemAdmin, nil) // nil = platform-wide
 if err != nil {
     return fmt.Errorf("failed to check permissions: %w", err)
 }

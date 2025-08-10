@@ -20,8 +20,7 @@ func CreateTestUserContext() *middleware.UserContext {
 		Email:             "test@example.com",
 		ActivePseudonymID: "test-pseudonym-id",
 		DisplayName:       "TestUser",
-		Roles:             []string{"user"},
-		Capabilities:      []string{"user"},
+		MFAEnabled:        false,
 		TokenType:         "jwt",
 	}
 }
@@ -31,22 +30,21 @@ func CreateTestUserContextForBlocking(userID int64, activePseudonymID string) *m
 	return &middleware.UserContext{
 		UserID:            userID,
 		Email:             "test@example.com",
-		Roles:             []string{"user"},
-		Capabilities:      []string{"create_content", "vote", "message", "report"},
 		ActivePseudonymID: activePseudonymID,
 		DisplayName:       "TestUser",
+		MFAEnabled:        false,
 	}
 }
 
 // CreateTestModeratorContext creates a test user context with moderation capabilities
+// Note: Moderation capabilities are now checked dynamically via permissionDAO
 func CreateTestModeratorContext() *middleware.UserContext {
 	return &middleware.UserContext{
 		UserID:            1,
 		Email:             "moderator@example.com",
 		ActivePseudonymID: "test-pseudonym-id",
 		DisplayName:       "TestModerator",
-		Roles:             []string{"user", "moderator"},
-		Capabilities:      []string{"create_content", "vote", "message", "report", "create_subforum", "moderate_content"},
+		MFAEnabled:        false,
 		TokenType:         "jwt",
 	}
 }
@@ -97,14 +95,13 @@ func CreateTestUserBlock(blockID int64, blockerPseudonymID, blockedPseudonymID s
 }
 
 // GenerateTestJWTToken generates a valid JWT token for testing
+// Note: roles and capabilities parameters are deprecated but kept for backward compatibility
 func GenerateTestJWTToken(userID int64, activePseudonymID string, displayName string, email string, roles, capabilities []string) (string, error) {
 	// Create a JWT token using the actual JWT generation logic
 	// This ensures the token is valid for the test environment
 	claims := &middleware.JWTClaims{
 		UserID:            userID,
 		Email:             email,
-		Roles:             roles,
-		Capabilities:      capabilities,
 		MFAEnabled:        false,
 		ActivePseudonymID: activePseudonymID,
 		DisplayName:       displayName,

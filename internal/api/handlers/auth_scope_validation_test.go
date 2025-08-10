@@ -37,7 +37,7 @@ func TestPseudonymSwitchingScopeValidation(t *testing.T) {
 
 		ctx := context.Background()
 		userCtx := fixtures.CreateTestUserContext()
-		userCtx.Roles = []string{"user"}
+		_ = []string{"user"} // roles deprecated = []string{"user"}
 
 		// Mock target pseudonym
 		targetPseudonym := fixtures.CreateTestPseudonym()
@@ -95,7 +95,7 @@ func TestPseudonymSwitchingScopeValidation(t *testing.T) {
 
 		ctx := context.Background()
 		userCtx := fixtures.CreateTestUserContext()
-		userCtx.Roles = []string{"user"}
+		_ = []string{"user"} // roles deprecated = []string{"user"}
 
 		// Mock target pseudonym
 		targetPseudonym := fixtures.CreateTestPseudonym()
@@ -153,7 +153,7 @@ func TestPseudonymSwitchingScopeValidation(t *testing.T) {
 
 		ctx := context.Background()
 		userCtx := fixtures.CreateTestUserContext()
-		userCtx.Roles = []string{"user", "platform_admin"}
+		_ = []string{"user"} // roles deprecated = []string{"user", "platform_admin"}
 
 		// Mock target pseudonym
 		targetPseudonym := fixtures.CreateTestPseudonym()
@@ -211,7 +211,7 @@ func TestPseudonymSwitchingScopeValidation(t *testing.T) {
 
 		ctx := context.Background()
 		userCtx := fixtures.CreateTestUserContext()
-		userCtx.Roles = []string{"user"}
+		_ = []string{"user"} // roles deprecated = []string{"user"}
 
 		// Mock target pseudonym
 		targetPseudonym := fixtures.CreateTestPseudonym()

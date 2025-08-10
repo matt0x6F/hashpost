@@ -10,10 +10,9 @@ import (
 
 func TestGenerateJWT(t *testing.T) {
 	userCtx := &UserContext{
-		UserID:            123,
-		Email:             "test@example.com",
-		Roles:             []string{"user"},
-		Capabilities:      []string{"create_content", "vote", "message", "report"},
+		UserID: 123,
+		Email:  "test@example.com",
+		// roles and capabilities deprecated
 		MFAEnabled:        false,
 		ActivePseudonymID: "test_pseudonym_123",
 		DisplayName:       "Test User",
@@ -102,10 +101,9 @@ func TestExtractUserFromToken_HeaderAPI(t *testing.T) {
 
 func TestExtractUserFromToken_CookieJWT(t *testing.T) {
 	userCtx := &UserContext{
-		UserID:            123,
-		Email:             "test@example.com",
-		Roles:             []string{"user"},
-		Capabilities:      []string{"create_content", "vote", "message", "report"},
+		UserID: 123,
+		Email:  "test@example.com",
+		// roles and capabilities deprecated
 		MFAEnabled:        false,
 		ActivePseudonymID: "test_pseudonym_123",
 		DisplayName:       "Test User",
@@ -216,59 +214,11 @@ func TestExtractUserFromToken_InvalidJWT(t *testing.T) {
 	t.Logf("Invalid JWT error (expected): %v", err)
 }
 
-func TestUserContext_HasCapability(t *testing.T) {
-	userCtx := &UserContext{
-		Capabilities: []string{"create_content", "vote", "message", "report"},
-	}
+// TestUserContext_HasCapability was removed as HasCapability method is deprecated
+// Capabilities are now checked dynamically via permissionDAO.HasUnifiedCapability()
 
-	tests := []struct {
-		name       string
-		capability string
-		expected   bool
-	}{
-		{"has create_content", "create_content", true},
-		{"has vote", "vote", true},
-		{"has message", "message", true},
-		{"has report", "report", true},
-		{"does not have platform_admin", "platform_admin", false},
-		{"does not have empty", "", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := userCtx.HasCapability(tt.capability)
-			if result != tt.expected {
-				t.Errorf("HasCapability(%s) = %v, expected %v", tt.capability, result, tt.expected)
-			}
-		})
-	}
-}
-
-func TestUserContext_HasRole(t *testing.T) {
-	userCtx := &UserContext{
-		Roles: []string{"user", "moderator"},
-	}
-
-	tests := []struct {
-		name     string
-		role     string
-		expected bool
-	}{
-		{"has user", "user", true},
-		{"has moderator", "moderator", true},
-		{"does not have platform_admin", "platform_admin", false},
-		{"does not have empty", "", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := userCtx.HasRole(tt.role)
-			if result != tt.expected {
-				t.Errorf("HasRole(%s) = %v, expected %v", tt.role, result, tt.expected)
-			}
-		})
-	}
-}
+// TestUserContext_HasRole was removed as HasRole method is deprecated
+// Roles are now checked dynamically via permissionDAO.HasUnifiedCapability()
 
 func TestUserContext_RequiresMFA(t *testing.T) {
 	// Set up global auth middleware with MFA enabled for testing
@@ -284,7 +234,7 @@ func TestUserContext_RequiresMFA(t *testing.T) {
 	SetGlobalAuthMiddleware(authMiddleware)
 
 	userCtx := &UserContext{
-		Capabilities: []string{"create_content", "vote", "message", "report"},
+		MFAEnabled: false, // capabilities deprecated
 	}
 
 	tests := []struct {
@@ -323,7 +273,7 @@ func TestUserContext_RequiresMFA_WithCorrelationCapabilities(t *testing.T) {
 	SetGlobalAuthMiddleware(authMiddleware)
 
 	userCtx := &UserContext{
-		Capabilities: []string{"create_content", "vote", "correlate_fingerprints", "correlate_identities"},
+		MFAEnabled: false, // capabilities deprecated
 	}
 
 	tests := []struct {
@@ -360,7 +310,7 @@ func TestUserContext_RequiresMFA_Disabled(t *testing.T) {
 	SetGlobalAuthMiddleware(authMiddleware)
 
 	userCtx := &UserContext{
-		Capabilities: []string{"create_content", "vote", "correlate_fingerprints", "correlate_identities"},
+		MFAEnabled: false, // capabilities deprecated
 	}
 
 	tests := []struct {

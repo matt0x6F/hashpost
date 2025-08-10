@@ -222,44 +222,7 @@ func (h *AuthHandler) RegisterUser(ctx context.Context, input *apimodels.UserReg
 		return nil, fmt.Errorf("failed to create pseudonym: %w", err)
 	}
 
-	// Get user roles and capabilities from role keys
-	roles := []string{"user"}                                                                  // Default role
-	capabilities := []string{"create_content", "vote", "message", "report", "create_subforum"} // Default capabilities
-
-	// Get pseudonym capabilities from role keys
-	roleKeys, err := h.roleKeyDAO.ListRoleKeysByPseudonym(ctx, pseudonym.PseudonymID)
-	if err != nil {
-		log.Warn().Err(err).Str("pseudonym_id", pseudonym.PseudonymID).Msg("Failed to get role keys for pseudonym, using default capabilities")
-	} else {
-		capabilitySet := make(map[string]bool)
-		for _, roleKey := range roleKeys {
-			// Skip subforum-specific keys for registration
-			if roleKey.SubforumID.Valid {
-				continue
-			}
-
-			// Extract capabilities from JSON
-			rawValue, err := roleKey.Capabilities.Value()
-			if err == nil {
-				var roleCapabilities []string
-				if err := json.Unmarshal(rawValue.([]byte), &roleCapabilities); err == nil {
-					for _, capability := range roleCapabilities {
-						capabilitySet[capability] = true
-					}
-				}
-			}
-		}
-
-		// Convert set to slice
-		var pseudonymCapabilities []string
-		for capability := range capabilitySet {
-			pseudonymCapabilities = append(pseudonymCapabilities, capability)
-		}
-
-		if len(pseudonymCapabilities) > 0 {
-			capabilities = pseudonymCapabilities
-		}
-	}
+	// Note: Roles and capabilities are now checked dynamically, not cached in responses
 
 	log.Info().
 		Int64("user_id", user.UserID).
@@ -277,8 +240,8 @@ func (h *AuthHandler) RegisterUser(ctx context.Context, input *apimodels.UserReg
 			LastActiveAt: time.Now().Format(time.RFC3339),
 			IsActive:     true,
 			IsSuspended:  false,
-			Roles:        roles,
-			Capabilities: capabilities,
+			Roles:        []string{}, // deprecated, now empty
+			Capabilities: []string{}, // deprecated, now empty
 			PseudonymID:  pseudonym.PseudonymID,
 			DisplayName:  pseudonym.DisplayName,
 			KarmaScore:   0,
@@ -605,14 +568,8 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 
 	// Note: Role keys are created during user registration, not during login
 
-	// Get user roles and capabilities from role keys
-	roles := []string{"user"}                                                                  // Default role
-	capabilities := []string{"create_content", "vote", "message", "report", "create_subforum"} // Default capabilities
-
-	// Get user's pseudonyms for the response
-	// Use IBE-based correlation to get user's pseudonyms
-	// Use the user's actual roles, not hardcoded "user"
-	primaryRole := roles[0] // Use the first role for authentication
+	// Use default role for pseudonym access
+	primaryRole := "user" // Use default role for authentication
 
 	// Get the default pseudonym first to use as the active pseudonym for authorization
 	defaultPseudonym, err := h.pseudonymDAO.GetDefaultPseudonymByUserID(ctx, user.UserID, primaryRole, constants.ScopeAuthentication)
@@ -653,47 +610,10 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 		return nil, huma.Error500InternalServerError("failed to get default pseudonym")
 	}
 
-	// Get pseudonym capabilities from role keys
-	roleKeys, err := h.roleKeyDAO.ListRoleKeysByPseudonym(ctx, defaultPseudonym.PseudonymID)
-	if err != nil {
-		log.Warn().Err(err).Str("pseudonym_id", defaultPseudonym.PseudonymID).Msg("Failed to get role keys for pseudonym, using default capabilities")
-	} else {
-		capabilitySet := make(map[string]bool)
-		for _, roleKey := range roleKeys {
-			// Skip subforum-specific keys for login
-			if roleKey.SubforumID.Valid {
-				continue
-			}
-
-			// Extract capabilities from JSON
-			rawValue, err := roleKey.Capabilities.Value()
-			if err == nil {
-				var roleCapabilities []string
-				if err := json.Unmarshal(rawValue.([]byte), &roleCapabilities); err == nil {
-					for _, capability := range roleCapabilities {
-						capabilitySet[capability] = true
-					}
-				}
-			}
-		}
-
-		// Convert set to slice
-		var pseudonymCapabilities []string
-		for capability := range capabilitySet {
-			pseudonymCapabilities = append(pseudonymCapabilities, capability)
-		}
-
-		if len(pseudonymCapabilities) > 0 {
-			capabilities = pseudonymCapabilities
-		}
-	}
-
-	// Note: Capabilities will be set from the default pseudonym later in the method
+	// Note: Capabilities are now checked dynamically via permissionDAO, not cached in JWT
 
 	// Get user's pseudonyms for the response
 	// Use IBE-based correlation to get user's pseudonyms
-	// Use the user's actual roles, not hardcoded "user"
-	primaryRole = roles[0] // Use the first role for authentication
 	pseudonyms, err = h.pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, defaultPseudonym.PseudonymID, primaryRole, constants.ScopeAuthentication)
 	if err != nil {
 		log.Error().
@@ -750,8 +670,6 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 	userCtx := &middleware.UserContext{
 		UserID:            user.UserID,
 		Email:             user.Email,
-		Roles:             roles,
-		Capabilities:      capabilities,
 		MFAEnabled:        false, // TODO: Implement MFA
 		ActivePseudonymID: activePseudonymID,
 		DisplayName:       displayName,
@@ -791,8 +709,8 @@ func (h *AuthHandler) LoginUser(ctx context.Context, input *apimodels.UserLoginI
 		refreshToken, // Include refresh token in response
 		int(user.UserID),
 		user.Email,
-		roles,
-		capabilities,
+		[]string{}, // roles - deprecated, now empty
+		[]string{}, // capabilities - deprecated, now empty
 		activePseudonymID,
 		displayName,
 		pseudonymInfos,
@@ -886,8 +804,6 @@ func (h *AuthHandler) RefreshToken(ctx context.Context, input *struct {
 	userCtx := &middleware.UserContext{
 		UserID:            claims.UserID,
 		Email:             claims.Email,
-		Roles:             claims.Roles,
-		Capabilities:      claims.Capabilities,
 		MFAEnabled:        claims.MFAEnabled,
 		ActivePseudonymID: claims.ActivePseudonymID,
 		DisplayName:       claims.DisplayName,
@@ -1409,22 +1325,18 @@ func (h *AuthHandler) SwitchPseudonym(ctx context.Context, input *struct {
 	ownsPseudonym := false
 	var ownershipErr error
 
-	// Try each role with authentication scope first
-	for _, role := range userCtx.Roles {
-		ownsPseudonym, ownershipErr = h.pseudonymDAO.VerifyPseudonymOwnership(ctx, input.Body.PseudonymID, userCtx.UserID, userCtx.ActivePseudonymID, role, constants.ScopeAuthentication)
-		if ownershipErr == nil && ownsPseudonym {
-			break
-		}
-	}
+	// Try with default user role and authentication scope first
+	defaultRole := "user"
+	ownsPseudonym, ownershipErr = h.pseudonymDAO.VerifyPseudonymOwnership(ctx, input.Body.PseudonymID, userCtx.UserID, userCtx.ActivePseudonymID, defaultRole, constants.ScopeAuthentication)
 
 	// If authentication scope fails, try self-correlation scope
 	if !ownsPseudonym {
-		for _, role := range userCtx.Roles {
-			ownsPseudonym, ownershipErr = h.pseudonymDAO.VerifyPseudonymOwnership(ctx, input.Body.PseudonymID, userCtx.UserID, userCtx.ActivePseudonymID, role, constants.ScopeSelfCorrelation)
-			if ownershipErr == nil && ownsPseudonym {
-				break
-			}
-		}
+		ownsPseudonym, ownershipErr = h.pseudonymDAO.VerifyPseudonymOwnership(ctx, input.Body.PseudonymID, userCtx.UserID, userCtx.ActivePseudonymID, defaultRole, constants.ScopeSelfCorrelation)
+	}
+
+	if ownershipErr != nil {
+		log.Error().Err(ownershipErr).Str("pseudonym_id", input.Body.PseudonymID).Msg("Failed to verify pseudonym ownership")
+		return nil, huma.Error500InternalServerError("Failed to verify pseudonym ownership")
 	}
 
 	if !ownsPseudonym {
@@ -1446,8 +1358,7 @@ func (h *AuthHandler) SwitchPseudonym(ctx context.Context, input *struct {
 	newUserCtx := &middleware.UserContext{
 		UserID:            userCtx.UserID,
 		Email:             userCtx.Email,
-		Roles:             userCtx.Roles,
-		Capabilities:      userCtx.Capabilities,
+		MFAEnabled:        userCtx.MFAEnabled,
 		ActivePseudonymID: input.Body.PseudonymID,
 		DisplayName:       targetPseudonym.DisplayName,
 	}

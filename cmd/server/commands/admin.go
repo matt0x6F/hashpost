@@ -266,8 +266,15 @@ func CreateAdminUser(cfg *config.Config) error {
 			return fmt.Errorf("failed to scan admin scope: %w", err)
 		}
 
+		// Set email as verified for admin users
+		emailVerifiedNull := sql.Null[bool]{}
+		if err := emailVerifiedNull.Scan(true); err != nil {
+			return fmt.Errorf("failed to scan email verified: %w", err)
+		}
+
 		updates := &models.UserSetter{
-			MfaEnabled: &mfaEnabledNull,
+			MfaEnabled:    &mfaEnabledNull,
+			EmailVerified: &emailVerifiedNull,
 		}
 
 		if err := userDAO.UpdateUser(ctx, existingUser.UserID, updates); err != nil {
@@ -351,8 +358,15 @@ func CreateAdminUser(cfg *config.Config) error {
 			return fmt.Errorf("failed to scan admin scope: %w", err)
 		}
 
+		// Set email as verified for admin users
+		emailVerifiedNull := sql.Null[bool]{}
+		if err := emailVerifiedNull.Scan(true); err != nil {
+			return fmt.Errorf("failed to scan email verified: %w", err)
+		}
+
 		updates := &models.UserSetter{
-			MfaEnabled: &mfaEnabledNull,
+			MfaEnabled:    &mfaEnabledNull,
+			EmailVerified: &emailVerifiedNull,
 		}
 
 		if err := userDAO.UpdateUser(ctx, user.UserID, updates); err != nil {
@@ -374,9 +388,10 @@ func CreateAdminUser(cfg *config.Config) error {
 	// Define admin role for platform admin
 	adminRole := constants.RolePlatformAdmin
 
-	// Check if user already has a pseudonym
-	// Get user's pseudonyms using admin privileges
-	existingPseudonyms, err := pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, adminPseudonymType, adminRole, "authentication")
+	// Check if user already has a pseudonym by directly querying the database
+	// We can't use the role-based methods during admin creation because we don't have
+	// a valid pseudonym ID to use for verification yet
+	existingPseudonyms, err := pseudonymDAO.GetPseudonymsByRealIdentityDirect(ctx, user.Email)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to check existing pseudonyms, will create new one")
 	}

@@ -13,7 +13,8 @@ import (
 // RegisterCorrelationRoutes registers administrative correlation routes
 func RegisterCorrelationRoutes(api huma.API, db bob.Executor, ibeSystem *ibe.IBESystem, pseudonymDAO *dao.PseudonymDAO, identityMappingDAO *dao.IdentityMappingDAO, postDAO *dao.PostDAO, commentDAO *dao.CommentDAO, subforumDAO *dao.SubforumDAO) {
 	correlationAuditDAO := dao.NewCorrelationAuditDAO(db)
-	correlationHandler := handlers.NewCorrelationHandler(db, ibeSystem, pseudonymDAO, identityMappingDAO, postDAO, commentDAO, subforumDAO, correlationAuditDAO)
+	permissionDAO := dao.NewPermissionDAO(db)
+	correlationHandler := handlers.NewCorrelationHandler(db, ibeSystem, pseudonymDAO, identityMappingDAO, postDAO, commentDAO, subforumDAO, correlationAuditDAO, permissionDAO)
 
 	// Request fingerprint correlation (moderators)
 	huma.Register(api, huma.Operation{

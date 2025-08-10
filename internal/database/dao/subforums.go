@@ -3,11 +3,13 @@ package dao
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/stephenafamo/bob"
+	"github.com/stephenafamo/bob/types"
 )
 
 // SubforumDAO provides data access operations for subforums
@@ -220,6 +222,66 @@ func (dao *SubforumDAO) UpdateSubscriberCount(ctx context.Context, subforumID in
 	err = subforum.Update(ctx, dao.db, updateSetter)
 	if err != nil {
 		return fmt.Errorf("failed to update subforum subscriber count: %w", err)
+	}
+
+	return nil
+}
+
+// UpdateSettings updates subforum settings
+func (dao *SubforumDAO) UpdateSettings(ctx context.Context, subforumID int32, allowImages, allowVideos, allowPolls, requireFlair, isPrivate, isRestricted, isNSFW bool, minimumAccountAgeHours, minimumKarmaRequired int, description, sidebarText string) error {
+	// Get the subforum first
+	subforum, err := models.Subforums.Query(
+		models.SelectWhere.Subforums.SubforumID.EQ(subforumID),
+	).One(ctx, dao.db)
+	if err != nil {
+		return fmt.Errorf("failed to get subforum: %w", err)
+	}
+
+	// Create update setter
+	updateSetter := &models.SubforumSetter{
+		AllowImages:            &sql.Null[bool]{V: allowImages, Valid: true},
+		AllowVideos:            &sql.Null[bool]{V: allowVideos, Valid: true},
+		AllowPolls:             &sql.Null[bool]{V: allowPolls, Valid: true},
+		RequireFlair:           &sql.Null[bool]{V: requireFlair, Valid: true},
+		MinimumAccountAgeHours: &sql.Null[int32]{V: int32(minimumAccountAgeHours), Valid: true},
+		MinimumKarmaRequired:   &sql.Null[int32]{V: int32(minimumKarmaRequired), Valid: true},
+		IsPrivate:              &sql.Null[bool]{V: isPrivate, Valid: true},
+		IsRestricted:           &sql.Null[bool]{V: isRestricted, Valid: true},
+		IsNSFW:                 &sql.Null[bool]{V: isNSFW, Valid: true},
+		Description:            &sql.Null[string]{V: description, Valid: true},
+		SidebarText:            &sql.Null[string]{V: sidebarText, Valid: true},
+		UpdatedAt:              &sql.Null[time.Time]{V: time.Now(), Valid: true},
+	}
+
+	// Update the subforum
+	err = subforum.Update(ctx, dao.db, updateSetter)
+	if err != nil {
+		return fmt.Errorf("failed to update subforum settings: %w", err)
+	}
+
+	return nil
+}
+
+// UpdateRules updates subforum rules
+func (dao *SubforumDAO) UpdateRules(ctx context.Context, subforumID int32, rules []byte) error {
+	// Get the subforum first
+	subforum, err := models.Subforums.Query(
+		models.SelectWhere.Subforums.SubforumID.EQ(subforumID),
+	).One(ctx, dao.db)
+	if err != nil {
+		return fmt.Errorf("failed to get subforum: %w", err)
+	}
+
+	// Create update setter
+	updateSetter := &models.SubforumSetter{
+		SubforumRules: &sql.Null[types.JSON[json.RawMessage]]{V: types.NewJSON[json.RawMessage](rules), Valid: true},
+		UpdatedAt:     &sql.Null[time.Time]{V: time.Now(), Valid: true},
+	}
+
+	// Update the subforum
+	err = subforum.Update(ctx, dao.db, updateSetter)
+	if err != nil {
+		return fmt.Errorf("failed to update subforum rules: %w", err)
 	}
 
 	return nil

@@ -154,10 +154,10 @@ CREATE TABLE role_keys (
 - ✅ Updated `/auth/me` to use unified system (global only)
 - ✅ Updated `/auth/me/subforum/{subforum_name}` to use unified system (with subforum context)
 
-### Phase 3: Gradual Migration (Future)
-- Update other handlers to use unified methods
-- Deprecate old methods once migration is complete
-- Remove legacy methods in future versions
+### Phase 3: Complete Migration ✅
+- ✅ Updated all handlers to use unified methods
+- ✅ Deprecated legacy permission checking methods
+- ✅ All endpoints now use `HasUnifiedCapability()` method
 
 ## Benefits
 
@@ -198,23 +198,203 @@ CREATE TABLE role_keys (
 ### Checking Global Capabilities
 ```go
 // Check if user can create content (global capability)
-hasCapability, err := permissionDAO.HasUnifiedCapability(
-    ctx, userID, activePseudonymID, "create_content", nil)
+hasCapability, err := h.permissionDAO.HasUnifiedCapability(
+    ctx, userCtx.UserID, userCtx.ActivePseudonymID, 
+    constants.CapabilityCreateContent, nil)
+if err != nil {
+    return fmt.Errorf("failed to check permissions: %w", err)
+}
+if !hasCapability {
+    return huma.Error403Forbidden("insufficient permissions")
+}
 ```
 
 ### Checking Subforum-Specific Capabilities
 ```go
 // Check if user can moderate content in specific subforum
-subforumID := int32(123)
-hasCapability, err := permissionDAO.HasUnifiedCapability(
-    ctx, userID, activePseudonymID, "moderate_content", &subforumID)
+hasCapability, err := h.permissionDAO.HasUnifiedCapability(
+    ctx, userCtx.UserID, userCtx.ActivePseudonymID, 
+    constants.CapabilityModerateContent, &subforum.SubforumID)
+if err != nil {
+    return fmt.Errorf("failed to check permissions: %w", err)
+}
+if !hasCapability {
+    return huma.Error403Forbidden("insufficient permissions")
+}
+```
+
+### Checking Platform-Wide Administrative Capabilities
+```go
+// Check if user has platform admin access
+hasCapability, err := h.permissionDAO.HasUnifiedCapability(
+    ctx, userCtx.UserID, userCtx.ActivePseudonymID, 
+    constants.CapabilitySystemAdmin, nil)
+if err != nil {
+    return fmt.Errorf("failed to check permissions: %w", err)
+}
+if !hasCapability {
+    return huma.Error403Forbidden("insufficient permissions")
+}
 ```
 
 ### Getting Complete Permission Set
 ```go
+// Get all capabilities for user in global context
+roles, capabilities, err := h.permissionDAO.GetUnifiedActivePseudonymRolesAndCapabilities(
+    ctx, userCtx.UserID, userCtx.ActivePseudonymID, nil)
+if err != nil {
+    return fmt.Errorf("failed to get capabilities: %w", err)
+}
+
 // Get all capabilities for user in subforum context
-roles, capabilities, err := permissionDAO.GetUnifiedActivePseudonymRolesAndCapabilities(
-    ctx, userID, activePseudonymID, &subforumID)
+roles, capabilities, err := h.permissionDAO.GetUnifiedActivePseudonymRolesAndCapabilities(
+    ctx, userCtx.UserID, userCtx.ActivePseudonymID, &subforum.SubforumID)
+if err != nil {
+    return fmt.Errorf("failed to get capabilities: %w", err)
+}
+```
+
+## Real-World Implementation Examples
+
+### Example 1: Subforum Creation (Global Capability)
+From `subforums.go`:
+```go
+// Check global create_subforum capability via database
+hasCapability, err := h.permissionDAO.HasUnifiedCapability(
+    ctx, userCtx.UserID, userCtx.ActivePseudonymID, 
+    constants.CapabilityCreateSubforum, nil)
+if err != nil {
+    log.Error().Err(err).Int64("user_id", userCtx.UserID).Msg("Failed to check create_subforum capability")
+    return nil, huma.Error500InternalServerError("failed to check permissions")
+}
+if !hasCapability {
+    log.Warn().Int64("user_id", userCtx.UserID).Msg("User lacks create_subforum capability")
+    return nil, huma.Error403Forbidden("insufficient permissions to create subforum")
+}
+```
+
+### Example 2: Identity Correlation (Platform-Wide Administrative)
+From `correlation.go`:
+```go
+// Validate admin permissions for platform-wide correlation
+hasCapability, err := h.permissionDAO.HasUnifiedCapability(
+    ctx, userCtx.UserID, userCtx.ActivePseudonymID, 
+    constants.CapabilityCorrelateIdentities, nil)
+if err != nil {
+    log.Error().Err(err).Int64("user_id", userCtx.UserID).Msg("Failed to check correlate_identities capability")
+    return nil, fmt.Errorf("failed to check permissions: %w", err)
+}
+if !hasCapability {
+    log.Warn().Int64("admin_id", adminID).Msg("User lacks correlate_identities capability")
+    return nil, fmt.Errorf("insufficient permissions: correlate_identities capability required")
+}
+```
+
+### Example 3: Report Forwarding (Specific Administrative Capability)
+From `rules.go`:
+```go
+// Check specific capability for forwarding reports
+hasCapability, err := h.permissionDAO.HasUnifiedCapability(
+    ctx, userCtx.UserID, userCtx.ActivePseudonymID, 
+    constants.CapabilityForwardReports, nil)
+if err != nil {
+    log.Error().Err(err).Int64("user_id", userCtx.UserID).Msg("Failed to check forward_reports capability")
+    return nil, fmt.Errorf("failed to check permissions: %w", err)
+}
+if !hasCapability {
+    log.Error().Int("user_id", int(userCtx.UserID)).Msg("User lacks forward_reports capability")
+    return nil, fmt.Errorf("insufficient permissions: forward_reports capability required")
+}
+```
+
+### Example 4: Platform-Wide User Search (System Admin)
+From `search.go`:
+```go
+// Check if user has platform admin capability via database
+hasCapability, err := h.permissionDAO.HasUnifiedCapability(
+    ctx, user.UserID, user.ActivePseudonymID, 
+    constants.CapabilitySystemAdmin, nil)
+if err != nil {
+    log.Error().Err(err).Int64("user_id", user.UserID).Msg("Failed to check platform admin capability")
+    return nil, fmt.Errorf("failed to check permissions: %w", err)
+}
+if !hasCapability {
+    log.Warn().Int64("user_id", user.UserID).Msg("Platform admin capability required for user search")
+    return nil, fmt.Errorf("insufficient permissions: platform admin capability required")
+}
+```
+
+### Example 5: Getting Complete Permission Set for API Response
+From `moderation.go`:
+```go
+// For global moderation endpoints, check platform-wide capabilities
+// Get the unified roles and capabilities without a specific subforum
+_, capabilities, err := h.permissionDAO.GetUnifiedActivePseudonymRolesAndCapabilities(
+    context.Background(),
+    userCtx.UserID,
+    userCtx.ActivePseudonymID,
+    nil, // No specific subforum for global moderation
+)
+if err != nil {
+    log.Error().Err(err).Msg("Failed to get unified capabilities")
+    return huma.Error500InternalServerError("Failed to validate permissions")
+}
+
+// Check for platform-wide moderation capabilities
+hasModerateContent := false
+hasSystemModeration := false
+
+for _, cap := range capabilities {
+    if cap == "moderate_content" {
+        hasModerateContent = true
+    }
+    if cap == "system_moderation" {
+        hasSystemModeration = true
+    }
+}
+```
+
+## Best Practices
+
+### 1. Always Check Errors
+```go
+hasCapability, err := h.permissionDAO.HasUnifiedCapability(ctx, userCtx.UserID, userCtx.ActivePseudonymID, capability, subforumID)
+if err != nil {
+    log.Error().Err(err).Int64("user_id", userCtx.UserID).Msg("Failed to check capability")
+    return fmt.Errorf("failed to check permissions: %w", err)
+}
+```
+
+### 2. Use Appropriate Context
+- **Global capabilities**: Pass `nil` as `subforumID`
+- **Subforum capabilities**: Pass `&subforum.SubforumID`
+- **Never pass uninitialized pointers**
+
+### 3. Log Permission Checks
+```go
+log.Info().
+    Int64("user_id", userCtx.UserID).
+    Str("capability", capability).
+    Interface("subforum_id", subforumID).
+    Bool("has_capability", hasCapability).
+    Msg("Permission check completed")
+```
+
+### 4. Use Constants for Capabilities
+```go
+// Good
+constants.CapabilityModerateContent
+
+// Bad
+"moderate_content"
+```
+
+### 5. Handle Permission Failures Gracefully
+```go
+if !hasCapability {
+    log.Warn().Int64("user_id", userCtx.UserID).Msg("User lacks required capability")
+    return huma.Error403Forbidden("insufficient permissions")
+}
 ```
 
 ## Future Enhancements

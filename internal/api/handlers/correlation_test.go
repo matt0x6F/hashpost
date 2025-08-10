@@ -24,13 +24,14 @@ import (
 )
 
 // Helper function to create test correlation handler with mocks
-func NewCorrelationHandlerWithMocks() (*CorrelationHandler, *mocks.MockPseudonymDAO, *mocks.MockIdentityMappingDAO, *mocks.MockPostDAO, *mocks.MockCommentDAO, *mocks.MockSubforumDAO, *mocks.MockCorrelationAuditDAO) {
+func NewCorrelationHandlerWithMocks() (*CorrelationHandler, *mocks.MockPseudonymDAO, *mocks.MockIdentityMappingDAO, *mocks.MockPostDAO, *mocks.MockCommentDAO, *mocks.MockSubforumDAO, *mocks.MockCorrelationAuditDAO, *mocks.MockPermissionDAO) {
 	mockPseudonymDAO := &mocks.MockPseudonymDAO{}
 	mockIdentityMappingDAO := &mocks.MockIdentityMappingDAO{}
 	mockPostDAO := &mocks.MockPostDAO{}
 	mockCommentDAO := &mocks.MockCommentDAO{}
 	mockSubforumDAO := &mocks.MockSubforumDAO{}
 	mockCorrelationAuditDAO := &mocks.MockCorrelationAuditDAO{}
+	mockPermissionDAO := &mocks.MockPermissionDAO{}
 
 	ibeSystem := ibe.NewIBESystemWithOptions(ibe.IBEOptions{})
 
@@ -43,9 +44,10 @@ func NewCorrelationHandlerWithMocks() (*CorrelationHandler, *mocks.MockPseudonym
 		mockCommentDAO,
 		mockSubforumDAO,
 		mockCorrelationAuditDAO,
+		mockPermissionDAO,
 	)
 
-	return handler, mockPseudonymDAO, mockIdentityMappingDAO, mockPostDAO, mockCommentDAO, mockSubforumDAO, mockCorrelationAuditDAO
+	return handler, mockPseudonymDAO, mockIdentityMappingDAO, mockPostDAO, mockCommentDAO, mockSubforumDAO, mockCorrelationAuditDAO, mockPermissionDAO
 }
 
 // Helper function to create test identity mapping
@@ -78,7 +80,7 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 	setupTestAuthMiddleware()
 
 	t.Run("Success", func(t *testing.T) {
-		handler, mockPseudonymDAO, mockIdentityMappingDAO, mockPostDAO, mockCommentDAO, _, mockCorrelationAuditDAO := NewCorrelationHandlerWithMocks()
+		handler, mockPseudonymDAO, mockIdentityMappingDAO, mockPostDAO, mockCommentDAO, _, mockCorrelationAuditDAO, mockPermissionDAO := NewCorrelationHandlerWithMocks()
 
 		// Test data
 		adminUserID := int64(1)
@@ -89,7 +91,9 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 		userCtx := fixtures.CreateTestUserContext()
 		userCtx.UserID = adminUserID
 		userCtx.Email = "admin@example.com"
-		userCtx.Capabilities = []string{"correlate_fingerprints"}
+
+		// Mock permission check to return true for correlate_fingerprints capability
+		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, adminUserID, mock.AnythingOfType("string"), "correlate_fingerprints", (*int32)(nil)).Return(true, nil)
 
 		// Mock pseudonym retrieval
 		testPseudonym := fixtures.CreateTestPseudonym()
@@ -205,7 +209,10 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 	})
 
 	t.Run("InsufficientPermissions", func(t *testing.T) {
-		handler, _, _, _, _, _, _ := NewCorrelationHandlerWithMocks()
+		handler, _, _, _, _, _, _, mockPermissionDAO := NewCorrelationHandlerWithMocks()
+
+		// Mock permission check to return false for correlate_fingerprints capability
+		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), mock.AnythingOfType("string"), "correlate_fingerprints", (*int32)(nil)).Return(false, nil)
 
 		// Create input without correlation capability
 		// Create input with insufficient capabilities
@@ -232,10 +239,16 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "insufficient permissions")
 		assert.Contains(t, err.Error(), "correlate_fingerprints capability required")
+
+		// Verify mock expectations
+		mockPermissionDAO.AssertExpectations(t)
 	})
 
 	t.Run("PseudonymNotFound", func(t *testing.T) {
-		handler, mockPseudonymDAO, _, _, _, _, _ := NewCorrelationHandlerWithMocks()
+		handler, mockPseudonymDAO, _, _, _, _, _, mockPermissionDAO := NewCorrelationHandlerWithMocks()
+
+		// Mock permission check to return true for correlate_fingerprints capability
+		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), mock.AnythingOfType("string"), "correlate_fingerprints", (*int32)(nil)).Return(true, nil)
 
 		// Mock pseudonym not found
 		mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, "nonexistent-pseudonym").Return(nil, nil).Maybe()
@@ -267,6 +280,7 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 
 		// Verify mock expectations
 		mockPseudonymDAO.AssertExpectations(t)
+		mockPermissionDAO.AssertExpectations(t)
 	})
 }
 
@@ -275,7 +289,10 @@ func TestCorrelationHandler_RequestIdentityCorrelation(t *testing.T) {
 	setupTestAuthMiddleware()
 
 	t.Run("Success", func(t *testing.T) {
-		handler, mockPseudonymDAO, mockIdentityMappingDAO, mockPostDAO, mockCommentDAO, mockSubforumDAO, mockCorrelationAuditDAO := NewCorrelationHandlerWithMocks()
+		handler, mockPseudonymDAO, mockIdentityMappingDAO, mockPostDAO, mockCommentDAO, mockSubforumDAO, mockCorrelationAuditDAO, mockPermissionDAO := NewCorrelationHandlerWithMocks()
+
+		// Mock permission check to return true for correlate_identities capability
+		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), mock.AnythingOfType("string"), "correlate_identities", (*int32)(nil)).Return(true, nil)
 
 		// Test data
 		adminUserID := int64(1)
@@ -386,10 +403,14 @@ func TestCorrelationHandler_RequestIdentityCorrelation(t *testing.T) {
 		mockCommentDAO.AssertExpectations(t)
 		mockSubforumDAO.AssertExpectations(t)
 		mockCorrelationAuditDAO.AssertExpectations(t)
+		mockPermissionDAO.AssertExpectations(t)
 	})
 
 	t.Run("InsufficientPermissions", func(t *testing.T) {
-		handler, _, _, _, _, _, _ := NewCorrelationHandlerWithMocks()
+		handler, _, _, _, _, _, _, mockPermissionDAO := NewCorrelationHandlerWithMocks()
+
+		// Mock permission check to return false for correlate_identities capability
+		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), mock.AnythingOfType("string"), "correlate_identities", (*int32)(nil)).Return(false, nil)
 
 		// Create input with insufficient capabilities
 		token, err := fixtures.GenerateTestJWTToken(1, "test-pseudonym-123", "TestUser", "user@example.com", []string{"user"}, []string{"correlate_fingerprints"})
@@ -414,6 +435,9 @@ func TestCorrelationHandler_RequestIdentityCorrelation(t *testing.T) {
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "insufficient permissions")
 		assert.Contains(t, err.Error(), "correlate_identities capability required")
+
+		// Verify mock expectations
+		mockPermissionDAO.AssertExpectations(t)
 	})
 }
 
@@ -422,7 +446,10 @@ func TestCorrelationHandler_GetCorrelationHistory(t *testing.T) {
 	setupTestAuthMiddleware()
 
 	t.Run("Success", func(t *testing.T) {
-		handler, _, _, _, _, _, mockCorrelationAuditDAO := NewCorrelationHandlerWithMocks()
+		handler, _, _, _, _, _, mockCorrelationAuditDAO, mockPermissionDAO := NewCorrelationHandlerWithMocks()
+
+		// Mock permission check to return true for view_correlation_history capability
+		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), mock.AnythingOfType("string"), "view_correlation_history", (*int32)(nil)).Return(true, nil)
 
 		// Mock the correlation audit DAO
 		fakeAudits := dbmodels.CorrelationAuditSlice{
@@ -469,10 +496,14 @@ func TestCorrelationHandler_GetCorrelationHistory(t *testing.T) {
 
 		// Verify mock expectations
 		mockCorrelationAuditDAO.AssertExpectations(t)
+		mockPermissionDAO.AssertExpectations(t)
 	})
 
 	t.Run("InsufficientPermissions", func(t *testing.T) {
-		handler, _, _, _, _, _, _ := NewCorrelationHandlerWithMocks()
+		handler, _, _, _, _, _, _, mockPermissionDAO := NewCorrelationHandlerWithMocks()
+
+		// Mock permission check to return false for view_correlation_history capability
+		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), mock.AnythingOfType("string"), "view_correlation_history", (*int32)(nil)).Return(false, nil)
 
 		// Create input with insufficient capabilities
 		token, err := fixtures.GenerateTestJWTToken(1, "test-pseudonym-123", "TestUser", "user@example.com", []string{"user"}, []string{"create_content"})
@@ -495,6 +526,9 @@ func TestCorrelationHandler_GetCorrelationHistory(t *testing.T) {
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "insufficient permissions")
 		assert.Contains(t, err.Error(), "view_correlation_history capability required")
+
+		// Verify mock expectations
+		mockPermissionDAO.AssertExpectations(t)
 	})
 }
 
@@ -671,6 +705,7 @@ func TestNewCorrelationHandler(t *testing.T) {
 			mockCommentDAO,
 			mockSubforumDAO,
 			mockCorrelationAuditDAO,
+			&mocks.MockPermissionDAO{},
 		)
 
 		// Verify handler is created

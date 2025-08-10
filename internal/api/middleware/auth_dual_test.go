@@ -40,10 +40,9 @@ func TestDualAuthentication_HeaderAPIToken(t *testing.T) {
 
 func TestDualAuthentication_CookieJWT(t *testing.T) {
 	userCtx := &UserContext{
-		UserID:            123,
-		Email:             "test@example.com",
-		Roles:             []string{"user"},
-		Capabilities:      []string{"create_content", "vote", "message", "report"},
+		UserID: 123,
+		Email:  "test@example.com",
+		// roles and capabilities deprecated
 		MFAEnabled:        false,
 		ActivePseudonymID: "test_pseudonym_123",
 		DisplayName:       "Test User",
@@ -101,10 +100,9 @@ func TestDualAuthentication_CookieJWT(t *testing.T) {
 
 func TestDualAuthentication_Priority(t *testing.T) {
 	userCtx := &UserContext{
-		UserID:            123,
-		Email:             "test@example.com",
-		Roles:             []string{"user"},
-		Capabilities:      []string{"create_content", "vote", "message", "report"},
+		UserID: 123,
+		Email:  "test@example.com",
+		// roles and capabilities deprecated
 		MFAEnabled:        false,
 		ActivePseudonymID: "test_pseudonym_123",
 		DisplayName:       "Test User",
@@ -210,10 +208,9 @@ func TestDualAuthentication_InvalidJWT(t *testing.T) {
 func TestCookieManagement(t *testing.T) {
 	// Create a test user context
 	userCtx := &UserContext{
-		UserID:            123,
-		Email:             "test@example.com",
-		Roles:             []string{"user"},
-		Capabilities:      []string{"create_content", "vote", "message", "report"},
+		UserID: 123,
+		Email:  "test@example.com",
+		// roles and capabilities deprecated
 		MFAEnabled:        false,
 		ActivePseudonymID: "test_pseudonym_123",
 		DisplayName:       "Test User",
