@@ -10,7 +10,7 @@ import (
 
 // RegisterSearchRoutes registers search routes
 func RegisterSearchRoutes(api huma.API, db bob.Executor) {
-	searchHandler := handlers.NewSearchHandler(db, nil, nil, nil, nil)
+	searchHandler := handlers.NewSearchHandler(db, nil, nil, nil, nil, nil)
 
 	// Search posts
 	huma.Register(api, huma.Operation{

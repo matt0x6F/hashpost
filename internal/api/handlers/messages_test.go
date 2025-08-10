@@ -48,8 +48,7 @@ func createAuthenticatedInput(userID int64, activePseudonymID string, displayNam
 		Email:             "test@example.com",
 		ActivePseudonymID: activePseudonymID,
 		DisplayName:       displayName,
-		Roles:             []string{"user"},
-		Capabilities:      []string{"send_messages"},
+		MFAEnabled:        false, // roles and capabilities deprecated
 	}
 
 	// Generate a JWT token
@@ -70,8 +69,7 @@ func createAuthenticatedListInput(userID int64, activePseudonymID string, displa
 		Email:             "test@example.com",
 		ActivePseudonymID: activePseudonymID,
 		DisplayName:       displayName,
-		Roles:             []string{"user"},
-		Capabilities:      []string{"send_messages"},
+		MFAEnabled:        false, // roles and capabilities deprecated
 	}
 
 	// Generate a JWT token

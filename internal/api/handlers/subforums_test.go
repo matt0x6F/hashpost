@@ -4,11 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"testing"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
+	"github.com/matt0x6f/hashpost/internal/api/constants"
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	"github.com/matt0x6f/hashpost/internal/api/models"
 	"github.com/matt0x6f/hashpost/internal/database/dao/mocks"
@@ -19,32 +18,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
-
-// generateJWTWithCapabilities generates a JWT token with specific capabilities
-func generateJWTWithCapabilities(userID int64, activePseudonymID string, capabilities []string) string {
-	claims := &middleware.JWTClaims{
-		UserID:            userID,
-		Email:             "test@example.com",
-		Roles:             []string{"user"},
-		Capabilities:      capabilities,
-		MFAEnabled:        false,
-		ActivePseudonymID: activePseudonymID,
-		DisplayName:       "TestUser",
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			NotBefore: jwt.NewNumericDate(time.Now()),
-		},
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte("test-secret"))
-	if err != nil {
-		panic(fmt.Sprintf("Failed to generate test JWT token: %v", err))
-	}
-
-	return tokenString
-}
 
 func TestSubforumHandler_GetSubforums(t *testing.T) {
 	tests := []struct {
@@ -260,7 +233,7 @@ func TestSubforumHandler_GetSubforumDetails(t *testing.T) {
 				AuthInput: middleware.AuthInput{
 					Authorization: func() string {
 						if tt.userCtx != nil {
-							return "Bearer " + generateJWTWithCapabilities(tt.userCtx.UserID, tt.userCtx.ActivePseudonymID, tt.userCtx.Capabilities)
+							return "Bearer " + fixtures.MustGenerateTestJWTToken(tt.userCtx.UserID, tt.userCtx.ActivePseudonymID)
 						}
 						return ""
 					}(),
@@ -376,7 +349,7 @@ func TestSubforumHandler_SubscribeToSubforum(t *testing.T) {
 				AuthInput: middleware.AuthInput{
 					Authorization: func() string {
 						if tt.userCtx != nil {
-							return "Bearer " + generateJWTWithCapabilities(tt.userCtx.UserID, tt.userCtx.ActivePseudonymID, tt.userCtx.Capabilities)
+							return "Bearer " + fixtures.MustGenerateTestJWTToken(tt.userCtx.UserID, tt.userCtx.ActivePseudonymID)
 						}
 						return ""
 					}(),
@@ -501,7 +474,7 @@ func TestSubforumHandler_UnsubscribeFromSubforum(t *testing.T) {
 				AuthInput: middleware.AuthInput{
 					Authorization: func() string {
 						if tt.userCtx != nil {
-							return "Bearer " + generateJWTWithCapabilities(tt.userCtx.UserID, tt.userCtx.ActivePseudonymID, tt.userCtx.Capabilities)
+							return "Bearer " + fixtures.MustGenerateTestJWTToken(tt.userCtx.UserID, tt.userCtx.ActivePseudonymID)
 						}
 						return ""
 					}(),
@@ -523,6 +496,9 @@ func TestSubforumHandler_UnsubscribeFromSubforum(t *testing.T) {
 }
 
 func TestSubforumHandler_CreateSubforum(t *testing.T) {
+	// Initialize global auth middleware for testing
+	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
+	middleware.SetGlobalAuthMiddleware(authMiddleware)
 	tests := []struct {
 		name               string
 		input              *models.SubforumCreateInput
@@ -644,8 +620,6 @@ func TestSubforumHandler_CreateSubforum(t *testing.T) {
 				Email:             "user@example.com",
 				ActivePseudonymID: "moderator-pseudonym-123",
 				DisplayName:       "TestUser",
-				Roles:             []string{"user"},
-				Capabilities:      []string{"create_content"}, // Missing create_subforum capability
 			},
 			wantErr:        true,
 			expectedStatus: 403,
@@ -714,6 +688,30 @@ func TestSubforumHandler_CreateSubforum(t *testing.T) {
 			// Create mock role key DAO
 			mockRoleKeyDAO := mocks.NewMockRoleKeyDAO()
 
+			// Set up permission mock expectations for CreateSubforum
+			if !tt.wantErr {
+				// User has create_subforum capability
+				mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", constants.CapabilityCreateSubforum, (*int32)(nil)).Return(true, nil)
+				// User doesn't have system_admin capability (regular user)
+				mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", constants.CapabilitySystemAdmin, (*int32)(nil)).Return(false, nil)
+				// User doesn't have user_management capability (regular user)
+				mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", constants.CapabilityUserManagement, (*int32)(nil)).Return(false, nil)
+			} else {
+				// For error cases, determine the expected behavior based on test name
+				if tt.name == "CreateSubforumWithInvalidCommunityType" {
+					// This test should pass permission checks but fail on community type validation
+					mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", constants.CapabilityCreateSubforum, (*int32)(nil)).Return(true, nil)
+					mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", constants.CapabilitySystemAdmin, (*int32)(nil)).Return(false, nil)
+					mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", constants.CapabilityUserManagement, (*int32)(nil)).Return(false, nil)
+				} else if tt.name == "CreateSubforumWithoutPermission" {
+					// This test should fail on permission check
+					mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", constants.CapabilityCreateSubforum, (*int32)(nil)).Return(false, nil)
+				} else {
+					// Default error case - permission denied
+					mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", constants.CapabilityCreateSubforum, (*int32)(nil)).Return(false, nil)
+				}
+			}
+
 			// Set up expectations for role key creation (only for successful subforum creation)
 			if !tt.wantErr {
 				mockRoleKeyDAO.On("CreateRoleKeyWithIBE", mock.Anything, "subforum_owner", "moderation", mock.Anything, mock.Anything, "test-pseudonym-id", "test-pseudonym-id", mock.Anything).Return(&dbmodels.RoleKey{}, nil)
@@ -748,6 +746,10 @@ func TestSubforumHandler_CreateSubforum(t *testing.T) {
 
 // TestGovernanceStyleEnforcement tests that governance styles are correctly enforced based on community type
 func TestGovernanceStyleEnforcement(t *testing.T) {
+	// Initialize global auth middleware for testing
+	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
+	middleware.SetGlobalAuthMiddleware(authMiddleware)
+
 	tests := []struct {
 		name               string
 		communityType      string
@@ -769,6 +771,12 @@ func TestGovernanceStyleEnforcement(t *testing.T) {
 			// Set up mock data
 			mockSubforumDAO.SetDefaultBehavior()
 			mockSubforumSubscriptionDAO.SetDefaultBehavior()
+
+			// Set up permission mock expectations for governance testing
+			mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", constants.CapabilityCreateSubforum, (*int32)(nil)).Return(true, nil)
+			mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", constants.CapabilitySystemAdmin, (*int32)(nil)).Return(false, nil)
+			mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", constants.CapabilityUserManagement, (*int32)(nil)).Return(false, nil)
+
 			mockPermissionDAO.SetDefaultBehavior()
 
 			// Create mock identity mapping DAO
@@ -823,6 +831,10 @@ func TestGovernanceStyleEnforcement(t *testing.T) {
 
 // TestCommunityTypeValidation tests that invalid community types are rejected
 func TestCommunityTypeValidation(t *testing.T) {
+	// Initialize global auth middleware for testing
+	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
+	middleware.SetGlobalAuthMiddleware(authMiddleware)
+
 	invalidTypes := []string{"x", "h", "z", "invalid", ""}
 
 	for _, invalidType := range invalidTypes {
@@ -835,6 +847,13 @@ func TestCommunityTypeValidation(t *testing.T) {
 			// Set up mock data
 			mockSubforumDAO.SetDefaultBehavior()
 			mockSubforumSubscriptionDAO.SetDefaultBehavior()
+
+			// Set up permission mock expectations for community type validation testing
+			// These tests should pass permission checks but fail on community type validation
+			mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", constants.CapabilityCreateSubforum, (*int32)(nil)).Return(true, nil)
+			mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", constants.CapabilitySystemAdmin, (*int32)(nil)).Return(false, nil)
+			mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", constants.CapabilityUserManagement, (*int32)(nil)).Return(false, nil)
+
 			mockPermissionDAO.SetDefaultBehavior()
 
 			// Create mock identity mapping DAO
@@ -884,6 +903,10 @@ func TestCommunityTypeValidation(t *testing.T) {
 
 // TestOwnerAssignment tests that the creating user's active pseudonym becomes the owner
 func TestOwnerAssignment(t *testing.T) {
+	// Initialize global auth middleware for testing
+	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
+	middleware.SetGlobalAuthMiddleware(authMiddleware)
+
 	tests := []struct {
 		name              string
 		activePseudonymID string
@@ -900,10 +923,17 @@ func TestOwnerAssignment(t *testing.T) {
 			mockSubforumSubscriptionDAO := mocks.NewMockSubforumSubscriptionDAO()
 			mockPermissionDAO := mocks.NewMockPermissionDAO()
 
+			// Set up permission mock expectations for CreateSubforum
+			// User has create_subforum capability
+			mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), tt.activePseudonymID, constants.CapabilityCreateSubforum, (*int32)(nil)).Return(true, nil)
+			// User doesn't have system_admin capability (regular user)
+			mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), tt.activePseudonymID, constants.CapabilitySystemAdmin, (*int32)(nil)).Return(false, nil)
+			// User doesn't have user_management capability (regular user)
+			mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), tt.activePseudonymID, constants.CapabilityUserManagement, (*int32)(nil)).Return(false, nil)
+
 			// Set up mock data
 			mockSubforumDAO.SetDefaultBehavior()
 			mockSubforumSubscriptionDAO.SetDefaultBehavior()
-			mockPermissionDAO.SetDefaultBehavior()
 
 			// Create mock identity mapping DAO
 			mockIdentityMappingDAO := mocks.NewMockIdentityMappingDAO()
@@ -932,8 +962,6 @@ func TestOwnerAssignment(t *testing.T) {
 				Email:             "user@example.com",
 				ActivePseudonymID: tt.activePseudonymID,
 				DisplayName:       "TestUser",
-				Roles:             []string{"user"},
-				Capabilities:      []string{"create_content", "create_subforum"},
 			}
 
 			// Create test input
@@ -1065,6 +1093,8 @@ func TestSubforumHandler_GetPseudonymSubscriptions(t *testing.T) {
 			// The new logic tries authentication scope first, then self_correlation for admin roles
 			mockPseudonymDAO.On("VerifyPseudonymOwnership", mock.Anything, "moderator-pseudonym-123", int64(1), "moderator-pseudonym-123", "user", "authentication").Return(true, nil)
 			mockPseudonymDAO.On("VerifyPseudonymOwnership", mock.Anything, "other-pseudonym-456", int64(1), "moderator-pseudonym-123", "user", "authentication").Return(false, nil)
+			// When authentication fails, the handler tries self_correlation scope
+			mockPseudonymDAO.On("VerifyPseudonymOwnership", mock.Anything, "other-pseudonym-456", int64(1), "moderator-pseudonym-123", "user", "self_correlation").Return(false, nil)
 
 			// Create mock role key DAO
 			mockRoleKeyDAO := mocks.NewMockRoleKeyDAO()
@@ -1306,7 +1336,6 @@ func TestSubforumHandler_GetSubforumSettings(t *testing.T) {
 }
 
 func TestSubforumHandler_UpdateSubforumSettings(t *testing.T) {
-	t.Skip("TODO: Mock database operations for UpdateSubforumSettings test")
 	// Initialize global auth middleware for testing
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -1406,16 +1435,36 @@ func TestSubforumHandler_UpdateSubforumSettings(t *testing.T) {
 			if tt.userCtx != nil {
 				if tt.mockSubforum != nil {
 					mockSubforumDAO.On("GetSubforumByCommunityTypeAndName", mock.Anything, tt.input.Type, tt.input.Name).Return(tt.mockSubforum, nil)
-					mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, tt.userCtx.UserID, tt.userCtx.ActivePseudonymID, "manage_subforum_settings", &tt.mockSubforum.SubforumID).Return(tt.mockPermission, nil)
+					mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, tt.userCtx.UserID, tt.userCtx.ActivePseudonymID, constants.CapabilityManageSubforumSettings, &tt.mockSubforum.SubforumID).Return(tt.mockPermission, nil)
+
+					// For success cases, mock the UpdateSettings call
+					if tt.mockPermission && !tt.wantErr {
+						mockSubforumDAO.On("UpdateSettings",
+							mock.Anything,
+							tt.mockSubforum.SubforumID,
+							tt.input.Body.AllowImages,
+							tt.input.Body.AllowVideos,
+							tt.input.Body.AllowPolls,
+							tt.input.Body.RequireFlair,
+							tt.input.Body.IsPrivate,
+							tt.input.Body.IsRestricted,
+							tt.input.Body.IsNSFW,
+							tt.input.Body.MinimumAccountAgeHours,
+							tt.input.Body.MinimumKarmaRequired,
+							tt.input.Body.Description,
+							tt.input.Body.SidebarText,
+						).Return(nil)
+					}
 				} else {
 					mockSubforumDAO.On("GetSubforumByCommunityTypeAndName", mock.Anything, tt.input.Type, tt.input.Name).Return(nil, nil)
 				}
 			}
 
-			// Create handler
+			// Create handler - using nil db since we mock all database interactions through DAOs
 			handler := &SubforumHandler{
 				subforumDAO:   mockSubforumDAO,
 				permissionDAO: mockPermissionDAO,
+				db:            nil,
 			}
 
 			// Set up the input with proper authentication context
@@ -1490,7 +1539,7 @@ func TestSubforumHandler_GetModeratorTeam(t *testing.T) {
 				models.ModeratorTeamInput
 			}{
 				AuthInput: middleware.AuthInput{
-					Authorization: "Bearer " + generateJWTWithCapabilities(1, "moderator-pseudonym-123", []string{"create_content", "vote", "message", "report", "create_subforum", "manage_moderators"}),
+					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "moderator-pseudonym-123"),
 				},
 				ModeratorTeamInput: models.ModeratorTeamInput{
 					Type: "b",
@@ -1502,8 +1551,6 @@ func TestSubforumHandler_GetModeratorTeam(t *testing.T) {
 				Email:             "user@example.com",
 				ActivePseudonymID: "moderator-pseudonym-123",
 				DisplayName:       "TestUser",
-				Roles:             []string{"user"},
-				Capabilities:      []string{"create_content", "vote", "message", "report", "create_subforum", "manage_moderators"},
 			},
 			mockSubforum: &dbmodels.Subforum{
 				SubforumID:       1,
@@ -1539,7 +1586,7 @@ func TestSubforumHandler_GetModeratorTeam(t *testing.T) {
 				models.ModeratorTeamInput
 			}{
 				AuthInput: middleware.AuthInput{
-					Authorization: "Bearer " + generateJWTWithCapabilities(1, "moderator-pseudonym-123", []string{"create_content", "vote", "message", "report", "create_subforum"}),
+					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "moderator-pseudonym-123"),
 				},
 				ModeratorTeamInput: models.ModeratorTeamInput{
 					Type: "b",
@@ -1551,8 +1598,6 @@ func TestSubforumHandler_GetModeratorTeam(t *testing.T) {
 				Email:             "user@example.com",
 				ActivePseudonymID: "moderator-pseudonym-123",
 				DisplayName:       "TestUser",
-				Roles:             []string{"user"},
-				Capabilities:      []string{"create_content", "vote", "message", "report", "create_subforum"}, // No manage_moderators capability
 			},
 			mockSubforum:   fixtures.CreateTestSubforum(),
 			wantErr:        true,
@@ -1671,7 +1716,7 @@ func TestSubforumHandler_AddModerator(t *testing.T) {
 				models.AddModeratorInput
 			}{
 				AuthInput: middleware.AuthInput{
-					Authorization: "Bearer " + generateJWTWithCapabilities(1, "admin-pseudonym-123", []string{"manage_moderators"}),
+					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "admin-pseudonym-123"),
 				},
 				AddModeratorInput: models.AddModeratorInput{
 					Type: "b",
@@ -1692,8 +1737,6 @@ func TestSubforumHandler_AddModerator(t *testing.T) {
 				Email:             "user@example.com",
 				ActivePseudonymID: "admin-pseudonym-123",
 				DisplayName:       "TestUser",
-				Roles:             []string{"user"},
-				Capabilities:      []string{"manage_moderators"},
 			},
 			mockSubforum: &dbmodels.Subforum{
 				SubforumID: 1,
@@ -1731,7 +1774,7 @@ func TestSubforumHandler_AddModerator(t *testing.T) {
 				models.AddModeratorInput
 			}{
 				AuthInput: middleware.AuthInput{
-					Authorization: "Bearer " + generateJWTWithCapabilities(1, "test-pseudonym-id", []string{"create_content", "vote"}),
+					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "test-pseudonym-id"),
 				},
 				AddModeratorInput: models.AddModeratorInput{
 					Type: "b",
@@ -1748,8 +1791,6 @@ func TestSubforumHandler_AddModerator(t *testing.T) {
 				Email:             "user@example.com",
 				ActivePseudonymID: "test-pseudonym-id",
 				DisplayName:       "TestUser",
-				Roles:             []string{"user"},
-				Capabilities:      []string{"create_content", "vote"}, // No manage_moderators capability
 			},
 			mockSubforum:   fixtures.CreateTestSubforum(),
 			wantErr:        true,
@@ -1854,7 +1895,7 @@ func TestSubforumHandler_UpdateModerator(t *testing.T) {
 				models.UpdateModeratorInput
 			}{
 				AuthInput: middleware.AuthInput{
-					Authorization: "Bearer " + generateJWTWithCapabilities(1, "admin-pseudonym-123", []string{"manage_moderators"}),
+					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "admin-pseudonym-123"),
 				},
 				UpdateModeratorInput: models.UpdateModeratorInput{
 					Type:        "b",
@@ -1876,8 +1917,6 @@ func TestSubforumHandler_UpdateModerator(t *testing.T) {
 				Email:             "user@example.com",
 				ActivePseudonymID: "admin-pseudonym-123",
 				DisplayName:       "TestUser",
-				Roles:             []string{"user"},
-				Capabilities:      []string{"manage_moderators"},
 			},
 			mockSubforum: &dbmodels.Subforum{
 				SubforumID: 1,
@@ -2006,7 +2045,7 @@ func TestSubforumHandler_RemoveModerator(t *testing.T) {
 				models.RemoveModeratorInput
 			}{
 				AuthInput: middleware.AuthInput{
-					Authorization: "Bearer " + generateJWTWithCapabilities(1, "admin-pseudonym-123", []string{"manage_moderators"}),
+					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "admin-pseudonym-123"),
 				},
 				RemoveModeratorInput: models.RemoveModeratorInput{
 					Type:        "b",
@@ -2019,8 +2058,6 @@ func TestSubforumHandler_RemoveModerator(t *testing.T) {
 				Email:             "user@example.com",
 				ActivePseudonymID: "admin-pseudonym-123",
 				DisplayName:       "TestUser",
-				Roles:             []string{"user"},
-				Capabilities:      []string{"manage_moderators"},
 			},
 			mockSubforum: &dbmodels.Subforum{
 				SubforumID: 1,

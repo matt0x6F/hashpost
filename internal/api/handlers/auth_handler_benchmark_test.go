@@ -380,7 +380,7 @@ func BenchmarkAuthHandler_RefreshToken(b *testing.B) {
 		UserID:            1,
 		Email:             "test@example.com",
 		ActivePseudonymID: "pseudonym_123",
-		Capabilities:      []string{"create_content", "vote"},
+		MFAEnabled:        false,
 	}
 
 	refreshToken, err := middleware.GenerateJWT(userCtx, handler.config.JWT.Secret, 7*24*time.Hour)
@@ -414,7 +414,7 @@ func BenchmarkAuthHandler_GetCurrentUserSession(b *testing.B) {
 		UserID:            1,
 		Email:             "test@example.com",
 		ActivePseudonymID: "pseudonym_123",
-		Capabilities:      []string{"create_content", "vote"},
+		MFAEnabled:        false,
 	}
 
 	accessToken, err := middleware.GenerateJWT(userCtx, handler.config.JWT.Secret, time.Hour)
@@ -444,7 +444,7 @@ func BenchmarkAuthHandler_SwitchPseudonym(b *testing.B) {
 		UserID:            1,
 		Email:             "test@example.com",
 		ActivePseudonymID: "pseudonym_123",
-		Capabilities:      []string{"create_content", "vote"},
+		MFAEnabled:        false,
 	}
 
 	accessToken, err := middleware.GenerateJWT(userCtx, handler.config.JWT.Secret, time.Hour)

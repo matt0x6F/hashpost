@@ -34,6 +34,7 @@ type PseudonymDAOInterface interface {
 	DeactivatePseudonym(ctx context.Context, pseudonymID string, userID int64, activePseudonymID, roleName, scope string) error
 	VerifyPseudonymOwnership(ctx context.Context, pseudonymID string, userID int64, activePseudonymID, roleName, scope string) (bool, error)
 	GetPseudonymsByRealIdentity(ctx context.Context, realIdentity string, roleName, scope string) ([]*models.Pseudonym, error)
+	GetPseudonymsByRealIdentityDirect(ctx context.Context, realIdentity string) ([]*models.Pseudonym, error)
 	GetRealIdentityByPseudonym(ctx context.Context, pseudonymID, roleName, scope string) (string, error)
 	GetUserIDByPseudonym(ctx context.Context, pseudonymID, roleName, scope string) (int64, error)
 	UpdateLastActive(ctx context.Context, pseudonymID string) error
@@ -85,6 +86,8 @@ type SubforumDAOInterface interface {
 	ListSubforumsByCommunityType(ctx context.Context, communityType string) ([]*models.Subforum, error)
 	UpdatePostCount(ctx context.Context, subforumID int32, postCount int32) error
 	UpdateSubscriberCount(ctx context.Context, subforumID int32, subscriberCount int32) error
+	UpdateSettings(ctx context.Context, subforumID int32, allowImages, allowVideos, allowPolls, requireFlair, isPrivate, isRestricted, isNSFW bool, minimumAccountAgeHours, minimumKarmaRequired int, description, sidebarText string) error
+	UpdateRules(ctx context.Context, subforumID int32, rules []byte) error
 }
 
 // PostDAOInterface defines the interface for post data access operations

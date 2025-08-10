@@ -70,7 +70,7 @@ func BenchmarkJWT_Creation(b *testing.B) {
 		UserID:            1,
 		Email:             "test@example.com",
 		ActivePseudonymID: "pseudonym_123",
-		Capabilities:      []string{"create_content", "vote"},
+		MFAEnabled:        false,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -94,7 +94,7 @@ func BenchmarkJWT_Validation(b *testing.B) {
 		UserID:            1,
 		Email:             "test@example.com",
 		ActivePseudonymID: "pseudonym_123",
-		Capabilities:      []string{"create_content", "vote"},
+		MFAEnabled:        false,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -140,7 +140,7 @@ func BenchmarkJWT_Validation_ExpiredToken(b *testing.B) {
 		UserID:            1,
 		Email:             "test@example.com",
 		ActivePseudonymID: "pseudonym_123",
-		Capabilities:      []string{"create_content", "vote"},
+		MFAEnabled:        false,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(-time.Hour)), // Expired
 			IssuedAt:  jwt.NewNumericDate(time.Now().Add(-2 * time.Hour)),
@@ -192,7 +192,7 @@ func BenchmarkJWT_Validation_DifferentPayloadSizes(b *testing.B) {
 				UserID:            1,
 				Email:             "test@example.com",
 				ActivePseudonymID: "pseudonym_123",
-				Capabilities:      tc.capabilities,
+				MFAEnabled:        false,
 				RegisteredClaims: jwt.RegisteredClaims{
 					ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
 					IssuedAt:  jwt.NewNumericDate(time.Now()),

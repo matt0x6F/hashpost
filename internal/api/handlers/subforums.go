@@ -6,7 +6,6 @@ import (
 	"sort"
 	"time"
 
-	"database/sql"
 	"encoding/json"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -575,15 +574,23 @@ func (h *SubforumHandler) CreateSubforum(ctx context.Context, input *models.Subf
 		Bool("is_restricted", input.Body.IsRestricted).
 		Msg("Received subforum creation input")
 
-	// Extract user from context
-	userCtx, err := middleware.ExtractUserFromContext(ctx)
+	// Extract user from input headers
+	userCtx, err := middleware.ExtractUserFromHumaInput(&middleware.AuthInput{
+		Authorization: input.Authorization,
+		AccessToken:   input.AccessToken,
+	})
 	if err != nil {
 		log.Error().Err(err).Msg("Authentication required for subforum creation")
 		return nil, huma.Error401Unauthorized("authentication required")
 	}
 
-	// Check capability
-	if !userCtx.HasCapability("create_subforum") {
+	// Check global create_subforum capability via database
+	hasCapability, err := h.permissionDAO.HasUnifiedCapability(ctx, userCtx.UserID, userCtx.ActivePseudonymID, constants.CapabilityCreateSubforum, nil)
+	if err != nil {
+		log.Error().Err(err).Int64("user_id", userCtx.UserID).Msg("Failed to check create_subforum capability")
+		return nil, huma.Error500InternalServerError("failed to check permissions")
+	}
+	if !hasCapability {
 		log.Warn().Int64("user_id", userCtx.UserID).Msg("User lacks create_subforum capability")
 		return nil, huma.Error403Forbidden("insufficient permissions to create subforum")
 	}
@@ -601,7 +608,17 @@ func (h *SubforumHandler) CreateSubforum(ctx context.Context, input *models.Subf
 
 	// Only admins can set is_restricted; otherwise, force to false
 	isRestricted := false
-	if userCtx.HasCapability("system_admin") || userCtx.HasCapability("user_management") {
+	hasSystemAdmin, err := h.permissionDAO.HasUnifiedCapability(ctx, userCtx.UserID, userCtx.ActivePseudonymID, constants.CapabilitySystemAdmin, nil)
+	if err != nil {
+		log.Error().Err(err).Int64("user_id", userCtx.UserID).Msg("Failed to check system_admin capability")
+		return nil, huma.Error500InternalServerError("failed to check permissions")
+	}
+	hasUserManagement, err := h.permissionDAO.HasUnifiedCapability(ctx, userCtx.UserID, userCtx.ActivePseudonymID, constants.CapabilityUserManagement, nil)
+	if err != nil {
+		log.Error().Err(err).Int64("user_id", userCtx.UserID).Msg("Failed to check user_management capability")
+		return nil, huma.Error500InternalServerError("failed to check permissions")
+	}
+	if hasSystemAdmin || hasUserManagement {
 		isRestricted = input.Body.IsRestricted
 	}
 
@@ -623,16 +640,6 @@ func (h *SubforumHandler) CreateSubforum(ctx context.Context, input *models.Subf
 	}
 
 	// Create the subforum in the database
-	// Extract user context for owner assignment
-	ownerCtx, err := middleware.ExtractUserFromHumaInput(&middleware.AuthInput{
-		Authorization: input.Authorization,
-		AccessToken:   input.AccessToken,
-	})
-	if err != nil {
-		log.Error().Err(err).Msg("Authentication required for subforum creation")
-		return nil, huma.Error401Unauthorized("authentication required")
-	}
-
 	subforum, err := h.subforumDAO.CreateSubforum(
 		ctx,
 		input.Body.Slug, // Slug is used as the unique identifier (maps to db 'name')
@@ -645,7 +652,7 @@ func (h *SubforumHandler) CreateSubforum(ctx context.Context, input *models.Subf
 		isNSFW,
 		isPrivate,
 		isRestricted,
-		ownerCtx.ActivePseudonymID, // Owner is the creating user's active pseudonym
+		userCtx.ActivePseudonymID, // Owner is the creating user's active pseudonym
 	)
 	if err != nil {
 		log.Error().Err(err).Str("slug", input.Body.Slug).Msg("Failed to create subforum")
@@ -660,14 +667,14 @@ func (h *SubforumHandler) CreateSubforum(ctx context.Context, input *models.Subf
 		constants.ScopeModeration,
 		ownerCapabilities,
 		time.Now().AddDate(1, 0, 0), // 1 year expiration
-		ownerCtx.ActivePseudonymID,  // created_by_pseudonym_id
-		ownerCtx.ActivePseudonymID,  // pseudonym_id (owner's pseudonym)
+		userCtx.ActivePseudonymID,   // created_by_pseudonym_id
+		userCtx.ActivePseudonymID,   // pseudonym_id (owner's pseudonym)
 		&subforum.SubforumID,        // subforum_id
 	)
 	if err != nil {
 		log.Error().Err(err).
 			Str("subforum_id", fmt.Sprintf("%d", subforum.SubforumID)).
-			Str("owner_pseudonym_id", ownerCtx.ActivePseudonymID).
+			Str("owner_pseudonym_id", userCtx.ActivePseudonymID).
 			Msg("Failed to create role key for subforum owner")
 		// Don't fail the subforum creation, but log the error
 		// The owner can still be added manually later
@@ -814,22 +821,22 @@ func (h *SubforumHandler) UpdateSubforumSettings(ctx context.Context, input *str
 	}
 
 	// Update subforum settings
-	updateSetter := &dbmodels.SubforumSetter{
-		AllowImages:            &sql.Null[bool]{V: input.Body.AllowImages, Valid: true},
-		AllowVideos:            &sql.Null[bool]{V: input.Body.AllowVideos, Valid: true},
-		AllowPolls:             &sql.Null[bool]{V: input.Body.AllowPolls, Valid: true},
-		RequireFlair:           &sql.Null[bool]{V: input.Body.RequireFlair, Valid: true},
-		MinimumAccountAgeHours: &sql.Null[int32]{V: int32(input.Body.MinimumAccountAgeHours), Valid: true},
-		MinimumKarmaRequired:   &sql.Null[int32]{V: int32(input.Body.MinimumKarmaRequired), Valid: true},
-		IsPrivate:              &sql.Null[bool]{V: input.Body.IsPrivate, Valid: true},
-		IsRestricted:           &sql.Null[bool]{V: input.Body.IsRestricted, Valid: true},
-		IsNSFW:                 &sql.Null[bool]{V: input.Body.IsNSFW, Valid: true},
-		Description:            &sql.Null[string]{V: input.Body.Description, Valid: true},
-		SidebarText:            &sql.Null[string]{V: input.Body.SidebarText, Valid: true},
-		UpdatedAt:              &sql.Null[time.Time]{V: time.Now(), Valid: true},
-	}
-
-	if err := subforum.Update(ctx, h.db, updateSetter); err != nil {
+	// Update subforum settings through DAO
+	if err := h.subforumDAO.UpdateSettings(
+		ctx,
+		subforum.SubforumID,
+		input.Body.AllowImages,
+		input.Body.AllowVideos,
+		input.Body.AllowPolls,
+		input.Body.RequireFlair,
+		input.Body.IsPrivate,
+		input.Body.IsRestricted,
+		input.Body.IsNSFW,
+		input.Body.MinimumAccountAgeHours,
+		input.Body.MinimumKarmaRequired,
+		input.Body.Description,
+		input.Body.SidebarText,
+	); err != nil {
 		log.Error().Err(err).Msg("Failed to update subforum settings")
 		return nil, fmt.Errorf("failed to update subforum settings: %w", err)
 	}
@@ -1187,24 +1194,13 @@ func (h *SubforumHandler) GetPseudonymSubscriptions(ctx context.Context, input *
 	ownsPseudonym := false
 	var ownershipErr error
 
-	// Try authentication scope first (users have this role key)
-	for _, role := range userCtx.Roles {
-		ownsPseudonym, ownershipErr = h.pseudonymDAO.VerifyPseudonymOwnership(ctx, input.PseudonymSubscriptionsInput.PseudonymID, userCtx.UserID, userCtx.ActivePseudonymID, role, "authentication")
-		if ownershipErr == nil && ownsPseudonym {
-			break
-		}
-	}
+	// Try authentication scope first with default user role
+	defaultRole := "user"
+	ownsPseudonym, ownershipErr = h.pseudonymDAO.VerifyPseudonymOwnership(ctx, input.PseudonymSubscriptionsInput.PseudonymID, userCtx.UserID, userCtx.ActivePseudonymID, defaultRole, "authentication")
 
-	// If authentication scope fails, try self_correlation scope for admin roles
+	// If authentication scope fails, try self_correlation scope (typically for admin users)
 	if !ownsPseudonym {
-		for _, role := range userCtx.Roles {
-			if role == "platform_admin" || role == "trust_safety" || role == "legal_team" {
-				ownsPseudonym, ownershipErr = h.pseudonymDAO.VerifyPseudonymOwnership(ctx, input.PseudonymSubscriptionsInput.PseudonymID, userCtx.UserID, userCtx.ActivePseudonymID, role, "self_correlation")
-				if ownershipErr == nil && ownsPseudonym {
-					break
-				}
-			}
-		}
+		ownsPseudonym, ownershipErr = h.pseudonymDAO.VerifyPseudonymOwnership(ctx, input.PseudonymSubscriptionsInput.PseudonymID, userCtx.UserID, userCtx.ActivePseudonymID, defaultRole, "self_correlation")
 	}
 
 	if ownershipErr != nil {

@@ -916,7 +916,7 @@ func (h *UserHandler) GetUserProfile(ctx context.Context, input *middleware.Auth
 		}
 	}
 	email := user.Email
-	capabilities := userCtx.Capabilities
+	capabilities := []string{} // deprecated - capabilities now checked dynamically
 	response := apimodels.NewUserProfileResponse(userID, email, userRoles, capabilities, pseudonymProfiles)
 	log.Info().Str("endpoint", "users/profile").Str("component", "handler").Int("user_id", userID).Msg("Get user profile completed")
 	return response, nil

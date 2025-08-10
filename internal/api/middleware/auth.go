@@ -42,51 +42,29 @@ func GetGlobalAuthMiddleware() *AuthMiddleware {
 
 // JWTClaims represents the claims in a JWT token
 type JWTClaims struct {
-	UserID            int64    `json:"user_id"`
-	Email             string   `json:"email"`
-	Roles             []string `json:"roles"`
-	Capabilities      []string `json:"capabilities"`
-	MFAEnabled        bool     `json:"mfa_enabled"`
-	ActivePseudonymID string   `json:"active_pseudonym_id"`
-	DisplayName       string   `json:"display_name"`
+	UserID            int64  `json:"user_id"`
+	Email             string `json:"email"`
+	MFAEnabled        bool   `json:"mfa_enabled"`
+	ActivePseudonymID string `json:"active_pseudonym_id"`
+	DisplayName       string `json:"display_name"`
 	jwt.RegisteredClaims
 }
 
 // UserContext contains user information extracted from JWT token or API token
 type UserContext struct {
-	UserID       int64    `json:"user_id"`
-	Email        string   `json:"email"`
-	Roles        []string `json:"roles"`
-	Capabilities []string `json:"capabilities"`
-	MFAEnabled   bool     `json:"mfa_enabled"`
-	// Pseudonym information for the current session
+	UserID            int64  `json:"user_id"`
+	Email             string `json:"email"`
+	MFAEnabled        bool   `json:"mfa_enabled"`
 	ActivePseudonymID string `json:"active_pseudonym_id"`
 	DisplayName       string `json:"display_name"`
-	// Token type for tracking
-	TokenType string `json:"token_type"` // "jwt" or "api_token"
+	TokenType         string `json:"token_type"` // "jwt" or "api_token"
 }
 
-// HasCapability checks if the user has a specific capability
-func (uc *UserContext) HasCapability(capability string) bool {
-	for _, cap := range uc.Capabilities {
-		if cap == capability {
-			return true
-		}
-	}
-	return false
-}
-
-// HasRole checks if the user has a specific role
-func (uc *UserContext) HasRole(role string) bool {
-	for _, r := range uc.Roles {
-		if r == role {
-			return true
-		}
-	}
-	return false
-}
+// HasCapability and HasRole methods removed - use permissionDAO.HasUnifiedCapability instead
 
 // RequiresMFA checks if an action requires MFA based on user's roles
+// Note: This now only checks for actions that always require MFA
+// Capability-based MFA requirements should be checked at the handler level
 func (uc *UserContext) RequiresMFA(action string) bool {
 	// Check if MFA is globally enabled
 	authMiddleware := GetGlobalAuthMiddleware()
@@ -95,16 +73,12 @@ func (uc *UserContext) RequiresMFA(action string) bool {
 		return false
 	}
 
-	// Actions that require MFA for any user
+	// Actions that always require MFA
 	mfaRequiredActions := map[string]bool{
-		"correlate_identities": true,
-		"system_admin":         true,
-		"legal_compliance":     true,
-	}
-
-	// Actions that require MFA for users with correlation capabilities
-	if uc.HasCapability("correlate_fingerprints") || uc.HasCapability("correlate_identities") {
-		mfaRequiredActions["correlate_fingerprints"] = true
+		"correlate_identities":   true,
+		"correlate_fingerprints": true,
+		"system_admin":           true,
+		"legal_compliance":       true,
 	}
 
 	return mfaRequiredActions[action]
@@ -189,17 +163,15 @@ func (m *AuthMiddleware) validateAPIToken(tokenString string) (*UserContext, err
 	}
 
 	// Validate the API key using the DAO
-	permissions, pseudonymID, err := m.apiKeyDAO.ValidateAPIKey(context.Background(), tokenString)
+	_, pseudonymID, err := m.apiKeyDAO.ValidateAPIKey(context.Background(), tokenString)
 	if err != nil {
 		return nil, fmt.Errorf("invalid API token: %w", err)
 	}
 
 	// Create user context from API key permissions
 	userContext := &UserContext{
-		UserID:            0,  // API keys don't have a specific user ID
-		Email:             "", // API keys don't have an email
-		Roles:             permissions.Roles,
-		Capabilities:      permissions.Capabilities,
+		UserID:            0,           // API keys don't have a specific user ID
+		Email:             "",          // API keys don't have an email
 		MFAEnabled:        false,       // API keys don't use MFA
 		ActivePseudonymID: pseudonymID, // Set the pseudonym ID from the API key
 		DisplayName:       "",          // Will be loaded from pseudonym if needed
@@ -235,10 +207,9 @@ func (m *AuthMiddleware) extractTokenFromRequest(r *http.Request) (*UserContext,
 
 		// Extract user context from JWT claims
 		userContext := &UserContext{
-			UserID:            claims.UserID,
-			Email:             claims.Email,
-			Roles:             claims.Roles,
-			Capabilities:      claims.Capabilities,
+			UserID: claims.UserID,
+			Email:  claims.Email,
+
 			MFAEnabled:        claims.MFAEnabled,
 			ActivePseudonymID: claims.ActivePseudonymID,
 			DisplayName:       claims.DisplayName,
@@ -292,10 +263,9 @@ func (m *AuthMiddleware) extractTokenFromHumaInput(input *AuthInput) (*UserConte
 				if err == nil {
 					// JWT validation succeeded
 					userContext := &UserContext{
-						UserID:            claims.UserID,
-						Email:             claims.Email,
-						Roles:             claims.Roles,
-						Capabilities:      claims.Capabilities,
+						UserID: claims.UserID,
+						Email:  claims.Email,
+
 						MFAEnabled:        claims.MFAEnabled,
 						ActivePseudonymID: claims.ActivePseudonymID,
 						DisplayName:       claims.DisplayName,
@@ -327,10 +297,9 @@ func (m *AuthMiddleware) extractTokenFromHumaInput(input *AuthInput) (*UserConte
 
 		// Extract user context from JWT claims
 		userContext := &UserContext{
-			UserID:            claims.UserID,
-			Email:             claims.Email,
-			Roles:             claims.Roles,
-			Capabilities:      claims.Capabilities,
+			UserID: claims.UserID,
+			Email:  claims.Email,
+
 			MFAEnabled:        claims.MFAEnabled,
 			ActivePseudonymID: claims.ActivePseudonymID,
 			DisplayName:       claims.DisplayName,
@@ -504,33 +473,18 @@ func (m *AuthMiddleware) RequireAuth(next http.Handler) http.Handler {
 	})
 }
 
-// RequireCapability middleware checks if the user has the required capability
+// RequireCapability middleware is deprecated - use permission checks in handlers instead
+// Capabilities are now checked via permissionDAO.HasUnifiedCapability at the handler level
 func (m *AuthMiddleware) RequireCapability(capability string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			userCtx, err := ExtractUserFromRequest(r)
-			if err != nil {
-				log.Warn().Err(err).Str("path", r.URL.Path).Msg("Authentication required for capability check")
-				http.Error(w, "Authentication required", http.StatusUnauthorized)
-				return
-			}
-
-			if !userCtx.HasCapability(capability) {
-				log.Warn().
-					Int64("user_id", userCtx.UserID).
-					Str("capability", capability).
-					Str("path", r.URL.Path).
-					Msg("User lacks required capability")
-				http.Error(w, "Insufficient permissions", http.StatusForbidden)
-				return
-			}
-
-			log.Debug().
-				Int64("user_id", userCtx.UserID).
+			// This middleware is no longer functional - capabilities must be checked in handlers
+			log.Warn().
 				Str("capability", capability).
 				Str("path", r.URL.Path).
-				Msg("User has required capability")
+				Msg("RequireCapability middleware is deprecated - check capabilities in handler")
 
+			// Just pass through - capability checking should be done in the handler
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -581,33 +535,18 @@ func (m *AuthMiddleware) RequireMFA(action string) func(http.Handler) http.Handl
 	}
 }
 
-// RequireRole middleware checks if the user has the required role
+// RequireRole middleware is deprecated - use permission checks in handlers instead
+// Roles are now checked via permissionDAO.HasUnifiedCapability at the handler level
 func (m *AuthMiddleware) RequireRole(role string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			userCtx, err := ExtractUserFromRequest(r)
-			if err != nil {
-				log.Warn().Err(err).Str("path", r.URL.Path).Msg("Authentication required for role check")
-				http.Error(w, "Authentication required", http.StatusUnauthorized)
-				return
-			}
-
-			if !userCtx.HasRole(role) {
-				log.Warn().
-					Int64("user_id", userCtx.UserID).
-					Str("role", role).
-					Str("path", r.URL.Path).
-					Msg("User lacks required role")
-				http.Error(w, "Insufficient permissions", http.StatusForbidden)
-				return
-			}
-
-			log.Debug().
-				Int64("user_id", userCtx.UserID).
+			// This middleware is no longer functional - roles must be checked in handlers
+			log.Warn().
 				Str("role", role).
 				Str("path", r.URL.Path).
-				Msg("User has required role")
+				Msg("RequireRole middleware is deprecated - check roles in handler")
 
+			// Just pass through - role checking should be done in the handler
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -623,8 +562,6 @@ func GenerateJWT(userCtx *UserContext, jwtSecret string, expiration time.Duratio
 	claims := &JWTClaims{
 		UserID:            userCtx.UserID,
 		Email:             userCtx.Email,
-		Roles:             userCtx.Roles,
-		Capabilities:      userCtx.Capabilities,
 		MFAEnabled:        userCtx.MFAEnabled,
 		ActivePseudonymID: userCtx.ActivePseudonymID,
 		DisplayName:       userCtx.DisplayName,

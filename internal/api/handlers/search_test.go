@@ -17,11 +17,12 @@ import (
 )
 
 // NewSearchHandlerWithMocks creates a SearchHandler with mocked dependencies
-func NewSearchHandlerWithMocks() (*handlers.SearchHandler, *mocks.MockPostDAO, *mocks.MockUserDAO, *mocks.MockSubforumDAO, *mocks.MockPseudonymDAO) {
+func NewSearchHandlerWithMocks() (*handlers.SearchHandler, *mocks.MockPostDAO, *mocks.MockUserDAO, *mocks.MockSubforumDAO, *mocks.MockPseudonymDAO, *mocks.MockPermissionDAO) {
 	mockPostDAO := &mocks.MockPostDAO{}
 	mockUserDAO := &mocks.MockUserDAO{}
 	mockSubforumDAO := &mocks.MockSubforumDAO{}
 	mockPseudonymDAO := &mocks.MockPseudonymDAO{}
+	mockPermissionDAO := &mocks.MockPermissionDAO{}
 
 	// Create handler with mocked DAOs
 	handler := handlers.NewSearchHandler(
@@ -30,9 +31,10 @@ func NewSearchHandlerWithMocks() (*handlers.SearchHandler, *mocks.MockPostDAO, *
 		mockUserDAO,
 		mockSubforumDAO,
 		mockPseudonymDAO,
+		mockPermissionDAO,
 	)
 
-	return handler, mockPostDAO, mockUserDAO, mockSubforumDAO, mockPseudonymDAO
+	return handler, mockPostDAO, mockUserDAO, mockSubforumDAO, mockPseudonymDAO, mockPermissionDAO
 }
 
 // createTestContext creates a context with user information
@@ -42,8 +44,7 @@ func createTestSearchContext(t *testing.T, userID int64, activePseudonymID strin
 		Email:             "test@example.com",
 		ActivePseudonymID: activePseudonymID,
 		DisplayName:       displayName,
-		Roles:             []string{"user"},
-		Capabilities:      []string{"search"},
+		MFAEnabled:        false, // roles and capabilities deprecated
 	}
 
 	return context.WithValue(context.Background(), middleware.UserContextKeyValue, user)
@@ -55,8 +56,7 @@ func createTestPlatformAdminContext(t *testing.T, userID int64, activePseudonymI
 		Email:             "admin@example.com",
 		ActivePseudonymID: activePseudonymID,
 		DisplayName:       displayName,
-		Roles:             []string{"user", "platform_admin"},
-		Capabilities:      []string{"search", "system_admin"},
+		MFAEnabled:        false, // roles and capabilities deprecated
 	}
 
 	return context.WithValue(context.Background(), middleware.UserContextKeyValue, user)
@@ -65,7 +65,7 @@ func createTestPlatformAdminContext(t *testing.T, userID int64, activePseudonymI
 // TestSearchHandler_SearchPosts tests the search posts functionality
 func TestSearchHandler_SearchPosts(t *testing.T) {
 	t.Run("SearchPostsSuccess", func(t *testing.T) {
-		handler, mockPostDAO, _, mockSubforumDAO, mockPseudonymDAO := NewSearchHandlerWithMocks()
+		handler, mockPostDAO, _, mockSubforumDAO, mockPseudonymDAO, _ := NewSearchHandlerWithMocks()
 
 		// Test data
 		userID := int64(1)
@@ -163,7 +163,7 @@ func TestSearchHandler_SearchPosts(t *testing.T) {
 	})
 
 	t.Run("SearchPostsEmptyQuery", func(t *testing.T) {
-		handler, _, _, _, _ := NewSearchHandlerWithMocks()
+		handler, _, _, _, _, _ := NewSearchHandlerWithMocks()
 
 		// Create context with user
 		ctx := createTestSearchContext(t, 1, "user-pseudonym-123", "TestUser")
@@ -185,7 +185,7 @@ func TestSearchHandler_SearchPosts(t *testing.T) {
 	})
 
 	t.Run("SearchPostsAnonymousUser", func(t *testing.T) {
-		handler, mockPostDAO, _, mockSubforumDAO, _ := NewSearchHandlerWithMocks()
+		handler, mockPostDAO, _, mockSubforumDAO, _, _ := NewSearchHandlerWithMocks()
 
 		// Create context without user (anonymous)
 		ctx := context.Background()
@@ -215,7 +215,7 @@ func TestSearchHandler_SearchPosts(t *testing.T) {
 	})
 
 	t.Run("SearchPostsDatabaseError", func(t *testing.T) {
-		handler, _, _, mockSubforumDAO, _ := NewSearchHandlerWithMocks()
+		handler, _, _, mockSubforumDAO, _, _ := NewSearchHandlerWithMocks()
 
 		// Create context with user
 		ctx := createTestSearchContext(t, 1, "user-pseudonym-123", "TestUser")
@@ -242,7 +242,7 @@ func TestSearchHandler_SearchPosts(t *testing.T) {
 	})
 
 	t.Run("SearchPostsWithFilters", func(t *testing.T) {
-		handler, mockPostDAO, _, mockSubforumDAO, mockPseudonymDAO := NewSearchHandlerWithMocks()
+		handler, mockPostDAO, _, mockSubforumDAO, mockPseudonymDAO, _ := NewSearchHandlerWithMocks()
 
 		// Test data
 		userID := int64(1)
@@ -322,7 +322,7 @@ func TestSearchHandler_SearchPosts(t *testing.T) {
 // TestSearchHandler_SearchUsers tests the search users functionality
 func TestSearchHandler_SearchUsers(t *testing.T) {
 	t.Run("SearchUsersSuccess", func(t *testing.T) {
-		handler, mockPostDAO, mockUserDAO, _, mockPseudonymDAO := NewSearchHandlerWithMocks()
+		handler, mockPostDAO, mockUserDAO, _, mockPseudonymDAO, mockPermissionDAO := NewSearchHandlerWithMocks()
 
 		// Test data
 		userID := int64(1)
@@ -332,6 +332,9 @@ func TestSearchHandler_SearchUsers(t *testing.T) {
 
 		// Create context with platform admin user
 		ctx := createTestPlatformAdminContext(t, userID, activePseudonymID, displayName)
+
+		// Mock permission check to return true for platform admin capability
+		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, userID, activePseudonymID, "system_admin", (*int32)(nil)).Return(true, nil)
 
 		// Mock users
 		now := time.Now()
@@ -401,10 +404,13 @@ func TestSearchHandler_SearchUsers(t *testing.T) {
 	})
 
 	t.Run("SearchUsersEmptyQuery", func(t *testing.T) {
-		handler, _, _, _, _ := NewSearchHandlerWithMocks()
+		handler, _, _, _, _, mockPermissionDAO := NewSearchHandlerWithMocks()
 
 		// Create context with platform admin user
 		ctx := createTestPlatformAdminContext(t, 1, "admin-pseudonym-123", "AdminUser")
+
+		// Mock permission check to return true for platform admin capability
+		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "admin-pseudonym-123", "system_admin", (*int32)(nil)).Return(true, nil)
 
 		// Create input with empty query
 		input := &models.SearchUsersInput{
@@ -420,10 +426,13 @@ func TestSearchHandler_SearchUsers(t *testing.T) {
 		require.Error(t, err)
 		assert.Nil(t, response)
 		assert.Contains(t, err.Error(), "search query is required")
+
+		// Verify mocks
+		mockPermissionDAO.AssertExpectations(t)
 	})
 
 	t.Run("SearchUsersAnonymousUser", func(t *testing.T) {
-		handler, _, _, _, _ := NewSearchHandlerWithMocks()
+		handler, _, _, _, _, _ := NewSearchHandlerWithMocks()
 
 		// Create context without user (anonymous)
 		ctx := context.Background()
@@ -445,10 +454,13 @@ func TestSearchHandler_SearchUsers(t *testing.T) {
 	})
 
 	t.Run("SearchUsersDatabaseError", func(t *testing.T) {
-		handler, _, mockUserDAO, _, _ := NewSearchHandlerWithMocks()
+		handler, _, mockUserDAO, _, _, mockPermissionDAO := NewSearchHandlerWithMocks()
 
 		// Create context with platform admin user
 		ctx := createTestPlatformAdminContext(t, 1, "admin-pseudonym-123", "AdminUser")
+
+		// Mock permission check to return true for platform admin capability
+		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "admin-pseudonym-123", "system_admin", (*int32)(nil)).Return(true, nil)
 
 		// Mock database error
 		mockUserDAO.On("ListUsers", mock.Anything, 1000, 0).Return(nil, assert.AnError)
@@ -469,6 +481,7 @@ func TestSearchHandler_SearchUsers(t *testing.T) {
 		assert.Contains(t, err.Error(), "failed to search users")
 
 		mockUserDAO.AssertExpectations(t)
+		mockPermissionDAO.AssertExpectations(t)
 	})
 }
 
@@ -488,6 +501,7 @@ func TestSearchHandler_NewSearchHandler(t *testing.T) {
 			mockUserDAO,
 			mockSubforumDAO,
 			mockPseudonymDAO,
+			&mocks.MockPermissionDAO{},
 		)
 
 		// Verify handler was created successfully

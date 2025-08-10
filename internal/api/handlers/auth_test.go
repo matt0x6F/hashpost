@@ -374,8 +374,7 @@ func TestAuthHandler_Registration(t *testing.T) {
 		// Mock role key creation
 		mockRoleKeyDAO.On("EnsureDefaultKeys", mock.Anything, mock.Anything, "default-pseudonym-123", []string{"user"}).Return(nil)
 
-		// Mock role keys for pseudonym capabilities
-		mockRoleKeyDAO.On("ListRoleKeysByPseudonym", mock.Anything, testPseudonymID).Return([]*dbmodels.RoleKey{}, nil)
+		// Note: ListRoleKeysByPseudonym is no longer called during registration since we don't return roles/capabilities
 
 		// Create registration input
 		input := &apimodels.UserRegistrationInput{
@@ -399,13 +398,14 @@ func TestAuthHandler_Registration(t *testing.T) {
 		assert.Empty(t, response.Body.RefreshToken)
 		assert.Equal(t, testPseudonymID, response.Body.PseudonymID)
 		assert.Equal(t, testDisplayName, response.Body.DisplayName)
-		assert.Len(t, response.Body.Roles, 1)
-		assert.Len(t, response.Body.Capabilities, 5) // Default capabilities
+		assert.Len(t, response.Body.Roles, 0)        // Roles are now checked dynamically, not returned in registration
+		assert.Len(t, response.Body.Capabilities, 0) // Capabilities are now checked dynamically, not returned in registration
 
 		// Verify mocks were called
 		mockUserDAO.AssertExpectations(t)
 		mockPseudonymDAO.AssertExpectations(t)
-		mockRoleKeyDAO.AssertExpectations(t)
+		// Note: mockRoleKeyDAO is no longer called during registration since we don't return roles/capabilities
+		// mockRoleKeyDAO.AssertExpectations(t)
 	})
 
 	t.Run("RegisterUserWithDuplicateEmail", func(t *testing.T) {
@@ -556,8 +556,7 @@ func TestAuthHandler_CurrentUserSession(t *testing.T) {
 		userCtx := &middleware.UserContext{
 			UserID:            testUserID,
 			Email:             testEmail,
-			Roles:             []string{"user"},
-			Capabilities:      []string{"create_content", "vote", "message", "report", "create_subforum"},
+			MFAEnabled:        false, // roles and capabilities deprecated
 			ActivePseudonymID: testPseudonymID,
 			DisplayName:       testDisplayName,
 		}
@@ -623,8 +622,7 @@ func TestAuthHandler_RefreshToken(t *testing.T) {
 			Email:             "test@example.com",
 			ActivePseudonymID: "pseudonym-123",
 			DisplayName:       "TestUser",
-			Roles:             []string{"user"},
-			Capabilities:      []string{"create_content", "vote", "message", "report", "create_subforum"},
+			MFAEnabled:        false, // roles and capabilities deprecated
 		}
 
 		// Generate refresh token
@@ -866,7 +864,7 @@ func TestAuthHandler_SwitchPseudonym(t *testing.T) {
 	t.Run("MultiScopeFallbackStrategy", func(t *testing.T) {
 		ctx := context.Background()
 		userCtx := fixtures.CreateTestUserContext()
-		userCtx.Roles = []string{"user", "platform_admin"} // User with multiple roles
+		// Roles deprecated - permissions now checked dynamically
 		userCtx.ActivePseudonymID = "current-pseudonym-123"
 		userCtx.DisplayName = "Current User"
 
@@ -1215,8 +1213,7 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 		userCtx := &middleware.UserContext{
 			UserID:            testUserID,
 			Email:             testEmail,
-			Roles:             []string{"user"},
-			Capabilities:      []string{"create_content", "vote", "message", "report", "create_subforum"},
+			MFAEnabled:        false, // roles and capabilities deprecated
 			ActivePseudonymID: testPseudonymID,
 			DisplayName:       testDisplayName,
 		}
@@ -1318,8 +1315,7 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 		userCtx := &middleware.UserContext{
 			UserID:            testUserID,
 			Email:             testEmail,
-			Roles:             []string{"user"},
-			Capabilities:      []string{"create_content", "vote", "message", "report", "create_subforum"},
+			MFAEnabled:        false, // roles and capabilities deprecated
 			ActivePseudonymID: testPseudonymID,
 			DisplayName:       testDisplayName,
 		}
@@ -1422,8 +1418,7 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 		userCtx := &middleware.UserContext{
 			UserID:            testUserID,
 			Email:             testEmail,
-			Roles:             []string{"user"},
-			Capabilities:      []string{"create_content", "vote", "message", "report", "create_subforum"},
+			MFAEnabled:        false, // roles and capabilities deprecated
 			ActivePseudonymID: testPseudonymID,
 			DisplayName:       testDisplayName,
 		}
@@ -1475,8 +1470,7 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 		userCtx := &middleware.UserContext{
 			UserID:            testUserID,
 			Email:             testEmail,
-			Roles:             []string{"user"},
-			Capabilities:      []string{"create_content", "vote", "message", "report", "create_subforum"},
+			MFAEnabled:        false, // roles and capabilities deprecated
 			ActivePseudonymID: testPseudonymID,
 			DisplayName:       testDisplayName,
 		}
@@ -1529,8 +1523,7 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 		userCtx := &middleware.UserContext{
 			UserID:            testUserID,
 			Email:             testEmail,
-			Roles:             []string{"user"},
-			Capabilities:      []string{"create_content", "vote", "message", "report", "create_subforum"},
+			MFAEnabled:        false, // roles and capabilities deprecated
 			ActivePseudonymID: testPseudonymID,
 			DisplayName:       testDisplayName,
 		}
@@ -1609,8 +1602,7 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 		userCtx := &middleware.UserContext{
 			UserID:            testUserID,
 			Email:             testEmail,
-			Roles:             []string{"user"},
-			Capabilities:      []string{"create_content", "vote", "message", "report", "create_subforum"},
+			MFAEnabled:        false, // roles and capabilities deprecated
 			ActivePseudonymID: testPseudonymID,
 			DisplayName:       testDisplayName,
 		}

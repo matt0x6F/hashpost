@@ -261,9 +261,8 @@ func TestModerationHandler_GetSubforumReports(t *testing.T) {
 				Email:             "user@example.com",
 				ActivePseudonymID: "user-pseudonym-456",
 				DisplayName:       "RegularUser",
-				Roles:             []string{"user"},
-				Capabilities:      []string{"create_content", "vote"},
-				MFAEnabled:        false,
+
+				MFAEnabled: false,
 			},
 			expectedError: true,
 			errorContains: "Insufficient permissions for this subforum",
@@ -389,9 +388,8 @@ func TestModerationHandler_RemoveContent(t *testing.T) {
 				Email:             "user@example.com",
 				ActivePseudonymID: "user-pseudonym-456",
 				DisplayName:       "RegularUser",
-				Roles:             []string{"user"},
-				Capabilities:      []string{"create_content", "vote"},
-				MFAEnabled:        false,
+
+				MFAEnabled: false,
 			},
 			expectedError: true,
 			errorContains: "insufficient permissions",
@@ -507,9 +505,8 @@ func TestModerationHandler_BanUser(t *testing.T) {
 				Email:             "user@example.com",
 				ActivePseudonymID: "user-pseudonym-456",
 				DisplayName:       "RegularUser",
-				Roles:             []string{"user"},
-				Capabilities:      []string{"create_content", "vote"},
-				MFAEnabled:        false,
+
+				MFAEnabled: false,
 			},
 			expectedError: true,
 			errorContains: "insufficient permissions",
@@ -600,9 +597,8 @@ func TestModerationHandler_GetModerationHistory(t *testing.T) {
 				Email:             "user@example.com",
 				ActivePseudonymID: "user-pseudonym-456",
 				DisplayName:       "RegularUser",
-				Roles:             []string{"user"},
-				Capabilities:      []string{"create_content", "vote"},
-				MFAEnabled:        false,
+
+				MFAEnabled: false,
 			},
 			expectedError: true,
 			errorContains: "insufficient permissions",
@@ -663,9 +659,8 @@ func TestModerationHandler_HelperMethods(t *testing.T) {
 			Email:             "user@example.com",
 			ActivePseudonymID: "user-pseudonym-456",
 			DisplayName:       "RegularUser",
-			Roles:             []string{"user"},
-			Capabilities:      []string{"create_content", "vote"},
-			MFAEnabled:        false,
+
+			MFAEnabled: false,
 		}
 		err = handler.validateModeratorPermissions(regularUser)
 		assert.Error(t, err)

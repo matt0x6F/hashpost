@@ -320,6 +320,24 @@ func (dao *RoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interfac
 				constants.CapabilityManageOwnProfile,
 			},
 		})
+
+		// Add global user capabilities for regular users to authentication scope
+		if userRole == constants.RoleUser {
+			// Update the authentication scope to include global user capabilities
+			for i := range defaultKeys {
+				if defaultKeys[i].roleName == userRole && defaultKeys[i].scope == constants.ScopeAuthentication {
+					// Add global capabilities to existing authentication capabilities
+					defaultKeys[i].capabilities = append(defaultKeys[i].capabilities,
+						constants.CapabilityCreateContent,
+						constants.CapabilityVote,
+						constants.CapabilityMessage,
+						constants.CapabilityReport,
+						constants.CapabilityCreateSubforum,
+					)
+					break
+				}
+			}
+		}
 	}
 
 	// Add moderation and correlation keys for moderator roles

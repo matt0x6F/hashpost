@@ -230,3 +230,15 @@ func (m *MockSubforumDAO) UpdateSubscriberCount(ctx context.Context, subforumID 
 	args := m.Called(ctx, subforumID, subscriberCount)
 	return args.Error(0)
 }
+
+// UpdateSettings mocks updating subforum settings
+func (m *MockSubforumDAO) UpdateSettings(ctx context.Context, subforumID int32, allowImages, allowVideos, allowPolls, requireFlair, isPrivate, isRestricted, isNSFW bool, minimumAccountAgeHours, minimumKarmaRequired int, description, sidebarText string) error {
+	args := m.Called(ctx, subforumID, allowImages, allowVideos, allowPolls, requireFlair, isPrivate, isRestricted, isNSFW, minimumAccountAgeHours, minimumKarmaRequired, description, sidebarText)
+	return args.Error(0)
+}
+
+// UpdateRules mocks updating subforum rules
+func (m *MockSubforumDAO) UpdateRules(ctx context.Context, subforumID int32, rules []byte) error {
+	args := m.Called(ctx, subforumID, rules)
+	return args.Error(0)
+}

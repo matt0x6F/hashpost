@@ -170,6 +170,14 @@ func (m *MockPseudonymDAO) GetPseudonymsByRealIdentity(ctx context.Context, real
 	return args.Get(0).([]*models.Pseudonym), args.Error(1)
 }
 
+func (m *MockPseudonymDAO) GetPseudonymsByRealIdentityDirect(ctx context.Context, realIdentity string) ([]*models.Pseudonym, error) {
+	args := m.Called(ctx, realIdentity)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.Pseudonym), args.Error(1)
+}
+
 func (m *MockPseudonymDAO) GetRealIdentityByPseudonym(ctx context.Context, pseudonymID, roleName, scope string) (string, error) {
 	args := m.Called(ctx, pseudonymID, roleName, scope)
 	return args.String(0), args.Error(1)

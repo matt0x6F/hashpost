@@ -41,8 +41,14 @@ func NewPseudonymDAO(db bob.Executor, ibeSystem *ibe.IBESystem, identityMappingD
 
 // GetPseudonymsByUserID retrieves all pseudonyms for a user using role-based access control
 func (dao *PseudonymDAO) GetPseudonymsByUserID(ctx context.Context, userID int64, activePseudonymID, roleName, scope string) ([]*models.Pseudonym, error) {
+	// Get the role key for the active pseudonym to verify ownership
+	keyData, err := dao.roleKeyDAO.GetKeyData(ctx, activePseudonymID, scope, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get role key for pseudonym verification: %w", err)
+	}
+
 	// Validate that the active pseudonym belongs to the user
-	ownsPseudonym, err := dao.verifyPseudonymOwnershipWithKey(ctx, activePseudonymID, userID, nil)
+	ownsPseudonym, err := dao.verifyPseudonymOwnershipWithKey(ctx, activePseudonymID, userID, keyData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify active pseudonym ownership: %w", err)
 	}
@@ -84,8 +90,14 @@ func (dao *PseudonymDAO) GetPseudonymsByRealIdentity(ctx context.Context, realId
 
 // VerifyPseudonymOwnership verifies if a user owns a pseudonym using role-based access control
 func (dao *PseudonymDAO) VerifyPseudonymOwnership(ctx context.Context, pseudonymID string, userID int64, activePseudonymID, roleName, scope string) (bool, error) {
+	// Get the role key for the active pseudonym to verify ownership
+	activePseudonymKeyData, err := dao.roleKeyDAO.GetKeyData(ctx, activePseudonymID, scope, nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to get role key for active pseudonym verification: %w", err)
+	}
+
 	// Validate that the active pseudonym belongs to the user first
-	ownsActivePseudonym, err := dao.verifyPseudonymOwnershipWithKey(ctx, activePseudonymID, userID, nil)
+	ownsActivePseudonym, err := dao.verifyPseudonymOwnershipWithKey(ctx, activePseudonymID, userID, activePseudonymKeyData)
 	if err != nil {
 		return false, fmt.Errorf("failed to verify active pseudonym ownership: %w", err)
 	}
@@ -220,6 +232,13 @@ func (dao *PseudonymDAO) getPseudonymsByRealIdentity(ctx context.Context, realId
 		Msg("Retrieved pseudonyms for real identity")
 
 	return pseudonyms, nil
+}
+
+// GetPseudonymsByRealIdentityDirect retrieves all pseudonyms for a real identity without role-based access control
+// This method is intended for administrative operations like admin user creation where role verification
+// is not possible or necessary (e.g., when creating the first pseudonym for a user)
+func (dao *PseudonymDAO) GetPseudonymsByRealIdentityDirect(ctx context.Context, realIdentity string) ([]*models.Pseudonym, error) {
+	return dao.getPseudonymsByRealIdentity(ctx, realIdentity)
 }
 
 func (dao *PseudonymDAO) verifyPseudonymOwnershipWithKey(ctx context.Context, pseudonymID string, userID int64, keyData []byte) (bool, error) {
@@ -771,6 +790,10 @@ func (dao *PseudonymDAO) CreatePseudonymWithIdentityMapping(ctx context.Context,
 
 // createPseudonym creates a new pseudonym (internal method)
 func (dao *PseudonymDAO) createPseudonym(ctx context.Context, displayName string, userID *int64) (*models.Pseudonym, error) {
+	if userID == nil {
+		return nil, fmt.Errorf("userID cannot be nil")
+	}
+
 	log.Debug().
 		Str("display_name", displayName).
 		Msg("Creating pseudonym")
@@ -785,26 +808,24 @@ func (dao *PseudonymDAO) createPseudonym(ctx context.Context, displayName string
 	isActive.Scan(true)
 
 	isDefaultVal := false
-	if userID != nil {
-		// Check if user already has a default pseudonym by getting all pseudonyms for this user
-		// and checking if any are marked as default
-		user, err := dao.userDAO.GetUserByID(ctx, *userID)
-		if err == nil && user != nil {
-			// Get all pseudonyms for this user's real identity
-			pseudonyms, err := dao.getPseudonymsByRealIdentity(ctx, user.Email)
-			if err == nil {
-				// Check if any existing pseudonym is default
-				hasDefault := false
-				for _, pseudonym := range pseudonyms {
-					if pseudonym.IsDefault {
-						hasDefault = true
-						break
-					}
+	// Check if user already has a default pseudonym by getting all pseudonyms for this user
+	// and checking if any are marked as default
+	user, err := dao.userDAO.GetUserByID(ctx, *userID)
+	if err == nil && user != nil {
+		// Get all pseudonyms for this user's real identity
+		pseudonyms, err := dao.getPseudonymsByRealIdentity(ctx, user.Email)
+		if err == nil {
+			// Check if any existing pseudonym is default
+			hasDefault := false
+			for _, pseudonym := range pseudonyms {
+				if pseudonym.IsDefault {
+					hasDefault = true
+					break
 				}
-				// If no default pseudonym exists, make this one default
-				if !hasDefault {
-					isDefaultVal = true
-				}
+			}
+			// If no default pseudonym exists, make this one default
+			if !hasDefault {
+				isDefaultVal = true
 			}
 		}
 	}
