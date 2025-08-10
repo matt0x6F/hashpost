@@ -93,7 +93,7 @@ func (dao *SubforumDAO) ListSubforumsByCommunityType(ctx context.Context, commun
 }
 
 // CreateSubforum creates a new subforum with community type support
-func (dao *SubforumDAO) CreateSubforum(ctx context.Context, name, displayName, description, sidebarText, rulesText, communityType, governanceStyle string, isNSFW, isPrivate, isRestricted bool, ownerPseudonymID string) (*models.Subforum, error) {
+func (dao *SubforumDAO) CreateSubforum(ctx context.Context, name, displayName, description, sidebarText, communityType, governanceStyle string, isNSFW, isPrivate, isRestricted bool, ownerPseudonymID string) (*models.Subforum, error) {
 	// Check if subforum with this name and community type already exists
 	existing, err := dao.GetSubforumByCommunityTypeAndName(ctx, communityType, name)
 	if err != nil {
@@ -109,9 +109,6 @@ func (dao *SubforumDAO) CreateSubforum(ctx context.Context, name, displayName, d
 
 	sidebarTextNull := sql.Null[string]{}
 	sidebarTextNull.Scan(sidebarText)
-
-	rulesTextNull := sql.Null[string]{}
-	rulesTextNull.Scan(rulesText)
 
 	isNSFWNull := sql.Null[bool]{}
 	isNSFWNull.Scan(isNSFW)
@@ -142,7 +139,6 @@ func (dao *SubforumDAO) CreateSubforum(ctx context.Context, name, displayName, d
 		DisplayName:      &displayName,
 		Description:      &descriptionNull,
 		SidebarText:      &sidebarTextNull,
-		RulesText:        &rulesTextNull,
 		CommunityType:    &communityType,
 		GovernanceStyle:  &governanceStyle,
 		IsNSFW:           &isNSFWNull,

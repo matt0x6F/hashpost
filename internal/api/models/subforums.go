@@ -10,7 +10,6 @@ type Subforum struct {
 	DisplayName     string    `json:"display_name" example:"Golang"`
 	Description     string    `json:"description" example:"The Go programming language"`
 	SidebarText     string    `json:"sidebar_text" example:"Welcome to r/golang..."`
-	RulesText       string    `json:"rules_text" example:"1. Be respectful..."`
 	IsNSFW          bool      `json:"is_nsfw" example:"false"`
 	IsPrivate       bool      `json:"is_private" example:"false"`
 	IsRestricted    bool      `json:"is_restricted" example:"false"`
@@ -90,7 +89,7 @@ type SubforumCreateBody struct {
 	Name         string `json:"name" example:"Golang" required:"true"`
 	Description  string `json:"description" example:"The Go programming language" required:"true"`
 	SidebarText  string `json:"sidebar_text,omitempty" example:"Welcome to r/golang..."`
-	RulesText    string `json:"rules_text,omitempty" example:"1. Be respectful..."`
+	RulesText    string `json:"rules_text,omitempty" example:"1. Be respectful..."` // Temporary field for structured rules as JSON
 	IsNSFW       bool   `json:"is_nsfw,omitempty" example:"false"`
 	IsPrivate    bool   `json:"is_private,omitempty" example:"false"`
 	IsRestricted bool   `json:"is_restricted,omitempty" example:"false"`

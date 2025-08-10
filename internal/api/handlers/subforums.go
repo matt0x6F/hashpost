@@ -212,12 +212,6 @@ func (h *SubforumHandler) convertSubforumToAPIModel(subforum *dbmodels.Subforum)
 		sidebarText = subforum.SidebarText.V
 	}
 
-	// Extract rules text
-	rulesText := ""
-	if subforum.RulesText.Valid {
-		rulesText = subforum.RulesText.V
-	}
-
 	// Extract boolean flags
 	isNSFW := false
 	if subforum.IsNSFW.Valid {
@@ -264,7 +258,6 @@ func (h *SubforumHandler) convertSubforumToAPIModel(subforum *dbmodels.Subforum)
 		DisplayName:     subforum.DisplayName,
 		Description:     description,
 		SidebarText:     sidebarText,
-		RulesText:       rulesText,
 		IsNSFW:          isNSFW,
 		IsPrivate:       isPrivate,
 		IsRestricted:    isRestricted,
@@ -624,7 +617,6 @@ func (h *SubforumHandler) CreateSubforum(ctx context.Context, input *models.Subf
 
 	// Use defaults for optional fields if not provided
 	sidebarText := input.Body.SidebarText
-	rulesText := input.Body.RulesText
 	isNSFW := input.Body.IsNSFW
 	isPrivate := input.Body.IsPrivate
 
@@ -646,7 +638,6 @@ func (h *SubforumHandler) CreateSubforum(ctx context.Context, input *models.Subf
 		input.Body.Name,
 		input.Body.Description,
 		sidebarText,
-		rulesText,
 		input.Body.CommunityType,
 		governanceStyle, // Use enforced governance style, not from request
 		isNSFW,
@@ -657,6 +648,27 @@ func (h *SubforumHandler) CreateSubforum(ctx context.Context, input *models.Subf
 	if err != nil {
 		log.Error().Err(err).Str("slug", input.Body.Slug).Msg("Failed to create subforum")
 		return nil, huma.Error400BadRequest(err.Error())
+	}
+
+	// If structured rules are provided, store them in the SubforumRules field
+	if input.Body.RulesText != "" {
+		// Parse as JSON structured rules
+		var structuredRules []models.Rule
+		if err := json.Unmarshal([]byte(input.Body.RulesText), &structuredRules); err == nil && len(structuredRules) > 0 {
+			// Store structured rules in SubforumRules field
+			rulesJSON, err := json.Marshal(structuredRules)
+			if err != nil {
+				log.Error().Err(err).Str("subforum_id", fmt.Sprintf("%d", subforum.SubforumID)).Msg("Failed to marshal structured rules")
+			} else {
+				if err := h.subforumDAO.UpdateRules(ctx, subforum.SubforumID, rulesJSON); err != nil {
+					log.Error().Err(err).Str("subforum_id", fmt.Sprintf("%d", subforum.SubforumID)).Msg("Failed to update subforum with structured rules")
+				} else {
+					log.Info().Str("subforum_id", fmt.Sprintf("%d", subforum.SubforumID)).Int("rules_count", len(structuredRules)).Msg("Stored structured rules for new subforum")
+				}
+			}
+		} else {
+			log.Warn().Err(err).Str("subforum_id", fmt.Sprintf("%d", subforum.SubforumID)).Msg("Failed to parse rules as JSON, ignoring")
+		}
 	}
 
 	// Create role key for the subforum owner
@@ -938,7 +950,7 @@ func (h *SubforumHandler) GetModeratorTeam(ctx context.Context, input *struct {
 
 		// Parse capabilities from capabilities JSON
 		capabilitiesBytes, err := roleKey.Capabilities.Value()
-		if err == nil && capabilitiesBytes != nil {
+		if err == nil {
 			if bytes, ok := capabilitiesBytes.([]byte); ok {
 				var capabilities []string
 				if err := json.Unmarshal(bytes, &capabilities); err == nil {
