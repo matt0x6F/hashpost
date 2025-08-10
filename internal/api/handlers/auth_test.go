@@ -12,7 +12,6 @@ import (
 
 	"github.com/matt0x6f/hashpost/internal/api/handlers"
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
-	"github.com/matt0x6f/hashpost/internal/api/models"
 	apimodels "github.com/matt0x6f/hashpost/internal/api/models"
 	"github.com/matt0x6f/hashpost/internal/config"
 	"github.com/matt0x6f/hashpost/internal/database/dao/mocks"
@@ -719,13 +718,13 @@ func TestAuthHandler_SwitchPseudonym(t *testing.T) {
 		// Create input
 		input := &struct {
 			middleware.AuthInput
-			models.SwitchPseudonymInput
+			apimodels.SwitchPseudonymInput
 		}{
 			AuthInput: middleware.AuthInput{
 				Authorization: "Bearer " + token,
 			},
-			SwitchPseudonymInput: models.SwitchPseudonymInput{
-				Body: models.SwitchPseudonymBody{
+			SwitchPseudonymInput: apimodels.SwitchPseudonymInput{
+				Body: apimodels.SwitchPseudonymBody{
 					PseudonymID: "target-pseudonym-456",
 				},
 			},
@@ -758,13 +757,13 @@ func TestAuthHandler_SwitchPseudonym(t *testing.T) {
 		// Create input
 		input := &struct {
 			middleware.AuthInput
-			models.SwitchPseudonymInput
+			apimodels.SwitchPseudonymInput
 		}{
 			AuthInput: middleware.AuthInput{
 				Authorization: "Bearer " + token,
 			},
-			SwitchPseudonymInput: models.SwitchPseudonymInput{
-				Body: models.SwitchPseudonymBody{
+			SwitchPseudonymInput: apimodels.SwitchPseudonymInput{
+				Body: apimodels.SwitchPseudonymBody{
 					PseudonymID: "current-pseudonym-123", // Same as current
 				},
 			},
@@ -793,13 +792,13 @@ func TestAuthHandler_SwitchPseudonym(t *testing.T) {
 		// Create input
 		input := &struct {
 			middleware.AuthInput
-			models.SwitchPseudonymInput
+			apimodels.SwitchPseudonymInput
 		}{
 			AuthInput: middleware.AuthInput{
 				Authorization: "Bearer " + token,
 			},
-			SwitchPseudonymInput: models.SwitchPseudonymInput{
-				Body: models.SwitchPseudonymBody{
+			SwitchPseudonymInput: apimodels.SwitchPseudonymInput{
+				Body: apimodels.SwitchPseudonymBody{
 					PseudonymID: "nonexistent-pseudonym",
 				},
 			},
@@ -837,13 +836,13 @@ func TestAuthHandler_SwitchPseudonym(t *testing.T) {
 		// Create input
 		input := &struct {
 			middleware.AuthInput
-			models.SwitchPseudonymInput
+			apimodels.SwitchPseudonymInput
 		}{
 			AuthInput: middleware.AuthInput{
 				Authorization: "Bearer " + token,
 			},
-			SwitchPseudonymInput: models.SwitchPseudonymInput{
-				Body: models.SwitchPseudonymBody{
+			SwitchPseudonymInput: apimodels.SwitchPseudonymInput{
+				Body: apimodels.SwitchPseudonymBody{
 					PseudonymID: "unauthorized-pseudonym-789",
 				},
 			},
@@ -888,13 +887,13 @@ func TestAuthHandler_SwitchPseudonym(t *testing.T) {
 		// Create input
 		input := &struct {
 			middleware.AuthInput
-			models.SwitchPseudonymInput
+			apimodels.SwitchPseudonymInput
 		}{
 			AuthInput: middleware.AuthInput{
 				Authorization: "Bearer " + token,
 			},
-			SwitchPseudonymInput: models.SwitchPseudonymInput{
-				Body: models.SwitchPseudonymBody{
+			SwitchPseudonymInput: apimodels.SwitchPseudonymInput{
+				Body: apimodels.SwitchPseudonymBody{
 					PseudonymID: "target-pseudonym-456",
 				},
 			},
@@ -932,13 +931,13 @@ func TestAuthHandler_DeactivatePseudonym(t *testing.T) {
 		// Create test request
 		input := &struct {
 			middleware.AuthInput
-			models.DeactivatePseudonymInput
+			apimodels.DeactivatePseudonymInput
 		}{
 			AuthInput: middleware.AuthInput{
 				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "active-pseudonym-456"),
 			},
-			DeactivatePseudonymInput: models.DeactivatePseudonymInput{
-				Body: models.DeactivatePseudonymBody{
+			DeactivatePseudonymInput: apimodels.DeactivatePseudonymInput{
+				Body: apimodels.DeactivatePseudonymBody{
 					PseudonymID: "test-pseudonym-123",
 				},
 			},
@@ -965,13 +964,13 @@ func TestAuthHandler_DeactivatePseudonym(t *testing.T) {
 		// Create test request with missing pseudonym ID
 		input := &struct {
 			middleware.AuthInput
-			models.DeactivatePseudonymInput
+			apimodels.DeactivatePseudonymInput
 		}{
 			AuthInput: middleware.AuthInput{
 				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "active-pseudonym-456"),
 			},
-			DeactivatePseudonymInput: models.DeactivatePseudonymInput{
-				Body: models.DeactivatePseudonymBody{
+			DeactivatePseudonymInput: apimodels.DeactivatePseudonymInput{
+				Body: apimodels.DeactivatePseudonymBody{
 					PseudonymID: "",
 				},
 			},
@@ -997,13 +996,13 @@ func TestAuthHandler_DeactivatePseudonym(t *testing.T) {
 		// Create test request
 		input := &struct {
 			middleware.AuthInput
-			models.DeactivatePseudonymInput
+			apimodels.DeactivatePseudonymInput
 		}{
 			AuthInput: middleware.AuthInput{
 				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "active-pseudonym-456"),
 			},
-			DeactivatePseudonymInput: models.DeactivatePseudonymInput{
-				Body: models.DeactivatePseudonymBody{
+			DeactivatePseudonymInput: apimodels.DeactivatePseudonymInput{
+				Body: apimodels.DeactivatePseudonymBody{
 					PseudonymID: "test-pseudonym-123",
 				},
 			},
@@ -1035,13 +1034,13 @@ func TestAuthHandler_DeactivatePseudonym(t *testing.T) {
 		// Create test request
 		input := &struct {
 			middleware.AuthInput
-			models.DeactivatePseudonymInput
+			apimodels.DeactivatePseudonymInput
 		}{
 			AuthInput: middleware.AuthInput{
 				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "test-pseudonym-123"),
 			},
-			DeactivatePseudonymInput: models.DeactivatePseudonymInput{
-				Body: models.DeactivatePseudonymBody{
+			DeactivatePseudonymInput: apimodels.DeactivatePseudonymInput{
+				Body: apimodels.DeactivatePseudonymBody{
 					PseudonymID: "non-existent-pseudonym",
 				},
 			},
@@ -1073,13 +1072,13 @@ func TestAuthHandler_DeactivatePseudonym(t *testing.T) {
 		// Create test request
 		input := &struct {
 			middleware.AuthInput
-			models.DeactivatePseudonymInput
+			apimodels.DeactivatePseudonymInput
 		}{
 			AuthInput: middleware.AuthInput{
 				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "active-pseudonym-456"),
 			},
-			DeactivatePseudonymInput: models.DeactivatePseudonymInput{
-				Body: models.DeactivatePseudonymBody{
+			DeactivatePseudonymInput: apimodels.DeactivatePseudonymInput{
+				Body: apimodels.DeactivatePseudonymBody{
 					PseudonymID: "test-pseudonym-123",
 				},
 			},
@@ -1116,13 +1115,13 @@ func TestAuthHandler_DeactivatePseudonym_Simple(t *testing.T) {
 		// Create test request
 		input := &struct {
 			middleware.AuthInput
-			models.DeactivatePseudonymInput
+			apimodels.DeactivatePseudonymInput
 		}{
 			AuthInput: middleware.AuthInput{
 				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "active-pseudonym-456"),
 			},
-			DeactivatePseudonymInput: models.DeactivatePseudonymInput{
-				Body: models.DeactivatePseudonymBody{
+			DeactivatePseudonymInput: apimodels.DeactivatePseudonymInput{
+				Body: apimodels.DeactivatePseudonymBody{
 					PseudonymID: "test-pseudonym-123",
 				},
 			},
