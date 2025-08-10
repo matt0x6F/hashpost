@@ -212,7 +212,7 @@ func BenchmarkIBE_EncryptIdentityWithVersion(b *testing.B) {
 	realIdentity := "user@example.com"
 	pseudonymID := "pseudonym_123"
 	domain := ibe.DOMAIN_USER_CORRELATION
-	version := 1
+	version := int32(1)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -228,7 +228,7 @@ func BenchmarkIBE_DecryptIdentityWithVersion(b *testing.B) {
 	realIdentity := "user@example.com"
 	pseudonymID := "pseudonym_123"
 	domain := ibe.DOMAIN_USER_CORRELATION
-	version := 1
+	version := int32(1)
 
 	encryptedData, err := handler.ibeSystem.EncryptIdentityWithVersion(realIdentity, pseudonymID, domain, version)
 	if err != nil {
@@ -250,7 +250,7 @@ func BenchmarkIBE_EncryptFingerprintMapping(b *testing.B) {
 	fingerprint := "fingerprint_123"
 	pseudonymID := "pseudonym_123"
 	domain := ibe.DOMAIN_USER_CORRELATION
-	version := 1
+	version := int32(1)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/hex"
 	"fmt"
 	"net/http"
 
@@ -41,9 +40,6 @@ func NewServer(cfg *config.Config) *Server {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to create IBE system from configuration")
 	}
-
-	// After loading IBE system
-	log.Info().Str("ibe_master_key", hex.EncodeToString(ibeSystem.GetMasterSecret())).Str("ibe_salt", ibeSystem.GetSalt()).Int("ibe_key_version", ibeSystem.GetKeyVersion()).Msg("IBE system configuration (server startup)")
 
 	// Create DAOs
 	userDAO := dao.NewUserDAO(db)

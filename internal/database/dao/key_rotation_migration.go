@@ -34,8 +34,8 @@ func (dao *KeyRotationMigrationDAO) GetDB() bob.Executor {
 type MigrationState struct {
 	MigrationID      string     `json:"migration_id"`
 	Domain           string     `json:"domain"`
-	OldKeyVersion    int        `json:"old_key_version"`
-	NewKeyVersion    int        `json:"new_key_version"`
+	OldKeyVersion    int32      `json:"old_key_version"`
+	NewKeyVersion    int32      `json:"new_key_version"`
 	Status           string     `json:"status"`
 	StartedAt        time.Time  `json:"started_at"`
 	PausedAt         *time.Time `json:"paused_at,omitempty"`
@@ -52,7 +52,7 @@ type MigrationState struct {
 }
 
 // CreateMigration creates a new key rotation migration
-func (dao *KeyRotationMigrationDAO) CreateMigration(ctx context.Context, domain string, oldKeyVersion, newKeyVersion int, createdBy int64) (*MigrationState, error) {
+func (dao *KeyRotationMigrationDAO) CreateMigration(ctx context.Context, domain string, oldKeyVersion, newKeyVersion int32, createdBy int64) (*MigrationState, error) {
 	// Check if migration already exists
 	existing, err := dao.GetMigrationByDomain(ctx, domain, oldKeyVersion, newKeyVersion)
 	if err != nil {
@@ -86,8 +86,8 @@ func (dao *KeyRotationMigrationDAO) CreateMigration(ctx context.Context, domain 
 
 	migration := &models.KeyRotationMigrationSetter{
 		Domain:           &domain,
-		OldKeyVersion:    &[]int32{int32(oldKeyVersion)}[0],
-		NewKeyVersion:    &[]int32{int32(newKeyVersion)}[0],
+		OldKeyVersion:    &oldKeyVersion,
+		NewKeyVersion:    &newKeyVersion,
 		Status:           &[]string{"pending"}[0],
 		TotalRecords:     &totalRecordsNull,
 		ProcessedRecords: &processedRecordsNull,
@@ -106,11 +106,11 @@ func (dao *KeyRotationMigrationDAO) CreateMigration(ctx context.Context, domain 
 }
 
 // GetMigrationByDomain retrieves a migration by domain and key versions
-func (dao *KeyRotationMigrationDAO) GetMigrationByDomain(ctx context.Context, domain string, oldKeyVersion, newKeyVersion int) (*MigrationState, error) {
+func (dao *KeyRotationMigrationDAO) GetMigrationByDomain(ctx context.Context, domain string, oldKeyVersion, newKeyVersion int32) (*MigrationState, error) {
 	migration, err := models.KeyRotationMigrations.Query(
 		models.SelectWhere.KeyRotationMigrations.Domain.EQ(domain),
-		models.SelectWhere.KeyRotationMigrations.OldKeyVersion.EQ(int32(oldKeyVersion)),
-		models.SelectWhere.KeyRotationMigrations.NewKeyVersion.EQ(int32(newKeyVersion)),
+		models.SelectWhere.KeyRotationMigrations.OldKeyVersion.EQ(oldKeyVersion),
+		models.SelectWhere.KeyRotationMigrations.NewKeyVersion.EQ(newKeyVersion),
 	).One(ctx, dao.db)
 
 	if err != nil {
@@ -491,10 +491,10 @@ type MigrationProgress struct {
 
 // Helper methods
 
-func (dao *KeyRotationMigrationDAO) getTotalRecordsToMigrate(ctx context.Context, domain string, oldKeyVersion int) (int64, error) {
+func (dao *KeyRotationMigrationDAO) getTotalRecordsToMigrate(ctx context.Context, domain string, oldKeyVersion int32) (int64, error) {
 	count, err := models.IdentityMappings.Query(
 		models.SelectWhere.IdentityMappings.KeyScope.EQ(domain),
-		models.SelectWhere.IdentityMappings.KeyVersion.EQ(int32(oldKeyVersion)),
+		models.SelectWhere.IdentityMappings.KeyVersion.EQ(oldKeyVersion),
 		models.SelectWhere.IdentityMappings.IsActive.EQ(true),
 	).Count(ctx, dao.db)
 
@@ -509,8 +509,8 @@ func (dao *KeyRotationMigrationDAO) convertToMigrationState(migration *models.Ke
 	state := &MigrationState{
 		MigrationID:   migration.MigrationID.String(),
 		Domain:        migration.Domain,
-		OldKeyVersion: int(migration.OldKeyVersion),
-		NewKeyVersion: int(migration.NewKeyVersion),
+		OldKeyVersion: migration.OldKeyVersion,
+		NewKeyVersion: migration.NewKeyVersion,
 		Status:        migration.Status,
 		CreatedBy:     migration.CreatedBy,
 	}

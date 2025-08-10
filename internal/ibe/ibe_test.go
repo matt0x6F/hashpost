@@ -265,7 +265,7 @@ func TestIBESystem_Configuration(t *testing.T) {
 		ibeSystem := NewIBESystemWithOptions(createDefaultIBEOptions())
 
 		// Test default values
-		assert.Equal(t, 1, ibeSystem.GetKeyVersion(), "Default key version should be 1")
+		assert.Equal(t, int32(1), ibeSystem.GetKeyVersion(), "Default key version should be 1")
 		assert.Equal(t, "test_fingerprint_salt_v1", ibeSystem.GetSalt(), "Default salt should be test_fingerprint_salt_v1")
 
 		// Test that we can generate keys with default config
@@ -276,12 +276,12 @@ func TestIBESystem_Configuration(t *testing.T) {
 
 	t.Run("Custom Configuration", func(t *testing.T) {
 		ibeSystem := NewIBESystemWithOptions(IBEOptions{
-			KeyVersion: 2,
+			KeyVersion: int32(2),
 			Salt:       "custom_salt_v2",
 		})
 
 		// Test custom values
-		assert.Equal(t, 2, ibeSystem.GetKeyVersion(), "Custom key version should be 2")
+		assert.Equal(t, int32(2), ibeSystem.GetKeyVersion(), "Custom key version should be 2")
 		assert.Equal(t, "custom_salt_v2", ibeSystem.GetSalt(), "Custom salt should be custom_salt_v2")
 
 		// Test that we can generate keys with custom config
@@ -468,7 +468,7 @@ func TestMultiVersionKeyMigration(t *testing.T) {
 		// Test key version info retrieval
 		keyInfo, err := registry.GetKeyVersionInfo(1)
 		assert.NoError(t, err)
-		assert.Equal(t, 1, keyInfo.Version)
+		assert.Equal(t, int32(1), keyInfo.Version)
 		assert.True(t, keyInfo.IsActive)
 		assert.False(t, keyInfo.IsDeprecated)
 
@@ -554,7 +554,7 @@ func TestKeyVersionRegistry(t *testing.T) {
 
 		keyInfo, err := registry.GetKeyVersionInfo(1)
 		assert.NoError(t, err)
-		assert.Equal(t, 1, keyInfo.Version)
+		assert.Equal(t, int32(1), keyInfo.Version)
 		assert.Equal(t, "test_salt", keyInfo.Salt)
 		assert.True(t, keyInfo.IsActive)
 		assert.False(t, keyInfo.IsDeprecated)

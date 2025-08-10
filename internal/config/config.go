@@ -55,7 +55,7 @@ type LoggingConfig struct {
 // IBEConfig holds Identity-Based Encryption configuration
 type IBEConfig struct {
 	DomainKeysDir string // Directory containing domain-specific master keys
-	KeyVersion    int    // Current key version
+	KeyVersion    int32  // Current key version
 	Salt          string // Salt for fingerprint generation (defaults to "fingerprint_salt_v1")
 	KeyRotation   struct {
 		Enabled     bool
@@ -164,7 +164,7 @@ func Load() (*Config, error) {
 		},
 		IBE: IBEConfig{
 			DomainKeysDir: getEnv("IBE_DOMAIN_KEYS_DIR", "./keys/domains"),
-			KeyVersion:    getEnvAsInt("IBE_KEY_VERSION", 1),
+			KeyVersion:    getEnvAsInt32("IBE_KEY_VERSION", 1),
 			Salt:          getEnv("IBE_SALT", "fingerprint_salt_v1"),
 			KeyRotation: struct {
 				Enabled     bool
@@ -333,6 +333,18 @@ func getEnvAsBool(key string, defaultValue bool) bool {
 func getEnvAsSlice(key string, defaultValue []string) []string {
 	if value := os.Getenv(key); value != "" {
 		return strings.Split(value, ",")
+	}
+	return defaultValue
+}
+
+// getEnvAsInt32 gets an environment variable as int32, with bounds checking
+// This prevents unsafe casting from int to int32 that could cause security vulnerabilities
+func getEnvAsInt32(key string, defaultValue int32) int32 {
+	if value := os.Getenv(key); value != "" {
+		// Use ParseInt with bitSize 32 to ensure the value fits in int32
+		if parsed, err := strconv.ParseInt(value, 10, 32); err == nil {
+			return int32(parsed)
+		}
 	}
 	return defaultValue
 }
