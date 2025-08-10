@@ -67,7 +67,7 @@ func (h *CorrelationHandler) RequestFingerprintCorrelation(ctx context.Context, 
 		Int64("admin_id", adminID).
 		Str("requested_pseudonym", input.Body.RequestedPseudonym).
 		Str("justification", input.Body.Justification).
-		Int("subforum_id", input.Body.SubforumID).
+		Int32("subforum_id", input.Body.SubforumID).
 		Str("incident_id", input.Body.IncidentID).
 		Msg("Fingerprint correlation requested")
 
@@ -165,7 +165,7 @@ func (h *CorrelationHandler) RequestFingerprintCorrelation(ctx context.Context, 
 		}
 
 		// Get actual post/comment counts for the specific subforum
-		subforumID := int32(input.Body.SubforumID)
+		subforumID := input.Body.SubforumID
 		postsInSubforum, err := h.postDAO.CountPostsByPseudonymInSubforum(ctx, mapping.PseudonymID, subforumID)
 		if err != nil {
 			log.Error().Err(err).

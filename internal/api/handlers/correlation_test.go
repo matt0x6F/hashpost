@@ -85,7 +85,7 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 		// Test data
 		adminUserID := int64(1)
 		requestedPseudonymID := "target-pseudonym-123"
-		subforumID := 1
+		subforumID := int32(1)
 
 		// Create test user context with correlation capability
 		userCtx := fixtures.CreateTestUserContext()
@@ -141,10 +141,10 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 		mockCommentDAO.On("CountCommentsByPseudonym", mock.Anything, relatedPseudonymID).Return(int64(7), nil).Maybe()
 
 		// Mock the specific subforum count methods that the handler calls
-		mockPostDAO.On("CountPostsByPseudonymInSubforum", mock.Anything, requestedPseudonymID, int32(subforumID)).Return(int64(5), nil).Maybe()
-		mockPostDAO.On("CountPostsByPseudonymInSubforum", mock.Anything, relatedPseudonymID, int32(subforumID)).Return(int64(3), nil).Maybe()
-		mockCommentDAO.On("CountCommentsByPseudonymInSubforum", mock.Anything, requestedPseudonymID, int32(subforumID)).Return(int64(10), nil).Maybe()
-		mockCommentDAO.On("CountCommentsByPseudonymInSubforum", mock.Anything, relatedPseudonymID, int32(subforumID)).Return(int64(7), nil).Maybe()
+		mockPostDAO.On("CountPostsByPseudonymInSubforum", mock.Anything, requestedPseudonymID, subforumID).Return(int64(5), nil).Maybe()
+		mockPostDAO.On("CountPostsByPseudonymInSubforum", mock.Anything, relatedPseudonymID, subforumID).Return(int64(3), nil).Maybe()
+		mockCommentDAO.On("CountCommentsByPseudonymInSubforum", mock.Anything, requestedPseudonymID, subforumID).Return(int64(10), nil).Maybe()
+		mockCommentDAO.On("CountCommentsByPseudonymInSubforum", mock.Anything, relatedPseudonymID, subforumID).Return(int64(7), nil).Maybe()
 
 		// Mock pseudonym retrieval for each result
 		mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, requestedPseudonymID).Return(testPseudonym, nil).Maybe()
@@ -226,7 +226,7 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 			Body: apimodels.FingerprintCorrelationInputBody{
 				RequestedPseudonym: "target-pseudonym-123",
 				Justification:      "Investigation of ban evasion",
-				SubforumID:         1,
+				SubforumID:         int32(1),
 				IncidentID:         "ban_evasion_123",
 			},
 		}
@@ -265,7 +265,7 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 			Body: apimodels.FingerprintCorrelationInputBody{
 				RequestedPseudonym: "nonexistent-pseudonym",
 				Justification:      "Investigation of ban evasion",
-				SubforumID:         1,
+				SubforumID:         int32(1),
 				IncidentID:         "ban_evasion_123",
 			},
 		}
@@ -575,7 +575,7 @@ func TestCorrelationModels(t *testing.T) {
 			Body: apimodels.FingerprintCorrelationInputBody{
 				RequestedPseudonym: "target-pseudonym-123",
 				Justification:      "Investigation of ban evasion",
-				SubforumID:         1,
+				SubforumID:         int32(1),
 				IncidentID:         "ban_evasion_123",
 			},
 		}

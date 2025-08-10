@@ -7,7 +7,7 @@ type FingerprintCorrelationInputBody struct {
 	RequestedPseudonym   string `json:"requested_pseudonym" example:"abc123def456..." required:"true"`
 	RequestedFingerprint string `json:"requested_fingerprint" example:"a1b2c3d4e5f6..." required:"true"`
 	Justification        string `json:"justification" example:"Investigation of ban evasion in r/golang" required:"true"`
-	SubforumID           int    `json:"subforum_id" example:"1" required:"true"`
+	SubforumID           int32  `json:"subforum_id" example:"1" required:"true"`
 	IncidentID           string `json:"incident_id" example:"ban_evasion_123" required:"true"`
 }
 
