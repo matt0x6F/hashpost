@@ -452,8 +452,8 @@ func (ibe *IBESystem) GetMasterSecret() []byte {
 // SetMasterSecret sets the master secret (for backward compatibility)
 // Note: This is deprecated - use SetDomainMasters instead
 func (ibe *IBESystem) SetMasterSecret(secret []byte) error {
-	if len(secret) != 32 {
-		return fmt.Errorf("master secret must be 32 bytes, got %d", len(secret))
+	if len(secret) < 32 {
+		return fmt.Errorf("master secret must be at least 32 bytes for security, got %d", len(secret))
 	}
 	// For backward compatibility, set all domains to use the same secret
 	for domain := range ibe.domainMasters {
@@ -476,8 +476,8 @@ func (ibe *IBESystem) GetDomainMasters() map[string][]byte {
 // SetDomainMasters sets the domain masters (new API)
 func (ibe *IBESystem) SetDomainMasters(domainMasters map[string][]byte) error {
 	for domain, master := range domainMasters {
-		if len(master) != 32 {
-			return fmt.Errorf("domain master for %s must be 32 bytes, got %d", domain, len(master))
+		if len(master) < 32 {
+			return fmt.Errorf("domain master for %s must be at least 32 bytes for security, got %d", domain, len(master))
 		}
 		ibe.domainMasters[domain] = make([]byte, len(master))
 		copy(ibe.domainMasters[domain], master)
@@ -659,9 +659,12 @@ func NewIBESystemFromConfig(domainKeysDir string, keyVersion int, salt string) (
 	if domainKeysDir != "" {
 		domainMasters, err := LoadDomainMastersFromDir(domainKeysDir)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load domain masters from %s: %w", domainKeysDir, err)
+			// Log the error but don't fail - this allows basic commands to run
+			// Domain masters will be nil, which means the system will work in limited mode
+			log.Warn().Err(err).Str("domain_keys_dir", domainKeysDir).Msg("Failed to load domain masters, IBE system will run in limited mode")
+		} else {
+			opts.DomainMasters = domainMasters
 		}
-		opts.DomainMasters = domainMasters
 	}
 
 	return NewIBESystemWithOptions(opts), nil
@@ -686,9 +689,12 @@ func LoadDomainMastersFromDir(dir string) (map[string][]byte, error) {
 			return nil, fmt.Errorf("failed to load domain master for %s: %w", domain, err)
 		}
 
-		// Expect hex-encoded 32-byte secret
-		if len(data) != 64 { // 32 bytes = 64 hex chars
-			return nil, fmt.Errorf("domain master file %s must contain exactly 64 hex characters", domain)
+		// Validate hex-encoded key (must be even length for valid hex)
+		if len(data)%2 != 0 {
+			return nil, fmt.Errorf("domain master file %s must contain an even number of hex characters, got %d", domain, len(data))
+		}
+		if len(data) < 64 {
+			return nil, fmt.Errorf("domain master file %s must contain at least 64 hex characters (32 bytes), got %d", domain, len(data))
 		}
 
 		secret, err := hex.DecodeString(string(data))

@@ -14,24 +14,93 @@ import (
 	"github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/matt0x6f/hashpost/internal/ibe"
 	"github.com/rs/zerolog/log"
+	"github.com/spf13/cobra"
 )
 
-// SetupRoles creates the necessary role keys for all admin roles
-func SetupRoles() error {
-	// Load configuration
-	cfg, err := config.Load()
-	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
+// NewRolesCommands returns all roles-related commands
+func NewRolesCommands(cfg *config.Config) []*cobra.Command {
+	// Create the roles subcommand
+	rolesCmd := &cobra.Command{
+		Use:   "roles",
+		Short: "Manage roles and role keys",
+		Long:  "Commands for managing roles, role keys, and related operations.",
 	}
 
+	// Add 'setup' subcommand under 'roles'
+	setupRolesCmd := &cobra.Command{
+		Use:   "setup",
+		Short: "Setup role keys for all roles",
+		Long:  "Create the necessary role keys for all roles: user, moderator, subforum_owner, platform_admin, trust_safety, and legal_team",
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := SetupRoles(cfg); err != nil {
+				log.Fatal().Err(err).Msg("Failed to setup roles")
+			}
+		},
+	}
+	rolesCmd.AddCommand(setupRolesCmd)
+
+	// Add 'list' subcommand under 'roles'
+	listRolesCmd := &cobra.Command{
+		Use:   "list",
+		Short: "List all available roles and their capabilities",
+		Long:  "Display all roles defined in the system with their capabilities, correlation access, scope, and time windows",
+		Run: func(cmd *cobra.Command, args []string) {
+			// This command doesn't need IBE
+			if err := ListRoles(); err != nil {
+				log.Fatal().Err(err).Msg("Failed to list roles")
+			}
+		},
+	}
+	rolesCmd.AddCommand(listRolesCmd)
+
+	// Add 'keys' subcommand under 'roles'
+	listRoleKeysCmd := &cobra.Command{
+		Use:   "keys",
+		Short: "List all active role keys",
+		Long:  "Display all active role keys with their capabilities, expiration dates, and metadata",
+		Run: func(cmd *cobra.Command, args []string) {
+			// This command doesn't need IBE
+			if err := ListRoleKeys(); err != nil {
+				log.Fatal().Err(err).Msg("Failed to list role keys")
+			}
+		},
+	}
+	rolesCmd.AddCommand(listRoleKeysCmd)
+
+	// Add 'rotate' subcommand under 'roles'
+	rotateRoleKeysCmd := &cobra.Command{
+		Use:   "rotate",
+		Short: "Rotate role keys for security",
+		Long:  "Rotate role keys for a specific role or all roles. This deactivates existing keys and creates new ones.",
+		Run: func(cmd *cobra.Command, args []string) {
+			// This command doesn't need IBE
+			roleName, _ := cmd.Flags().GetString("role")
+			force, _ := cmd.Flags().GetBool("force")
+			if err := RotateRoleKeys(roleName, force, cfg); err != nil {
+				log.Fatal().Err(err).Msg("Failed to rotate role keys")
+			}
+		},
+	}
+	rotateRoleKeysCmd.Flags().String("role", "", "Specific role to rotate keys for (optional, rotates all roles if not specified)")
+	rotateRoleKeysCmd.Flags().Bool("force", false, "Force rotation even if keys already exist")
+	rolesCmd.AddCommand(rotateRoleKeysCmd)
+
+	return []*cobra.Command{rolesCmd}
+}
+
+// SetupRoles creates the necessary role keys for all admin roles
+func SetupRoles(cfg *config.Config) error {
 	// Create database connection
 	db, err := database.NewConnection(&cfg.Database)
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Initialize IBE system
-	ibeSystem := ibe.NewIBESystemFromEnv()
+	// Initialize IBE system using configuration instead of hardcoded defaults
+	ibeSystem, err := ibe.NewIBESystemFromConfig(cfg.IBE.DomainKeysDir, cfg.IBE.KeyVersion, cfg.IBE.Salt)
+	if err != nil {
+		return fmt.Errorf("failed to initialize IBE system: %w", err)
+	}
 
 	// Create role key DAO
 	roleKeyDAO := dao.NewRoleKeyDAO(db)
@@ -78,18 +147,18 @@ func SetupRoles() error {
 		for _, scope := range adminRole.Scopes {
 			capabilities := adminRole.Capabilities[scope]
 
-					// Check if role key already exists for this role
-		existingKey, err := roleKeyDAO.GetRoleKey(ctx, adminRole.RoleName, scope, nil)
-		if err == nil && existingKey != nil {
-			log.Info().Str("role", adminRole.RoleName).Str("scope", scope).Msg("Role key already exists, skipping")
-			continue
-		}
+			// Check if role key already exists for this role
+			existingKey, err := roleKeyDAO.GetRoleKey(ctx, adminRole.RoleName, scope, nil)
+			if err == nil && existingKey != nil {
+				log.Info().Str("role", adminRole.RoleName).Str("scope", scope).Msg("Role key already exists, skipping")
+				continue
+			}
 
-		// Create the role key
-		expiresAt := time.Now().AddDate(1, 0, 0) // Expire in 1 year
-		keyData := ibeSystem.GenerateTestRoleKey(adminRole.RoleName, scope)
+			// Create the role key
+			expiresAt := time.Now().AddDate(1, 0, 0) // Expire in 1 year
+			keyData := ibeSystem.GenerateTestRoleKey(adminRole.RoleName, scope)
 
-		_, err = roleKeyDAO.CreateRoleKey(ctx, adminRole.RoleName, scope, keyData, capabilities, expiresAt, adminRole.RoleName, "", nil)
+			_, err = roleKeyDAO.CreateRoleKey(ctx, adminRole.RoleName, scope, keyData, capabilities, expiresAt, adminRole.RoleName, "", nil)
 			if err != nil {
 				log.Error().Str("role", adminRole.RoleName).Str("scope", scope).Err(err).Msg("Failed to create role key")
 				continue
@@ -237,34 +306,22 @@ func ListRoleKeys() error {
 }
 
 // RotateRoleKeys rotates role keys for a specific role or all roles
-func RotateRoleKeys(roleName string, force bool) error {
-	// Load configuration
-	cfg, err := config.Load()
-	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
-	}
-
+func RotateRoleKeys(roleName string, force bool, cfg *config.Config) error {
 	// Create database connection
 	db, err := database.NewConnection(&cfg.Database)
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Initialize IBE system
-	ibeSystem := ibe.NewIBESystemFromEnv()
+	// Initialize IBE system using configuration instead of hardcoded defaults
+	ibeSystem, err := ibe.NewIBESystemFromConfig(cfg.IBE.DomainKeysDir, cfg.IBE.KeyVersion, cfg.IBE.Salt)
+	if err != nil {
+		return fmt.Errorf("failed to initialize IBE system: %w", err)
+	}
 
 	// Create role key DAO
 	roleKeyDAO := dao.NewRoleKeyDAO(db)
-	// userDAO := dao.NewUserDAO(db) // No longer needed
 	ctx := context.Background()
-
-	// Find a user to use as the creator for role keys
-	// Note: This is no longer needed since we're using placeholder pseudonym IDs
-	// users, err := userDAO.ListUsers(ctx, 1, 0)
-	// if err != nil || len(users) == 0 {
-	// 	return fmt.Errorf("no users found to create role keys")
-	// }
-	// creatorUserID := users[0].UserID
 
 	// Define all roles and their capabilities (same as SetupRoles)
 	allRoles := constants.GetRoleDefinitions()

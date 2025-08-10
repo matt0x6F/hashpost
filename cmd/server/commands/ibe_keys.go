@@ -1,124 +1,111 @@
 package commands
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
+	"github.com/matt0x6f/hashpost/internal/api/constants"
 	"github.com/matt0x6f/hashpost/internal/config"
+	"github.com/matt0x6f/hashpost/internal/database"
+	"github.com/matt0x6f/hashpost/internal/database/dao"
 	"github.com/matt0x6f/hashpost/internal/ibe"
 	"github.com/rs/zerolog/log"
+	"github.com/spf13/cobra"
 )
 
-// IBEKeyOptions defines the options for IBE key generation
+// IBEKeyOptions defines options for IBE key generation
 type IBEKeyOptions struct {
-	OutputDir      string `doc:"Output directory for generated keys" json:"output_dir"`
-	KeyVersion     int    `doc:"Key version to generate" json:"key_version" default:"1"`
-	Salt           string `doc:"Salt for fingerprint generation" json:"salt" default:"fingerprint_salt_v1"`
-	DomainKeysDir  string `doc:"Path to existing domain keys directory (optional)" json:"domain_keys_dir"`
-	GenerateNew    bool   `doc:"Generate new domain keys" json:"generate_new"`
-	Domains        string `doc:"Comma-separated list of domains to generate keys for" json:"domains"`
-	TimeWindows    string `doc:"Comma-separated list of time windows (e.g., 1h,24h,7d,30d)" json:"time_windows"`
-	Roles          string `doc:"Comma-separated list of roles to generate keys for" json:"roles"`
-	Scopes         string `doc:"Comma-separated list of scopes to generate keys for" json:"scopes"`
-	NonInteractive bool   `doc:"Non-interactive mode" json:"non_interactive"`
-	KeySize        int    `doc:"Key size in bytes (default 32, i.e., 256 bits)" json:"key_size" default:"32"`
+	OutputDir      string
+	KeyVersion     int
+	Salt           string
+	NonInteractive bool
+	KeySize        int
 }
 
-// GenerateIBEKeys generates IBE keys for the enhanced architecture
-func GenerateIBEKeys(opts *IBEKeyOptions) error {
-	// Load configuration (for future use)
-	_, err := config.Load()
+// GenerateIBEKeys generates IBE keys for enhanced architecture
+func GenerateIBEKeys(options *IBEKeyOptions, cfg *config.Config) error {
+	// Create database connection
+	db, err := database.NewConnection(&cfg.Database)
 	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
+		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Create output directory if it doesn't exist
-	if err := os.MkdirAll(opts.OutputDir, 0755); err != nil {
-		return fmt.Errorf("failed to create output directory: %w", err)
-	}
-
-	// Initialize IBE system
-	ibeSystem, err := initializeIBESystem(opts)
+	// Initialize IBE system using configuration instead of hardcoded defaults
+	ibeSystem, err := ibe.NewIBESystemFromConfig(cfg.IBE.DomainKeysDir, cfg.IBE.KeyVersion, cfg.IBE.Salt)
 	if err != nil {
 		return fmt.Errorf("failed to initialize IBE system: %w", err)
 	}
 
-	// Parse options
-	timeWindows := parseTimeWindows(opts.TimeWindows)
-	roles := parseRoles(opts.Roles)
-	scopes := parseScopes(opts.Scopes)
+	// Create role key DAO
+	roleKeyDAO := dao.NewRoleKeyDAO(db)
+	ctx := context.Background()
 
-	// Generate master key if requested
-	if opts.GenerateNew {
-		if err := generateMasterKey(ibeSystem, opts.OutputDir); err != nil {
-			return fmt.Errorf("failed to generate master key: %w", err)
+	// Define all roles and their capabilities using constants
+	allRoles := constants.GetRoleDefinitions()
+
+	// Create role keys for each admin role
+	for _, adminRole := range allRoles {
+		log.Info().Str("role", adminRole.RoleName).Msg("Creating role keys")
+
+		for _, scope := range adminRole.Scopes {
+			capabilities := adminRole.Capabilities[scope]
+
+			// Check if role key already exists for this role
+			existingKey, err := roleKeyDAO.GetRoleKey(ctx, adminRole.RoleName, scope, nil)
+			if err == nil && existingKey != nil {
+				log.Info().Str("role", adminRole.RoleName).Str("scope", scope).Msg("Role key already exists, skipping")
+				continue
+			}
+
+			// Create the role key
+			expiresAt := time.Now().AddDate(1, 0, 0) // Expire in 1 year
+			keyData := ibeSystem.GenerateTestRoleKey(adminRole.RoleName, scope)
+
+			_, err = roleKeyDAO.CreateRoleKey(ctx, adminRole.RoleName, scope, keyData, capabilities, expiresAt, adminRole.RoleName, "", nil)
+			if err != nil {
+				log.Error().Str("role", adminRole.RoleName).Str("scope", scope).Err(err).Msg("Failed to create role key")
+				continue
+			}
+
+			log.Info().Str("role", adminRole.RoleName).Str("scope", scope).Strs("capabilities", capabilities).Msg("Role key created successfully")
 		}
-	}
-
-	// Generate domain keys
-	if err := generateDomainKeys(ibeSystem, opts.OutputDir); err != nil {
-		return fmt.Errorf("failed to generate domain keys: %w", err)
-	}
-
-	// Generate role keys
-	if err := generateRoleKeys(ibeSystem, roles, scopes, timeWindows, opts.OutputDir); err != nil {
-		return fmt.Errorf("failed to generate role keys: %w", err)
-	}
-
-	// Generate test keys for development
-	if err := generateTestKeys(ibeSystem, opts.OutputDir); err != nil {
-		return fmt.Errorf("failed to generate test keys: %w", err)
-	}
-
-	// Save configuration
-	if err := saveIBEConfiguration(ibeSystem, opts.OutputDir); err != nil {
-		return fmt.Errorf("failed to save IBE configuration: %w", err)
 	}
 
 	log.Info().Msg("IBE key generation completed successfully")
 	return nil
 }
 
-// initializeIBESystem initializes the IBE system with the given options
+// initializeIBESystem initializes the IBE system with automatically generated domain keys
 func initializeIBESystem(opts *IBEKeyOptions) (*ibe.IBESystem, error) {
-	var domainMasters map[string][]byte
-	var err error
+	// Always generate new domain keys - no more master key concept
+	domainMasters := make(map[string][]byte)
 
-	if opts.DomainKeysDir != "" {
-		// Load existing domain keys
-		domainMasters, err = ibe.LoadDomainMastersFromDir(opts.DomainKeysDir)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load domain keys from %s: %w", opts.DomainKeysDir, err)
-		}
-		log.Info().Str("domain_keys_dir", opts.DomainKeysDir).Msg("Loaded existing domain keys")
-	} else {
-		// Generate new domain keys
-		domainMasters = make(map[string][]byte)
-		domains := []string{
-			ibe.DOMAIN_USER_PSEUDONYMS,
-			ibe.DOMAIN_USER_CORRELATION,
-			ibe.DOMAIN_MOD_CORRELATION,
-			ibe.DOMAIN_ADMIN_CORRELATION,
-			ibe.DOMAIN_LEGAL_CORRELATION,
-		}
-
-		for _, domain := range domains {
-			master := make([]byte, opts.KeySize)
-			if _, err := rand.Read(master); err != nil {
-				return nil, fmt.Errorf("failed to generate domain key for %s: %w", domain, err)
-			}
-			domainMasters[domain] = master
-		}
-		log.Info().Msg("Generated new domain keys")
+	// Define all domains that need keys
+	domains := []string{
+		ibe.DOMAIN_USER_PSEUDONYMS,
+		ibe.DOMAIN_USER_CORRELATION,
+		ibe.DOMAIN_MOD_CORRELATION,
+		ibe.DOMAIN_ADMIN_CORRELATION,
+		ibe.DOMAIN_LEGAL_CORRELATION,
 	}
 
-	// Create IBE system with options
+	// Generate a unique master key for each domain
+	for _, domain := range domains {
+		master := make([]byte, opts.KeySize)
+		if _, err := rand.Read(master); err != nil {
+			return nil, fmt.Errorf("failed to generate domain key for %s: %w", domain, err)
+		}
+		domainMasters[domain] = master
+		log.Info().Str("domain", domain).Msg("Generated domain master key")
+	}
+
+	// Create IBE system with generated domain keys
 	ibeSystem := ibe.NewIBESystemWithOptions(ibe.IBEOptions{
 		DomainMasters: domainMasters,
 		KeyVersion:    opts.KeyVersion,
@@ -126,19 +113,6 @@ func initializeIBESystem(opts *IBEKeyOptions) (*ibe.IBESystem, error) {
 	})
 
 	return ibeSystem, nil
-}
-
-// generateMasterKey generates and saves domain master keys
-func generateMasterKey(ibeSystem *ibe.IBESystem, outputDir string) error {
-	if err := ibeSystem.SaveDomainMastersToDir(outputDir); err != nil {
-		return fmt.Errorf("failed to save domain master keys: %w", err)
-	}
-
-	log.Info().
-		Str("domain_keys_dir", outputDir).
-		Msg("Domain master keys generated and saved")
-
-	return nil
 }
 
 // generateDomainKeys generates and saves domain-specific master keys
@@ -160,11 +134,22 @@ func generateDomainKeys(ibeSystem *ibe.IBESystem, outputDir string) error {
 	return nil
 }
 
-// generateRoleKeys generates role-specific keys with time windows
-func generateRoleKeys(ibeSystem *ibe.IBESystem, roles, scopes []string, timeWindows []time.Duration, outputDir string) error {
+// generateRoleKeys generates role-specific keys with automatic domain and scope mapping
+func generateRoleKeys(ibeSystem *ibe.IBESystem, outputDir string) error {
 	roleKeysDir := filepath.Join(outputDir, "roles")
 	if err := os.MkdirAll(roleKeysDir, 0755); err != nil {
 		return fmt.Errorf("failed to create role keys directory: %w", err)
+	}
+
+	// Get all roles from constants
+	roles := constants.GetAllRoles()
+
+	// Define standard time windows for key expiration
+	timeWindows := []time.Duration{
+		time.Hour,           // 1 hour
+		24 * time.Hour,      // 1 day
+		7 * 24 * time.Hour,  // 1 week
+		30 * 24 * time.Hour, // 1 month
 	}
 
 	for _, role := range roles {
@@ -173,7 +158,14 @@ func generateRoleKeys(ibeSystem *ibe.IBESystem, roles, scopes []string, timeWind
 			return fmt.Errorf("failed to create role directory: %w", err)
 		}
 
-		for _, scope := range scopes {
+		// Get scopes for this role from constants
+		roleDefinition := constants.GetRoleDefinition(role)
+		if roleDefinition == nil {
+			log.Warn().Str("role", role).Msg("No role definition found, skipping")
+			continue
+		}
+
+		for _, scope := range roleDefinition.Scopes {
 			scopeDir := filepath.Join(roleDir, scope)
 			if err := os.MkdirAll(scopeDir, 0755); err != nil {
 				return fmt.Errorf("failed to create scope directory: %w", err)
@@ -241,7 +233,7 @@ func generateTestKeys(ibeSystem *ibe.IBESystem, outputDir string) error {
 			Msg("Test pseudonym generated")
 	}
 
-	// Generate test role keys
+	// Generate test role keys for common roles and scopes
 	testRoles := []string{"user", "moderator", "platform_admin"}
 	testScopes := []string{"authentication", "correlation"}
 
@@ -270,6 +262,17 @@ func generateTestKeys(ibeSystem *ibe.IBESystem, outputDir string) error {
 func saveIBEConfiguration(ibeSystem *ibe.IBESystem, outputDir string) error {
 	configPath := filepath.Join(outputDir, "ibe_config.json")
 
+	// Get role definitions for configuration
+	roleDefinitions := constants.GetRoleDefinitions()
+	roleConfig := make(map[string]interface{})
+
+	for _, roleDef := range roleDefinitions {
+		roleConfig[roleDef.RoleName] = map[string]interface{}{
+			"scopes":       roleDef.Scopes,
+			"capabilities": roleDef.Capabilities,
+		}
+	}
+
 	config := map[string]interface{}{
 		"key_version": ibeSystem.GetKeyVersion(),
 		"salt":        ibeSystem.GetSalt(),
@@ -280,6 +283,7 @@ func saveIBEConfiguration(ibeSystem *ibe.IBESystem, outputDir string) error {
 			"admin_correlation": ibe.DOMAIN_ADMIN_CORRELATION,
 			"legal_correlation": ibe.DOMAIN_LEGAL_CORRELATION,
 		},
+		"roles":        roleConfig,
 		"generated_at": time.Now().UTC().Format(time.RFC3339),
 	}
 
@@ -300,76 +304,6 @@ func saveIBEConfiguration(ibeSystem *ibe.IBESystem, outputDir string) error {
 }
 
 // Helper functions
-
-func parseTimeWindows(timeWindowsStr string) []time.Duration {
-	if timeWindowsStr == "" {
-		return []time.Duration{
-			time.Hour,
-			24 * time.Hour,
-			7 * 24 * time.Hour,
-			30 * 24 * time.Hour,
-		}
-	}
-
-	parts := strings.Split(timeWindowsStr, ",")
-	var timeWindows []time.Duration
-
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if duration, err := parseDuration(part); err == nil {
-			timeWindows = append(timeWindows, duration)
-		}
-	}
-
-	return timeWindows
-}
-
-func parseRoles(rolesStr string) []string {
-	if rolesStr == "" {
-		return []string{"user", "moderator", "subforum_owner", "platform_admin", "trust_safety", "legal_team"}
-	}
-	return strings.Split(rolesStr, ",")
-}
-
-func parseScopes(scopesStr string) []string {
-	if scopesStr == "" {
-		return []string{"authentication", "self_correlation", "correlation"}
-	}
-	return strings.Split(scopesStr, ",")
-}
-
-func parseDuration(s string) (time.Duration, error) {
-	s = strings.ToLower(s)
-
-	switch {
-	case strings.HasSuffix(s, "h"):
-		duration, err := time.ParseDuration(s)
-		if err != nil {
-			return 0, fmt.Errorf("failed to parse duration '%s': %w", s, err)
-		}
-		return duration, nil
-	case strings.HasSuffix(s, "d"):
-		days := strings.TrimSuffix(s, "d")
-		duration, err := time.ParseDuration(days + "h")
-		if err != nil {
-			return 0, fmt.Errorf("failed to parse duration '%s': %w", s, err)
-		}
-		return duration, nil
-	case strings.HasSuffix(s, "w"):
-		weeks := strings.TrimSuffix(s, "w")
-		duration, err := time.ParseDuration(weeks + "h")
-		if err != nil {
-			return 0, fmt.Errorf("failed to parse duration '%s': %w", s, err)
-		}
-		return duration, nil
-	default:
-		duration, err := time.ParseDuration(s)
-		if err != nil {
-			return 0, fmt.Errorf("failed to parse duration '%s': %w", s, err)
-		}
-		return duration, nil
-	}
-}
 
 func formatTimeWindow(d time.Duration) string {
 	switch {
@@ -393,4 +327,58 @@ func saveKeyToFile(key []byte, path string) error {
 
 func saveStringToFile(content string, path string) error {
 	return os.WriteFile(path, []byte(content), 0644)
+}
+
+// NewGenerateIBEKeysCommand creates and returns the generate-ibe-keys command
+func NewGenerateIBEKeysCommand(cfg *config.Config) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "generate-ibe-keys",
+		Short: "Generate IBE keys for enhanced architecture",
+		Long:  "Generate Identity-Based Encryption keys with automatic domain separation and role-scope mapping. This command automatically generates all necessary domain keys and role keys based on the system's predefined mappings.",
+		Run: func(cmd *cobra.Command, args []string) {
+			// This command generates IBE keys from scratch - no need to initialize existing system
+
+			// Parse command line flags
+			outputDir, _ := cmd.Flags().GetString("output-dir")
+			keyVersion, _ := cmd.Flags().GetInt("key-version")
+			salt, _ := cmd.Flags().GetString("salt")
+			nonInteractive, _ := cmd.Flags().GetBool("non-interactive")
+			keySize, _ := cmd.Flags().GetInt("key-size")
+
+			// Use configuration salt if not specified via command line
+			if salt == "" {
+				salt = cfg.IBE.Salt
+			}
+
+			// Create IBE key options
+			ibeOptions := &IBEKeyOptions{
+				OutputDir:      outputDir,
+				KeyVersion:     keyVersion,
+				Salt:           salt,
+				NonInteractive: nonInteractive,
+				KeySize:        keySize,
+			}
+
+			// Generate IBE keys
+			if err := GenerateIBEKeys(ibeOptions, cfg); err != nil {
+				log.Fatal().Err(err).Msg("Failed to generate IBE keys")
+			}
+
+			fmt.Println("✅ IBE keys generated successfully!")
+			fmt.Printf("   Output directory: %s\n", outputDir)
+			fmt.Printf("   Key version: %d\n", keyVersion)
+			fmt.Printf("   Salt: %s\n", salt)
+			fmt.Println("   Generated domain keys for all domains")
+			fmt.Println("   Generated role keys for all roles with appropriate scopes")
+		},
+	}
+
+	// Add flags for generate-ibe-keys command
+	cmd.Flags().String("output-dir", "./keys", "Output directory for generated keys")
+	cmd.Flags().Int("key-version", 1, "Key version to generate")
+	cmd.Flags().String("salt", "", "Salt for fingerprint generation (defaults to config value)")
+	cmd.Flags().Bool("non-interactive", false, "Non-interactive mode")
+	cmd.Flags().Int("key-size", 32, "Key size in bytes (default 32, i.e., 256 bits)")
+
+	return cmd
 }

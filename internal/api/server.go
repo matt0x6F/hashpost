@@ -25,12 +25,7 @@ type Server struct {
 }
 
 // NewServer creates a new API server with middleware and routes
-func NewServer() *Server {
-	// Load configuration
-	cfg, err := config.Load()
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to load configuration")
-	}
+func NewServer(cfg *config.Config) *Server {
 
 	// Create database connection
 	db, err := database.NewConnection(&cfg.Database)
@@ -112,6 +107,30 @@ func NewServer() *Server {
 		Mux:       mux,
 		Config:    config,
 		AppConfig: cfg,
+	}
+}
+
+// NewServerForOpenAPI creates a minimal server just for generating OpenAPI specs
+// This function doesn't require IBE or database connections
+func NewServerForOpenAPI() *Server {
+	// Create a new HTTP mux
+	mux := http.NewServeMux()
+
+	// Create Huma configuration
+	config := huma.DefaultConfig("HashPost API", "1.0.0")
+
+	// Create a new Huma API with humago adapter
+	api := humago.New(mux, config)
+
+	// Register only the routes that don't require IBE or database
+	// These are typically just the basic structure routes
+	routes.RegisterHealthRoutes(api)
+
+	return &Server{
+		API:       api,
+		Mux:       mux,
+		Config:    config,
+		AppConfig: nil, // No config needed for OpenAPI generation
 	}
 }
 

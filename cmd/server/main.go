@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"net/http"
 	"time"
@@ -12,13 +11,12 @@ import (
 	"github.com/matt0x6f/hashpost/internal/api"
 	"github.com/matt0x6f/hashpost/internal/api/logger"
 	"github.com/matt0x6f/hashpost/internal/config"
-	"github.com/matt0x6f/hashpost/internal/ibe"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
-// Options defines the CLI options
-type Options struct {
+// ServerOptions defines the CLI options for the server command
+type ServerOptions struct {
 	Debug bool   `doc:"Enable debug logging"`
 	Host  string `doc:"Hostname to listen on."`
 	Port  int    `doc:"Port to listen on." short:"p" default:"8888"`
@@ -36,277 +34,83 @@ func main() {
 	// Initialize the logger with the configured level
 	logger.InitWithLevel(cfg.Logging.Level)
 
-	// Initialize IBE system and identity mapping DAO
-	ibeSystem := ibe.NewIBESystemFromEnv()
-	log.Info().Str("ibe_master_key", hex.EncodeToString(ibeSystem.GetMasterSecret())).Str("ibe_salt", ibeSystem.GetSalt()).Int("ibe_key_version", ibeSystem.GetKeyVersion()).Msg("IBE system configuration (CLI/server startup)")
-
-	// Create the CLI
-	cli := humacli.New(func(hooks humacli.Hooks, opts *Options) {
-		// Create the API server with all middleware and routes
-		server := api.NewServer()
-
-		// Create the HTTP server with graceful shutdown
-		httpServer := &http.Server{
-			Addr:    fmt.Sprintf("%s:%d", opts.Host, opts.Port),
-			Handler: server.GetHandler(),
-		}
-
-		hooks.OnStart(func() {
-			log.Info().Str("addr", httpServer.Addr).Msg("Server listening")
-			if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				log.Fatal().Err(err).Msg("Error starting server")
-			}
-		})
-
-		hooks.OnStop(func() {
-			log.Info().Msg("Start shutdown")
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-			defer cancel()
-
-			if err := httpServer.Shutdown(ctx); err != nil {
-				log.Error().Err(err).Msg("Could not stop server gracefully")
-				if err := httpServer.Close(); err != nil {
-					log.Fatal().Err(err).Msg("Could not force close server")
-				}
-			}
-			log.Info().Msg("Server stopped")
-		})
-	})
-
-	// Set app name and version
-	cmd := cli.Root()
-	cmd.Use = "hashpost"
-	cmd.Version = "1.0.0"
-
-	// Create the roles subcommand
-	rolesCmd := &cobra.Command{
-		Use:   "roles",
-		Short: "Manage roles and role keys",
-		Long:  "Commands for managing roles, role keys, and related operations.",
+	// Create the root command
+	rootCmd := &cobra.Command{
+		Use:     "hashpost",
+		Version: "1.0.0",
+		Short:   "HashPost - A modern forum platform",
+		Long:    "HashPost is a modern forum platform with enhanced security and privacy features.",
 	}
 
-	// Add 'setup' subcommand under 'roles'
-	setupRolesCmd := &cobra.Command{
-		Use:   "setup",
-		Short: "Setup role keys for all roles",
-		Long:  "Create the necessary role keys for all roles: user, moderator, subforum_owner, platform_admin, trust_safety, and legal_team",
-		Run: humacli.WithOptions(func(cmd *cobra.Command, args []string, options *Options) {
-			if err := commands.SetupRoles(); err != nil {
-				log.Fatal().Err(err).Msg("Failed to setup roles")
-			}
-		}),
-	}
-	rolesCmd.AddCommand(setupRolesCmd)
-
-	// Add 'list' subcommand under 'roles'
-	listRolesCmd := &cobra.Command{
-		Use:   "list",
-		Short: "List all available roles and their capabilities",
-		Long:  "Display all roles defined in the system with their capabilities, correlation access, scope, and time windows",
-		Run: humacli.WithOptions(func(cmd *cobra.Command, args []string, options *Options) {
-			if err := commands.ListRoles(); err != nil {
-				log.Fatal().Err(err).Msg("Failed to list roles")
-			}
-		}),
-	}
-	rolesCmd.AddCommand(listRolesCmd)
-
-	// Add 'keys' subcommand under 'roles'
-	listRoleKeysCmd := &cobra.Command{
-		Use:   "keys",
-		Short: "List all active role keys",
-		Long:  "Display all active role keys with their capabilities, expiration dates, and metadata",
-		Run: humacli.WithOptions(func(cmd *cobra.Command, args []string, options *Options) {
-			if err := commands.ListRoleKeys(); err != nil {
-				log.Fatal().Err(err).Msg("Failed to list role keys")
-			}
-		}),
-	}
-	rolesCmd.AddCommand(listRoleKeysCmd)
-
-	// Add 'rotate' subcommand under 'roles'
-	rotateRoleKeysCmd := &cobra.Command{
-		Use:   "rotate",
-		Short: "Rotate role keys for security",
-		Long:  "Rotate role keys for a specific role or all roles. This deactivates existing keys and creates new ones.",
-		Run: humacli.WithOptions(func(cmd *cobra.Command, args []string, options *Options) {
-			roleName, _ := cmd.Flags().GetString("role")
-			force, _ := cmd.Flags().GetBool("force")
-			if err := commands.RotateRoleKeys(roleName, force); err != nil {
-				log.Fatal().Err(err).Msg("Failed to rotate role keys")
-			}
-		}),
-	}
-	rotateRoleKeysCmd.Flags().String("role", "", "Specific role to rotate keys for (optional, rotates all roles if not specified)")
-	rotateRoleKeysCmd.Flags().Bool("force", false, "Force rotation even if keys already exist")
-	rolesCmd.AddCommand(rotateRoleKeysCmd)
-
-	// Register the roles group
-	cli.Root().AddCommand(rolesCmd)
-
-	// Add create-admin subcommand
-	createAdminCmd := &cobra.Command{
-		Use:   "create-admin",
-		Short: "Create a new admin user",
-		Long:  "Create a new admin user with specified role and capabilities",
-		Run: humacli.WithOptions(func(cmd *cobra.Command, args []string, options *Options) {
-			if err := commands.CreateAdminUser(); err != nil {
-				log.Fatal().Err(err).Msg("Failed to create admin user")
-			}
-		}),
-	}
-
-	// Add flags for create-admin command
-	createAdminCmd.Flags().String("email", "", "Email address for the admin user")
-	createAdminCmd.Flags().String("password", "", "Password for the admin user")
-	createAdminCmd.Flags().String("role", "platform_admin", "Admin role (platform_admin, trust_safety, legal_team)")
-	createAdminCmd.Flags().String("display-name", "", "Display name for the admin user")
-	createAdminCmd.Flags().String("scope", "", "Admin scope (optional)")
-	createAdminCmd.Flags().Bool("mfa-enabled", true, "Enable MFA for the admin user")
-	createAdminCmd.Flags().Bool("non-interactive", false, "Non-interactive mode (requires all flags)")
-
-	cli.Root().AddCommand(createAdminCmd)
-
-	// Add set-moderator subcommand
-	setModeratorCmd := &cobra.Command{
-		Use:   "set-moderator",
-		Short: "Set a pseudonym as a forum moderator",
-		Long:  "Set a pseudonym as a moderator of a specific subforum",
-		Run: humacli.WithOptions(func(cmd *cobra.Command, args []string, options *Options) {
-			if err := commands.SetModerator(); err != nil {
-				log.Fatal().Err(err).Msg("Failed to set moderator")
-			}
-		}),
-	}
-
-	// Add flags for set-moderator command
-	setModeratorCmd.Flags().String("subforum", "", "Name of the subforum")
-	setModeratorCmd.Flags().String("pseudonym", "", "Pseudonym ID to set as moderator")
-	setModeratorCmd.Flags().Bool("non-interactive", false, "Non-interactive mode (requires all flags)")
-
-	cli.Root().AddCommand(setModeratorCmd)
-
-	// Add delete-user subcommand
-	deleteUserCmd := &cobra.Command{
-		Use:   "delete-user",
-		Short: "Delete a user and all associated data",
-		Long:  "Delete a user account and all associated data including pseudonyms, role keys, and tokens",
-		Run: humacli.WithOptions(func(cmd *cobra.Command, args []string, options *Options) {
-			if err := commands.DeleteUser(); err != nil {
-				log.Fatal().Err(err).Msg("Failed to delete user")
-			}
-		}),
-	}
-
-	// Add flags for delete-user command
-	deleteUserCmd.Flags().String("email", "", "Email address of the user to delete")
-	deleteUserCmd.Flags().Bool("force", false, "Force deletion without confirmation")
-	deleteUserCmd.Flags().Bool("non-interactive", false, "Non-interactive mode (requires all flags)")
-
-	cli.Root().AddCommand(deleteUserCmd)
-
-	// Add update-admin subcommand
-	updateAdminCmd := &cobra.Command{
-		Use:   "update-admin",
-		Short: "Update an admin user and fix their pseudonym mappings",
-		Long:  "Update an existing admin user's role and optionally fix missing identity mappings",
-		Run: humacli.WithOptions(func(cmd *cobra.Command, args []string, options *Options) {
-			if err := commands.UpdateAdminUserWithCommand(cmd); err != nil {
-				log.Fatal().Err(err).Msg("Failed to update admin user")
-			}
-		}),
-	}
-
-	// Add flags for update-admin command
-	updateAdminCmd.Flags().String("email", "", "Email address of the admin user to update")
-	updateAdminCmd.Flags().String("role", "platform_admin", "Admin role (platform_admin, trust_safety, legal_team)")
-	updateAdminCmd.Flags().Bool("fix-mappings", false, "Fix missing identity mappings for the user's pseudonyms")
-	updateAdminCmd.Flags().Bool("non-interactive", false, "Non-interactive mode (requires all flags)")
-
-	cli.Root().AddCommand(updateAdminCmd)
-
-	// Add generate-ibe-keys subcommand
-	generateIBEKeysCmd := &cobra.Command{
-		Use:   "generate-ibe-keys",
-		Short: "Generate IBE keys for enhanced architecture",
-		Long:  "Generate Identity-Based Encryption keys with domain separation and time-bounded access",
-		Run: humacli.WithOptions(func(cmd *cobra.Command, args []string, options *Options) {
-			// Parse command line flags
-			outputDir, _ := cmd.Flags().GetString("output-dir")
-			keyVersion, _ := cmd.Flags().GetInt("key-version")
-			salt, _ := cmd.Flags().GetString("salt")
-			domainKeysDir, _ := cmd.Flags().GetString("domain-keys-dir")
-			generateNew, _ := cmd.Flags().GetBool("generate-new")
-			domains, _ := cmd.Flags().GetString("domains")
-			timeWindows, _ := cmd.Flags().GetString("time-windows")
-			roles, _ := cmd.Flags().GetString("roles")
-			scopes, _ := cmd.Flags().GetString("scopes")
-			nonInteractive, _ := cmd.Flags().GetBool("non-interactive")
-			keySize, _ := cmd.Flags().GetInt("key-size")
-
-			// Create IBE key options
-			ibeOptions := &commands.IBEKeyOptions{
-				OutputDir:      outputDir,
-				KeyVersion:     keyVersion,
-				Salt:           salt,
-				DomainKeysDir:  domainKeysDir,
-				GenerateNew:    generateNew,
-				Domains:        domains,
-				TimeWindows:    timeWindows,
-				Roles:          roles,
-				Scopes:         scopes,
-				NonInteractive: nonInteractive,
-				KeySize:        keySize,
-			}
-
-			// Generate IBE keys
-			if err := commands.GenerateIBEKeys(ibeOptions); err != nil {
-				log.Fatal().Err(err).Msg("Failed to generate IBE keys")
-			}
-
-			fmt.Println("✅ IBE keys generated successfully!")
-			fmt.Printf("   Output directory: %s\n", outputDir)
-			fmt.Printf("   Key version: %d\n", keyVersion)
-			fmt.Printf("   Salt: %s\n", salt)
-			if generateNew {
-				fmt.Println("   Generated new domain keys")
-			}
-			if domainKeysDir != "" {
-				fmt.Printf("   Used existing domain keys: %s\n", domainKeysDir)
-			}
-		}),
-	}
-
-	// Add flags for generate-ibe-keys command
-	generateIBEKeysCmd.Flags().String("output-dir", "./keys", "Output directory for generated keys")
-	generateIBEKeysCmd.Flags().Int("key-version", 1, "Key version to generate")
-	generateIBEKeysCmd.Flags().String("salt", "fingerprint_salt_v1", "Salt for fingerprint generation")
-	generateIBEKeysCmd.Flags().String("master-key-path", "", "Path to existing master key file (optional)")
-	generateIBEKeysCmd.Flags().Bool("generate-new", false, "Generate new master key")
-	generateIBEKeysCmd.Flags().String("domains", "", "Comma-separated list of domains to generate keys for")
-	generateIBEKeysCmd.Flags().String("time-windows", "", "Comma-separated list of time windows (e.g., 1h,24h,7d,30d)")
-	generateIBEKeysCmd.Flags().String("roles", "", "Comma-separated list of roles to generate keys for")
-	generateIBEKeysCmd.Flags().String("scopes", "", "Comma-separated list of scopes to generate keys for")
-	generateIBEKeysCmd.Flags().Bool("non-interactive", false, "Non-interactive mode")
-	generateIBEKeysCmd.Flags().Int("key-size", 32, "Key size in bytes (default 32, i.e., 256 bits)")
-
-	cli.Root().AddCommand(generateIBEKeysCmd)
-
-	// Add openapi subcommand
-	cli.Root().AddCommand(&cobra.Command{
-		Use:   "openapi",
-		Short: "Print the OpenAPI spec",
+	// Create server command that uses the CLI
+	serverCmd := &cobra.Command{
+		Use:   "server",
+		Short: "Start the HashPost server",
+		Long:  "Start the HashPost server with the specified configuration",
 		Run: func(cmd *cobra.Command, args []string) {
-			// Create a temporary server to get the API
-			server := api.NewServer()
-			b, err := server.API.OpenAPI().YAML()
-			if err != nil {
-				log.Fatal().Err(err).Msg("Failed to generate OpenAPI spec")
-			}
-			fmt.Println(string(b))
+			// Create the CLI for the server - IBE system will be initialized only when server starts
+			cli := humacli.New(func(hooks humacli.Hooks, opts *ServerOptions) {
+				var httpServer *http.Server
+
+				hooks.OnStart(func() {
+					// Create the API server with all middleware and routes ONLY when starting
+					server := api.NewServer(cfg)
+
+					// Create the HTTP server with graceful shutdown
+					httpServer = &http.Server{
+						Addr:    fmt.Sprintf("%s:%d", opts.Host, opts.Port),
+						Handler: server.GetHandler(),
+					}
+
+					log.Info().Str("addr", httpServer.Addr).Msg("Server listening")
+					if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+						log.Fatal().Err(err).Msg("Error starting server")
+					}
+				})
+
+				hooks.OnStop(func() {
+					if httpServer == nil {
+						return
+					}
+					log.Info().Msg("Start shutdown")
+					ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+					defer cancel()
+
+					if err := httpServer.Shutdown(ctx); err != nil {
+						log.Error().Err(err).Msg("Could not stop server gracefully")
+						if err := httpServer.Close(); err != nil {
+							log.Fatal().Err(err).Msg("Could not force close server")
+						}
+					}
+					log.Info().Msg("Server stopped")
+				})
+			})
+
+			// Run the CLI
+			cli.Run()
 		},
-	})
+	}
+
+	// Add server command
+	rootCmd.AddCommand(serverCmd)
+
+	// Add roles commands
+	rootCmd.AddCommand(commands.NewRolesCommands(cfg)...)
+
+	// Add admin commands
+	rootCmd.AddCommand(commands.NewAdminCommands(cfg)...)
+
+	// Add IBE keys command
+	rootCmd.AddCommand(commands.NewGenerateIBEKeysCommand(cfg))
+
+	// Add key-rotation commands - TEMPORARILY DISABLED
+	// rootCmd.AddCommand(commands.NewKeyRotationCommands(cfg)...)
+
+	// Add openapi command
+	rootCmd.AddCommand(commands.NewOpenAPICommand())
 
 	// Run the CLI
-	cli.Run()
+	if err := rootCmd.Execute(); err != nil {
+		log.Fatal().Err(err).Msg("Failed to execute command")
+	}
 }

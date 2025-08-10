@@ -29,6 +29,105 @@ const (
 	adminPseudonymType = "admin-pseudonym"
 )
 
+// NewAdminCommands creates and returns all admin-related commands
+func NewAdminCommands(cfg *config.Config) []*cobra.Command {
+	return []*cobra.Command{
+		NewCreateAdminCommand(cfg),
+		NewSetModeratorCommand(cfg),
+		NewDeleteUserCommand(cfg),
+		NewUpdateAdminCommand(cfg),
+	}
+}
+
+// NewCreateAdminCommand creates the create-admin command
+func NewCreateAdminCommand(cfg *config.Config) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "create-admin",
+		Short: "Create a new admin user",
+		Long:  "Create a new admin user with specified role and capabilities",
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := CreateAdminUser(cfg); err != nil {
+				log.Fatal().Err(err).Msg("Failed to create admin user")
+			}
+		},
+	}
+
+	// Add flags for create-admin command
+	cmd.Flags().String("email", "", "Email address for the admin user")
+	cmd.Flags().String("password", "", "Password for the admin user")
+	cmd.Flags().String("role", "platform_admin", "Admin role (platform_admin, trust_safety, legal_team)")
+	cmd.Flags().String("display-name", "", "Display name for the admin user")
+	cmd.Flags().String("scope", "", "Admin scope (optional)")
+	cmd.Flags().Bool("mfa-enabled", true, "Enable MFA for the admin user")
+	cmd.Flags().Bool("non-interactive", false, "Non-interactive mode (requires all flags)")
+
+	return cmd
+}
+
+// NewSetModeratorCommand creates the set-moderator command
+func NewSetModeratorCommand(cfg *config.Config) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "set-moderator",
+		Short: "Set a pseudonym as a forum moderator",
+		Long:  "Set a pseudonym as a moderator of a specific subforum",
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := SetModerator(cfg); err != nil {
+				log.Fatal().Err(err).Msg("Failed to set moderator")
+			}
+		},
+	}
+
+	// Add flags for set-moderator command
+	cmd.Flags().String("subforum", "", "Name of the subforum")
+	cmd.Flags().String("pseudonym", "", "Pseudonym ID to set as moderator")
+	cmd.Flags().Bool("non-interactive", false, "Non-interactive mode (requires all flags)")
+
+	return cmd
+}
+
+// NewDeleteUserCommand creates the delete-user command
+func NewDeleteUserCommand(cfg *config.Config) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "delete-user",
+		Short: "Delete a user and all associated data",
+		Long:  "Delete a user account and all associated data including pseudonyms, role keys, and tokens",
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := DeleteUser(cfg); err != nil {
+				log.Fatal().Err(err).Msg("Failed to delete user")
+			}
+		},
+	}
+
+	// Add flags for delete-user command
+	cmd.Flags().String("email", "", "Email address of the user to delete")
+	cmd.Flags().Bool("force", false, "Force deletion without confirmation")
+	cmd.Flags().Bool("non-interactive", false, "Non-interactive mode (requires all flags)")
+
+	return cmd
+}
+
+// NewUpdateAdminCommand creates the update-admin command
+func NewUpdateAdminCommand(cfg *config.Config) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "update-admin",
+		Short: "Update an admin user and fix their pseudonym mappings",
+		Long:  "Update an existing admin user's role and optionally fix missing identity mappings",
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := UpdateAdminUserWithCommand(cmd, cfg); err != nil {
+				log.Fatal().Err(err).Msg("Failed to update admin user")
+			}
+		},
+	}
+
+	// Add flags for update-admin command
+	cmd.Flags().String("email", "", "Email address of the admin user to update")
+	cmd.Flags().String("role", "platform_admin", "Admin role (platform_admin, trust_safety, legal_team)")
+	cmd.Flags().Bool("fix-mappings", false, "Fix missing identity mappings for the user's pseudonyms")
+	cmd.Flags().Bool("non-interactive", false, "Non-interactive mode (requires all flags)")
+
+	return cmd
+}
+
 // AdminCreateInput defines the input for creating an admin user.
 type AdminCreateInput struct {
 	Email          string `doc:"Email address for the admin user" json:"email"`
@@ -61,7 +160,9 @@ type UpdateAdminInput struct {
 }
 
 // CreateAdminUser creates a new admin user
-func CreateAdminUser() error {
+func CreateAdminUser(cfg *config.Config) error {
+	// Get admin create input
+	input := getAdminCreateInput()
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
@@ -74,9 +175,6 @@ func CreateAdminUser() error {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Get admin creation input
-	input := getAdminCreateInput()
-
 	// Validate input
 	if err := validateAdminInput(input); err != nil {
 		return fmt.Errorf("invalid input: %w", err)
@@ -85,8 +183,11 @@ func CreateAdminUser() error {
 	// Create user DAO
 	userDAO := dao.NewUserDAO(db)
 
-	// Initialize IBE system and identity mapping DAO
-	ibeSystem := ibe.NewIBESystemFromEnv()
+	// Initialize IBE system using configuration instead of hardcoded defaults
+	ibeSystem, err := ibe.NewIBESystemFromConfig(cfg.IBE.DomainKeysDir, cfg.IBE.KeyVersion, cfg.IBE.Salt)
+	if err != nil {
+		return fmt.Errorf("failed to initialize IBE system: %w", err)
+	}
 	identityMappingDAO := dao.NewIdentityMappingDAO(db)
 
 	// Check if user already exists
@@ -331,12 +432,7 @@ func CreateAdminUser() error {
 }
 
 // SetModerator sets a pseudonym as a forum moderator
-func SetModerator() error {
-	// Load configuration
-	cfg, err := config.Load()
-	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
-	}
+func SetModerator(cfg *config.Config) error {
 
 	// Create database connection
 	db, err := database.NewConnection(&cfg.Database)
@@ -355,7 +451,13 @@ func SetModerator() error {
 	// Create DAOs
 	subforumDAO := dao.NewSubforumDAO(db)
 	roleKeyDAO := dao.NewRoleKeyDAO(db)
-	ibeSystem := ibe.NewIBESystemFromEnv()
+
+	// Initialize IBE system using configuration instead of hardcoded defaults
+	ibeSystem, err := ibe.NewIBESystemFromConfig(cfg.IBE.DomainKeysDir, cfg.IBE.KeyVersion, cfg.IBE.Salt)
+	if err != nil {
+		return fmt.Errorf("failed to initialize IBE system: %w", err)
+	}
+
 	pseudonymDAO := dao.NewPseudonymDAO(db, ibeSystem, dao.NewIdentityMappingDAO(db), dao.NewUserDAO(db), roleKeyDAO, dao.NewUserBlocksDAO(db))
 
 	ctx := context.Background()
@@ -426,13 +528,13 @@ func SetModerator() error {
 	return nil
 }
 
-// UpdateAdminUserWithCommand updates an existing admin user and optionally fixes their pseudonym mappings
-func UpdateAdminUserWithCommand(cmd *cobra.Command) error {
+// UpdateAdminUser updates an existing admin user and optionally fixes their pseudonym mappings
+func UpdateAdminUserWithCommand(cobraCmd *cobra.Command, cfg *config.Config) error {
 	// Read flags from command line
-	email, _ := cmd.Flags().GetString("email")
-	role, _ := cmd.Flags().GetString("role")
-	fixMappings, _ := cmd.Flags().GetBool("fix-mappings")
-	nonInteractive, _ := cmd.Flags().GetBool("non-interactive")
+	email, _ := cobraCmd.Flags().GetString("email")
+	role, _ := cobraCmd.Flags().GetString("role")
+	fixMappings, _ := cobraCmd.Flags().GetBool("fix-mappings")
+	nonInteractive, _ := cobraCmd.Flags().GetBool("non-interactive")
 
 	// Create input from flags
 	input := &UpdateAdminInput{
@@ -497,7 +599,13 @@ func UpdateAdminUserWithCommand(cmd *cobra.Command) error {
 
 	// Create DAOs
 	userDAO := dao.NewUserDAO(db)
-	ibeSystem := ibe.NewIBESystemFromEnv()
+
+	// Initialize IBE system using configuration instead of hardcoded defaults
+	ibeSystem, err := ibe.NewIBESystemFromConfig(cfg.IBE.DomainKeysDir, cfg.IBE.KeyVersion, cfg.IBE.Salt)
+	if err != nil {
+		return fmt.Errorf("failed to initialize IBE system: %w", err)
+	}
+
 	identityMappingDAO := dao.NewIdentityMappingDAO(db)
 	roleKeyDAO := dao.NewRoleKeyDAO(db)
 	pseudonymDAO := dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, nil)
@@ -519,7 +627,7 @@ func UpdateAdminUserWithCommand(cmd *cobra.Command) error {
 
 	// Fix pseudonym mappings if requested
 	if input.FixMappings {
-		if err := fixUserPseudonymMappings(ctx, user, input.Role, db); err != nil {
+		if err := fixUserPseudonymMappings(ctx, user, input.Role, db, cfg); err != nil {
 			return fmt.Errorf("failed to fix pseudonym mappings: %w", err)
 		}
 		log.Info().Str("email", input.Email).Msg("Pseudonym mappings fixed successfully")
@@ -535,12 +643,7 @@ func UpdateAdminUserWithCommand(cmd *cobra.Command) error {
 }
 
 // DeleteUser deletes a user and all associated data
-func DeleteUser() error {
-	// Load configuration
-	cfg, err := config.Load()
-	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
-	}
+func DeleteUser(cfg *config.Config) error {
 
 	// Create database connection
 	db, err := database.NewConnection(&cfg.Database)
@@ -561,7 +664,13 @@ func DeleteUser() error {
 	roleKeyDAO := dao.NewRoleKeyDAO(db)
 	identityMappingDAO := dao.NewIdentityMappingDAO(db)
 	userBlocksDAO := dao.NewUserBlocksDAO(db)
-	pseudonymDAO := dao.NewPseudonymDAO(db, ibe.NewIBESystemFromEnv(), identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
+	// Initialize IBE system using configuration instead of hardcoded defaults
+	ibeSystem, err := ibe.NewIBESystemFromConfig(cfg.IBE.DomainKeysDir, cfg.IBE.KeyVersion, cfg.IBE.Salt)
+	if err != nil {
+		return fmt.Errorf("failed to initialize IBE system: %w", err)
+	}
+
+	pseudonymDAO := dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
 	emailVerificationTokenDAO := dao.NewEmailVerificationTokenDAO(db)
 	passwordResetTokenDAO := dao.NewPasswordResetTokenDAO(db)
 
@@ -1004,21 +1113,26 @@ func validateUpdateAdminInput(input *UpdateAdminInput) error {
 }
 
 // fixUserPseudonymMappings fixes missing identity mappings for a user's pseudonyms
-func fixUserPseudonymMappings(ctx context.Context, user *models.User, role string, db bob.Executor) error {
+func fixUserPseudonymMappings(ctx context.Context, user *models.User, role string, db bob.Executor, cfg *config.Config) error {
 	// Create DAOs
 	identityMappingDAO := dao.NewIdentityMappingDAO(db)
 	userDAO := dao.NewUserDAO(db)
 	roleKeyDAO := dao.NewRoleKeyDAO(db)
 	userBlocksDAO := dao.NewUserBlocksDAO(db)
-	pseudonymDAO := dao.NewPseudonymDAO(db, ibe.NewIBESystemFromEnv(), identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
+
+	// Initialize IBE system using configuration instead of hardcoded defaults
+	ibeSystem, err := ibe.NewIBESystemFromConfig(cfg.IBE.DomainKeysDir, cfg.IBE.KeyVersion, cfg.IBE.Salt)
+	if err != nil {
+		return fmt.Errorf("failed to initialize IBE system: %w", err)
+	}
+
+	pseudonymDAO := dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
 
 	// Get user's pseudonyms
 	pseudonyms, err := pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, adminPseudonymType, role, "authentication")
 	if err != nil {
 		return fmt.Errorf("failed to get user pseudonyms: %w", err)
 	}
-
-	ibeSystem := ibe.NewIBESystemFromEnv()
 
 	for _, pseudonym := range pseudonyms {
 		log.Info().Str("pseudonym_id", pseudonym.PseudonymID).Msg("Checking pseudonym mappings")
