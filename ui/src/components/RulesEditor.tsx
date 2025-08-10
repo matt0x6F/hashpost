@@ -78,11 +78,6 @@ export function RulesEditor({
   const handleSaveRule = () => {
     if (!editingRule) return;
 
-    // Validate required fields
-    if (!editingRule.code.trim() || !editingRule.name.trim() || !editingRule.description.trim()) {
-      return;
-    }
-
     // Generate code from name if empty or if creating
     if (isCreating && !editingRule.code.trim()) {
       const generatedCode = editingRule.name
@@ -92,8 +87,15 @@ export function RulesEditor({
       editingRule.code = generatedCode;
     }
 
+    // Validate required fields
+    if (!editingRule.code.trim() || !editingRule.name.trim() || !editingRule.description.trim()) {
+      return;
+    }
+
     // Check for duplicate codes
-    const existingRule = rules.find(r => r.code === editingRule.code && (!isCreating || r !== editingRule));
+    const existingRule = isCreating 
+      ? rules.find(r => r.code === editingRule.code)
+      : rules.find(r => r.code === editingRule.code && r !== editingRule);
     if (existingRule) {
       return;
     }

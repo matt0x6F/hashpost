@@ -88,7 +88,16 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
       const subforumsApi = getApi(SubforumsApi);
       
       // Convert structured rules to JSON string for backend compatibility
-      const rulesText = rules.length > 0 ? JSON.stringify(rules) : '';
+      let rulesText = '';
+      if (rules.length > 0) {
+        try {
+          rulesText = JSON.stringify(rules);
+        } catch (jsonErr) {
+          setIsLoading(false);
+          setError('Failed to serialize rules. Please check your rules for invalid data.');
+          return;
+        }
+      }
       
       const response = await subforumsApi.createSubforum({
         ...formData,
