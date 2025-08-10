@@ -584,7 +584,7 @@ func TestCorrelationModels(t *testing.T) {
 		assert.NotNil(t, input)
 		assert.Equal(t, "target-pseudonym-123", input.Body.RequestedPseudonym)
 		assert.Equal(t, "Investigation of ban evasion", input.Body.Justification)
-		assert.Equal(t, 1, input.Body.SubforumID)
+		assert.Equal(t, int32(1), input.Body.SubforumID)
 		assert.Equal(t, "ban_evasion_123", input.Body.IncidentID)
 	})
 
