@@ -1461,7 +1461,7 @@ func (h *AuthHandler) parseSubforumName(fullName string) (communityType, subforu
 		subforumName = parts[1]
 
 		// Validate community type
-		validTypes := []string{"t", "g", "b", "c", "h"}
+		validTypes := []string{constants.CommunityTypeTopical, constants.CommunityTypeGeographic, constants.CommunityTypeBranded, constants.CommunityTypeCreator, "h"}
 		isValid := false
 		for _, validType := range validTypes {
 			if communityType == validType {

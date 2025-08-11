@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/matt0x6f/hashpost/internal/api/constants"
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	"github.com/matt0x6f/hashpost/internal/api/models"
 	"github.com/matt0x6f/hashpost/internal/database/dao/mocks"
@@ -744,7 +745,7 @@ func NewModerationHandlerWithMocks() *ModerationHandler {
 	// Set up mock subforum DAO with fixture data
 	testSubforum := fixtures.CreateTestSubforum()
 	mockSubforumDAO.InjectSubforum(testSubforum)
-	mockSubforumDAO.InjectSubforumByCommunityTypeAndName("b", "test-subforum", testSubforum)
+	mockSubforumDAO.InjectSubforumByCommunityTypeAndName(constants.CommunityTypeBranded, "test-subforum", testSubforum)
 	mockSubforumDAO.SetDefaultBehavior()
 
 	// Debug: Print the subforum name to verify it's set up correctly
@@ -756,11 +757,11 @@ func NewModerationHandlerWithMocks() *ModerationHandler {
 
 	// Set up unified capabilities for global moderation endpoints
 	mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities", mock.Anything, int64(1), "test-pseudonym-id", (*int32)(nil)).
-		Return([]string{"user", "moderator"}, []string{"create_content", "vote", "message", "report", "moderate_content"}, nil)
+		Return([]string{constants.RoleUser, constants.RoleModerator}, []string{"create_content", "vote", "message", "report", "moderate_content"}, nil)
 
 	// Set up unified capabilities for regular user (userID=2)
 	mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities", mock.Anything, int64(2), "user-pseudonym-456", (*int32)(nil)).
-		Return([]string{"user"}, []string{"create_content", "vote"}, nil)
+		Return([]string{constants.RoleUser}, []string{"create_content", "vote"}, nil)
 
 	mockPermissionDAO.SetDefaultBehavior()
 

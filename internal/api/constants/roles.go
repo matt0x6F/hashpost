@@ -12,6 +12,12 @@ const (
 	// RoleSubforumOwner is for subforum owners with full subforum management
 	RoleSubforumOwner = "subforum_owner"
 
+	// RoleElectedModerator is for community-elected moderators in democratic subforums
+	RoleElectedModerator = "elected_moderator"
+
+	// RoleAppointedModerator is for platform-appointed moderators during crisis management
+	RoleAppointedModerator = "appointed_moderator"
+
 	// RolePlatformAdmin is for platform administrators with full system access
 	RolePlatformAdmin = "platform_admin"
 
@@ -77,6 +83,64 @@ func GetRoleDefinitions() []RoleDefinition {
 		},
 		{
 			RoleName: RoleSubforumOwner,
+			Scopes:   []string{ScopeAuthentication, ScopeSelfCorrelation, ScopeModeration, ScopeCorrelation},
+			Capabilities: map[string][]string{
+				ScopeAuthentication: {
+					CapabilityAccessOwnPseudonyms,
+					CapabilityLogin,
+					CapabilitySessionManagement,
+				},
+				ScopeSelfCorrelation: {
+					CapabilityVerifyOwnPseudonymOwnership,
+					CapabilityManageOwnProfile,
+				},
+				ScopeModeration: {
+					CapabilityModerateContent,
+					CapabilityBanUsers,
+					CapabilityRemoveContent,
+					CapabilityManageModerators,
+					CapabilityReviewReports,
+					CapabilityForwardReports,
+					CapabilityManageSubforumRules,
+					CapabilityManageSubforumSettings,
+				},
+				ScopeCorrelation: {
+					CapabilityAccessSubforumPseudonyms,
+					CapabilityCorrelateFingerprints,
+				},
+			},
+		},
+		{
+			RoleName: RoleElectedModerator,
+			Scopes:   []string{ScopeAuthentication, ScopeSelfCorrelation, ScopeModeration, ScopeCorrelation},
+			Capabilities: map[string][]string{
+				ScopeAuthentication: {
+					CapabilityAccessOwnPseudonyms,
+					CapabilityLogin,
+					CapabilitySessionManagement,
+				},
+				ScopeSelfCorrelation: {
+					CapabilityVerifyOwnPseudonymOwnership,
+					CapabilityManageOwnProfile,
+				},
+				ScopeModeration: {
+					CapabilityModerateContent,
+					CapabilityBanUsers,
+					CapabilityRemoveContent,
+					CapabilityManageModerators,
+					CapabilityReviewReports,
+					CapabilityForwardReports,
+					CapabilityManageSubforumRules,
+					CapabilityManageSubforumSettings,
+				},
+				ScopeCorrelation: {
+					CapabilityAccessSubforumPseudonyms,
+					CapabilityCorrelateFingerprints,
+				},
+			},
+		},
+		{
+			RoleName: RoleAppointedModerator,
 			Scopes:   []string{ScopeAuthentication, ScopeSelfCorrelation, ScopeModeration, ScopeCorrelation},
 			Capabilities: map[string][]string{
 				ScopeAuthentication: {

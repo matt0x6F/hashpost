@@ -28,6 +28,7 @@ type SubforumHandler struct {
 	pseudonymDAO            dao.PseudonymDAOInterface
 	postDAO                 dao.PostDAOInterface
 	roleKeyDAO              dao.RoleKeyDAOInterface
+	userDAO                 dao.UserDAOInterface
 	db                      bob.Executor
 }
 
@@ -42,6 +43,7 @@ func NewSubforumHandler(
 	pseudonymDAO dao.PseudonymDAOInterface,
 	postDAO dao.PostDAOInterface,
 	roleKeyDAO dao.RoleKeyDAOInterface,
+	userDAO dao.UserDAOInterface,
 ) *SubforumHandler {
 	// If db is provided, create real DAOs (production mode)
 	if db != nil {
@@ -52,6 +54,7 @@ func NewSubforumHandler(
 		// Note: pseudonymDAO requires additional dependencies, so it should be passed in
 		postDAO = dao.NewPostDAO(db)
 		roleKeyDAO = dao.NewRoleKeyDAO(db)
+		userDAO = dao.NewUserDAO(db)
 	}
 
 	return &SubforumHandler{
@@ -62,6 +65,7 @@ func NewSubforumHandler(
 		pseudonymDAO:            pseudonymDAO,
 		postDAO:                 postDAO,
 		roleKeyDAO:              roleKeyDAO,
+		userDAO:                 userDAO,
 		db:                      db,
 	}
 }
@@ -623,13 +627,86 @@ func (h *SubforumHandler) CreateSubforum(ctx context.Context, input *models.Subf
 	// Enforce governance style based on community type
 	var governanceStyle string
 	switch input.Body.CommunityType {
-	case "t", "g":
-		governanceStyle = "democratic"
-	case "b", "c":
-		governanceStyle = "owned"
+	case constants.CommunityTypeTopical, constants.CommunityTypeGeographic:
+		governanceStyle = constants.GovernanceStyleDemocratic
+
+		// Validate democratic governance requirements
+		if len(input.Body.CoModerators) != 2 {
+			return nil, huma.Error400BadRequest("democratic subforums require exactly 2 co-moderators")
+		}
+
+		// Validate co-moderators are not owned by the creator
+		for _, coModPseudonymID := range input.Body.CoModerators {
+			if coModPseudonymID == userCtx.ActivePseudonymID {
+				return nil, huma.Error400BadRequest("cannot select your own pseudonym as co-moderator")
+			}
+
+			// Check if co-moderator pseudonym is owned by the same user (IBE validation)
+			isOwnedBySameUser, err := h.pseudonymDAO.ArePseudonymsOwnedBySameUser(ctx, userCtx.ActivePseudonymID, coModPseudonymID)
+			if err != nil {
+				log.Error().Err(err).
+					Str("creator_pseudonym", userCtx.ActivePseudonymID).
+					Str("co_moderator_pseudonym", coModPseudonymID).
+					Msg("Failed to validate pseudonym ownership")
+				return nil, huma.Error500InternalServerError("failed to validate co-moderator")
+			}
+			if isOwnedBySameUser {
+				return nil, huma.Error400BadRequest("co-moderators must be owned by different users")
+			}
+
+			// Validate co-moderator pseudonym exists
+			pseudonym, err := h.pseudonymDAO.GetPseudonymByID(ctx, coModPseudonymID)
+			if err != nil {
+				log.Error().Err(err).Str("pseudonym_id", coModPseudonymID).Msg("Failed to get co-moderator pseudonym")
+				return nil, huma.Error400BadRequest("invalid co-moderator pseudonym")
+			}
+			if pseudonym == nil {
+				return nil, huma.Error400BadRequest("co-moderator pseudonym not found")
+			}
+
+			// Get user ID for this pseudonym using platform admin correlation
+			userID, err := h.pseudonymDAO.GetUserIDByPseudonym(ctx, coModPseudonymID, constants.RolePlatformAdmin, constants.ScopeCorrelation)
+			if err != nil {
+				log.Error().Err(err).Str("pseudonym_id", coModPseudonymID).Msg("Failed to get user ID for co-moderator pseudonym")
+				return nil, huma.Error400BadRequest("invalid co-moderator pseudonym")
+			}
+
+			// Check if the user is active and verified
+			user, err := h.userDAO.GetUserByID(ctx, userID)
+			if err != nil {
+				log.Error().Err(err).Int64("user_id", userID).Msg("Failed to get co-moderator user")
+				return nil, huma.Error400BadRequest("invalid co-moderator user")
+			}
+			if user == nil {
+				return nil, huma.Error400BadRequest("co-moderator user not found")
+			}
+			if !user.IsActive.Valid || !user.IsActive.V {
+				return nil, huma.Error400BadRequest("co-moderator user account is not active")
+			}
+			if !user.EmailVerified.Valid || !user.EmailVerified.V {
+				return nil, huma.Error400BadRequest("co-moderator user email is not verified")
+			}
+		}
+
+	case constants.CommunityTypeBranded, constants.CommunityTypeCreator:
+		governanceStyle = constants.GovernanceStyleOwned
+
+		// Owned communities should not have co-moderators specified
+		if len(input.Body.CoModerators) > 0 {
+			return nil, huma.Error400BadRequest("owned subforums do not use co-moderators")
+		}
+
 	default:
 		return nil, huma.Error400BadRequest("invalid community type")
 	}
+
+	// Determine owner pseudonym ID based on governance style
+	var ownerPseudonymID string
+	if governanceStyle == constants.GovernanceStyleOwned {
+		// Only owned subforums have an owner
+		ownerPseudonymID = userCtx.ActivePseudonymID
+	}
+	// Democratic subforums have no owner (empty string)
 
 	// Create the subforum in the database
 	subforum, err := h.subforumDAO.CreateSubforum(
@@ -643,7 +720,7 @@ func (h *SubforumHandler) CreateSubforum(ctx context.Context, input *models.Subf
 		isNSFW,
 		isPrivate,
 		isRestricted,
-		userCtx.ActivePseudonymID, // Owner is the creating user's active pseudonym
+		ownerPseudonymID, // Empty for democratic, creator pseudonym for owned
 	)
 	if err != nil {
 		log.Error().Err(err).Str("slug", input.Body.Slug).Msg("Failed to create subforum")
@@ -671,25 +748,58 @@ func (h *SubforumHandler) CreateSubforum(ctx context.Context, input *models.Subf
 		}
 	}
 
-	// Create role key for the subforum owner
-	ownerCapabilities := constants.GetRoleCapabilities(constants.RoleSubforumOwner)
-	_, err = h.roleKeyDAO.CreateRoleKeyWithIBE(
-		ctx,
-		constants.RoleSubforumOwner,
-		constants.ScopeModeration,
-		ownerCapabilities,
-		time.Now().AddDate(1, 0, 0), // 1 year expiration
-		userCtx.ActivePseudonymID,   // created_by_pseudonym_id
-		userCtx.ActivePseudonymID,   // pseudonym_id (owner's pseudonym)
-		&subforum.SubforumID,        // subforum_id
-	)
-	if err != nil {
-		log.Error().Err(err).
-			Str("subforum_id", fmt.Sprintf("%d", subforum.SubforumID)).
-			Str("owner_pseudonym_id", userCtx.ActivePseudonymID).
-			Msg("Failed to create role key for subforum owner")
-		// Don't fail the subforum creation, but log the error
-		// The owner can still be added manually later
+	// Create role keys based on governance style
+	if governanceStyle == constants.GovernanceStyleOwned {
+		// Create subforum_owner role key for owned subforums
+		ownerCapabilities := constants.GetRoleCapabilities(constants.RoleSubforumOwner)
+		_, err = h.roleKeyDAO.CreateRoleKeyWithIBE(
+			ctx,
+			constants.RoleSubforumOwner,
+			constants.ScopeModeration,
+			ownerCapabilities,
+			time.Now().AddDate(1, 0, 0), // 1 year expiration
+			userCtx.ActivePseudonymID,   // created_by_pseudonym_id
+			userCtx.ActivePseudonymID,   // pseudonym_id (owner's pseudonym)
+			&subforum.SubforumID,        // subforum_id
+		)
+		if err != nil {
+			log.Error().Err(err).
+				Str("subforum_id", fmt.Sprintf("%d", subforum.SubforumID)).
+				Str("owner_pseudonym_id", userCtx.ActivePseudonymID).
+				Msg("Failed to create role key for subforum owner")
+			// Don't fail the subforum creation, but log the error
+		}
+	} else if governanceStyle == constants.GovernanceStyleDemocratic {
+		// Create elected_moderator role keys for all 3 moderators (creator + 2 co-moderators)
+		electedModCapabilities := constants.GetRoleCapabilities(constants.RoleElectedModerator)
+		allModerators := append([]string{userCtx.ActivePseudonymID}, input.Body.CoModerators...)
+
+		for i, moderatorPseudonymID := range allModerators {
+			_, err = h.roleKeyDAO.CreateRoleKeyWithIBE(
+				ctx,
+				constants.RoleElectedModerator,
+				constants.ScopeModeration,
+				electedModCapabilities,
+				time.Now().AddDate(1, 0, 0), // 1 year expiration
+				userCtx.ActivePseudonymID,   // created_by_pseudonym_id (creator)
+				moderatorPseudonymID,        // pseudonym_id (this moderator's pseudonym)
+				&subforum.SubforumID,        // subforum_id
+			)
+			if err != nil {
+				log.Error().Err(err).
+					Str("subforum_id", fmt.Sprintf("%d", subforum.SubforumID)).
+					Str("moderator_pseudonym_id", moderatorPseudonymID).
+					Int("moderator_index", i).
+					Msg("Failed to create role key for elected moderator")
+				// Continue with other moderators even if one fails
+			} else {
+				log.Info().
+					Str("subforum_id", fmt.Sprintf("%d", subforum.SubforumID)).
+					Str("moderator_pseudonym_id", moderatorPseudonymID).
+					Int("moderator_index", i).
+					Msg("Created elected moderator role key")
+			}
+		}
 	}
 
 	// Convert to API model
@@ -1029,7 +1139,7 @@ func (h *SubforumHandler) AddModerator(ctx context.Context, input *struct {
 
 	// Create a new role key for the moderator using proper IBE key generation
 	capabilities := []string{"moderate_content", "ban_users"}
-	_, err = h.roleKeyDAO.CreateRoleKeyWithIBE(ctx, "moderator", "moderation", capabilities, time.Now().AddDate(1, 0, 0), userCtx.ActivePseudonymID, input.Body.PseudonymID, &subforum.SubforumID)
+	_, err = h.roleKeyDAO.CreateRoleKeyWithIBE(ctx, constants.RoleModerator, constants.ScopeModeration, capabilities, time.Now().AddDate(1, 0, 0), userCtx.ActivePseudonymID, input.Body.PseudonymID, &subforum.SubforumID)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to create moderator role key")
 		return nil, fmt.Errorf("failed to add moderator: %w", err)

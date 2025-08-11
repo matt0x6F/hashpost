@@ -898,6 +898,70 @@ func (dao *PseudonymDAO) GetUserIDByPseudonym(ctx context.Context, pseudonymID, 
 	return user.UserID, nil
 }
 
+// ArePseudonymsOwnedBySameUser checks if two pseudonyms belong to the same user using IBE correlation
+func (dao *PseudonymDAO) ArePseudonymsOwnedBySameUser(ctx context.Context, pseudonymID1, pseudonymID2 string) (bool, error) {
+	log.Debug().
+		Str("pseudonym_id_1", pseudonymID1).
+		Str("pseudonym_id_2", pseudonymID2).
+		Msg("Checking if pseudonyms are owned by same user")
+
+	// Get platform admin key for cross-user correlation
+	keyData, err := dao.roleKeyDAO.GetPlatformKeyData(ctx, constants.RolePlatformAdmin, constants.ScopeCorrelation)
+	if err != nil {
+		return false, fmt.Errorf("failed to get platform admin key: %w", err)
+	}
+
+	// Get real identity fingerprints for both pseudonyms
+	fingerprint1, err := dao.getRealIdentityFingerprintByPseudonymWithKey(ctx, pseudonymID1, keyData)
+	if err != nil {
+		return false, fmt.Errorf("failed to get fingerprint for pseudonym1: %w", err)
+	}
+
+	fingerprint2, err := dao.getRealIdentityFingerprintByPseudonymWithKey(ctx, pseudonymID2, keyData)
+	if err != nil {
+		return false, fmt.Errorf("failed to get fingerprint for pseudonym2: %w", err)
+	}
+
+	// Compare fingerprints
+	sameUser := fingerprint1 == fingerprint2
+
+	log.Debug().
+		Str("pseudonym_id_1", pseudonymID1).
+		Str("pseudonym_id_2", pseudonymID2).
+		Str("fingerprint_1", fingerprint1).
+		Str("fingerprint_2", fingerprint2).
+		Bool("same_user", sameUser).
+		Msg("Pseudonym ownership comparison result")
+
+	return sameUser, nil
+}
+
+// getRealIdentityFingerprintByPseudonymWithKey gets the fingerprint for a pseudonym using the provided key
+func (dao *PseudonymDAO) getRealIdentityFingerprintByPseudonymWithKey(ctx context.Context, pseudonymID string, keyData []byte) (string, error) {
+	// Get identity mappings for this pseudonym
+	mappings, err := dao.identityMappingDAO.GetIdentityMappingsByPseudonymID(ctx, pseudonymID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get identity mappings: %w", err)
+	}
+	if len(mappings) == 0 {
+		return "", fmt.Errorf("no identity mappings found for pseudonym")
+	}
+
+	// Try to decrypt each mapping until we find one that works
+	for _, mapping := range mappings {
+		decrypted, _, err := dao.ibeSystem.DecryptIdentity(mapping.EncryptedRealIdentity, keyData)
+		if err == nil {
+			// Parse fingerprint from mapping (format: "fingerprint:pseudonymID")
+			mappingParts := strings.Split(decrypted, ":")
+			if len(mappingParts) == 2 {
+				return mappingParts[0], nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("failed to decrypt any identity mapping with provided key")
+}
+
 // DeactivatePseudonym deactivates a pseudonym using role-based access control
 func (dao *PseudonymDAO) DeactivatePseudonym(ctx context.Context, pseudonymID string, userID int64, activePseudonymID, roleName, scope string) error {
 	// Verify that the user owns this pseudonym using the active pseudonym

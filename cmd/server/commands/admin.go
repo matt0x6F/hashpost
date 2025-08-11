@@ -1330,7 +1330,11 @@ func createCorrelationMapping(ctx context.Context, identityMappingDAO *dao.Ident
 
 // isAdminRole checks if a role is an admin role
 func isAdminRole(role string) bool {
-	return role == constants.RoleModerator || role == constants.RoleSubforumOwner || role == constants.RolePlatformAdmin
+	return role == constants.RoleModerator ||
+		role == constants.RoleSubforumOwner ||
+		role == constants.RoleElectedModerator ||
+		role == constants.RoleAppointedModerator ||
+		role == constants.RolePlatformAdmin
 }
 
 // hashPassword hashes a password using SHA-256

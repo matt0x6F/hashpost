@@ -124,6 +124,11 @@ func (m *MockPseudonymDAO) GetUserIDByPseudonym(ctx context.Context, pseudonymID
 	return args.Get(0).(int64), args.Error(1)
 }
 
+func (m *MockPseudonymDAO) ArePseudonymsOwnedBySameUser(ctx context.Context, pseudonymID1, pseudonymID2 string) (bool, error) {
+	args := m.Called(ctx, pseudonymID1, pseudonymID2)
+	return args.Bool(0), args.Error(1)
+}
+
 func (m *MockPseudonymDAO) UpdateLastActive(ctx context.Context, pseudonymID string) error {
 	args := m.Called(ctx, pseudonymID)
 	return args.Error(0)

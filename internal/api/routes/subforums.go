@@ -19,7 +19,8 @@ func RegisterSubforumRoutes(api huma.API, db bob.Executor, pseudonymDAO dao.Pseu
 	postDAO := dao.NewPostDAO(db)
 	roleKeyDAO := dao.NewRoleKeyDAO(db)
 
-	subforumHandler := handlers.NewSubforumHandler(db, subforumDAO, subforumSubscriptionDAO, permissionDAO, identityMappingDAO, pseudonymDAO, postDAO, roleKeyDAO)
+	userDAO := dao.NewUserDAO(db)
+	subforumHandler := handlers.NewSubforumHandler(db, subforumDAO, subforumSubscriptionDAO, permissionDAO, identityMappingDAO, pseudonymDAO, postDAO, roleKeyDAO, userDAO)
 
 	// Admin routes (more specific) - register first to avoid conflicts
 	// Subforum settings routes

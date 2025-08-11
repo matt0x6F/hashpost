@@ -38,6 +38,7 @@ type PseudonymDAOInterface interface {
 	GetPseudonymsByRealIdentityDirect(ctx context.Context, realIdentity string) ([]*models.Pseudonym, error)
 	GetRealIdentityByPseudonym(ctx context.Context, pseudonymID, roleName, scope string) (string, error)
 	GetUserIDByPseudonym(ctx context.Context, pseudonymID, roleName, scope string) (int64, error)
+	ArePseudonymsOwnedBySameUser(ctx context.Context, pseudonymID1, pseudonymID2 string) (bool, error)
 	UpdateLastActive(ctx context.Context, pseudonymID string) error
 	GenerateSlugFromDisplayName(ctx context.Context, displayName string) (string, error)
 	CalculateKarmaForPseudonym(ctx context.Context, pseudonymID string) (int32, error)
