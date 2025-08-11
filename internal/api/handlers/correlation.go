@@ -117,7 +117,7 @@ func (h *CorrelationHandler) RequestFingerprintCorrelation(ctx context.Context, 
 	}
 
 	// Generate admin key for decryption based on user's role
-	adminKey := h.ibeSystem.GenerateRoleKey("moderator", constants.ScopeCorrelation, time.Now().AddDate(0, 1, 0))
+	adminKey := h.ibeSystem.GenerateRoleKey(constants.RoleModerator, constants.ScopeCorrelation, time.Now().AddDate(0, 1, 0))
 
 	// Decrypt the identity mapping to get the fingerprint
 	decryptedMapping, _, err := h.ibeSystem.DecryptIdentity(identityMapping.EncryptedRealIdentity, adminKey)
@@ -233,7 +233,7 @@ func (h *CorrelationHandler) RequestFingerprintCorrelation(ctx context.Context, 
 		UserID:               &adminID,
 		PseudonymID:          &pseudonym.PseudonymID,
 		AdminUsername:        &userCtx.Email,
-		RoleUsed:             &[]string{"moderator"}[0],
+		RoleUsed:             &[]string{constants.RoleModerator}[0],
 		RequestedPseudonym:   &input.Body.RequestedPseudonym,
 		RequestedFingerprint: &requestedFingerprint,
 		Justification:        &input.Body.Justification,

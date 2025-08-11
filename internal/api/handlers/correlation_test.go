@@ -102,7 +102,7 @@ func TestCorrelationHandler_RequestFingerprintCorrelation(t *testing.T) {
 
 		// Use IBE system to encrypt the identity mapping
 		ibeSystem := handler.ibeSystem
-		adminKey := ibeSystem.GenerateRoleKey("moderator", constants.ScopeCorrelation, time.Now().AddDate(0, 1, 0))
+		adminKey := ibeSystem.GenerateRoleKey(constants.RoleModerator, constants.ScopeCorrelation, time.Now().AddDate(0, 1, 0))
 
 		// Generate the actual fingerprint that will be used
 		realIdentity := "test-fingerprint-456:target-pseudonym-123"
@@ -458,7 +458,7 @@ func TestCorrelationHandler_GetCorrelationHistory(t *testing.T) {
 				UserID:               1,
 				PseudonymID:          "test-pseudonym",
 				AdminUsername:        "admin@example.com",
-				RoleUsed:             "moderator",
+				RoleUsed:             constants.RoleModerator,
 				RequestedPseudonym:   "target-pseudonym",
 				RequestedFingerprint: sql.Null[string]{},
 				Justification:        "Test justification",

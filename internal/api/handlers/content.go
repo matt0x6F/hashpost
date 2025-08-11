@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/matt0x6f/hashpost/internal/api/constants"
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	"github.com/matt0x6f/hashpost/internal/api/models"
 	"github.com/matt0x6f/hashpost/internal/database/dao"
@@ -1653,7 +1654,7 @@ func (h *ContentHandler) parseSubforumName(fullName string) (communityType, subf
 		subforumName = parts[1]
 
 		// Validate community type
-		validTypes := []string{"t", "g", "b", "c", "h"}
+		validTypes := []string{constants.CommunityTypeTopical, constants.CommunityTypeGeographic, constants.CommunityTypeBranded, constants.CommunityTypeCreator, "h"}
 		isValid := false
 		for _, validType := range validTypes {
 			if communityType == validType {

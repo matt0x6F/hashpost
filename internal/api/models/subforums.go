@@ -98,6 +98,9 @@ type SubforumCreateBody struct {
 	// Governance style is automatically determined based on community type:
 	// - t/ and g/ communities use "democratic" governance
 	// - b/ and c/ communities use "owned" governance
+
+	// Democratic governance fields (required for t/ and g/ types)
+	CoModerators []string `json:"co_moderators,omitempty" example:"[\"pseudonym1\", \"pseudonym2\"]"`
 }
 
 // SubforumCreateInput represents the input for creating a new subforum

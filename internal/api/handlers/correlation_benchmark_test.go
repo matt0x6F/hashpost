@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/matt0x6f/hashpost/internal/api/constants"
 	"github.com/matt0x6f/hashpost/internal/ibe"
 )
 
@@ -76,7 +77,7 @@ func BenchmarkIBE_GenerateCorrelationKeyForVersion(b *testing.B) {
 // Benchmark different roles for correlation
 func BenchmarkIBE_GenerateCorrelationKey_DifferentRoles(b *testing.B) {
 	handler := createBenchmarkCorrelationHandler()
-	roles := []string{"user", "moderator", "platform_admin", "legal_team"}
+	roles := []string{constants.RoleUser, constants.RoleModerator, constants.RolePlatformAdmin, "legal_team"}
 
 	for _, role := range roles {
 		b.Run(role, func(b *testing.B) {

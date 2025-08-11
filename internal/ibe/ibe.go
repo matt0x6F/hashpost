@@ -269,7 +269,7 @@ func selectDomain(role string) string {
 	switch role {
 	case "user":
 		return DOMAIN_USER_CORRELATION
-	case "moderator", "subforum_owner":
+	case "moderator", "subforum_owner", "elected_moderator", "appointed_moderator":
 		return DOMAIN_MOD_CORRELATION
 	case "platform_admin", "trust_safety":
 		return DOMAIN_ADMIN_CORRELATION

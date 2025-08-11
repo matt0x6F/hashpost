@@ -123,7 +123,7 @@ func TestRulesHandler_GetSubforumRules(t *testing.T) {
 		{
 			name: "GetSubforumRulesSuccess",
 			input: &apimodels.SubforumRulesInput{
-				CommunityType: "t",
+				CommunityType: constants.CommunityTypeTopical,
 				SubforumName:  "golang",
 				ActiveOnly:    false,
 			},
@@ -141,7 +141,7 @@ func TestRulesHandler_GetSubforumRules(t *testing.T) {
 		{
 			name: "GetSubforumRulesNotFound",
 			input: &apimodels.SubforumRulesInput{
-				CommunityType: "t",
+				CommunityType: constants.CommunityTypeTopical,
 				SubforumName:  "nonexistent",
 				ActiveOnly:    false,
 			},
@@ -152,7 +152,7 @@ func TestRulesHandler_GetSubforumRules(t *testing.T) {
 		{
 			name: "GetSubforumRulesNoRules",
 			input: &apimodels.SubforumRulesInput{
-				CommunityType: "t",
+				CommunityType: constants.CommunityTypeTopical,
 				SubforumName:  "golang",
 				ActiveOnly:    false,
 			},
@@ -218,7 +218,7 @@ func TestRulesHandler_CreateSubforumRule(t *testing.T) {
 				AuthInput: middleware.AuthInput{
 					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "test-pseudonym-id"),
 				},
-				CommunityType: "t",
+				CommunityType: constants.CommunityTypeTopical,
 				SubforumName:  "golang",
 				Body: apimodels.RuleCreateInputBody{
 					Code:        "no_politics",
@@ -246,7 +246,7 @@ func TestRulesHandler_CreateSubforumRule(t *testing.T) {
 				AuthInput: middleware.AuthInput{
 					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "test-pseudonym-id"),
 				},
-				CommunityType: "t",
+				CommunityType: constants.CommunityTypeTopical,
 				SubforumName:  "golang",
 				Body: apimodels.RuleCreateInputBody{
 					Code:        "no_politics",
@@ -353,7 +353,7 @@ func TestRulesHandler_UpdateSubforumRule(t *testing.T) {
 				AuthInput: middleware.AuthInput{
 					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "test-pseudonym-id"),
 				},
-				CommunityType: "t",
+				CommunityType: constants.CommunityTypeTopical,
 				SubforumName:  "golang",
 				RuleCode:      "no_politics",
 				Body: apimodels.RuleUpdateInputBody{
@@ -379,7 +379,7 @@ func TestRulesHandler_UpdateSubforumRule(t *testing.T) {
 				AuthInput: middleware.AuthInput{
 					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "test-pseudonym-id"),
 				},
-				CommunityType: "t",
+				CommunityType: constants.CommunityTypeTopical,
 				SubforumName:  "golang",
 				RuleCode:      "nonexistent_rule",
 				Body: apimodels.RuleUpdateInputBody{
@@ -460,7 +460,7 @@ func TestRulesHandler_DeleteSubforumRule(t *testing.T) {
 				AuthInput: middleware.AuthInput{
 					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "test-pseudonym-id"),
 				},
-				CommunityType: "t",
+				CommunityType: constants.CommunityTypeTopical,
 				SubforumName:  "golang",
 				RuleCode:      "no_politics",
 			},
@@ -481,7 +481,7 @@ func TestRulesHandler_DeleteSubforumRule(t *testing.T) {
 				AuthInput: middleware.AuthInput{
 					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "test-pseudonym-id"),
 				},
-				CommunityType: "t",
+				CommunityType: constants.CommunityTypeTopical,
 				SubforumName:  "golang",
 				RuleCode:      "nonexistent_rule",
 			},
@@ -772,7 +772,7 @@ func TestRulesHandler_validateModeratorPermissionsForSubforum(t *testing.T) {
 		{
 			name:          "ValidatePermissionsSuccess",
 			userCtx:       fixtures.CreateTestUserContext(),
-			communityType: "b",
+			communityType: constants.CommunityTypeBranded,
 			subforumName:  "hashpost",
 			mockSubforum: &dbmodels.Subforum{
 				SubforumID: 1,
@@ -784,7 +784,7 @@ func TestRulesHandler_validateModeratorPermissionsForSubforum(t *testing.T) {
 		{
 			name:           "ValidatePermissionsSubforumNotFound",
 			userCtx:        fixtures.CreateTestUserContext(),
-			communityType:  "b",
+			communityType:  constants.CommunityTypeBranded,
 			subforumName:   "nonexistent",
 			mockSubforum:   nil,
 			mockPermission: false,
@@ -793,7 +793,7 @@ func TestRulesHandler_validateModeratorPermissionsForSubforum(t *testing.T) {
 		{
 			name:          "ValidatePermissionsInsufficientPermissions",
 			userCtx:       fixtures.CreateTestUserContext(),
-			communityType: "b",
+			communityType: constants.CommunityTypeBranded,
 			subforumName:  "hashpost",
 			mockSubforum: &dbmodels.Subforum{
 				SubforumID: 1,

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/matt0x6f/hashpost/internal/api/constants"
 	"github.com/matt0x6f/hashpost/internal/api/handlers"
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	apimodels "github.com/matt0x6f/hashpost/internal/api/models"
@@ -1206,7 +1207,10 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 
 		// Mock unified roles and capabilities for active pseudonym with subforum context
 		subforumID := int32(testSubforumID)
-		mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities", mock.Anything, testUserID, testPseudonymID, &subforumID).Return([]string{"user", "moderator"}, []string{"create_content", "vote", "message", "report", "create_subforum", "moderate_content", "ban_users"}, nil)
+		mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities", mock.Anything, testUserID, testPseudonymID, &subforumID).Return(
+			[]string{constants.RoleUser, constants.RoleModerator},
+			[]string{"create_content", "vote", "message", "report", "create_subforum", "moderate_content", "ban_users"},
+			nil)
 
 		// Create input with valid JWT token
 		userCtx := &middleware.UserContext{
@@ -1308,7 +1312,10 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 
 		// Mock unified roles and capabilities for active pseudonym with subforum context
 		subforumID := int32(testSubforumID)
-		mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities", mock.Anything, testUserID, testPseudonymID, &subforumID).Return([]string{"user", "moderator"}, []string{"create_content", "vote", "message", "report", "create_subforum", "moderate_content", "ban_users"}, nil)
+		mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities", mock.Anything, testUserID, testPseudonymID, &subforumID).Return(
+			[]string{constants.RoleUser, constants.RoleModerator},
+			[]string{"create_content", "vote", "message", "report", "create_subforum", "moderate_content", "ban_users"},
+			nil)
 
 		// Create input with valid JWT token
 		userCtx := &middleware.UserContext{

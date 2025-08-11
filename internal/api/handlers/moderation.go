@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/matt0x6f/hashpost/internal/api/constants"
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	apimodels "github.com/matt0x6f/hashpost/internal/api/models"
 	"github.com/matt0x6f/hashpost/internal/database/dao"
@@ -152,7 +153,7 @@ func (h *ModerationHandler) parseSubforumPath(fullPath string) (communityType, s
 		subforumName = parts[1]
 
 		// Validate community type
-		validTypes := []string{"t", "g", "b", "c", "h"}
+		validTypes := []string{constants.CommunityTypeTopical, constants.CommunityTypeGeographic, constants.CommunityTypeBranded, constants.CommunityTypeCreator, "h"}
 		isValid := false
 		for _, validType := range validTypes {
 			if communityType == validType {
@@ -977,7 +978,7 @@ func (h *ModerationHandler) GetModerationHistory(ctx context.Context, input *api
 			apiActions[i].Subforum = apimodels.SubforumModerator{
 				PseudonymID:   action.ModeratorPseudonymID,
 				DisplayName:   apiActions[i].Moderator.DisplayName,
-				ModeratorType: "moderator",
+				ModeratorType: constants.RoleModerator,
 			}
 		}
 	}
