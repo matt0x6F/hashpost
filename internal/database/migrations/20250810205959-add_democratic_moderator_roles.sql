@@ -1,6 +1,9 @@
 -- Migration: add_democratic_moderator_roles
 -- +migrate Up
 -- Add new role definitions for democratic governance system
+-- 
+-- NOTE: The capabilities arrays below are hardcoded and MUST be kept in sync 
+-- with the role definitions in internal/api/constants/roles.go to prevent capability drift.
 
 INSERT INTO role_definitions (role_name, display_name, description, capabilities, correlation_access, scope, time_window) VALUES
 ('elected_moderator', 'Elected Moderator', 'Community-elected moderator for democratic subforums', '["moderate_content", "ban_users", "remove_content", "correlate_fingerprints", "manage_moderators", "review_reports", "forward_reports", "manage_subforum_rules", "manage_subforum_settings"]', 'fingerprint', 'subforum_specific', '90_days'),

@@ -2,7 +2,9 @@ package dao
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"regexp"
 	"strings"
@@ -925,11 +927,17 @@ func (dao *PseudonymDAO) ArePseudonymsOwnedBySameUser(ctx context.Context, pseud
 	// Compare fingerprints
 	sameUser := fingerprint1 == fingerprint2
 
+	// Hash fingerprints for logging to avoid leaking sensitive correlation data
+	hashFingerprint := func(fp string) string {
+		sum := sha256.Sum256([]byte(fp))
+		return hex.EncodeToString(sum[:])[:8] // log only first 8 hex chars
+	}
+
 	log.Debug().
 		Str("pseudonym_id_1", pseudonymID1).
 		Str("pseudonym_id_2", pseudonymID2).
-		Str("fingerprint_1", fingerprint1).
-		Str("fingerprint_2", fingerprint2).
+		Str("fingerprint_1_hash", hashFingerprint(fingerprint1)).
+		Str("fingerprint_2_hash", hashFingerprint(fingerprint2)).
 		Bool("same_user", sameUser).
 		Msg("Pseudonym ownership comparison result")
 

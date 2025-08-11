@@ -775,6 +775,13 @@ func (h *SubforumHandler) CreateSubforum(ctx context.Context, input *models.Subf
 		allModerators := append([]string{userCtx.ActivePseudonymID}, input.Body.CoModerators...)
 
 		for i, moderatorPseudonymID := range allModerators {
+			// Determine moderator type for logging context. This distinction is for debugging purposes.
+			// It does not affect the role key creation.
+			moderatorType := "co-moderator"
+			if i == 0 {
+				moderatorType = "creator"
+			}
+
 			_, err = h.roleKeyDAO.CreateRoleKeyWithIBE(
 				ctx,
 				constants.RoleElectedModerator,
@@ -789,6 +796,7 @@ func (h *SubforumHandler) CreateSubforum(ctx context.Context, input *models.Subf
 				log.Error().Err(err).
 					Str("subforum_id", fmt.Sprintf("%d", subforum.SubforumID)).
 					Str("moderator_pseudonym_id", moderatorPseudonymID).
+					Str("moderator_type", moderatorType).
 					Int("moderator_index", i).
 					Msg("Failed to create role key for elected moderator")
 				// Continue with other moderators even if one fails
@@ -796,6 +804,7 @@ func (h *SubforumHandler) CreateSubforum(ctx context.Context, input *models.Subf
 				log.Info().
 					Str("subforum_id", fmt.Sprintf("%d", subforum.SubforumID)).
 					Str("moderator_pseudonym_id", moderatorPseudonymID).
+					Str("moderator_type", moderatorType).
 					Int("moderator_index", i).
 					Msg("Created elected moderator role key")
 			}
