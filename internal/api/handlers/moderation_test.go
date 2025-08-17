@@ -755,6 +755,11 @@ func NewModerationHandlerWithMocks() *ModerationHandler {
 	// Inject capability for the test user (userID=1, subforumID=1, capability="moderate_content", activePseudonymID="test-pseudonym-id")
 	mockPermissionDAO.InjectSubforumCapabilityWithActivePseudonym(1, 1, "moderate_content", "test-pseudonym-id", true)
 
+	// Set up unified capability checks for moderation endpoints
+	mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", "moderate_content", mock.AnythingOfType("*int32")).Return(true, nil)
+	// Set up unified capability check for regular user (should return false for insufficient permissions test)
+	mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(2), "user-pseudonym-456", "moderate_content", mock.AnythingOfType("*int32")).Return(false, nil)
+
 	// Set up unified capabilities for global moderation endpoints
 	mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities", mock.Anything, int64(1), "test-pseudonym-id", (*int32)(nil)).
 		Return([]string{constants.RoleUser, constants.RoleModerator}, []string{"create_content", "vote", "message", "report", "moderate_content"}, nil)

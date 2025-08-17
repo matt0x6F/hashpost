@@ -40,12 +40,12 @@ type CommentsByPseudonymResponse struct {
 
 // PseudonymProfileBody represents the body of pseudonym profile update request
 type PseudonymProfileBody struct {
-	DisplayName         string `json:"display_name" example:"new_display_name"`
-	Bio                 string `json:"bio" example:"Updated bio text"`
-	WebsiteURL          string `json:"website_url" example:"https://newwebsite.com"`
-	ShowKarma           *bool  `json:"show_karma" example:"false"`
-	AllowDirectMessages *bool  `json:"allow_direct_messages" example:"false"`
-	Slug                string `json:"slug" example:"user-slug"`
+	DisplayName         string `json:"display_name"`
+	Bio                 string `json:"bio"`
+	WebsiteURL          string `json:"website_url"`
+	ShowKarma           *bool  `json:"show_karma"`
+	AllowDirectMessages *bool  `json:"allow_direct_messages"`
+	Slug                string `json:"slug"`
 }
 
 // PseudonymProfileInput represents pseudonym profile update request

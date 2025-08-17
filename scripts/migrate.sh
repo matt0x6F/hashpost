@@ -38,17 +38,16 @@ print_error() {
 wait_for_database() {
     print_status "Waiting for database to be ready..."
     
-    # Extract connection details from DATABASE_URL
-    if [[ $DATABASE_URL =~ postgres://([^:]+):([^@]+)@([^:]+):([^/]+)/([^?]+) ]]; then
-        DB_USER="${BASH_REMATCH[1]}"
-        DB_PASS="${BASH_REMATCH[2]}"
-        DB_HOST="${BASH_REMATCH[3]}"
-        DB_PORT="${BASH_REMATCH[4]}"
-        DB_NAME="${BASH_REMATCH[5]}"
-    else
-        print_error "Invalid DATABASE_URL format"
+    # Use environment variables directly instead of parsing DATABASE_URL
+    # These should be set by Kubernetes from ConfigMap and Secrets
+    if [[ -z "$DB_HOST" || -z "$DB_PORT" || -z "$DB_USER" || -z "$DB_PASSWORD" || -z "$DB_NAME" ]]; then
+        print_error "Required database environment variables are not set"
+        print_error "DB_HOST: $DB_HOST, DB_PORT: $DB_PORT, DB_USER: $DB_USER, DB_NAME: $DB_NAME"
         exit 1
     fi
+    
+    # Use the individual environment variables
+    DB_PASS="$DB_PASSWORD"
     
     # Check if psql is available
     if ! command -v psql &> /dev/null; then
@@ -70,14 +69,57 @@ wait_for_database() {
 # Function to check if sql-migrate is installed
 check_sql_migrate() {
     if ! command -v sql-migrate &> /dev/null; then
-        print_error "sql-migrate is not installed. Installing..."
-        go install github.com/rubenv/sql-migrate/...@latest
+        print_error "sql-migrate is not installed and not available in PATH"
+        print_error "This should be pre-installed in the container image"
+        exit 1
     fi
+    print_status "sql-migrate is available"
 }
 
 # Function to run migrations
 run_migrations() {
     print_status "Running database migrations..."
+    
+    # Construct DATABASE_URL from individual environment variables
+    # This is needed because Kubernetes doesn't expand $(VAR) syntax in env values
+    if [[ -n "$DB_HOST" && -n "$DB_PORT" && -n "$DB_USER" && -n "$DB_PASSWORD" && -n "$DB_NAME" && -n "$DB_SSLMODE" ]]; then
+        # URL-encode the password to handle special characters using shell
+        # This handles common problematic characters in passwords
+        DB_PASSWORD_ENCODED="$DB_PASSWORD"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//%/%25}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED// /%20}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//!/%21}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\"/%22}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//#/%23}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\$/%24}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//&/%26}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\'/%27}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//(/%28}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//)/%29}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\*/%2A}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//+/%2B}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//,/%2C}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//:/%3A}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//;/%3B}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//</%3C}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//=/%3D}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//>/%3E}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\?/%3F}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//@/%40}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\[/%5B}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\\/%5C}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\]/%5D}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\^/%5E}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\`/%60}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\{/%7B}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//|/%7C}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\}/%7D}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//~/%7E}"
+        export DATABASE_URL="postgres://${DB_USER}:${DB_PASSWORD_ENCODED}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=${DB_SSLMODE}"
+        print_status "Constructed DATABASE_URL from individual environment variables (password URL-encoded)"
+    else
+        print_status "Using existing DATABASE_URL environment variable"
+    fi
     
     # Check current migration status
     print_status "Current migration status:"

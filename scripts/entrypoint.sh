@@ -33,16 +33,31 @@ print_error() {
 wait_for_database() {
     print_status "Waiting for database to be ready..."
     
-    # Extract connection details from DATABASE_URL
-    if [[ $DATABASE_URL =~ postgres://([^:]+):([^@]+)@([^:]+):([^/]+)/([^?]+) ]]; then
-        DB_USER="${BASH_REMATCH[1]}"
-        DB_PASS="${BASH_REMATCH[2]}"
-        DB_HOST="${BASH_REMATCH[3]}"
-        DB_PORT="${BASH_REMATCH[4]}"
-        DB_NAME="${BASH_REMATCH[5]}"
+    # Use individual environment variables if available (Kubernetes deployment)
+    if [[ -n "$DB_HOST" && -n "$DB_PORT" && -n "$DB_USER" && -n "$DB_PASSWORD" && -n "$DB_NAME" ]]; then
+        DB_PASS="$DB_PASSWORD"
+        print_status "Using individual environment variables for database connection"
     else
-        print_error "Invalid DATABASE_URL format"
-        exit 1
+        # Fallback to parsing DATABASE_URL (development mode)
+        if [[ $DATABASE_URL =~ postgres://([^:]+):([^@]+)@([^:]+):([^/]+)/([^?]+) ]]; then
+            DB_USER="${BASH_REMATCH[1]}"
+            DB_PASS="${BASH_REMATCH[2]}"
+            DB_HOST="${BASH_REMATCH[3]}"
+            DB_PORT="${BASH_REMATCH[4]}"
+            DB_NAME="${BASH_REMATCH[5]}"
+            print_status "Using DATABASE_URL for database connection"
+        else
+            print_error "Invalid DATABASE_URL format and individual env vars not available"
+            exit 1
+        fi
+    fi
+    
+    # Check if psql is available
+    if ! command -v psql &> /dev/null; then
+        print_warning "psql not found, skipping database readiness check"
+        print_warning "Make sure the database is running and accessible"
+        sleep 5  # Give a moment for the database to be ready
+        return 0
     fi
     
     # Wait for database to be ready
@@ -106,7 +121,7 @@ start_application() {
         exec air -c .air.toml
     else
         print_status "Starting in production mode..."
-        exec ./main
+        exec ./main server
     fi
 }
 
@@ -124,8 +139,51 @@ main() {
     # Wait for database to be ready
     wait_for_database
     
-    # Run database migrations
-    run_migrations
+    # Only run migrations in development mode (production uses init containers)
+    if [ "$ENV" = "development" ]; then
+        # Run database migrations
+        run_migrations
+    else
+        print_status "Skipping migrations (handled by init container in production/testing)"
+    fi
+    
+    # Construct DATABASE_URL from individual environment variables for the application
+    # This is needed because Kubernetes doesn't expand $(VAR) syntax in env values
+    if [[ -n "$DB_HOST" && -n "$DB_PORT" && -n "$DB_USER" && -n "$DB_PASSWORD" && -n "$DB_NAME" && -n "$DB_SSLMODE" ]]; then
+        # URL-encode the password to handle special characters using shell
+        DB_PASSWORD_ENCODED="$DB_PASSWORD"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//%/%25}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED// /%20}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//!/%21}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\"/%22}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//#/%23}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\$/%24}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//&/%26}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\'/%27}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//(/%28}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//)/%29}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\*/%2A}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//+/%2B}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//,/%2C}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//:/%3A}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//;/%3B}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//</%3C}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//=/%3D}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//>/%3E}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\?/%3F}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//@/%40}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\[/%5B}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\\/%5C}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\]/%5D}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\^/%5E}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\`/%60}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\{/%7B}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//|/%7C}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\}/%7D}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//~/%7E}"
+        export DATABASE_URL="postgres://${DB_USER}:${DB_PASSWORD_ENCODED}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=${DB_SSLMODE}"
+        print_status "Constructed DATABASE_URL from individual environment variables for application"
+    fi
     
     # Initialize IBE keys
     initialize_ibe_keys

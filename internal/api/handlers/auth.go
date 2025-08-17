@@ -192,26 +192,7 @@ func (h *AuthHandler) RegisterUser(ctx context.Context, input *apimodels.UserReg
 		}
 	}
 
-	// Create default pseudonym for the user first
-	defaultPseudonym, err := h.pseudonymDAO.CreatePseudonymWithIdentityMapping(ctx, user.UserID, "Default")
-	if err != nil {
-		log.Error().
-			Err(err).
-			Int64("user_id", user.UserID).
-			Msg("Failed to create default pseudonym for user")
-		return nil, fmt.Errorf("failed to create default pseudonym: %w", err)
-	}
-
-	if err := h.roleKeyDAO.EnsureDefaultKeys(ctx, h.ibeSystem, defaultPseudonym.PseudonymID, []string{"user"}); err != nil {
-		log.Error().
-			Err(err).
-			Int64("user_id", user.UserID).
-			Str("pseudonym_id", defaultPseudonym.PseudonymID).
-			Msg("Failed to create default role keys for user")
-		return nil, fmt.Errorf("failed to create default role keys: %w", err)
-	}
-
-	// Create pseudonym for the user
+	// Create pseudonym for the user (this will automatically be set as default since it's the first one)
 	pseudonym, err := h.pseudonymDAO.CreatePseudonymWithIdentityMapping(ctx, user.UserID, input.Body.DisplayName)
 	if err != nil {
 		log.Error().
@@ -220,6 +201,16 @@ func (h *AuthHandler) RegisterUser(ctx context.Context, input *apimodels.UserReg
 			Str("display_name", input.Body.DisplayName).
 			Msg("Failed to create pseudonym in database")
 		return nil, fmt.Errorf("failed to create pseudonym: %w", err)
+	}
+
+	// Ensure default role keys for the user's pseudonym
+	if err := h.roleKeyDAO.EnsureDefaultKeys(ctx, h.ibeSystem, pseudonym.PseudonymID, []string{"user"}); err != nil {
+		log.Error().
+			Err(err).
+			Int64("user_id", user.UserID).
+			Str("pseudonym_id", pseudonym.PseudonymID).
+			Msg("Failed to create default role keys for user")
+		return nil, fmt.Errorf("failed to create default role keys: %w", err)
 	}
 
 	// Note: Roles and capabilities are now checked dynamically, not cached in responses

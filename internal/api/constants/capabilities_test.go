@@ -44,6 +44,8 @@ func TestGetCapabilitiesByScope(t *testing.T) {
 				CapabilityForwardReports,
 				CapabilityManageSubforumRules,
 				CapabilityManageSubforumSettings,
+				CapabilityStickyPost,
+				CapabilityLockPost,
 			},
 			shouldHaveCaps: true,
 		},

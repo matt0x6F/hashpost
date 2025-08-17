@@ -1,7 +1,7 @@
 # HashPost Makefile
 # Provides convenient commands for development and deployment
 
-.PHONY: help build run test clean migrate migrate-up migrate-down migrate-status migrate-create docker-build docker-up docker-down docker-logs generate test-integration-local test-models test-models-setup ui-install ui-generate-api ui-dev ui-build test-coverage test-coverage-html test-coverage-ci test-coverage-report
+.PHONY: help build run test clean migrate migrate-up migrate-down migrate-status migrate-create docker-build docker-up docker-down docker-logs docker-login docker-push docker-push-backend docker-push-frontend docker-push-testing docker-push-production generate test-integration-local test-models test-models-setup ui-install ui-generate-api ui-dev ui-build test-coverage test-coverage-html test-coverage-ci test-coverage-report
 
 # Default target
 help:
@@ -19,6 +19,14 @@ help:
 	@echo "  docker-down     Stop development environment"
 	@echo "  docker-logs     Show application logs"
 	@echo "  docker-prod     Start production environment"
+	@echo ""
+	@echo "Container Registry (DigitalOcean):"
+	@echo "  docker-login    Login to DigitalOcean Container Registry"
+	@echo "  docker-push     Build and push both images with latest tag"
+	@echo "  docker-push-backend Build and push backend image with latest tag"
+	@echo "  docker-push-frontend Build and push frontend image with latest tag"
+	@echo "  docker-push-testing Build and push images for testing environment"
+	@echo "  docker-push-production Build and push images for production environment"
 	@echo ""
 	@echo "Testing:"
 	@echo "  test            Run unit tests"
@@ -45,6 +53,7 @@ help:
 	@echo "UI Development:"
 	@echo "  ui-install      Install UI dependencies"
 	@echo "  ui-generate-api Generate TypeScript API client from OpenAPI schema"
+	@echo "  ui-generate-api-offline Generate TypeScript API client from local build"
 	@echo "  ui-dev          Start UI development server"
 	@echo "  ui-build        Build UI for production"
 	@echo ""
@@ -98,6 +107,64 @@ docker-logs:
 docker-prod:
 	@echo "Starting production environment..."
 	docker-compose --profile production up -d
+
+# DigitalOcean Container Registry commands
+# Set REGISTRY_NAME environment variable or it will use a default placeholder
+REGISTRY_NAME ?= registry.digitalocean.com/hashpost
+
+docker-login:
+	@echo "🔐 Logging into DigitalOcean Container Registry..."
+	@if ! command -v doctl &> /dev/null; then \
+		echo "❌ doctl is required but not installed"; \
+		echo "Install it from: https://docs.digitalocean.com/reference/doctl/how-to/install/"; \
+		exit 1; \
+	fi
+	doctl registry login --expiry-seconds 3600
+	@echo "✅ Successfully logged into DigitalOcean Container Registry!"
+
+docker-push: docker-push-backend docker-push-frontend
+	@echo "✅ All images pushed to DigitalOcean Container Registry!"
+
+docker-push-backend:
+	@echo "🔨 Building and pushing backend image to DigitalOcean Container Registry..."
+	@echo "📋 Using registry: $(REGISTRY_NAME)"
+	docker buildx build --platform linux/amd64,linux/arm64 -t $(REGISTRY_NAME)/hashpost-backend:latest --target production --push .
+	@echo "✅ Backend image pushed successfully!"
+
+docker-push-frontend:
+	@echo "🔨 Building and pushing frontend image to DigitalOcean Container Registry..."
+	@echo "📋 Using registry: $(REGISTRY_NAME)"
+	docker buildx build --platform linux/amd64,linux/arm64 \
+		-t $(REGISTRY_NAME)/hashpost-frontend:latest \
+		--build-arg NEXT_PUBLIC_API_URL=https://hashpost.dev/api \
+		--target runner --push ./ui
+	@echo "✅ Frontend image pushed successfully!"
+
+docker-push-testing:
+	@echo "🔨 Building and pushing images for testing environment..."
+	@echo "📋 Using registry: $(REGISTRY_NAME)"
+	@TAG=$$(git rev-parse --short HEAD 2>/dev/null || echo "latest"); \
+	echo "🏷️  Using tag: $$TAG"; \
+	docker buildx build --platform linux/amd64,linux/arm64 -t $(REGISTRY_NAME)/hashpost-backend:$$TAG --target production --push .; \
+	docker buildx build --platform linux/amd64,linux/arm64 -t $(REGISTRY_NAME)/hashpost-frontend:$$TAG \
+		--build-arg NEXT_PUBLIC_API_URL=https://testing.hashpost.dev/api \
+		--target runner --push ./ui; \
+	echo "✅ Testing images pushed successfully with tag: $$TAG"
+
+docker-push-production:
+	@echo "🔨 Building and pushing images for production environment..."
+	@echo "📋 Using registry: $(REGISTRY_NAME)"
+	@if [ -z "$(VERSION)" ]; then \
+		echo "❌ VERSION is required for production builds"; \
+		echo "Usage: make docker-push-production VERSION=v1.0.0"; \
+		exit 1; \
+	fi
+	@echo "🏷️  Building production images with version: $(VERSION)"
+	docker buildx build --platform linux/amd64,linux/arm64 -t $(REGISTRY_NAME)/hashpost-backend:$(VERSION) --target production --push .
+	docker buildx build --platform linux/amd64,linux/arm64 -t $(REGISTRY_NAME)/hashpost-frontend:$(VERSION) \
+		--build-arg NEXT_PUBLIC_API_URL=https://hashpost.dev/api \
+		--target runner --push ./ui
+	@echo "✅ Production images pushed successfully with version: $(VERSION)!"
 
 # Development commands
 build:
@@ -332,6 +399,13 @@ ui-generate-api:
 	@echo "Generating TypeScript API client from OpenAPI schema..."
 	@echo "Make sure the HashPost server is running (make dev)"
 	cd ui && npm run generate-api
+
+ui-generate-api-offline:
+	@echo "Generating TypeScript API client from local OpenAPI spec..."
+	@echo "Generating OpenAPI spec first..."
+	./bin/hashpost openapi --output ui/openapi.json --format json
+	@echo "Generating TypeScript client..."
+	cd ui && npm run generate-api-local
 
 ui-dev:
 	@echo "Starting UI development server..."

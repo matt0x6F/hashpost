@@ -1,0 +1,33 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hashpost-ingress
+  namespace: hashpost
+  annotations:
+    kubernetes.io/ingress.class: "traefik"
+    traefik.ingress.kubernetes.io/redirect-to-https: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    traefik.ingress.kubernetes.io/router.middlewares: "hashpost-testing-api-stripprefix-testing@kubernetescrd"
+spec:
+  tls:
+  - hosts:
+    - testing.hashpost.dev
+    secretName: hashpost-tls
+  rules:
+  - host: testing.hashpost.dev
+    http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: hashpost-backend
+            port:
+              number: 8888
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: hashpost-frontend
+            port:
+              number: 3000

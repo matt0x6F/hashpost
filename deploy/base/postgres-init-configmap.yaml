@@ -1,0 +1,44 @@
+# Database initialization SQL for HashPost
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hashpost-init-sql
+data:
+  init.sql: |
+    -- Create extensions needed by HashPost
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";
+    CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+    
+    -- HashPost uses the default public schema
+    -- Grant permissions to hashpost user (main application user)
+    GRANT USAGE ON SCHEMA public TO hashpost;
+    GRANT CREATE ON SCHEMA public TO hashpost;
+    
+    -- Grant readonly permissions for monitoring/analytics
+    GRANT USAGE ON SCHEMA public TO readonly;
+    
+    -- Set default privileges for future tables created by hashpost user
+    ALTER DEFAULT PRIVILEGES FOR USER hashpost IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO hashpost;
+    ALTER DEFAULT PRIVILEGES FOR USER hashpost IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO hashpost;
+    
+    -- Grant readonly access to future tables for monitoring
+    ALTER DEFAULT PRIVILEGES FOR USER hashpost IN SCHEMA public GRANT SELECT ON TABLES TO readonly;
+    
+    -- Create a health check table for application startup verification
+    CREATE TABLE IF NOT EXISTS health_check (
+        id SERIAL PRIMARY KEY,
+        status VARCHAR(50) NOT NULL DEFAULT 'healthy',
+        checked_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    
+    -- Insert initial health check record
+    INSERT INTO health_check (status) VALUES ('initialized');
+    
+    -- Grant specific permissions on health check table
+    GRANT SELECT, INSERT, UPDATE, DELETE ON health_check TO hashpost;
+    GRANT USAGE, SELECT ON SEQUENCE health_check_id_seq TO hashpost;
+    GRANT SELECT ON health_check TO readonly;
+    
+    -- Create index for health check queries
+    CREATE INDEX IF NOT EXISTS idx_health_check_checked_at ON health_check(checked_at);

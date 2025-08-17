@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/shadcn/button";
@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { getApi } from "@/lib/api-client";
 import { AuthenticationApi } from "@/generated/api/src/apis/AuthenticationApi";
 
-export default function ResetPasswordConfirmPage() {
+function ResetPasswordConfirmContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
   
@@ -162,5 +162,29 @@ export default function ResetPasswordConfirmPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function ResetPasswordConfirmPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Card className="w-full max-w-lg">
+          <CardHeader className="text-center">
+            <CardTitle>Loading...</CardTitle>
+            <CardDescription>
+              Please wait while we load the password reset page...
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    }>
+      <ResetPasswordConfirmContent />
+    </Suspense>
   );
 } 

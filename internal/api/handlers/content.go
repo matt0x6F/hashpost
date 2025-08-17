@@ -1021,7 +1021,7 @@ func (h *ContentHandler) LockPost(ctx context.Context, input *models.PostLockInp
 	if err != nil || post == nil {
 		return nil, fmt.Errorf("failed to fetch post: %w", err)
 	}
-	canModerate, err := h.permissionDAO.HasSubforumCapabilityWithActivePseudonym(ctx, userCtx.UserID, post.SubforumID, "moderate_content", userCtx.ActivePseudonymID)
+	canModerate, err := h.permissionDAO.HasUnifiedCapability(ctx, userCtx.UserID, userCtx.ActivePseudonymID, "moderate_content", &post.SubforumID)
 	if err != nil || !canModerate {
 		return nil, huma.Error403Forbidden("Moderator permission required")
 	}
@@ -1046,7 +1046,7 @@ func (h *ContentHandler) StickyPost(ctx context.Context, input *models.PostStick
 	if err != nil || post == nil {
 		return nil, fmt.Errorf("failed to fetch post: %w", err)
 	}
-	canModerate, err := h.permissionDAO.HasSubforumCapabilityWithActivePseudonym(ctx, userCtx.UserID, post.SubforumID, "moderate_content", userCtx.ActivePseudonymID)
+	canModerate, err := h.permissionDAO.HasUnifiedCapability(ctx, userCtx.UserID, userCtx.ActivePseudonymID, "moderate_content", &post.SubforumID)
 	if err != nil || !canModerate {
 		return nil, huma.Error403Forbidden("Moderator permission required")
 	}
@@ -1071,7 +1071,7 @@ func (h *ContentHandler) RemovePost(ctx context.Context, input *models.PostRemov
 	if err != nil || post == nil {
 		return nil, fmt.Errorf("failed to fetch post: %w", err)
 	}
-	canModerate, err := h.permissionDAO.HasSubforumCapabilityWithActivePseudonym(ctx, userCtx.UserID, post.SubforumID, "moderate_content", userCtx.ActivePseudonymID)
+	canModerate, err := h.permissionDAO.HasUnifiedCapability(ctx, userCtx.UserID, userCtx.ActivePseudonymID, "moderate_content", &post.SubforumID)
 	if err != nil || !canModerate {
 		return nil, huma.Error403Forbidden("Moderator permission required")
 	}

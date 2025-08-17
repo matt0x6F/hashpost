@@ -105,7 +105,7 @@ func (h *ModerationHandler) validateModeratorPermissionsForSubforum(ctx context.
 	}
 
 	// Check if the active pseudonym is a moderator for this subforum
-	hasModerateContent, err := h.permissionDAO.HasSubforumCapabilityWithActivePseudonym(ctx, userCtx.UserID, subforum.SubforumID, "moderate_content", activePseudonymID)
+	hasModerateContent, err := h.permissionDAO.HasUnifiedCapability(ctx, userCtx.UserID, activePseudonymID, "moderate_content", &subforum.SubforumID)
 	if err != nil {
 		log.Error().Err(err).
 			Int64("user_id", userCtx.UserID).
