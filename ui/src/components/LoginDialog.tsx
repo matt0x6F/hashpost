@@ -16,6 +16,8 @@ import { Label } from "./shadcn/label";
 import { getApi, extractApiErrorMessage } from "@/lib/api-client";
 import { AuthenticationApi } from "@/generated/api/src/apis/AuthenticationApi";
 import { useAuth } from "@/lib/auth-context";
+import { usePathname } from "next/navigation";
+import { authenticateUserForSubforum } from "@/lib/auth-utils";
 import Link from "next/link";
 
 interface LoginDialogProps {
@@ -27,7 +29,7 @@ interface LoginDialogProps {
 type DialogMode = "login" | "signup" | "signup-success";
 
 export function LoginDialog({ children, onLoginSuccess, onSignupSuccess }: LoginDialogProps) {
-  const { login } = useAuth();
+  const { login, updateUserWithSubforumData } = useAuth();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<DialogMode>("login");
   const [email, setEmail] = useState("");
@@ -36,6 +38,12 @@ export function LoginDialog({ children, onLoginSuccess, onSignupSuccess }: Login
   const [displayName, setDisplayName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const pathname = usePathname();
+
+  // Check if we're in a subforum context (any of the community type routes)
+  const isInSubforumContext = pathname?.match(/^\/([tgbch])\/[^\/]+/);
+  const subforumMatch = pathname?.match(/^\/([tgbch])\/([^\/]+)/);
+  const subforumName = subforumMatch ? `${subforumMatch[1]}/${subforumMatch[2]}` : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,6 +57,21 @@ export function LoginDialog({ children, onLoginSuccess, onSignupSuccess }: Login
         
         // Store user data in global state
         login(response);
+        
+        // If we're on a subforum page, refresh the subforum-specific user context
+        // This ensures the sidebar gets updated subscriptions and header gets updated moderator status
+        if (isInSubforumContext && subforumName) {
+          try {
+            const subforumUserData = await authenticateUserForSubforum(subforumName);
+            if (subforumUserData) {
+              // Update the user context with subforum-specific capabilities
+              updateUserWithSubforumData(subforumUserData);
+            }
+          } catch (error) {
+            console.error('Error refreshing subforum user context after login:', error);
+            // Don't fail the login if subforum context refresh fails
+          }
+        }
         
         setOpen(false);
         onLoginSuccess?.();
