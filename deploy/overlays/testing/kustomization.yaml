@@ -1,0 +1,105 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: hashpost-testing
+
+resources:
+  - ../../base
+
+nameSuffix: -testing
+
+labels:
+  - pairs:
+      environment: testing
+
+patches:
+  - target:
+      kind: Deployment
+      name: hashpost-backend
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target:
+      kind: Deployment
+      name: hashpost-frontend
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target:
+      kind: Ingress
+      name: hashpost-ingress
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: testing.hashpost.dev
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: testing.hashpost.dev
+  - target:
+      kind: Deployment
+      name: hashpost-backend
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: hashpost-backend
+      spec:
+        template:
+          spec:
+            initContainers:
+            - name: migrate
+              env:
+              - name: DB_USER
+                valueFrom:
+                  secretKeyRef:
+                    name: hashpost-postgres-cluster-testing-pguser-hashpost
+                    key: user
+              - name: DB_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: hashpost-postgres-cluster-testing-pguser-hashpost
+                    key: password
+            containers:
+            - name: hashpost-backend
+              env:
+              - name: DB_USER
+                valueFrom:
+                  secretKeyRef:
+                    name: hashpost-postgres-cluster-testing-pguser-hashpost
+                    key: user
+              - name: DB_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: hashpost-postgres-cluster-testing-pguser-hashpost
+                    key: password
+              - name: MAILGUN_SENDING_API_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: hashpost-secrets
+                    key: MAILGUN_SENDING_API_KEY
+  
+
+configMapGenerator:
+  - name: hashpost-config
+    behavior: merge
+    literals:
+      - ENV=testing
+      - CORS_ALLOWED_ORIGINS=https://testing.hashpost.dev
+      - JWT_DEVELOPMENT=true
+      - DB_HOST=hashpost-postgres-cluster-testing-primary
+      - EMAIL_PROVIDER=mailgun
+      - EMAIL_FROM_ADDRESS=noreply@hashpost.dev
+      - EMAIL_FROM_NAME=HashPost Testing
+      - MAILGUN_REGION=us
+      - MAILGUN_DOMAIN=hashpost.dev
+      - MAILGUN_BASE_URL=https://api.mailgun.net
+      - SERVER_SITE_URL=https://testing.hashpost.dev
+images:
+  - name: hashpost-backend
+    newName: registry.digitalocean.com/hashpost/hashpost-backend
+    newTag: latest
+  - name: hashpost-frontend
+    newName: registry.digitalocean.com/hashpost/hashpost-frontend
+    newTag: latest

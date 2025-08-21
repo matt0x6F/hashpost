@@ -357,22 +357,15 @@ func TestAuthHandler_Registration(t *testing.T) {
 		}
 		mockUserDAO.On("CreateUser", mock.Anything, testEmail, hashedPassword).Return(mockUser, nil)
 
-		// Mock default pseudonym creation
-		mockDefaultPseudonym := &dbmodels.Pseudonym{
-			PseudonymID: "default-pseudonym-123",
-			DisplayName: "Default",
-		}
-		mockPseudonymDAO.On("CreatePseudonymWithIdentityMapping", mock.Anything, testUserID, "Default").Return(mockDefaultPseudonym, nil)
-
-		// Mock user pseudonym creation
+		// Mock user pseudonym creation (this will be the default pseudonym since it's the first one)
 		mockPseudonym := &dbmodels.Pseudonym{
 			PseudonymID: testPseudonymID,
 			DisplayName: testDisplayName,
 		}
 		mockPseudonymDAO.On("CreatePseudonymWithIdentityMapping", mock.Anything, testUserID, testDisplayName).Return(mockPseudonym, nil)
 
-		// Mock role key creation
-		mockRoleKeyDAO.On("EnsureDefaultKeys", mock.Anything, mock.Anything, "default-pseudonym-123", []string{"user"}).Return(nil)
+		// Mock role key creation for the user's pseudonym
+		mockRoleKeyDAO.On("EnsureDefaultKeys", mock.Anything, mock.Anything, testPseudonymID, []string{"user"}).Return(nil)
 
 		// Note: ListRoleKeysByPseudonym is no longer called during registration since we don't return roles/capabilities
 
@@ -1184,11 +1177,11 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 		)
 
 		// Mock permission DAO - user has moderator capabilities
-		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "moderate_content", testPseudonymID).Return(true, nil)
-		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "manage_moderators", testPseudonymID).Return(false, nil)
-		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "ban_users", testPseudonymID).Return(true, nil)
-		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "sticky_post", testPseudonymID).Return(false, nil)
-		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "lock_post", testPseudonymID).Return(false, nil)
+		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(testUserID), testPseudonymID, "moderate_content", mock.AnythingOfType("*int32")).Return(true, nil)
+		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(testUserID), testPseudonymID, "manage_moderators", mock.AnythingOfType("*int32")).Return(false, nil)
+		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(testUserID), testPseudonymID, "ban_users", mock.AnythingOfType("*int32")).Return(true, nil)
+		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(testUserID), testPseudonymID, "sticky_post", mock.AnythingOfType("*int32")).Return(false, nil)
+		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(testUserID), testPseudonymID, "lock_post", mock.AnythingOfType("*int32")).Return(false, nil)
 
 		// Mock pseudonym retrieval
 		mockPseudonym := &dbmodels.Pseudonym{
@@ -1289,11 +1282,11 @@ func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 		)
 
 		// Mock permission DAO - user has moderator capabilities
-		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "moderate_content", testPseudonymID).Return(true, nil)
-		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "manage_moderators", testPseudonymID).Return(false, nil)
-		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "ban_users", testPseudonymID).Return(true, nil)
-		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "sticky_post", testPseudonymID).Return(false, nil)
-		mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(testUserID), int32(testSubforumID), "lock_post", testPseudonymID).Return(false, nil)
+		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(testUserID), testPseudonymID, "moderate_content", mock.AnythingOfType("*int32")).Return(true, nil)
+		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(testUserID), testPseudonymID, "manage_moderators", mock.AnythingOfType("*int32")).Return(false, nil)
+		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(testUserID), testPseudonymID, "ban_users", mock.AnythingOfType("*int32")).Return(true, nil)
+		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(testUserID), testPseudonymID, "sticky_post", mock.AnythingOfType("*int32")).Return(false, nil)
+		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(testUserID), testPseudonymID, "lock_post", mock.AnythingOfType("*int32")).Return(false, nil)
 
 		// Mock pseudonym retrieval
 		mockPseudonym := &dbmodels.Pseudonym{

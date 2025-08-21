@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from '@/components/shadcn/alert';
 import { ArrowLeft, Save, User } from 'lucide-react';
 import { pseudonymsApi, extractApiErrorMessage } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
+import { PseudonymProfileBody } from '@/generated/api/src';
 
 interface ProfileFormData {
   display_name: string;
@@ -92,8 +93,8 @@ export default function ProfileEditPage() {
       const profileResponse = await pseudonymsApi.getPseudonymProfileBySlug(slug);
       const pseudonymId = profileResponse.pseudonymId;
 
-      // Create the request object with only the correct field names
-      const requestData = {
+      // Create the request object using camelCase (SDK will convert to snake_case)
+      const requestData: PseudonymProfileBody = {
         displayName: formData.display_name,
         bio: formData.bio,
         websiteUrl: formData.website_url,

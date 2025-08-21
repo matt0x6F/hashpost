@@ -6,17 +6,23 @@ WORKDIR /app
 # Install git and ca-certificates for go mod download
 RUN apk add --no-cache git ca-certificates
 
-# Copy go mod files
+# Copy go mod files first for better layer caching
 COPY go.mod go.sum ./
 
-# Download dependencies
+# Download dependencies (this layer will be cached if go.mod/go.sum don't change)
 RUN go mod download
 
 # Copy source code
 COPY . .
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/server
+# Build the application with optimizations for production
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -a -installsuffix cgo \
+    -ldflags="-w -s" \
+    -o main ./cmd/server
+
+# Generate OpenAPI specification for frontend builds
+RUN ./main openapi --output openapi.json --format json
 
 # Development stage with Air
 FROM golang:1.24-alpine AS development
@@ -60,10 +66,17 @@ FROM alpine:latest AS production
 # Install ca-certificates, PostgreSQL client, and bash
 RUN apk --no-cache add ca-certificates postgresql-client bash
 
-WORKDIR /root/
+# Create non-root user for security
+RUN addgroup -g 1001 -S hashpost && \
+    adduser -S -D -H -u 1001 -h /app -s /sbin/nologin -G hashpost -g hashpost hashpost
+
+WORKDIR /app
 
 # Copy the binary from builder stage
 COPY --from=builder /app/main .
+
+# Copy the generated OpenAPI specification
+COPY --from=builder /app/openapi.json .
 
 # Copy migration configuration and scripts
 COPY dbconfig.yml ./
@@ -74,10 +87,16 @@ RUN chmod +x /usr/local/bin/migrate.sh /usr/local/bin/entrypoint.sh
 # Copy migrations directory
 COPY internal/database/migrations ./internal/database/migrations
 
-# Install sql-migrate in production
-RUN apk add --no-cache go && \
-    go install github.com/rubenv/sql-migrate/...@latest && \
-    apk del go
+# Install sql-migrate in production (using a more efficient approach)
+RUN apk add --no-cache --virtual .build-deps go git && \
+    GOBIN=/usr/local/bin go install github.com/rubenv/sql-migrate/...@latest && \
+    apk del .build-deps
+
+# Change ownership to non-root user
+RUN chown -R hashpost:hashpost /app
+
+# Switch to non-root user
+USER hashpost
 
 # Expose port
 EXPOSE 8888

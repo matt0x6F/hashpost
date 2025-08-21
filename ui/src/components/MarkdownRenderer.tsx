@@ -3,8 +3,7 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkNodeEmoji from '@/lib/remark-node-emoji';
-// @ts-ignore
-const nodeEmoji = require('node-emoji');
+
 import rehypeHighlight from 'rehype-highlight';
 import { cn } from '@/lib/utils';
 import type { Components } from 'react-markdown';

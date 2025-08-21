@@ -73,6 +73,12 @@ const (
 
 	// ManageSubforumSettings allows managing subforum settings and configuration
 	CapabilityManageSubforumSettings = "manage_subforum_settings"
+
+	// StickyPost allows pinning posts to the top of a subforum
+	CapabilityStickyPost = "sticky_post"
+
+	// LockPost allows locking posts to prevent further replies
+	CapabilityLockPost = "lock_post"
 )
 
 // Platform-wide capabilities - used for system administration
@@ -136,6 +142,8 @@ func GetCapabilitiesByScope(scope string) []string {
 			CapabilityForwardReports,
 			CapabilityManageSubforumRules,
 			CapabilityManageSubforumSettings,
+			CapabilityStickyPost,
+			CapabilityLockPost,
 		}
 	case ScopeAdministration:
 		return []string{
@@ -196,6 +204,8 @@ func GetAllCapabilities() []string {
 		CapabilityForwardReports,
 		CapabilityManageSubforumRules,
 		CapabilityManageSubforumSettings,
+		CapabilityStickyPost,
+		CapabilityLockPost,
 
 		// Platform-wide capabilities
 		CapabilityModeration,

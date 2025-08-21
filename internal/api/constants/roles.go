@@ -103,6 +103,8 @@ func GetRoleDefinitions() []RoleDefinition {
 					CapabilityForwardReports,
 					CapabilityManageSubforumRules,
 					CapabilityManageSubforumSettings,
+					CapabilityStickyPost,
+					CapabilityLockPost,
 				},
 				ScopeCorrelation: {
 					CapabilityAccessSubforumPseudonyms,
@@ -132,6 +134,8 @@ func GetRoleDefinitions() []RoleDefinition {
 					CapabilityForwardReports,
 					CapabilityManageSubforumRules,
 					CapabilityManageSubforumSettings,
+					CapabilityStickyPost,
+					CapabilityLockPost,
 				},
 				ScopeCorrelation: {
 					CapabilityAccessSubforumPseudonyms,
@@ -161,6 +165,8 @@ func GetRoleDefinitions() []RoleDefinition {
 					CapabilityForwardReports,
 					CapabilityManageSubforumRules,
 					CapabilityManageSubforumSettings,
+					CapabilityStickyPost,
+					CapabilityLockPost,
 				},
 				ScopeCorrelation: {
 					CapabilityAccessSubforumPseudonyms,

@@ -38,17 +38,16 @@ print_error() {
 wait_for_database() {
     print_status "Waiting for database to be ready..."
     
-    # Extract connection details from DATABASE_URL
-    if [[ $DATABASE_URL =~ postgres://([^:]+):([^@]+)@([^:]+):([^/]+)/([^?]+) ]]; then
-        DB_USER="${BASH_REMATCH[1]}"
-        DB_PASS="${BASH_REMATCH[2]}"
-        DB_HOST="${BASH_REMATCH[3]}"
-        DB_PORT="${BASH_REMATCH[4]}"
-        DB_NAME="${BASH_REMATCH[5]}"
-    else
-        print_error "Invalid DATABASE_URL format"
+    # Use environment variables directly instead of parsing DATABASE_URL
+    # These should be set by Kubernetes from ConfigMap and Secrets
+    if [[ -z "$DB_HOST" || -z "$DB_PORT" || -z "$DB_USER" || -z "$DB_PASSWORD" || -z "$DB_NAME" ]]; then
+        print_error "Required database environment variables are not set"
+        print_error "DB_HOST: $DB_HOST, DB_PORT: $DB_PORT, DB_USER: $DB_USER, DB_NAME: $DB_NAME"
         exit 1
     fi
+    
+    # Use the individual environment variables
+    DB_PASS="$DB_PASSWORD"
     
     # Check if psql is available
     if ! command -v psql &> /dev/null; then
@@ -70,14 +69,53 @@ wait_for_database() {
 # Function to check if sql-migrate is installed
 check_sql_migrate() {
     if ! command -v sql-migrate &> /dev/null; then
-        print_error "sql-migrate is not installed. Installing..."
-        go install github.com/rubenv/sql-migrate/...@latest
+        print_error "sql-migrate is not installed and not available in PATH"
+        print_error "This should be pre-installed in the container image"
+        exit 1
     fi
+    print_status "sql-migrate is available"
+}
+
+# Function to URL-encode a string
+url_encode() {
+    local input="$1"
+    # Use Python to robustly URL-encode the input
+    python3 -c "import urllib.parse; print(urllib.parse.quote('$input'))" 2>/dev/null || \
+    # Fallback to basic shell encoding for common characters
+    echo "$input" | sed 's/%/%25/g; s/ /%20/g; s/!/%21/g; s/"/%22/g; s/#/%23/g; s/\$/%24/g; s/&/%26/g; s/'\''/%27/g; s/(/%28/g; s/)/%29/g; s/\*/%2A/g; s/+/%2B/g; s/,/%2C/g; s/-/%2D/g; s/\./%2E/g; s/\//%2F/g; s/:/%3A/g; s/;/%3B/g; s/</%3C/g; s/=/%3D/g; s/>/%3E/g; s/?/%3F/g; s/@/%40/g; s/\[/%5B/g; s/\\/%5C/g; s/\]/%5D/g; s/\^/%5E/g; s/_/%5F/g; s/`/%60/g; s/{/%7B/g; s/|/%7C/g; s/}/%7D/g; s/~/%7E/g'
 }
 
 # Function to run migrations
 run_migrations() {
     print_status "Running database migrations..."
+    
+    # Construct DATABASE_URL from individual environment variables
+    # This is needed because Kubernetes doesn't expand $(VAR) syntax in env values
+    if [[ -n "$DB_HOST" && -n "$DB_PORT" && -n "$DB_USER" && -n "$DB_PASSWORD" && -n "$DB_NAME" && -n "$DB_SSLMODE" ]]; then
+        # URL-encode the password to handle special characters
+        DB_PASSWORD_ENCODED=$(url_encode "$DB_PASSWORD")
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//,/%2C}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//:/%3A}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//;/%3B}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//</%3C}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//=/%3D}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//>/%3E}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\?/%3F}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//@/%40}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\[/%5B}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\\/%5C}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\]/%5D}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\^/%5E}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\`/%60}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\{/%7B}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//|/%7C}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\}/%7D}"
+        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//~/%7E}"
+        export DATABASE_URL="postgres://${DB_USER}:${DB_PASSWORD_ENCODED}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=${DB_SSLMODE}"
+        print_status "Constructed DATABASE_URL from individual environment variables (password URL-encoded)"
+    else
+        print_status "Using existing DATABASE_URL environment variable"
+    fi
     
     # Check current migration status
     print_status "Current migration status:"

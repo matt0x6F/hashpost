@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hashpost-frontend
+  namespace: hashpost
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: hashpost-frontend
+  template:
+    metadata:
+      labels:
+        app: hashpost-frontend
+    spec:
+      containers:
+      - name: hashpost-frontend
+        image: hashpost-frontend
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: NEXT_TELEMETRY_DISABLED
+          value: "1"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"

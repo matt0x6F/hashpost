@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hashpost-testing
+  labels:
+    name: hashpost-testing
+    environment: testing

@@ -145,6 +145,8 @@ func TestDemocraticRoles_Capabilities(t *testing.T) {
 				CapabilityForwardReports,
 				CapabilityManageSubforumRules,
 				CapabilityManageSubforumSettings,
+				CapabilityStickyPost,
+				CapabilityLockPost,
 				// Correlation scope
 				CapabilityAccessSubforumPseudonyms,
 				CapabilityCorrelateFingerprints,
@@ -168,6 +170,8 @@ func TestDemocraticRoles_Capabilities(t *testing.T) {
 				CapabilityForwardReports,
 				CapabilityManageSubforumRules,
 				CapabilityManageSubforumSettings,
+				CapabilityStickyPost,
+				CapabilityLockPost,
 				CapabilityAccessSubforumPseudonyms,
 				CapabilityCorrelateFingerprints,
 			},

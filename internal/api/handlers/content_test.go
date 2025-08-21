@@ -1398,7 +1398,7 @@ func TestContentHandler_LockPost_Success(t *testing.T) {
 	)
 	mockPostDAO.On("SetLocked", mock.Anything, int64(123), true).Return(nil)
 	mockVoteDAO.On("GetVoteByPseudonymAndContent", mock.Anything, "test-pseudonym-id", "post", int64(123)).Return(nil, nil)
-	mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(1), int32(1), "moderate_content", "test-pseudonym-id").Return(true, nil)
+	mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", "moderate_content", mock.AnythingOfType("*int32")).Return(true, nil)
 
 	// Note: Permission DAO is mocked in the handler creation
 	// The test will pass if the permission check is properly mocked
@@ -1479,7 +1479,7 @@ func TestContentHandler_StickyPost_Success(t *testing.T) {
 	mockPostDAO.On("GetPostByID", mock.Anything, int64(123)).Return(testPost, nil).Twice()
 	mockPostDAO.On("SetSticky", mock.Anything, int64(123), true).Return(nil)
 	mockVoteDAO.On("GetVoteByPseudonymAndContent", mock.Anything, "test-pseudonym-id", "post", int64(123)).Return(nil, nil)
-	mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(1), int32(1), "moderate_content", "test-pseudonym-id").Return(true, nil)
+	mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", "moderate_content", mock.AnythingOfType("*int32")).Return(true, nil)
 
 	// Create test input
 	input := &apimodels.PostStickyInput{
@@ -1557,7 +1557,7 @@ func TestContentHandler_RemovePost_Success(t *testing.T) {
 	mockPostDAO.On("GetPostByID", mock.Anything, int64(123)).Return(testPost, nil)
 	mockPostDAO.On("SetRemoved", mock.Anything, int64(123), true).Return(nil)
 	mockVoteDAO.On("GetVoteByPseudonymAndContent", mock.Anything, "test-pseudonym-id", "post", int64(123)).Return(nil, nil)
-	mockPermissionDAO.On("HasSubforumCapabilityWithActivePseudonym", mock.Anything, int64(1), int32(1), "moderate_content", "test-pseudonym-id").Return(true, nil)
+	mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", "moderate_content", mock.AnythingOfType("*int32")).Return(true, nil)
 
 	// Create test input
 	input := &apimodels.PostRemoveInput{

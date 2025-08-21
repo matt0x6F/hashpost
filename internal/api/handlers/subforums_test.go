@@ -102,7 +102,7 @@ func TestSubforumHandler_GetSubforums(t *testing.T) {
 			// Create context
 			ctx := context.Background()
 			if tt.userCtx != nil {
-				ctx = createTestContextWithUser(tt.userCtx)
+				ctx = middleware.SetUserContext(ctx, tt.userCtx)
 			}
 
 			// Call method
@@ -224,7 +224,7 @@ func TestSubforumHandler_GetSubforumDetails(t *testing.T) {
 			// Create context
 			ctx := context.Background()
 			if tt.userCtx != nil {
-				ctx = createTestContextWithUser(tt.userCtx)
+				ctx = middleware.SetUserContext(ctx, tt.userCtx)
 			}
 
 			// Call method
@@ -341,7 +341,7 @@ func TestSubforumHandler_SubscribeToSubforum(t *testing.T) {
 			// Create context
 			ctx := context.Background()
 			if tt.userCtx != nil {
-				ctx = createTestContextWithUser(tt.userCtx)
+				ctx = middleware.SetUserContext(ctx, tt.userCtx)
 			}
 
 			// Call method
@@ -467,7 +467,7 @@ func TestSubforumHandler_UnsubscribeFromSubforum(t *testing.T) {
 			// Create context
 			ctx := context.Background()
 			if tt.userCtx != nil {
-				ctx = createTestContextWithUser(tt.userCtx)
+				ctx = middleware.SetUserContext(ctx, tt.userCtx)
 			}
 
 			// Call method
@@ -750,7 +750,7 @@ func TestSubforumHandler_CreateSubforum(t *testing.T) {
 			// Create context
 			ctx := context.Background()
 			if tt.userCtx != nil {
-				ctx = createTestContextWithUser(tt.userCtx)
+				ctx = middleware.SetUserContext(ctx, tt.userCtx)
 			}
 
 			// Call method
@@ -902,7 +902,8 @@ func TestGovernanceStyleEnforcement(t *testing.T) {
 			}
 
 			// Create context
-			ctx := createTestContextWithUser(fixtures.CreateTestModeratorContext())
+			ctx := context.Background()
+			ctx = middleware.SetUserContext(ctx, fixtures.CreateTestModeratorContext())
 
 			// Call method
 			response, err := handler.CreateSubforum(ctx, input)
@@ -977,7 +978,8 @@ func TestCommunityTypeValidation(t *testing.T) {
 			}
 
 			// Create context
-			ctx := createTestContextWithUser(fixtures.CreateTestModeratorContext())
+			ctx := context.Background()
+			ctx = middleware.SetUserContext(ctx, fixtures.CreateTestModeratorContext())
 
 			// Call method
 			response, err := handler.CreateSubforum(ctx, input)
@@ -1068,7 +1070,8 @@ func TestOwnerAssignment(t *testing.T) {
 			}
 
 			// Create context
-			ctx := createTestContextWithUser(userCtx)
+			ctx := context.Background()
+			ctx = middleware.SetUserContext(ctx, userCtx)
 
 			// Call method
 			response, err := handler.CreateSubforum(ctx, input)
@@ -1195,7 +1198,7 @@ func TestSubforumHandler_GetPseudonymSubscriptions(t *testing.T) {
 			// Create context
 			ctx := context.Background()
 			if tt.userCtx != nil {
-				ctx = createTestContextWithUser(tt.userCtx)
+				ctx = middleware.SetUserContext(ctx, tt.userCtx)
 			}
 
 			// Call method
@@ -1761,7 +1764,7 @@ func TestSubforumHandler_GetModeratorTeam(t *testing.T) {
 			// Create context with user if provided
 			ctx := context.Background()
 			if tt.userCtx != nil {
-				ctx = createTestContextWithUser(tt.userCtx)
+				ctx = middleware.SetUserContext(ctx, tt.userCtx)
 			}
 
 			// Execute test
@@ -1941,7 +1944,7 @@ func TestSubforumHandler_AddModerator(t *testing.T) {
 			// Create context with user if provided
 			ctx := context.Background()
 			if tt.userCtx != nil {
-				ctx = createTestContextWithUser(tt.userCtx)
+				ctx = middleware.SetUserContext(ctx, tt.userCtx)
 			}
 
 			// Execute test
@@ -2091,7 +2094,7 @@ func TestSubforumHandler_UpdateModerator(t *testing.T) {
 			// Create context with user if provided
 			ctx := context.Background()
 			if tt.userCtx != nil {
-				ctx = createTestContextWithUser(tt.userCtx)
+				ctx = middleware.SetUserContext(ctx, tt.userCtx)
 			}
 
 			// Execute test
@@ -2229,7 +2232,7 @@ func TestSubforumHandler_RemoveModerator(t *testing.T) {
 			// Create context with user if provided
 			ctx := context.Background()
 			if tt.userCtx != nil {
-				ctx = createTestContextWithUser(tt.userCtx)
+				ctx = middleware.SetUserContext(ctx, tt.userCtx)
 			}
 
 			// Execute test

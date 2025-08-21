@@ -25,10 +25,6 @@ import (
 	"golang.org/x/term"
 )
 
-const (
-	adminPseudonymType = "admin-pseudonym"
-)
-
 // NewAdminCommands creates and returns all admin-related commands
 func NewAdminCommands(cfg *config.Config) []*cobra.Command {
 	return []*cobra.Command{
@@ -71,7 +67,7 @@ func NewSetModeratorCommand(cfg *config.Config) *cobra.Command {
 		Short: "Set a pseudonym as a forum moderator",
 		Long:  "Set a pseudonym as a moderator of a specific subforum",
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := SetModerator(cfg); err != nil {
+			if err := SetModeratorWithCommand(cmd, cfg); err != nil {
 				log.Fatal().Err(err).Msg("Failed to set moderator")
 			}
 		},
@@ -80,6 +76,7 @@ func NewSetModeratorCommand(cfg *config.Config) *cobra.Command {
 	// Add flags for set-moderator command
 	cmd.Flags().String("subforum", "", "Name of the subforum")
 	cmd.Flags().String("pseudonym", "", "Pseudonym ID to set as moderator")
+	cmd.Flags().Bool("fix-mappings", false, "Fix missing identity mappings for subforum-specific roles")
 	cmd.Flags().Bool("non-interactive", false, "Non-interactive mode (requires all flags)")
 
 	return cmd
@@ -141,6 +138,7 @@ type AdminCreateInput struct {
 type SetModeratorInput struct {
 	SubforumName   string `doc:"Name of the subforum" json:"subforum_name"`
 	PseudonymID    string `doc:"Pseudonym ID to set as moderator" json:"pseudonym_id"`
+	FixMappings    bool   `doc:"Fix missing identity mappings for subforum-specific roles" json:"fix_mappings"`
 	NonInteractive bool   `doc:"Non-interactive mode (requires all flags)" json:"non_interactive"`
 }
 
@@ -446,17 +444,48 @@ func CreateAdminUser(cfg *config.Config) error {
 	return nil
 }
 
-// SetModerator sets a pseudonym as a forum moderator
-func SetModerator(cfg *config.Config) error {
+// SetModeratorWithCommand sets a pseudonym as a forum moderator
+func SetModeratorWithCommand(cobraCmd *cobra.Command, cfg *config.Config) error {
+	// Read flags from command line
+	subforum, _ := cobraCmd.Flags().GetString("subforum")
+	pseudonym, _ := cobraCmd.Flags().GetString("pseudonym")
+	fixMappings, _ := cobraCmd.Flags().GetBool("fix-mappings")
+	nonInteractive, _ := cobraCmd.Flags().GetBool("non-interactive")
+
+	// Create input from flags
+	input := &SetModeratorInput{
+		SubforumName:   subforum,
+		PseudonymID:    pseudonym,
+		FixMappings:    fixMappings,
+		NonInteractive: nonInteractive,
+	}
+
+	// If non-interactive mode and missing required fields, return error
+	if nonInteractive && (subforum == "" || pseudonym == "") {
+		return fmt.Errorf("non-interactive mode requires subforum and pseudonym flags")
+	}
+
+	// If not non-interactive or missing fields, get interactive input
+	if !nonInteractive || subforum == "" || pseudonym == "" {
+		interactiveInput := getSetModeratorInput()
+		// Merge with command line flags
+		if subforum != "" {
+			interactiveInput.SubforumName = subforum
+		}
+		if pseudonym != "" {
+			interactiveInput.PseudonymID = pseudonym
+		}
+		if fixMappings {
+			interactiveInput.FixMappings = fixMappings
+		}
+		input = interactiveInput
+	}
 
 	// Create database connection
 	db, err := database.NewConnection(&cfg.Database)
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
-
-	// Get moderator input
-	input := getSetModeratorInput()
 
 	// Validate input
 	if err := validateSetModeratorInput(input); err != nil {
@@ -466,6 +495,7 @@ func SetModerator(cfg *config.Config) error {
 	// Create DAOs
 	subforumDAO := dao.NewSubforumDAO(db)
 	roleKeyDAO := dao.NewRoleKeyDAO(db)
+	userDAO := dao.NewUserDAO(db)
 
 	// Initialize IBE system using configuration instead of hardcoded defaults
 	ibeSystem, err := ibe.NewIBESystemFromConfig(cfg.IBE.DomainKeysDir, cfg.IBE.KeyVersion, cfg.IBE.Salt)
@@ -478,31 +508,72 @@ func SetModerator(cfg *config.Config) error {
 	ctx := context.Background()
 
 	// Find the subforum
-	subforum, err := subforumDAO.GetSubforumByName(ctx, input.SubforumName)
+	subforumModel, err := subforumDAO.GetSubforumByName(ctx, input.SubforumName)
 	if err != nil {
 		return fmt.Errorf("failed to get subforum: %w", err)
 	}
-	if subforum == nil {
+	if subforumModel == nil {
 		return fmt.Errorf("subforum '%s' not found", input.SubforumName)
 	}
 
 	// Find the pseudonym
-	pseudonym, err := pseudonymDAO.GetPseudonymByID(ctx, input.PseudonymID)
+	pseudonymModel, err := pseudonymDAO.GetPseudonymByID(ctx, input.PseudonymID)
 	if err != nil {
 		return fmt.Errorf("failed to get pseudonym: %w", err)
 	}
-	if pseudonym == nil {
+	if pseudonymModel == nil {
 		return fmt.Errorf("pseudonym '%s' not found", input.PseudonymID)
 	}
 
 	// Check if pseudonym already has moderator role keys for this subforum
-	existingModeratorKey, err := roleKeyDAO.GetRoleKey(ctx, input.PseudonymID, "moderation", &subforum.SubforumID)
+	existingModeratorKey, err := roleKeyDAO.GetRoleKey(ctx, input.PseudonymID, "moderation", &subforumModel.SubforumID)
 	if err != nil {
 		return fmt.Errorf("failed to check existing moderator role keys: %w", err)
 	}
 
 	if existingModeratorKey != nil {
 		fmt.Printf("✅ Pseudonym '%s' is already a moderator of subforum '%s'\n", input.PseudonymID, input.SubforumName)
+
+		// Fix identity mappings if requested, even if already a moderator
+		if input.FixMappings {
+			log.Info().
+				Str("subforum_name", input.SubforumName).
+				Str("pseudonym_id", input.PseudonymID).
+				Msg("Fixing identity mappings for existing moderator")
+
+			// Get the user for this pseudonym from identity mappings
+			identityMappingDAO := dao.NewIdentityMappingDAO(db)
+			mappings, err := identityMappingDAO.GetIdentityMappingsByPseudonymID(ctx, input.PseudonymID)
+			if err != nil || len(mappings) == 0 {
+				log.Warn().Err(err).
+					Str("subforum_name", input.SubforumName).
+					Str("pseudonym_id", input.PseudonymID).
+					Msg("Failed to get identity mappings for user lookup")
+			} else {
+				// Get user from the first mapping
+				user, err := userDAO.GetUserByID(ctx, mappings[0].UserID)
+				if err != nil {
+					log.Warn().Err(err).
+						Str("subforum_name", input.SubforumName).
+						Str("pseudonym_id", input.PseudonymID).
+						Msg("Failed to get user for identity mapping fix")
+				} else {
+					if err := fixSubforumIdentityMappings(ctx, user, pseudonymModel, subforumModel, db, cfg); err != nil {
+						log.Warn().Err(err).
+							Str("subforum_name", input.SubforumName).
+							Str("pseudonym_id", input.PseudonymID).
+							Msg("Failed to fix subforum identity mappings")
+					} else {
+						log.Info().
+							Str("subforum_name", input.SubforumName).
+							Str("pseudonym_id", input.PseudonymID).
+							Msg("Subforum identity mappings fixed successfully")
+						fmt.Printf("✅ Fixed identity mappings for moderator '%s' in subforum '%s'\n", input.PseudonymID, input.SubforumName)
+					}
+				}
+			}
+		}
+
 		return nil
 	}
 
@@ -524,7 +595,7 @@ func SetModerator(cfg *config.Config) error {
 		keyData := ibeSystem.GenerateRoleKey(constants.RoleModerator, scope, time.Now().AddDate(1, 0, 0))
 
 		// Store the role key
-		_, err = roleKeyDAO.CreateRoleKey(ctx, constants.RoleModerator, scope, keyData, capabilities, time.Now().AddDate(1, 0, 0), constants.RolePlatformAdmin, input.PseudonymID, &subforum.SubforumID)
+		_, err = roleKeyDAO.CreateRoleKey(ctx, constants.RoleModerator, scope, keyData, capabilities, time.Now().AddDate(1, 0, 0), constants.RolePlatformAdmin, input.PseudonymID, &subforumModel.SubforumID)
 		if err != nil {
 			return fmt.Errorf("failed to create role key for scope %s: %w", scope, err)
 		}
@@ -532,13 +603,13 @@ func SetModerator(cfg *config.Config) error {
 
 	log.Info().
 		Str("subforum_name", input.SubforumName).
-		Int32("subforum_id", subforum.SubforumID).
+		Int32("subforum_id", subforumModel.SubforumID).
 		Str("pseudonym_id", input.PseudonymID).
-		Str("pseudonym_display_name", pseudonym.DisplayName).
+		Str("pseudonym_display_name", pseudonymModel.DisplayName).
 		Msg("Moderator added successfully")
 
 	fmt.Printf("✅ Successfully set pseudonym '%s' (%s) as moderator of subforum '%s'\n",
-		input.PseudonymID, pseudonym.DisplayName, input.SubforumName)
+		input.PseudonymID, pseudonymModel.DisplayName, input.SubforumName)
 
 	return nil
 }
@@ -888,6 +959,7 @@ func getSetModeratorInput() *SetModeratorInput {
 	cmd := cobra.Command{}
 	cmd.Flags().String("subforum", "", "")
 	cmd.Flags().String("pseudonym", "", "")
+	cmd.Flags().Bool("fix-mappings", false, "")
 	cmd.Flags().Bool("non-interactive", false, "")
 
 	// Parse flags from os.Args
@@ -901,6 +973,7 @@ func getSetModeratorInput() *SetModeratorInput {
 		// Non-interactive mode - get values from flags
 		subforum, _ := cmd.Flags().GetString("subforum")
 		pseudonym, _ := cmd.Flags().GetString("pseudonym")
+		fixMappings, _ := cmd.Flags().GetBool("fix-mappings")
 
 		if subforum == "" || pseudonym == "" {
 			log.Fatal().Msg("subforum and pseudonym are required in non-interactive mode")
@@ -908,6 +981,7 @@ func getSetModeratorInput() *SetModeratorInput {
 
 		input.SubforumName = subforum
 		input.PseudonymID = pseudonym
+		input.FixMappings = fixMappings
 		input.NonInteractive = true
 
 		return input
@@ -1143,8 +1217,8 @@ func fixUserPseudonymMappings(ctx context.Context, user *models.User, role strin
 
 	pseudonymDAO := dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
 
-	// Get user's pseudonyms
-	pseudonyms, err := pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, adminPseudonymType, role, "authentication")
+	// Get user's pseudonyms using direct method (bypasses role verification for admin operations)
+	pseudonyms, err := pseudonymDAO.GetPseudonymsByRealIdentityDirect(ctx, user.Email)
 	if err != nil {
 		return fmt.Errorf("failed to get user pseudonyms: %w", err)
 	}
@@ -1409,8 +1483,8 @@ func RecreateIdentityMappings(ctx context.Context, userID int64, db bob.Executor
 		return fmt.Errorf("user not found")
 	}
 
-	// Get user's pseudonyms
-	pseudonyms, err := pseudonymDAO.GetPseudonymsByUserID(ctx, userID, adminPseudonymType, "platform_admin", "authentication")
+	// Get user's pseudonyms using direct method (bypasses role verification for admin operations)
+	pseudonyms, err := pseudonymDAO.GetPseudonymsByRealIdentityDirect(ctx, user.Email)
 	if err != nil {
 		return fmt.Errorf("failed to get user pseudonyms: %w", err)
 	}
@@ -1587,6 +1661,129 @@ func RecreateIdentityMappings(ctx context.Context, userID int64, db bob.Executor
 		Str("email", user.Email).
 		Int64("user_id", userID).
 		Msg("Successfully recreated identity mappings")
+
+	return nil
+}
+
+// fixSubforumIdentityMappings creates missing identity mappings for subforum-specific roles
+func fixSubforumIdentityMappings(ctx context.Context, user *models.User, pseudonym *models.Pseudonym, subforum *models.Subforum, db bob.Executor, cfg *config.Config) error {
+	// Initialize IBE system
+	ibeSystem, err := ibe.NewIBESystemFromConfig(cfg.IBE.DomainKeysDir, cfg.IBE.KeyVersion, cfg.IBE.Salt)
+	if err != nil {
+		return fmt.Errorf("failed to initialize IBE system: %w", err)
+	}
+
+	// Create DAOs
+	identityMappingDAO := dao.NewIdentityMappingDAO(db)
+	roleKeyDAO := dao.NewRoleKeyDAO(db)
+
+	// Get existing identity mappings for this pseudonym
+	existingMappings, err := identityMappingDAO.GetIdentityMappingsByPseudonymID(ctx, pseudonym.PseudonymID)
+	if err != nil {
+		return fmt.Errorf("failed to get existing identity mappings: %w", err)
+	}
+
+	// Get all role keys for this pseudonym
+	allRoleKeys, err := roleKeyDAO.ListRoleKeysByPseudonym(ctx, pseudonym.PseudonymID)
+	if err != nil {
+		return fmt.Errorf("failed to get role keys for pseudonym: %w", err)
+	}
+
+	// Filter for role keys specific to this subforum
+	var roleKeys []*models.RoleKey
+	for _, roleKey := range allRoleKeys {
+		if roleKey.SubforumID.Valid && roleKey.SubforumID.V == subforum.SubforumID {
+			roleKeys = append(roleKeys, roleKey)
+		}
+	}
+
+	if len(roleKeys) == 0 {
+		log.Info().
+			Str("pseudonym_id", pseudonym.PseudonymID).
+			Str("subforum_name", subforum.Name).
+			Msg("No role keys found for this pseudonym in subforum")
+		return nil
+	}
+
+	// Create identity mappings for each role key scope that doesn't have a mapping
+	for _, roleKey := range roleKeys {
+		scope := roleKey.Scope
+
+		// Check if mapping already exists for this scope
+		hasMapping := false
+		for _, mapping := range existingMappings {
+			if mapping.KeyScope == scope {
+				hasMapping = true
+				break
+			}
+		}
+
+		if !hasMapping {
+			log.Info().
+				Str("pseudonym_id", pseudonym.PseudonymID).
+				Str("scope", scope).
+				Str("role_name", roleKey.RoleName).
+				Str("subforum_name", subforum.Name).
+				Msg("Creating missing subforum identity mapping")
+
+			// Create identity mapping using the role key data
+			if err := createSubforumIdentityMapping(ctx, identityMappingDAO, ibeSystem, user, pseudonym, subforum, scope, roleKey.KeyData, db); err != nil {
+				log.Warn().
+					Err(err).
+					Str("pseudonym_id", pseudonym.PseudonymID).
+					Str("scope", scope).
+					Str("role_name", roleKey.RoleName).
+					Str("subforum_name", subforum.Name).
+					Msg("Failed to create subforum identity mapping")
+				continue
+			}
+
+			log.Info().
+				Str("pseudonym_id", pseudonym.PseudonymID).
+				Str("scope", scope).
+				Str("role_name", roleKey.RoleName).
+				Str("subforum_name", subforum.Name).
+				Msg("Created subforum identity mapping")
+		} else {
+			log.Debug().
+				Str("pseudonym_id", pseudonym.PseudonymID).
+				Str("scope", scope).
+				Str("role_name", roleKey.RoleName).
+				Str("subforum_name", subforum.Name).
+				Msg("Identity mapping already exists for scope")
+		}
+	}
+
+	return nil
+}
+
+// createSubforumIdentityMapping creates an identity mapping for subforum-specific roles
+func createSubforumIdentityMapping(ctx context.Context, identityMappingDAO *dao.IdentityMappingDAO, ibeSystem *ibe.IBESystem, user *models.User, pseudonym *models.Pseudonym, subforum *models.Subforum, scope string, keyData []byte, db bob.Executor) error {
+	// Generate fingerprint for the real identity
+	fingerprint := ibeSystem.GenerateFingerprint(user.Email)
+
+	// Encrypt the identity mapping using the role key data
+	encryptedMapping, err := ibeSystem.EncryptIdentityWithDomain(user.Email, pseudonym.PseudonymID, "moderator", keyData)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt subforum identity mapping: %w", err)
+	}
+
+	// Create identity mapping
+	keyVersion := ibeSystem.GetKeyVersion()
+	mapping := &models.IdentityMappingSetter{
+		Fingerprint:               &fingerprint,
+		PseudonymID:               &pseudonym.PseudonymID,
+		EncryptedRealIdentity:     &encryptedMapping,
+		EncryptedPseudonymMapping: &encryptedMapping,
+		KeyVersion:                &keyVersion,
+		UserID:                    &user.UserID,
+		KeyScope:                  &scope,
+	}
+
+	_, err = models.IdentityMappings.Insert(mapping).One(ctx, db)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt subforum identity mapping: %w", err)
+	}
 
 	return nil
 }

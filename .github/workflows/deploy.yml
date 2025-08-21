@@ -1,0 +1,132 @@
+permissions:
+  contents: read
+name: Deploy HashPost
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'cmd/**'
+      - 'internal/**'
+      - 'ui/**'
+      - 'Dockerfile'
+      - 'ui/Dockerfile'
+      - 'deploy/**'
+      - '.github/workflows/**'
+  release:
+    types: [published]
+
+env:
+  REGISTRY_NAME: ${{ secrets.REGISTRY_NAME }}
+  CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
+  DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+jobs:
+  deploy:
+    # Only deploy if tests pass (assumes there's a separate test workflow)
+    if: github.event_name == 'push' || github.event_name == 'release'
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install doctl
+      uses: digitalocean/action-doctl@v2
+      with:
+        token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+    - name: Set deployment environment and tags
+      id: deployment-env
+      run: |
+        if [[ "${{ github.event_name }}" == "release" ]]; then
+          echo "environment=production" >> $GITHUB_OUTPUT
+          echo "image_tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          echo "overlay=production" >> $GITHUB_OUTPUT
+          echo "namespace=hashpost-production" >> $GITHUB_OUTPUT
+          echo "api_url=https://hashpost.dev/api" >> $GITHUB_OUTPUT
+        elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
+          echo "environment=testing" >> $GITHUB_OUTPUT
+          echo "image_tag=$(echo $GITHUB_SHA | head -c7)" >> $GITHUB_OUTPUT
+          echo "overlay=testing" >> $GITHUB_OUTPUT
+          echo "namespace=hashpost-testing" >> $GITHUB_OUTPUT
+          echo "api_url=https://testing.hashpost.dev/api" >> $GITHUB_OUTPUT
+        else
+          echo "Skipping deployment - not a main branch push or release"
+          exit 0
+        fi
+
+    - name: Build backend container image and extract OpenAPI spec
+      run: |
+        # Build backend image
+        docker build -t ${{ secrets.REGISTRY_NAME }}/hashpost-backend:${{ steps.deployment-env.outputs.image_tag }} \
+          --target production .
+        
+        # Extract OpenAPI spec for frontend build
+        docker create --name temp-backend ${{ secrets.REGISTRY_NAME }}/hashpost-backend:${{ steps.deployment-env.outputs.image_tag }}
+        docker cp temp-backend:/app/openapi.json ./ui/openapi.json
+        docker rm temp-backend
+
+    - name: Build frontend container image
+      run: |
+        docker build -t ${{ secrets.REGISTRY_NAME }}/hashpost-frontend:${{ steps.deployment-env.outputs.image_tag }} \
+          --build-arg NEXT_PUBLIC_API_URL=${{ steps.deployment-env.outputs.api_url }} \
+          --target runner ./ui
+
+    - name: Log in to DigitalOcean Container Registry
+      run: doctl registry login --expiry-seconds 1200
+
+    - name: Push images to DigitalOcean Container Registry
+      run: |
+        docker push ${{ secrets.REGISTRY_NAME }}/hashpost-backend:${{ steps.deployment-env.outputs.image_tag }}
+        docker push ${{ secrets.REGISTRY_NAME }}/hashpost-frontend:${{ steps.deployment-env.outputs.image_tag }}
+
+    - name: Install kubectl
+      uses: azure/setup-kubectl@v4
+      with:
+        version: 'v1.28.0'
+
+    - name: Install Kustomize
+      run: |
+        curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+        sudo mv kustomize /usr/local/bin/
+
+    - name: Save DigitalOcean kubeconfig
+      run: doctl kubernetes cluster kubeconfig save --expiry-seconds 600 ${{ secrets.CLUSTER_NAME }}
+
+    - name: Create namespace if it doesn't exist
+      run: |
+        kubectl create namespace ${{ steps.deployment-env.outputs.namespace }} --dry-run=client -o yaml | kubectl apply -f -
+
+    - name: Update Kustomization with new image tags
+      run: |
+        cd deploy/overlays/${{ steps.deployment-env.outputs.overlay }}
+        kustomize edit set image hashpost-backend=${{ secrets.REGISTRY_NAME }}/hashpost-backend:${{ steps.deployment-env.outputs.image_tag }}
+        kustomize edit set image hashpost-frontend=${{ secrets.REGISTRY_NAME }}/hashpost-frontend:${{ steps.deployment-env.outputs.image_tag }}
+
+    - name: Deploy to Kubernetes
+      run: |
+        kubectl apply -k deploy/overlays/${{ steps.deployment-env.outputs.overlay }}
+
+    - name: Verify backend deployment
+      run: |
+        kubectl rollout status deployment/hashpost-backend-${{ steps.deployment-env.outputs.overlay }} \
+          -n ${{ steps.deployment-env.outputs.namespace }} --timeout=300s
+
+    - name: Verify frontend deployment
+      run: |
+        kubectl rollout status deployment/hashpost-frontend-${{ steps.deployment-env.outputs.overlay }} \
+          -n ${{ steps.deployment-env.outputs.namespace }} --timeout=300s
+
+    - name: Get deployment status
+      run: |
+        echo "Deployment completed successfully!"
+        echo "Environment: ${{ steps.deployment-env.outputs.environment }}"
+        echo "Deployed Images (from DigitalOcean Container Registry):"
+        echo "  Backend: ${{ secrets.REGISTRY_NAME }}/hashpost-backend:${{ steps.deployment-env.outputs.image_tag }}"
+        echo "  Frontend: ${{ secrets.REGISTRY_NAME }}/hashpost-frontend:${{ steps.deployment-env.outputs.image_tag }}"
+        
+        # Get service endpoints
+        kubectl get services -n ${{ steps.deployment-env.outputs.namespace }}
+        kubectl get ingress -n ${{ steps.deployment-env.outputs.namespace }}

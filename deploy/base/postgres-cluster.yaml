@@ -1,0 +1,114 @@
+# PostgreSQL cluster using Crunchy Data operator
+apiVersion: postgres-operator.crunchydata.com/v1beta1
+kind: PostgresCluster
+metadata:
+  name: hashpost-postgres-cluster
+  namespace: hashpost
+spec:
+  # PostgreSQL version
+  postgresVersion: 16
+  
+  # PostgreSQL instances configuration
+  instances:
+    - name: instance1
+      replicas: 1  # Single replica for base, can be overridden in overlays
+      dataVolumeClaimSpec:
+        accessModes:
+        - "ReadWriteOnce"
+        resources:
+          requests:
+            storage: 50Gi  # Larger storage for production
+        storageClassName: "do-block-storage-retain"
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+          
+  # Backup configuration with pgBackRest
+  backups:
+    pgbackrest:
+      repos:
+      - name: repo1
+        # Local backup storage
+        volume:
+          volumeClaimSpec:
+            accessModes:
+            - "ReadWriteOnce"
+            resources:
+              requests:
+                storage: 100Gi
+            storageClassName: "do-block-storage-retain"
+        # Backup retention
+        schedules:
+          full: "0 2 * * 0"      # Weekly full backup at 2 AM Sunday
+          differential: "0 2 * * 1-6"  # Daily differential backup at 2 AM
+          incremental: "0 */4 * * *"   # Incremental backup every 4 hours
+      
+  # Connection pooling with PgBouncer
+  proxy:
+    pgBouncer:
+      replicas: 1
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 128Mi
+      config:
+        global:
+          pool_mode: transaction
+          max_client_conn: "200"
+          default_pool_size: "25"
+          
+  # Users and databases
+  users:
+    - name: hashpost
+      databases:
+        - hashpost
+      options: "CREATEDB SUPERUSER"
+    - name: readonly
+      databases:
+        - hashpost
+      options: "LOGIN"
+      
+  # Database initialization
+  databaseInitSQL:
+    name: hashpost-init-sql
+    key: init.sql
+    
+  # PostgreSQL configuration
+  patroni:
+    dynamicConfiguration:
+      postgresql:
+        parameters:
+          # Performance tuning
+          shared_buffers: "256MB"
+          effective_cache_size: "1GB"
+          maintenance_work_mem: "64MB"
+          checkpoint_completion_target: "0.9"
+          wal_buffers: "16MB"
+          default_statistics_target: "100"
+          random_page_cost: "1.1"
+          effective_io_concurrency: "200"
+          
+          # Logging
+          log_statement: "mod"
+          log_min_duration_statement: "1000"
+          log_line_prefix: "%t [%p]: [%l-1] user=%u,db=%d,app=%a,client=%h "
+          log_checkpoints: "on"
+          log_connections: "on"
+          log_disconnections: "on"
+          log_lock_waits: "on"
+          
+          # Extensions - avoid problematic ones
+          shared_preload_libraries: "pg_stat_statements"
+          
+          # Connection settings
+          max_connections: "200"
+      
+  # Supplemental groups for pod security context
+  supplementalGroups: [65534]

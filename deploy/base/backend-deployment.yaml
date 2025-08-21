@@ -1,0 +1,175 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hashpost-backend
+  namespace: hashpost
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: hashpost-backend
+  template:
+    metadata:
+      labels:
+        app: hashpost-backend
+    spec:
+      initContainers:
+      - name: migrate
+        image: hashpost-backend
+        command: ["/usr/local/bin/migrate.sh", "up"]
+        env:
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: hashpost-config
+              key: DB_HOST
+        - name: DB_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: hashpost-config
+              key: DB_PORT
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: hashpost-config
+              key: DB_NAME
+        - name: DB_SSLMODE
+          valueFrom:
+            configMapKeyRef:
+              name: hashpost-config
+              key: DB_SSLMODE
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: hashpost-postgres-cluster-pguser-hashpost
+              key: user
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: hashpost-postgres-cluster-pguser-hashpost
+              key: password
+      containers:
+      - name: hashpost-backend
+        image: hashpost-backend
+        ports:
+        - containerPort: 8888
+        env:
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: hashpost-config
+              key: DB_HOST
+        - name: DB_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: hashpost-config
+              key: DB_PORT
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: hashpost-config
+              key: DB_NAME
+        - name: DB_SSLMODE
+          valueFrom:
+            configMapKeyRef:
+              name: hashpost-config
+              key: DB_SSLMODE
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: hashpost-postgres-cluster-pguser-hashpost
+              key: user
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: hashpost-postgres-cluster-pguser-hashpost
+              key: password
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: hashpost-secrets
+              key: JWT_SECRET
+        - name: JWT_DEVELOPMENT
+          valueFrom:
+            configMapKeyRef:
+              name: hashpost-config
+              key: JWT_DEVELOPMENT
+        envFrom:
+        - configMapRef:
+            name: hashpost-config
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8888
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8888
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        volumeMounts:
+        - name: ibe-config
+          mountPath: /app/keys/ibe_config.json
+          subPath: ibe_config.json
+          readOnly: true
+        - name: domain-keys
+          mountPath: /app/keys/domains
+          readOnly: true
+        - name: user-role-keys
+          mountPath: /app/keys/roles/user
+          readOnly: true
+        - name: moderator-role-keys
+          mountPath: /app/keys/roles/moderator
+          readOnly: true
+        - name: subforum-owner-role-keys
+          mountPath: /app/keys/roles/subforum_owner
+          readOnly: true
+        - name: platform-admin-role-keys
+          mountPath: /app/keys/roles/platform_admin
+          readOnly: true
+        - name: trust-safety-role-keys
+          mountPath: /app/keys/roles/trust_safety
+          readOnly: true
+        - name: legal-team-role-keys
+          mountPath: /app/keys/roles/legal_team
+          readOnly: true
+        - name: test-keys
+          mountPath: /app/keys/test
+          readOnly: true
+      volumes:
+      - name: ibe-config
+        secret:
+          secretName: hashpost-ibe-config
+      - name: domain-keys
+        secret:
+          secretName: hashpost-domain-keys
+      - name: user-role-keys
+        secret:
+          secretName: hashpost-user-role-keys
+      - name: moderator-role-keys
+        secret:
+          secretName: hashpost-moderator-role-keys
+      - name: subforum-owner-role-keys
+        secret:
+          secretName: hashpost-subforum-owner-role-keys
+      - name: platform-admin-role-keys
+        secret:
+          secretName: hashpost-platform-admin-role-keys
+      - name: trust-safety-role-keys
+        secret:
+          secretName: hashpost-trust-safety-role-keys
+      - name: legal-team-role-keys
+        secret:
+          secretName: hashpost-legal-team-role-keys
+      - name: test-keys
+        secret:
+          secretName: hashpost-test-keys
