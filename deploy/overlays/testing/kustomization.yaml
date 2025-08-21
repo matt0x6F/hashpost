@@ -99,7 +99,7 @@ configMapGenerator:
 images:
   - name: hashpost-backend
     newName: registry.digitalocean.com/hashpost/hashpost-backend
-    newTag: 5d69bcc
+    newTag: latest
   - name: hashpost-frontend
     newName: registry.digitalocean.com/hashpost/hashpost-frontend
-    newTag: 5d69bcc
+    newTag: latest

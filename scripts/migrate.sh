@@ -76,6 +76,15 @@ check_sql_migrate() {
     print_status "sql-migrate is available"
 }
 
+# Function to URL-encode a string
+url_encode() {
+    local input="$1"
+    # Use Python to robustly URL-encode the input
+    python3 -c "import urllib.parse; print(urllib.parse.quote('$input'))" 2>/dev/null || \
+    # Fallback to basic shell encoding for common characters
+    echo "$input" | sed 's/%/%25/g; s/ /%20/g; s/!/%21/g; s/"/%22/g; s/#/%23/g; s/\$/%24/g; s/&/%26/g; s/'\''/%27/g; s/(/%28/g; s/)/%29/g; s/\*/%2A/g; s/+/%2B/g; s/,/%2C/g; s/-/%2D/g; s/\./%2E/g; s/\//%2F/g; s/:/%3A/g; s/;/%3B/g; s/</%3C/g; s/=/%3D/g; s/>/%3E/g; s/?/%3F/g; s/@/%40/g; s/\[/%5B/g; s/\\/%5C/g; s/\]/%5D/g; s/\^/%5E/g; s/_/%5F/g; s/`/%60/g; s/{/%7B/g; s/|/%7C/g; s/}/%7D/g; s/~/%7E/g'
+}
+
 # Function to run migrations
 run_migrations() {
     print_status "Running database migrations..."
@@ -83,21 +92,8 @@ run_migrations() {
     # Construct DATABASE_URL from individual environment variables
     # This is needed because Kubernetes doesn't expand $(VAR) syntax in env values
     if [[ -n "$DB_HOST" && -n "$DB_PORT" && -n "$DB_USER" && -n "$DB_PASSWORD" && -n "$DB_NAME" && -n "$DB_SSLMODE" ]]; then
-        # URL-encode the password to handle special characters using shell
-        # This handles common problematic characters in passwords
-        DB_PASSWORD_ENCODED="$DB_PASSWORD"
-        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//%/%25}"
-        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED// /%20}"
-        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//!/%21}"
-        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\"/%22}"
-        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//#/%23}"
-        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\$/%24}"
-        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//&/%26}"
-        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\'/%27}"
-        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//(/%28}"
-        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//)/%29}"
-        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//\*/%2A}"
-        DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//+/%2B}"
+        # URL-encode the password to handle special characters
+        DB_PASSWORD_ENCODED=$(url_encode "$DB_PASSWORD")
         DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//,/%2C}"
         DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//:/%3A}"
         DB_PASSWORD_ENCODED="${DB_PASSWORD_ENCODED//;/%3B}"

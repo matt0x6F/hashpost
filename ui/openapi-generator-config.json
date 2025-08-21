@@ -14,11 +14,15 @@
   "packageVersion": "1.0.0",
   "useSingleRequestParameter": false,
   "legacyDiscriminatorBehavior": false,
-  "disallowAdditionalPropertiesIfNotPresent": true,
+  "disallowAdditionalPropertiesIfNotPresent": false,
   "useTypeScript": true,
   "exportInterfaces": true,
   "exportClasses": true,
   "exportEnums": true,
   "exportModels": true,
-  "exportServices": true
+  "exportServices": true,
+  "modelNamePrefix": "",
+  "modelNameSuffix": "",
+  "apiNamePrefix": "",
+  "apiNameSuffix": ""
 } 

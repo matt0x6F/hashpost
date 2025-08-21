@@ -40,7 +40,7 @@ type CommentsByPseudonymResponse struct {
 
 // PseudonymProfileBody represents the body of pseudonym profile update request
 type PseudonymProfileBody struct {
-	DisplayName         string `json:"display_name"`
+	DisplayName         string `json:"display_name" example:"Jane Doe"`
 	Bio                 string `json:"bio"`
 	WebsiteURL          string `json:"website_url"`
 	ShowKarma           *bool  `json:"show_karma"`
@@ -73,7 +73,7 @@ type UserPreferencesInput struct {
 
 // CreatePseudonymBody represents the body of pseudonym creation request
 type CreatePseudonymBody struct {
-	DisplayName         string `json:"display_name" required:"true"`
+	DisplayName         string `json:"display_name" example:"Jane Doe" required:"true"`
 	Bio                 string `json:"bio"`
 	WebsiteURL          string `json:"website_url"`
 	ShowKarma           *bool  `json:"show_karma"`
