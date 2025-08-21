@@ -13,8 +13,6 @@ spec:
       labels:
         app: hashpost-backend
     spec:
-      imagePullSecrets:
-      - name: registry-hashpost
       initContainers:
       - name: migrate
         image: hashpost-backend
