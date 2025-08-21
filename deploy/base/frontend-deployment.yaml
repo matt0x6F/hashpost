@@ -13,8 +13,6 @@ spec:
       labels:
         app: hashpost-frontend
     spec:
-      imagePullSecrets:
-      - name: registry-hashpost
       containers:
       - name: hashpost-frontend
         image: hashpost-frontend
