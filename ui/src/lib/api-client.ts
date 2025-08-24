@@ -12,7 +12,7 @@ import { ReportsApi } from '../generated/api/src/apis/ReportsApi';
 import { SearchApi } from '../generated/api/src/apis/SearchApi';
 import { RulesApi } from '../generated/api/src/apis/RulesApi';
 import { CorrelationApi } from '../generated/api/src/apis/CorrelationApi';
-import { AdministrationApi } from '../generated/api/src/apis/AdministrationApi';
+
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8888';
 
@@ -71,4 +71,3 @@ export const reportsApi = getApi(ReportsApi);
 export const searchApi = getApi(SearchApi);
 export const rulesApi = getApi(RulesApi);
 export const correlationApi = getApi(CorrelationApi);
-export const administrationApi = getApi(AdministrationApi);

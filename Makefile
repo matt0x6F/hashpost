@@ -406,7 +406,7 @@ ui-generate-api:
 	fi
 	@echo "✅ OpenAPI spec downloaded successfully"
 	@echo "Generating TypeScript client..."
-	cd ui && npm run generate-api-local
+	cd ui && npm run generate-api
 
 ui-dev:
 	@echo "Starting UI development server..."
