@@ -10,8 +10,7 @@
     "lint": "next lint",
     "type-check": "tsc --noEmit",
     "download-openapi": "node scripts/download-openapi.js",
-    "generate-api": "openapi-generator-cli generate -i ./openapi.yaml -g typescript-fetch -o src/generated/api -c openapi-generator-config.json",
-    "generate-api-local": "openapi-generator-cli generate -i ./openapi.yaml -g typescript-fetch -o src/generated/api -c openapi-generator-config.json"
+    "generate-api": "openapi-generator-cli generate -i ./openapi.yaml -g typescript-fetch -o src/generated/api -c openapi-generator-config.json"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.10",
