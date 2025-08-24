@@ -161,19 +161,13 @@ export function PostCard({ post, subforumName }: PostCardProps) {
       const moderationApi = getApi(ModerationApi);
       switch (action) {
         case 'lock':
-          // TODO: The lockPost method is missing from the generated API client
-          // This should be fixed by regenerating the API client with a complete OpenAPI spec
-          toast.error('Post locking not yet implemented - API client generation issue');
+          await moderationApi.lockPost(localPost.postId, { locked: value });
           break;
         case 'sticky':
-          // TODO: The stickyPost method is missing from the generated API client
-          // This should be fixed by regenerating the API client with a complete OpenAPI spec
-          toast.error('Post stickying not yet implemented - API client generation issue');
+          await moderationApi.stickyPost(localPost.postId, { sticky: value });
           break;
         case 'remove':
-          // TODO: The removePost method is missing from the generated API client
-          // This should be fixed by regenerating the API client with a complete OpenAPI spec
-          toast.error('Post removal not yet implemented - API client generation issue');
+          await moderationApi.removePost(localPost.postId, { removed: value });
           break;
       }
       setLocalPost(prev => ({

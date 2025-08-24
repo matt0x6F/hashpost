@@ -140,9 +140,7 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
       const moderationApi = getApi(ModerationApi);
       switch (action) {
         case 'remove':
-          // TODO: The removeComment method is missing from the generated API client
-          // This should be fixed by regenerating the API client with a complete OpenAPI spec
-          toast.error('Comment removal not yet implemented - API client generation issue');
+          await moderationApi.removeComment(comment.commentId, { removed: value });
           break;
       }
       onCommentUpdated();
