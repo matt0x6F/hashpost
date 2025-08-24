@@ -5,7 +5,7 @@ name: Deploy HashPost
 on:
   push:
     branches:
-      - main
+      - '*'
     paths:
       - 'cmd/**'
       - 'internal/**'
