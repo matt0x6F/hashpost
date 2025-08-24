@@ -24,5 +24,7 @@
   "modelNamePrefix": "",
   "modelNameSuffix": "",
   "apiNamePrefix": "",
-  "apiNameSuffix": ""
+  "apiNameSuffix": "Api",
+  "ensureUniqueParams": true,
+  "usePromise": true
 } 

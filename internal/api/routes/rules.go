@@ -77,7 +77,7 @@ func RegisterRulesRoutes(api huma.API, db bob.Executor) {
 		Path:        "/reports/rule-violation",
 		Summary:     "Report a rule violation",
 		Description: "Reports a violation of a specific platform or subforum rule.",
-		Tags:        []string{"Reports", "Rules"},
+		Tags:        []string{"Reports"},
 		Security:    []map[string][]string{{"jwt": {}}},
 	}, rulesHandler.ReportRuleViolation)
 
@@ -88,7 +88,7 @@ func RegisterRulesRoutes(api huma.API, db bob.Executor) {
 		Path:        "/reports/{report_id}/forward",
 		Summary:     "Forward a report to platform moderators",
 		Description: "Forwards a subforum report to platform-level moderators with notes. Requires moderator permissions.",
-		Tags:        []string{"Reports", "Rules"},
+		Tags:        []string{"Reports"},
 		Security:    []map[string][]string{{"jwt": {}}},
 	}, rulesHandler.ForwardReportToPlatform)
 }
