@@ -43,24 +43,22 @@ This installs the OpenAPI Generator CLI tool.
 
 ### 2. Generate the API Client
 
-Make sure your HashPost server is running (via Docker Compose):
+Generate the API client using the offline generation method:
 
 ```bash
-# In the root directory
-make dev
-```
+# In the root directory (generates OpenAPI spec + TypeScript client)
+make ui-generate-api
 
-Then generate the API client:
-
-```bash
-# In the ui directory
+# Or in the ui directory (if openapi.json already exists)
 npm run generate-api
 ```
 
 This will:
-1. Download the OpenAPI schema from your running server
+1. Generate the OpenAPI schema locally using the HashPost CLI
 2. Generate TypeScript types and API client code
 3. Place the generated files in `src/generated/api/`
+
+**No server required** - the CLI generates the spec offline!
 
 ### 3. Use the Generated Client
 
@@ -72,9 +70,9 @@ The generated client is available in `src/lib/api-client.ts`. It provides:
 
 ## Available Scripts
 
-- `npm run download-openapi` - Download the OpenAPI schema from the server
-- `npm run generate-api` - Download schema and generate the full API client
-- `npm run generate-api-local` - Generate client from local `openapi.json` file
+- `make ui-generate-api` - Generate OpenAPI spec and TypeScript client (offline)
+- `npm run generate-api` - Generate TypeScript client from local `openapi.json` file
+- `npm run download-openapi` - Download OpenAPI schema from running server (legacy)
 
 ## Usage Examples
 
@@ -109,19 +107,21 @@ The generated client can be customized by modifying:
 
 ## Development Workflow
 
-1. **API Changes**: When you modify your Go API endpoints, the OpenAPI schema automatically updates
-2. **Regenerate Client**: Run `npm run generate-api` to update the TypeScript client
+1. **API Changes**: When you modify your Go API endpoints, the OpenAPI schema needs to be regenerated
+2. **Regenerate Client**: Run `make ui-generate-api` to update both the OpenAPI spec and TypeScript client
 3. **Type Safety**: The generated client provides full type safety for all API calls
+
+**Note**: The offline generation ensures you can always regenerate the client without needing the server running.
 
 ## Troubleshooting
 
-### Server Not Running
-If you get an error about the server not being available:
+### OpenAPI Generation Issues
+If you get an error about OpenAPI generation:
 ```bash
-# Start the server first (in Docker Compose)
-make dev
+# Generate the OpenAPI spec first (offline)
+make ui-generate-api
 
-# Then generate the client
+# Or if you just need to regenerate the TypeScript client
 npm run generate-api
 ```
 

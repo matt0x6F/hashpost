@@ -97,7 +97,7 @@ func RegisterContentRoutes(api huma.API, db bob.Executor, rawDB *sql.DB, ibeSyst
 		Path:        "/posts/{post_id}/lock",
 		Summary:     "Lock or unlock a post (moderators only)",
 		Description: "Locks or unlocks a post. Requires moderator permission.",
-		Tags:        []string{"Content", "Moderation"},
+		Tags:        []string{"Moderation"},
 	}, contentHandler.LockPost)
 
 	// Sticky/Unsticky post
@@ -107,7 +107,7 @@ func RegisterContentRoutes(api huma.API, db bob.Executor, rawDB *sql.DB, ibeSyst
 		Path:        "/posts/{post_id}/sticky",
 		Summary:     "Sticky or unsticky a post (moderators only)",
 		Description: "Stickies or unstickies a post. Requires moderator permission.",
-		Tags:        []string{"Content", "Moderation"},
+		Tags:        []string{"Moderation"},
 	}, contentHandler.StickyPost)
 
 	// Remove/Restore post
@@ -117,7 +117,7 @@ func RegisterContentRoutes(api huma.API, db bob.Executor, rawDB *sql.DB, ibeSyst
 		Path:        "/posts/{post_id}/remove",
 		Summary:     "Remove or restore a post (moderators only)",
 		Description: "Removes or restores a post. Requires moderator permission.",
-		Tags:        []string{"Content", "Moderation"},
+		Tags:        []string{"Moderation"},
 	}, contentHandler.RemovePost)
 
 	// Edit post
@@ -147,7 +147,7 @@ func RegisterContentRoutes(api huma.API, db bob.Executor, rawDB *sql.DB, ibeSyst
 		Path:        "/comments/{comment_id}/remove",
 		Summary:     "Remove or restore a comment",
 		Description: "Removes or restores a comment. Users can remove their own comments, moderators can remove any comment.",
-		Tags:        []string{"Content", "Moderation"},
+		Tags:        []string{"Moderation"},
 	}, contentHandler.RemoveComment)
 
 	// Report comment
@@ -157,7 +157,7 @@ func RegisterContentRoutes(api huma.API, db bob.Executor, rawDB *sql.DB, ibeSyst
 		Path:        "/comments/{comment_id}/report",
 		Summary:     "Report a comment",
 		Description: "Reports a comment for moderation review. Users cannot report their own comments.",
-		Tags:        []string{"Content", "Moderation"},
+		Tags:        []string{"Moderation"},
 	}, contentHandler.ReportComment)
 
 	// User deletion endpoints
