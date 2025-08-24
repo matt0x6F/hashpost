@@ -28,6 +28,21 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'release'
     runs-on: ubuntu-latest
     
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: hashpost
+          POSTGRES_USER: hashpost
+          POSTGRES_DB: hashpost
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -63,10 +78,43 @@ jobs:
         docker build -t ${{ secrets.REGISTRY_NAME }}/hashpost-backend:${{ steps.deployment-env.outputs.image_tag }} \
           --target production .
         
-        # Extract OpenAPI spec for frontend build
-        docker create --name temp-backend ${{ secrets.REGISTRY_NAME }}/hashpost-backend:${{ steps.deployment-env.outputs.image_tag }}
-        docker cp temp-backend:/app/openapi.json ./ui/openapi.json
+        # Start backend server to extract OpenAPI spec
+        docker run -d --name temp-backend \
+          -e DATABASE_HOST=localhost \
+          -e DATABASE_PORT=5432 \
+          -e DATABASE_USER=hashpost \
+          -e DATABASE_PASSWORD=hashpost \
+          -e DATABASE_DATABASE=hashpost \
+          -e JWT_SECRET=temp-secret-for-openapi \
+          -e IBE_DOMAIN_KEYS_DIR=/app/keys \
+          -e IBE_KEY_VERSION=1 \
+          -e IBE_SALT=temp-salt \
+          -p 8080:8080 \
+          ${{ secrets.REGISTRY_NAME }}/hashpost-backend:${{ steps.deployment-env.outputs.image_tag }}
+        
+        # Wait for server to start
+        echo "Waiting for backend server to start..."
+        timeout 60 bash -c 'until curl -f http://localhost:8080/health; do sleep 2; done'
+        
+        # Download OpenAPI spec from running server
+        echo "Downloading OpenAPI spec from server..."
+        if ! curl -f -s http://localhost:8080/openapi.json > ./ui/openapi.json; then
+          echo "Error: Failed to download OpenAPI spec from server"
+          exit 1
+        fi
+        
+        # Stop and remove temporary container
+        docker stop temp-backend
         docker rm temp-backend
+        
+        # Verify OpenAPI spec was generated
+        if [ ! -s ./ui/openapi.json ]; then
+          echo "Error: OpenAPI spec is empty or missing"
+          exit 1
+        fi
+        
+        echo "OpenAPI spec downloaded successfully"
+        echo "Spec size: $(wc -c < ./ui/openapi.json) bytes"
 
     - name: Build frontend container image
       run: |

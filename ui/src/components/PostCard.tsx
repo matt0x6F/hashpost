@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { getApi } from '@/lib/api-client';
-import { ContentApi } from '@/generated/api/src/apis/ContentApi';
+import { ContentApi, ModerationApi } from '@/generated/api/src';
 import { toast } from 'sonner';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { PostBadges } from './PostBadges';
@@ -158,16 +158,16 @@ export function PostCard({ post, subforumName }: PostCardProps) {
 
     setIsLoading(true);
     try {
-      const contentApi = getApi(ContentApi);
+      const moderationApi = getApi(ModerationApi);
       switch (action) {
         case 'lock':
-          await contentApi.lockPost(localPost.postId, { locked: value });
+          await moderationApi.lockPost(localPost.postId, { locked: value });
           break;
         case 'sticky':
-          await contentApi.stickyPost(localPost.postId, { sticky: value });
+          await moderationApi.stickyPost(localPost.postId, { sticky: value });
           break;
         case 'remove':
-          await contentApi.removePost(localPost.postId, { removed: value });
+          await moderationApi.removePost(localPost.postId, { removed: value });
           break;
       }
       setLocalPost(prev => ({
