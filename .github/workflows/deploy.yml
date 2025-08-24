@@ -154,4 +154,73 @@ jobs:
         kubectl get services -n ${{ steps.deployment-env.outputs.namespace }}
         kubectl get ingress -n ${{ steps.deployment-env.outputs.namespace }}
 
+    - name: Create GitHub Deployment
+      run: |
+        # Create a GitHub deployment record
+        deployment_url="https://api.github.com/repos/${{ github.repository }}/deployments"
+        
+        # Set description based on environment
+        if [[ "${{ steps.deployment-env.outputs.environment }}" == "production" ]]; then
+          description="Production deployment of ${{ github.event.release.tag_name }}"
+          environment="production"
+        elif [[ "${{ steps.deployment-env.outputs.environment }}" == "testing" ]]; then
+          description="Testing deployment of main branch"
+          environment="testing"
+        else
+          description="Branch deployment of ${{ github.ref_name }}"
+          environment="testing"
+        fi
+        
+        # Create deployment payload
+        payload=$(cat <<EOF
+        {
+          "ref": "${{ github.sha }}",
+          "task": "deploy",
+          "auto_merge": false,
+          "required_contexts": [],
+          "environment": "$environment",
+          "description": "$description",
+          "transient_environment": false
+        }
+        EOF
+        )
+        
+        # Create deployment
+        response=$(curl -s -X POST \
+          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          -H "Content-Type: application/json" \
+          -d "$payload" \
+          "$deployment_url")
+        
+        deployment_id=$(echo "$response" | jq -r '.id')
+        
+        if [[ "$deployment_id" != "null" && "$deployment_id" != "" ]]; then
+          echo "GitHub deployment created with ID: $deployment_id"
+          
+          # Update deployment status to success
+          status_url="https://api.github.com/repos/${{ github.repository }}/deployments/$deployment_id/statuses"
+          status_payload=$(cat <<EOF
+          {
+            "state": "success",
+            "description": "Deployment completed successfully",
+            "environment_url": "${{ steps.deployment-env.outputs.api_url }}",
+            "log_url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          }
+          EOF
+          )
+          
+          curl -s -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Content-Type: application/json" \
+            -d "$status_payload" \
+            "$status_url"
+          
+          echo "Deployment status updated to success"
+        else
+          echo "Failed to create GitHub deployment"
+          echo "Response: $response"
+        fi
+
 
