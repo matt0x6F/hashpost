@@ -16,6 +16,8 @@ RUN \
 
 # Rebuild the source code only when needed
 FROM base AS builder
+# Install Java for OpenAPI Generator CLI
+RUN apk add --no-cache openjdk17-jre
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
