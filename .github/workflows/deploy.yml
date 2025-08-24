@@ -94,74 +94,23 @@ jobs:
     - name: Build backend container image
       run: |
         echo "Building backend image..."
-        echo "Current directory: $(pwd)"
-        echo "Directory contents:"
-        ls -la
-        
-        echo "Building local image..."
-        # Build backend image for both the service and registry
-        docker build -t local/hashpost-backend:latest --target production . --progress=plain
-        
-        echo "Building registry image..."
         docker build -t ${{ secrets.REGISTRY_NAME }}/hashpost-backend:${{ steps.deployment-env.outputs.image_tag }} \
           --target production . --progress=plain
         
         echo "Backend image built successfully"
 
-    - name: Generate IBE keys for CI
+    - name: Verify OpenAPI spec exists
       run: |
-        echo "Generating IBE keys for CI environment..."
-        # Create a temporary container to generate IBE keys
-        docker run --rm -v $(pwd)/tmp-keys:/app/keys local/hashpost-backend:latest \
-          ./main generate-ibe-keys --output-dir /app/keys --generate-new --non-interactive
-        
-        echo "IBE keys generated successfully"
-
-    - name: Start HashPost service
-      run: |
-        echo "Starting HashPost service..."
-        # Start HashPost service in background
-        docker run -d --name hashpost-service \
-          --network host \
-          -e DATABASE_HOST=localhost \
-          -e DATABASE_PORT=5432 \
-          -e DATABASE_USER=hashpost \
-          -e DATABASE_PASSWORD=hashpost \
-          -e DATABASE_DATABASE=hashpost \
-          -e JWT_SECRET=temp-secret-for-openapi \
-          -e IBE_DOMAIN_KEYS_DIR=/app/keys \
-          -e IBE_KEY_VERSION=1 \
-          -e IBE_SALT=temp-salt \
-          -e SERVER_PORT=8888 \
-          -e SERVER_HOST=0.0.0.0 \
-          -v $(pwd)/tmp-keys:/app/keys \
-          -p 8888:8888 \
-          local/hashpost-backend:latest
-        
-        echo "HashPost service started"
-
-    - name: Wait for services to be ready
-      run: |
-        echo "Waiting for HashPost server to be healthy..."
-        timeout 60 bash -c 'until curl -f http://localhost:8888/health; do sleep 2; done'
-        echo "HashPost server is ready!"
-
-    - name: Download OpenAPI spec from service
-      run: |
-        echo "Downloading OpenAPI spec from HashPost service..."
-        if ! curl -f -s http://localhost:8888/ > ./ui/openapi.json; then
-          echo "Error: Failed to download OpenAPI spec from service"
+        echo "Checking for committed OpenAPI spec..."
+        if [ ! -f ./ui/openapi.yaml ]; then
+          echo "Error: OpenAPI spec not found at ./ui/openapi.yaml"
+          echo "Please generate the OpenAPI spec locally and commit it to the repository"
+          echo "Run: make ui-generate-api"
           exit 1
         fi
         
-        # Verify OpenAPI spec was generated
-        if [ ! -s ./ui/openapi.json ]; then
-          echo "Error: OpenAPI spec is empty or missing"
-          exit 1
-        fi
-        
-        echo "OpenAPI spec downloaded successfully"
-        echo "Spec size: $(wc -c < ./ui/openapi.json) bytes"
+        echo "OpenAPI spec found"
+        echo "Spec size: $(wc -c < ./ui/openapi.yaml) bytes"
 
     - name: Build frontend container image
       run: |
@@ -226,10 +175,4 @@ jobs:
         kubectl get services -n ${{ steps.deployment-env.outputs.namespace }}
         kubectl get ingress -n ${{ steps.deployment-env.outputs.namespace }}
 
-    - name: Cleanup HashPost service
-      if: always()
-      run: |
-        echo "Cleaning up HashPost service..."
-        docker stop hashpost-service || true
-        docker rm hashpost-service || true
-        echo "Cleanup completed"
+
