@@ -172,18 +172,15 @@ jobs:
         fi
         
         # Create deployment payload
-        payload=$(cat <<EOF
-        {
+        payload='{
           "ref": "${{ github.sha }}",
           "task": "deploy",
           "auto_merge": false,
           "required_contexts": [],
-          "environment": "$environment",
-          "description": "$description",
+          "environment": "'$environment'",
+          "description": "'$description'",
           "transient_environment": false
-        }
-        EOF
-        )
+        }'
         
         # Create deployment
         response=$(curl -s -X POST \
@@ -200,15 +197,12 @@ jobs:
           
           # Update deployment status to success
           status_url="https://api.github.com/repos/${{ github.repository }}/deployments/$deployment_id/statuses"
-          status_payload=$(cat <<EOF
-          {
+          status_payload='{
             "state": "success",
             "description": "Deployment completed successfully",
             "environment_url": "${{ steps.deployment-env.outputs.api_url }}",
             "log_url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          }
-          EOF
-          )
+          }'
           
           curl -s -X POST \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
