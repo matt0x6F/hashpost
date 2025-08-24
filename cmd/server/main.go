@@ -106,9 +106,6 @@ func main() {
 	// Add key-rotation commands - TEMPORARILY DISABLED
 	// rootCmd.AddCommand(commands.NewKeyRotationCommands(cfg)...)
 
-	// Add openapi command
-	rootCmd.AddCommand(commands.NewOpenAPICommand())
-
 	// Run the CLI
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatal().Err(err).Msg("Failed to execute command")

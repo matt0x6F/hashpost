@@ -20,7 +20,7 @@ import { Comment as CommentType } from '@/generated/api/src/models';
 import { useAuth } from '@/lib/auth-context';
 import { toast } from 'sonner';
 import { getApi } from '@/lib/api-client';
-import { ContentApi } from '@/generated/api/src/apis/ContentApi';
+import { ContentApi, ModerationApi } from '@/generated/api/src';
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 import CommentForm from './CommentForm';
 import { ReportDialog } from './ReportDialog';
@@ -137,10 +137,12 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
 
     setIsSubmitting(true);
     try {
-      const contentApi = getApi(ContentApi);
+      const moderationApi = getApi(ModerationApi);
       switch (action) {
         case 'remove':
-          await contentApi.removeComment(comment.commentId, { removed: value });
+          // TODO: The removeComment method is missing from the generated API client
+          // This should be fixed by regenerating the API client with a complete OpenAPI spec
+          toast.error('Comment removal not yet implemented - API client generation issue');
           break;
       }
       onCommentUpdated();
