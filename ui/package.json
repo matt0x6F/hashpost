@@ -10,7 +10,7 @@
     "lint": "next lint",
     "type-check": "tsc --noEmit",
     "download-openapi": "node scripts/download-openapi.js",
-    "generate-api": "npm run download-openapi && openapi-generator-cli generate -i ./openapi.json -g typescript-fetch -o src/generated/api -c openapi-generator-config.json",
+    "generate-api": "openapi-generator-cli generate -i ./openapi.json -g typescript-fetch -o src/generated/api -c openapi-generator-config.json",
     "generate-api-local": "openapi-generator-cli generate -i ./openapi.json -g typescript-fetch -o src/generated/api -c openapi-generator-config.json"
   },
   "dependencies": {

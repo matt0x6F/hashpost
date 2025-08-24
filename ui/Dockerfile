@@ -10,7 +10,7 @@ WORKDIR /app
 # Install dependencies based on the preferred package manager
 COPY package.json package-lock.json* ./
 RUN \
-  if [ -f package-lock.json ]; then npm ci; \
+  if [ -f package-lock.json ]; then npm ci --include=dev; \
   else echo "Lockfile not found." && exit 1; \
   fi
 
@@ -32,7 +32,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Generate API client from OpenAPI spec (openapi.json should be present from CI)
 RUN if [ -f openapi.json ]; then \
         echo "🔄 Generating API client from OpenAPI spec..." && \
-        npm run generate-api-local; \
+        npx @openapitools/openapi-generator-cli generate -i ./openapi.json -g typescript-fetch -o src/generated/api -c openapi-generator-config.json; \
     else \
         echo "⚠️  OpenAPI spec not found, skipping API client generation" && \
         echo "    This is expected in development mode"; \

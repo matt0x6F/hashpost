@@ -395,13 +395,8 @@ ui-install:
 	@echo "Installing UI dependencies..."
 	cd ui && npm install
 
-ui-generate-api:
-	@echo "Generating TypeScript API client from OpenAPI schema..."
-	@echo "Make sure the HashPost server is running (make dev)"
-	cd ui && npm run generate-api
-
-ui-generate-api-offline:
-	@echo "Generating TypeScript API client from local OpenAPI spec..."
+ui-generate-api: clean build
+	@echo "Generating TypeScript API client from OpenAPI spec (offline)..."
 	@echo "Generating OpenAPI spec first..."
 	./bin/hashpost openapi --output ui/openapi.json --format json
 	@echo "Generating TypeScript client..."
@@ -422,7 +417,6 @@ setup-ibe-keys:
 	./bin/hashpost generate-ibe-keys --output-dir ./keys --generate-new --non-interactive
 	@echo "✅ IBE keys generated successfully!"
 	@echo "📁 Keys location: ./keys/"
-	@echo "🔐 Master key: ./keys/master.key"
 	@echo "📋 Configuration: ./keys/ibe_config.json" 
 
 setup-roles:
