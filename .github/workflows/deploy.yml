@@ -42,10 +42,36 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
+      
+      hashpost:
+        image: hashpost-backend:latest
+        env:
+          DATABASE_HOST: postgres
+          DATABASE_PORT: 5432
+          DATABASE_USER: hashpost
+          DATABASE_PASSWORD: hashpost
+          DATABASE_DATABASE: hashpost
+          JWT_SECRET: temp-secret-for-openapi
+          IBE_DOMAIN_KEYS_DIR: /app/keys
+          IBE_KEY_VERSION: 1
+          IBE_SALT: temp-salt
+          SERVER_PORT: 8888
+          SERVER_HOST: 0.0.0.0
+        options: >-
+          --health-cmd "curl -f http://localhost:8888/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 8888:8888
+        volumes:
+          - ./tmp-keys:/app/keys
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
+
 
     - name: Install doctl
       uses: digitalocean/action-doctl@v2
@@ -72,40 +98,37 @@ jobs:
           exit 0
         fi
 
-    - name: Build backend container image and extract OpenAPI spec
+    - name: Build backend container image
       run: |
-        # Build backend image
+        # Build backend image for both the service and registry
+        docker build -t hashpost-backend:latest --target production .
         docker build -t ${{ secrets.REGISTRY_NAME }}/hashpost-backend:${{ steps.deployment-env.outputs.image_tag }} \
           --target production .
         
-        # Start backend server to extract OpenAPI spec
-        docker run -d --name temp-backend \
-          -e DATABASE_HOST=localhost \
-          -e DATABASE_PORT=5432 \
-          -e DATABASE_USER=hashpost \
-          -e DATABASE_PASSWORD=hashpost \
-          -e DATABASE_DATABASE=hashpost \
-          -e JWT_SECRET=temp-secret-for-openapi \
-          -e IBE_DOMAIN_KEYS_DIR=/app/keys \
-          -e IBE_KEY_VERSION=1 \
-          -e IBE_SALT=temp-salt \
-          -p 8080:8080 \
-          ${{ secrets.REGISTRY_NAME }}/hashpost-backend:${{ steps.deployment-env.outputs.image_tag }}
+        echo "Backend image built successfully"
+
+    - name: Generate IBE keys for CI
+      run: |
+        echo "Generating IBE keys for CI environment..."
+        # Create a temporary container to generate IBE keys
+        docker run --rm -v $(pwd)/tmp-keys:/app/keys hashpost-backend:latest \
+          ./main generate-ibe-keys --output-dir /app/keys --generate-new --non-interactive
         
-        # Wait for server to start
-        echo "Waiting for backend server to start..."
-        timeout 60 bash -c 'until curl -f http://localhost:8080/health; do sleep 2; done'
-        
-        # Download OpenAPI spec from running server
-        echo "Downloading OpenAPI spec from server..."
-        if ! curl -f -s http://localhost:8080/openapi.json > ./ui/openapi.json; then
-          echo "Error: Failed to download OpenAPI spec from server"
+        echo "IBE keys generated successfully"
+
+    - name: Wait for services to be ready
+      run: |
+        echo "Waiting for HashPost server to be healthy..."
+        timeout 60 bash -c 'until curl -f http://localhost:8888/health; do sleep 2; done'
+        echo "HashPost server is ready!"
+
+    - name: Download OpenAPI spec from service
+      run: |
+        echo "Downloading OpenAPI spec from HashPost service..."
+        if ! curl -f -s http://localhost:8888/ > ./ui/openapi.json; then
+          echo "Error: Failed to download OpenAPI spec from service"
           exit 1
         fi
-        
-        # Stop and remove temporary container
-        docker stop temp-backend
-        docker rm temp-backend
         
         # Verify OpenAPI spec was generated
         if [ ! -s ./ui/openapi.json ]; then

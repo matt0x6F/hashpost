@@ -12,9 +12,9 @@ const OUTPUT_PATH = path.join(__dirname, '..', 'openapi.json');
 
 async function downloadOpenAPISchema() {
   try {
-    console.log(`Downloading OpenAPI schema from ${API_URL}/openapi.json...`);
+    console.log(`Downloading OpenAPI schema from ${API_URL}/...`);
     
-    const response = await fetch(`${API_URL}/openapi.json`);
+    const response = await fetch(`${API_URL}/`);
     
     if (!response.ok) {
       throw new Error(`Failed to download schema: ${response.status} ${response.statusText}`);
