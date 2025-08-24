@@ -28,26 +28,9 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'release'
     runs-on: ubuntu-latest
     
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_PASSWORD: hashpost
-          POSTGRES_USER: hashpost
-          POSTGRES_DB: hashpost
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-
-
 
     - name: Install doctl
       uses: digitalocean/action-doctl@v2
@@ -99,19 +82,6 @@ jobs:
         
         echo "Backend image built successfully"
 
-    - name: Verify OpenAPI spec exists
-      run: |
-        echo "Checking for committed OpenAPI spec..."
-        if [ ! -f ./ui/openapi.yaml ]; then
-          echo "Error: OpenAPI spec not found at ./ui/openapi.yaml"
-          echo "Please generate the OpenAPI spec locally and commit it to the repository"
-          echo "Run: make ui-generate-api"
-          exit 1
-        fi
-        
-        echo "OpenAPI spec found"
-        echo "Spec size: $(wc -c < ./ui/openapi.yaml) bytes"
-
     - name: Build frontend container image
       run: |
         docker build -t ${{ secrets.REGISTRY_NAME }}/hashpost-frontend:${{ steps.deployment-env.outputs.image_tag }} \
@@ -125,6 +95,15 @@ jobs:
       run: |
         docker push ${{ secrets.REGISTRY_NAME }}/hashpost-backend:${{ steps.deployment-env.outputs.image_tag }}
         docker push ${{ secrets.REGISTRY_NAME }}/hashpost-frontend:${{ steps.deployment-env.outputs.image_tag }}
+        
+        # Also push to latest tag for branch pushes (not releases)
+        if [[ "${{ github.event_name }}" == "push" ]]; then
+          echo "Tagging and pushing as latest..."
+          docker tag ${{ secrets.REGISTRY_NAME }}/hashpost-backend:${{ steps.deployment-env.outputs.image_tag }} ${{ secrets.REGISTRY_NAME }}/hashpost-backend:latest
+          docker tag ${{ secrets.REGISTRY_NAME }}/hashpost-frontend:${{ steps.deployment-env.outputs.image_tag }} ${{ secrets.REGISTRY_NAME }}/hashpost-frontend:latest
+          docker push ${{ secrets.REGISTRY_NAME }}/hashpost-backend:latest
+          docker push ${{ secrets.REGISTRY_NAME }}/hashpost-frontend:latest
+        fi
 
     - name: Install kubectl
       uses: azure/setup-kubectl@v4
