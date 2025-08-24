@@ -69,8 +69,14 @@ jobs:
           echo "overlay=testing" >> $GITHUB_OUTPUT
           echo "namespace=hashpost-testing" >> $GITHUB_OUTPUT
           echo "api_url=https://testing.hashpost.dev/api" >> $GITHUB_OUTPUT
+        elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+          echo "environment=pr-testing" >> $GITHUB_OUTPUT
+          echo "image_tag=pr-${{ github.event.number }}-$(echo $GITHUB_SHA | head -c7)" >> $GITHUB_OUTPUT
+          echo "overlay=testing" >> $GITHUB_OUTPUT
+          echo "namespace=hashpost-testing" >> $GITHUB_OUTPUT
+          echo "api_url=https://testing.hashpost.dev/api" >> $GITHUB_OUTPUT
         else
-          echo "Skipping deployment - not a main branch push or release"
+          echo "Skipping deployment - not a main branch push, release, or PR"
           exit 0
         fi
 
@@ -81,9 +87,9 @@ jobs:
         echo "Directory contents:"
         ls -la
         
-        echo "Building hashpost-backend:latest..."
+        echo "Building local image..."
         # Build backend image for both the service and registry
-        docker build -t hashpost-backend:latest --target production . --progress=plain
+        docker build -t local/hashpost-backend:latest --target production . --progress=plain
         
         echo "Building registry image..."
         docker build -t ${{ secrets.REGISTRY_NAME }}/hashpost-backend:${{ steps.deployment-env.outputs.image_tag }} \
@@ -95,7 +101,7 @@ jobs:
       run: |
         echo "Generating IBE keys for CI environment..."
         # Create a temporary container to generate IBE keys
-        docker run --rm -v $(pwd)/tmp-keys:/app/keys hashpost-backend:latest \
+        docker run --rm -v $(pwd)/tmp-keys:/app/keys local/hashpost-backend:latest \
           ./main generate-ibe-keys --output-dir /app/keys --generate-new --non-interactive
         
         echo "IBE keys generated successfully"
@@ -119,7 +125,7 @@ jobs:
           -e SERVER_HOST=0.0.0.0 \
           -v $(pwd)/tmp-keys:/app/keys \
           -p 8888:8888 \
-          hashpost-backend:latest
+          local/hashpost-backend:latest
         
         echo "HashPost service started"
 
