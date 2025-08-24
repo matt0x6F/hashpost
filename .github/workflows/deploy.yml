@@ -76,10 +76,18 @@ jobs:
 
     - name: Build backend container image
       run: |
+        echo "Building backend image..."
+        echo "Current directory: $(pwd)"
+        echo "Directory contents:"
+        ls -la
+        
+        echo "Building hashpost-backend:latest..."
         # Build backend image for both the service and registry
-        docker build -t hashpost-backend:latest --target production .
+        docker build -t hashpost-backend:latest --target production . --progress=plain
+        
+        echo "Building registry image..."
         docker build -t ${{ secrets.REGISTRY_NAME }}/hashpost-backend:${{ steps.deployment-env.outputs.image_tag }} \
-          --target production .
+          --target production . --progress=plain
         
         echo "Backend image built successfully"
 
