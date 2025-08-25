@@ -62,7 +62,7 @@ func NewAuthHandler(
 	if db != nil {
 		userDAO = dao.NewUserDAO(db)
 		identityMappingDAO = dao.NewIdentityMappingDAO(db)
-		roleKeyDAO = dao.NewRoleKeyDAO(db)
+		roleKeyDAO = dao.NewRoleKeyDAO(db, nil)
 		userBlocksDAO := dao.NewUserBlocksDAO(db)
 
 		// Safe type assertions with error handling

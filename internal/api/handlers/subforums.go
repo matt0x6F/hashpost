@@ -53,7 +53,7 @@ func NewSubforumHandler(
 		identityMappingDAO = dao.NewIdentityMappingDAO(db)
 		// Note: pseudonymDAO requires additional dependencies, so it should be passed in
 		postDAO = dao.NewPostDAO(db)
-		roleKeyDAO = dao.NewRoleKeyDAO(db)
+		roleKeyDAO = dao.NewRoleKeyDAO(db, nil)
 		userDAO = dao.NewUserDAO(db)
 	}
 

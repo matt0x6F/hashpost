@@ -60,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Try to authenticate using tokens in cookies
         const authResult = await authenticateUser();
         
-        console.log('checkAuth result:', authResult);
+        		// Debug: checkAuth result logged
         
         if (authResult) {
           // If we already have a user, update their data instead of calling login
@@ -128,8 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const isLoginResponse = 'pseudonyms' in userData;
     
     // Debug logging for capabilities
-    console.log('Login userData capabilities:', userData.capabilities);
-    console.log('Login userData roles:', userData.roles);
+    		// Debug: userData capabilities and roles logged
     
     const normalizedUser: User = {
       userId: userData.userId,
@@ -154,7 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshToken: userData.refreshToken,
     };
     
-    console.log('Normalized user capabilities:', normalizedUser.capabilities);
+    		// Debug: normalized user capabilities logged
     
     setUser(normalizedUser);
     // Store user data in localStorage (excluding sensitive tokens)
@@ -168,11 +167,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     // After login, immediately fetch full user data to get capabilities
     // This is needed because login response has empty capabilities
-    console.log('Login complete, fetching full user data...');
+    		// Debug: login complete, fetching full user data
     try {
       const fullUserData = await authenticateUser();
       if (fullUserData && fullUserData.capabilities && fullUserData.capabilities.length > 0) {
-        console.log('Got full user data with capabilities:', fullUserData.capabilities);
+        		// Debug: got full user data with capabilities
         // Update user with full capabilities
         const updatedUser: User = {
           ...normalizedUser,
@@ -214,13 +213,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Refresh user data from server
   const refreshUser = async () => {
-    console.log('refreshUser called, current user:', !!user);
+    		// Debug: refreshUser called, current user status logged
     try {
       const authResult = await authenticateUser();
       if (authResult) {
         // Update existing user data instead of calling login to avoid infinite loop
         if (user) {
-          console.log('Updating existing user with fresh data');
+          			// Debug: updating existing user with fresh data
           const updatedUser: User = {
             ...user,
             roles: authResult.roles || user.roles,
@@ -241,12 +240,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           };
           localStorage.setItem('hashpost_user', JSON.stringify(userDataToStore));
         } else {
-          console.log('No existing user, calling login');
+          		// Debug: no existing user, calling login
           // No existing user, use login function
           login(authResult);
         }
       } else {
-        console.log('No auth result, clearing user');
+        		// Debug: no auth result, clearing user
         setUser(null);
         localStorage.removeItem('hashpost_user');
       }

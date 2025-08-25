@@ -46,7 +46,7 @@ func NewUserHandler(
 
 		// Safe type assertions with error handling
 		identityMappingDAO := dao.NewIdentityMappingDAO(db)
-		roleKeyDAO := dao.NewRoleKeyDAO(db)
+		roleKeyDAO := dao.NewRoleKeyDAO(db, nil)
 		userBlocksDAO = dao.NewUserBlocksDAO(db)
 
 		userDAOImpl, ok := userDAO.(*dao.UserDAO)

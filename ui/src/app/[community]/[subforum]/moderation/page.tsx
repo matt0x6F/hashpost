@@ -60,7 +60,7 @@ export default function SubforumModerationPage() {
 
   // Show loading state while checking permissions or loading subforum context
   if (isLoading || !user || (isAuthenticated && !subforumContextLoaded)) {
-    console.log('Loading state:', { isLoading, user: !!user, isAuthenticated, subforumContextLoaded });
+    		// Debug: loading state logged
     return (
       <div className="max-w-7xl mx-auto p-4">
         <div className="text-center py-12">
@@ -76,7 +76,7 @@ export default function SubforumModerationPage() {
   const isModerator = hasModerateContent;
 
   // Debug logging
-  console.log('Permission check:', {
+  		// Debug: permission check logged
     user: user?.email,
     capabilities: user?.capabilities,
     hasModerateContent,
@@ -88,7 +88,7 @@ export default function SubforumModerationPage() {
 
   // Don't render the page if user doesn't have permissions
   if (!isAuthenticated || !isModerator) {
-    console.log('Permission denied:', { isAuthenticated, isModerator, user: user?.email });
+    		// Debug: permission denied logged
     return (
       <div className="max-w-7xl mx-auto p-4">
         <div className="text-center py-12">

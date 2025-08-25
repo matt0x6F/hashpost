@@ -44,7 +44,7 @@ func NewServer(cfg *config.Config) *Server {
 	// Create DAOs
 	userDAO := dao.NewUserDAO(db)
 	identityMappingDAO := dao.NewIdentityMappingDAO(db)
-	roleKeyDAO := dao.NewRoleKeyDAO(db)
+	roleKeyDAO := dao.NewRoleKeyDAO(db, nil)
 	userBlocksDAO := dao.NewUserBlocksDAO(db)
 	pseudonymDAO := dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
 	postDAO := dao.NewPostDAO(db)

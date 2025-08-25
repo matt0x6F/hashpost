@@ -60,13 +60,7 @@ export function UserManagementTab() {
       const response = await api.searchPseudonyms(query);
       
       // Debug: Log the actual response to see what fields we're getting
-      console.log('Search API response:', response);
-      console.log('Pseudonyms array:', response.pseudonyms);
-      if (response.pseudonyms && response.pseudonyms.length > 0) {
-        console.log('First pseudonym data:', response.pseudonyms[0]);
-        console.log('First pseudonym display name:', response.pseudonyms[0].displayName);
-        console.log('First pseudonym ID:', response.pseudonyms[0].pseudonymId);
-      }
+      		// Debug: search API response and pseudonym data logged
       
       if (response.pseudonyms) {
         setPseudonyms(response.pseudonyms);
@@ -119,22 +113,18 @@ export function UserManagementTab() {
 
   const handleViewPseudonym = (pseudonym: SearchPseudonym) => {
     // Debug: Log the pseudonym data we're about to store
-    console.log('=== handleViewPseudonym called ===');
-    console.log('Full pseudonym object:', pseudonym);
-    console.log('Pseudonym display name:', pseudonym.displayName);
-    console.log('Pseudonym ID:', pseudonym.pseudonymId);
+    		// Debug: handleViewPseudonym called with pseudonym data
     
     // Store pseudonym data in sessionStorage to avoid URL parameter truncation
     const pseudonymDataKey = `pseudonym_detail_${pseudonym.pseudonymId}`;
     const pseudonymDataString = JSON.stringify(pseudonym);
-    console.log('Storing in sessionStorage with key:', pseudonymDataKey);
-    console.log('Data being stored:', pseudonymDataString);
+    		// Debug: storing pseudonym data in sessionStorage
     
     sessionStorage.setItem(pseudonymDataKey, pseudonymDataString);
     
     // Verify it was stored
     const stored = sessionStorage.getItem(pseudonymDataKey);
-    console.log('Retrieved from sessionStorage:', stored);
+    		// Debug: retrieved data from sessionStorage
     
     // Navigate to pseudonym detail page with search context preserved
     const searchParams = new URLSearchParams();
@@ -142,7 +132,7 @@ export function UserManagementTab() {
     searchParams.set('page', '1'); // You could add pagination later
     
     const pseudonymDetailUrl = `/admin/pseudonyms/${pseudonym.pseudonymId}?${searchParams.toString()}`;
-    console.log('Navigating to:', pseudonymDetailUrl);
+    		// Debug: navigating to pseudonym detail page
     router.push(pseudonymDetailUrl);
   };
 

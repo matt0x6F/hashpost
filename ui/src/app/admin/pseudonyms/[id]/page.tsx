@@ -38,22 +38,19 @@ export default function UserDetailPage({ params }: UserDetailPageProps) {
 
   useEffect(() => {
     // Debug: Log what we're looking for
-    console.log('=== UserDetailPage useEffect ===');
-    console.log('Looking for user ID:', id);
+    		// Debug: UserDetailPage useEffect with user ID
     
     // Try to get user data from sessionStorage first (stored by search results)
     const userDataKey = `user_detail_${id}`;
-    console.log('SessionStorage key:', userDataKey);
+    		// Debug: sessionStorage key for user data
     
     const storedUserData = sessionStorage.getItem(userDataKey);
-    console.log('Retrieved from sessionStorage:', storedUserData);
+    		// Debug: retrieved user data from sessionStorage
     
     if (storedUserData) {
       try {
         const decodedUserData = JSON.parse(storedUserData);
-        console.log('Parsed user data:', decodedUserData);
-        console.log('User email:', decodedUserData.email);
-        console.log('User pseudonyms:', decodedUserData.pseudonyms);
+        		// Debug: parsed user data with email and pseudonyms
         
         setUser(decodedUserData);
         // Fetch additional pseudonym details
@@ -69,7 +66,7 @@ export default function UserDetailPage({ params }: UserDetailPageProps) {
       }
     } else {
       // No user data found in sessionStorage - try to fetch from API
-      console.log('No user data found in sessionStorage, attempting API fetch...');
+      		// Debug: no user data in sessionStorage, attempting API fetch
       fetchUserFromAPI();
     }
   }, [id])

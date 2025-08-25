@@ -164,10 +164,7 @@ export function SystemSettingsTab() {
       setIsLoading(true);
       
       // TODO: Implement actual API call when system settings update endpoint is available
-      // For now, simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      toast.success("Settings saved successfully");
+      toast.info("Saving system settings is not yet implemented.");
       setHasUnsavedChanges(false);
     } catch (error: any) {
       console.error("Failed to save settings:", error);

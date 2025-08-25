@@ -25,12 +25,12 @@ type RoleKeyDAO struct {
 }
 
 // NewRoleKeyDAO creates a new RoleKeyDAO
-func NewRoleKeyDAO(db bob.Executor, ibeSystem ...*ibe.IBESystem) *RoleKeyDAO {
+func NewRoleKeyDAO(db bob.Executor, ibeSystem *ibe.IBESystem) *RoleKeyDAO {
 	var system *ibe.IBESystem
 	
 	// If IBE system is provided, use it; otherwise create from environment
-	if len(ibeSystem) > 0 && ibeSystem[0] != nil {
-		system = ibeSystem[0]
+	if ibeSystem != nil {
+		system = ibeSystem
 	} else {
 		// Fallback to environment-based creation for backward compatibility
 		defer func() {
