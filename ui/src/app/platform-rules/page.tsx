@@ -1,6 +1,5 @@
 import { PlatformRulesDisplay } from '@/components/PlatformRulesDisplay';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/shadcn/card';
-import { Separator } from '@/components/shadcn/separator';
 
 export default function PlatformRulesPage() {
   return (
@@ -30,7 +29,7 @@ export default function PlatformRulesPage() {
             <div className="space-y-2">
               <h3 className="font-semibold text-foreground">Protect Privacy</h3>
               <p className="text-sm text-muted-foreground">
-                Respect the privacy of others. Don't share personal information without consent, and be mindful of pseudonym boundaries.
+                Respect the privacy of others. Don&apos;t share personal information without consent, and be mindful of pseudonym boundaries.
               </p>
             </div>
             <div className="space-y-2">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/shadcn/card";
 import { Button } from "@/components/shadcn/button";
 import { Badge } from "@/components/shadcn/badge";
@@ -23,7 +23,6 @@ import {
   Flag, 
   AlertTriangle, 
   CheckCircle, 
-  XCircle, 
   Eye,
   Ban,
   Trash2,
@@ -80,7 +79,7 @@ const mockReports: PlatformReport[] = [
 ];
 
 export function ContentModerationTab() {
-  const [reports, setReports] = useState<PlatformReport[]>(mockReports);
+  const [reports] = useState<PlatformReport[]>(mockReports);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [severityFilter, setSeverityFilter] = useState<string>("all");
 

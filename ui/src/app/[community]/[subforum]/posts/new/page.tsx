@@ -18,6 +18,7 @@ import { authenticateUserForSubforum } from "@/lib/auth-utils";
 
 import { COMMUNITY_CONFIG, type CommunityType } from '@/lib/community-config';
 
+
 export default function NewPostPage() {
   const router = useRouter();
   const params = useParams();
@@ -105,9 +106,9 @@ export default function NewPostPage() {
             <div className="flex-1">
               <p className="text-sm text-muted-foreground">
                 <strong>Before posting:</strong> Please ensure your content follows our{' '}
-                <a href="/platform-rules" className="text-foreground underline hover:text-foreground/80 transition-colors">
+                <span className="text-foreground underline hover:text-foreground/80 transition-colors">
                   platform rules
-                </a>
+                </span>
                 {' '}and community guidelines. Violations may result in content removal or account restrictions.
               </p>
             </div>
