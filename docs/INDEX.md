@@ -66,6 +66,7 @@ This index provides a comprehensive overview of all HashPost documentation, orga
 **Content**:
 - [Development Setup](development/setup.md) - Development environment setup and workflows
 - [CORS Configuration](development/cors.md) - Cross-Origin Resource Sharing configuration
+- [Authentication Updates](development/authentication-updates.md) - Recent authentication system changes
 
 ## 🎯 **Features & Functionality**
 
@@ -74,6 +75,8 @@ This index provides a comprehensive overview of all HashPost documentation, orga
 **Audience**: Developers, product managers, users
 **Content**:
 - [Comment Workflow](features/comments.md) - Comment system implementation and usage
+- [Platform Administration](features/platform-administration.md) - Centralized platform management
+- [System Settings](features/system-settings.md) - Platform-wide configuration management
 
 ## 🔍 **Documentation by Use Case**
 
@@ -88,6 +91,7 @@ This index provides a comprehensive overview of all HashPost documentation, orga
 2. **Then read**: [Development Setup](development/setup.md) - Environment setup
 3. **Reference**: [RBAC Overview](rbac/rbac-overview.md) - Access control system
 4. **Explore**: [API Documentation](api/documentation.md) - API reference
+5. **Learn**: [Platform Administration](features/platform-administration.md) - Admin capabilities
 
 ### For API Integration
 1. **Start with**: [API Documentation](api/documentation.md) - Complete API reference
@@ -98,6 +102,12 @@ This index provides a comprehensive overview of all HashPost documentation, orga
 1. **Start with**: [Database Schema](database/schema.md) - Schema reference
 2. **Then read**: [Database Operations](database/operations.md) - Operations guide
 3. **Reference**: [Database ERD](database/erd.puml) - Visual schema
+
+### For Platform Administrators
+1. **Start with**: [Platform Administration](features/platform-administration.md) - Admin capabilities overview
+2. **Then read**: [System Settings](features/system-settings.md) - Configuration management
+3. **Reference**: [RBAC Overview](rbac/rbac-overview.md) - Access control system
+4. **Explore**: [Development Setup](development/setup.md) - Admin setup procedures
 
 ### For DevOps Engineers
 1. **Start with**: [Development Setup](development/setup.md) - Environment setup

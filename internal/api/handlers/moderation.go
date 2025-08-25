@@ -496,7 +496,14 @@ func (h *ModerationHandler) ReportContent(ctx context.Context, input *struct {
 	report, err := h.reportDAO.CreateReport(ctx, reportSetter)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to create report")
-		return nil, err
+		return nil, huma.Error500InternalServerError("Failed to create report")
+	}
+
+	// Update last active timestamp for the pseudonym since reporting represents activity
+	err = h.pseudonymDAO.UpdateLastActive(ctx, userCtx.ActivePseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", userCtx.ActivePseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
 	}
 
 	response := apimodels.NewReportResponse(int(report.ReportID))
@@ -792,6 +799,13 @@ func (h *ModerationHandler) BanUser(ctx context.Context, input *apimodels.UserBa
 	// Send notification
 	h.sendModerationNotification(ctx, "ban_user", "user", int(userID), input.Body.BanReason)
 
+	// Update last active timestamp for the pseudonym since moderation represents activity
+	err = h.pseudonymDAO.UpdateLastActive(ctx, userCtx.ActivePseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", userCtx.ActivePseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
+	}
+
 	response := apimodels.NewUserBanResponse(int(ban.BanID), bannedFingerprint, input.Body.SubforumID, input.Body.BanReason, input.Body.IsPermanent, input.Body.DurationDays, userCtx.ActivePseudonymID, userCtx.DisplayName)
 
 	log.Info().
@@ -879,6 +893,13 @@ func (h *ModerationHandler) ResolveReport(ctx context.Context, input *struct {
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to create moderation action")
 		// Don't fail the request if action logging fails
+	}
+
+	// Update last active timestamp for the pseudonym since moderation represents activity
+	err = h.pseudonymDAO.UpdateLastActive(ctx, userCtx.ActivePseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", userCtx.ActivePseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
 	}
 
 	response := apimodels.NewReportResolutionResponse(input.ReportID, input.Body.Action, input.Body.Notes, userCtx.ActivePseudonymID, userCtx.DisplayName)

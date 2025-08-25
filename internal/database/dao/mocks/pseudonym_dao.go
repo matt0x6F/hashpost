@@ -187,3 +187,15 @@ func (m *MockPseudonymDAO) GetRealIdentityByPseudonym(ctx context.Context, pseud
 	args := m.Called(ctx, pseudonymID, roleName, scope)
 	return args.String(0), args.Error(1)
 }
+
+// GetIBESystemSalt returns the salt used by the IBE system
+func (m *MockPseudonymDAO) GetIBESystemSalt() string {
+	args := m.Called()
+	return args.String(0)
+}
+
+// GenerateFingerprintForEmail generates a fingerprint for the given email
+func (m *MockPseudonymDAO) GenerateFingerprintForEmail(email string) string {
+	args := m.Called(email)
+	return args.String(0)
+}

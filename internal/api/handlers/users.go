@@ -671,6 +671,14 @@ func (h *UserHandler) UpdatePseudonymProfile(ctx context.Context, input *struct 
 		log.Error().Err(err).Str("pseudonym_id", pseudonymID).Msg("Failed to update pseudonym in database")
 		return nil, fmt.Errorf("failed to update pseudonym: %w", err)
 	}
+
+	// Update last active timestamp for the pseudonym since profile updates represent activity
+	err = h.pseudonymDAO.UpdateLastActive(ctx, pseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", pseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
+	}
+
 	finalPseudonym, err := h.pseudonymDAO.GetPseudonymByID(ctx, pseudonymID)
 	if err != nil {
 		log.Error().Err(err).Str("pseudonym_id", pseudonymID).Msg("Failed to get final pseudonym data")
@@ -815,6 +823,13 @@ func (h *UserHandler) CreatePseudonym(ctx context.Context, input *struct {
 	if finalPseudonym.AllowDirectMessages.Valid {
 		allowDirectMessagesVal = finalPseudonym.AllowDirectMessages.V
 	}
+	// Update last active timestamp for the pseudonym since creating a pseudonym represents significant activity
+	err = h.pseudonymDAO.UpdateLastActive(ctx, pseudonym.PseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", pseudonym.PseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
+	}
+
 	response := apimodels.NewCreatePseudonymResponse(pseudonym.PseudonymID, finalDisplayName, finalBio, finalWebsiteURL, showKarmaVal, allowDirectMessagesVal)
 	log.Info().Str("endpoint", "pseudonyms").Str("component", "handler").Int("user_id", userID).Str("pseudonym_id", pseudonym.PseudonymID).Msg("Create pseudonym completed")
 	return response, nil
@@ -1128,6 +1143,13 @@ func (h *UserHandler) BlockUser(ctx context.Context, input *struct {
 			return nil, fmt.Errorf("failed to create user block: %w", err)
 		}
 	}
+	// Update last active timestamp for the pseudonym since blocking represents activity
+	err = h.pseudonymDAO.UpdateLastActive(ctx, blockerPseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", blockerPseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
+	}
+
 	response := apimodels.NewBlockUserResponse(blockedPseudonymID, blockedPseudonymID)
 	log.Info().Str("endpoint", "users/block").Str("component", "handler").Int64("user_id", userID).Str("blocked_pseudonym_id", blockedPseudonymID).Msg("Block user completed")
 	return response, nil
@@ -1203,6 +1225,13 @@ func (h *UserHandler) UnblockUser(ctx context.Context, input *struct {
 	if existingBlock.BlockedUserID.Valid {
 		blockedUserID = existingBlock.BlockedUserID.V
 	}
+	// Update last active timestamp for the pseudonym since unblocking represents activity
+	err = h.pseudonymDAO.UpdateLastActive(ctx, blockerPseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", blockerPseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
+	}
+
 	response := apimodels.NewUnblockUserResponse(int(blockedUserID), blockedPseudonymID)
 	log.Info().Str("endpoint", "users/unblock").Str("component", "handler").Int64("user_id", userID).Str("blocked_pseudonym_id", blockedPseudonymID).Int64("blocked_user_id", blockedUserID).Msg("Unblock user completed")
 	return response, nil

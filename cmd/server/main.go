@@ -103,8 +103,8 @@ func main() {
 	// Add IBE keys command
 	rootCmd.AddCommand(commands.NewGenerateIBEKeysCommand(cfg))
 
-	// Add key-rotation commands - TEMPORARILY DISABLED
-	// rootCmd.AddCommand(commands.NewKeyRotationCommands(cfg)...)
+	// Add key-rotation commands
+	rootCmd.AddCommand(commands.NewKeyRotationCommands(cfg)...)
 
 	// Run the CLI
 	if err := rootCmd.Execute(); err != nil {

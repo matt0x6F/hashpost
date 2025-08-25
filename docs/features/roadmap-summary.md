@@ -37,15 +37,19 @@
 | Feature | Priority | Dependencies | Description |
 |---------|----------|--------------|-------------|
 | **Community Types System** | Medium | Community system | ✅ **Implemented** - Four community types (t/, g/, b/, c/) with different governance models |
+| **Platform Administration** | High | Auth system, RBAC | ✅ **Implemented** - Centralized platform management with role-based access control |
+| **System Settings Management** | High | Platform admin | ✅ **Implemented** - Platform-wide configuration and rules management |
 | **Moderator Elections** | Low | Voting system | Democratic moderator selection |
 
 ## 📊 **Implementation Order**
 
 ### Foundation First
 1. **Key Rotation Migration System** ✅ **Implemented**
-2. **Email Verification** + **MFA** (auth foundation)
-3. **Audit System** (compliance and security foundation)
-4. **ID Proofing** (crypto foundation)
+2. **Platform Administration System** ✅ **Implemented**
+3. **System Settings Management** ✅ **Implemented**
+4. **Email Verification** + **MFA** (auth foundation)
+5. **Audit System** (compliance and security foundation)
+6. **ID Proofing** (crypto foundation)
 
 ### User Experience
 4. **Search & Discovery** (requires content system)

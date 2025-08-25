@@ -692,10 +692,6 @@ func UpdateAdminUserWithCommand(cobraCmd *cobra.Command, cfg *config.Config) err
 		return fmt.Errorf("failed to initialize IBE system: %w", err)
 	}
 
-	identityMappingDAO := dao.NewIdentityMappingDAO(db)
-	roleKeyDAO := dao.NewRoleKeyDAO(db)
-	pseudonymDAO := dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, nil)
-
 	// Check if user exists
 	ctx := context.Background()
 	user, err := userDAO.GetUserByEmail(ctx, input.Email)
@@ -720,7 +716,7 @@ func UpdateAdminUserWithCommand(cobraCmd *cobra.Command, cfg *config.Config) err
 	}
 
 	// Recreate identity mappings with current role keys
-	if err := RecreateIdentityMappings(ctx, user.UserID, db, ibeSystem, userDAO, pseudonymDAO, identityMappingDAO, roleKeyDAO); err != nil {
+	if err := recreateIdentityMappings(ctx, user.UserID, ibeSystem, db); err != nil {
 		return fmt.Errorf("failed to recreate identity mappings: %w", err)
 	}
 	log.Info().Str("email", input.Email).Msg("Identity mappings recreated successfully")
@@ -1472,9 +1468,12 @@ func getScopesForRole(role string) []string {
 	return allScopes
 }
 
-// RecreateIdentityMappings recreates identity mappings with current role keys
-func RecreateIdentityMappings(ctx context.Context, userID int64, db bob.Executor, ibeSystem *ibe.IBESystem, userDAO *dao.UserDAO, pseudonymDAO *dao.PseudonymDAO, identityMappingDAO *dao.IdentityMappingDAO, roleKeyDAO *dao.RoleKeyDAO) error {
-	// Get user
+// recreateIdentityMappings recreates all identity mappings for a user with current IBE settings
+func recreateIdentityMappings(ctx context.Context, userID int64, ibeSystem *ibe.IBESystem, db bob.Executor) error {
+	// Get user and their pseudonyms
+	userDAO := dao.NewUserDAO(db)
+	roleKeyDAO := dao.NewRoleKeyDAO(db)
+
 	user, err := userDAO.GetUserByID(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("failed to get user: %w", err)
@@ -1483,7 +1482,8 @@ func RecreateIdentityMappings(ctx context.Context, userID int64, db bob.Executor
 		return fmt.Errorf("user not found")
 	}
 
-	// Get user's pseudonyms using direct method (bypasses role verification for admin operations)
+	// Get user's pseudonyms using the direct method (bypasses role-based access control)
+	pseudonymDAO := dao.NewPseudonymDAO(db, ibeSystem, dao.NewIdentityMappingDAO(db), userDAO, roleKeyDAO, dao.NewUserBlocksDAO(db))
 	pseudonyms, err := pseudonymDAO.GetPseudonymsByRealIdentityDirect(ctx, user.Email)
 	if err != nil {
 		return fmt.Errorf("failed to get user pseudonyms: %w", err)
@@ -1495,16 +1495,12 @@ func RecreateIdentityMappings(ctx context.Context, userID int64, db bob.Executor
 
 	// Get user roles from role keys
 	userRoles := []string{"user"} // Default role
-
-	// Get the default pseudonym for the user
-	defaultPseudonym, err := pseudonymDAO.GetDefaultPseudonymByUserID(ctx, userID, "user", constants.ScopeAuthentication)
-	if err == nil && defaultPseudonym != nil {
-		// Get role keys for the default pseudonym
-		roleKeys, err := roleKeyDAO.ListRoleKeysByPseudonym(ctx, defaultPseudonym.PseudonymID)
-		if err == nil {
+	if len(pseudonyms) > 0 {
+		roleKeys, err := roleKeyDAO.ListRoleKeysByPseudonym(ctx, pseudonyms[0].PseudonymID)
+		if err == nil && len(roleKeys) > 0 {
 			roleSet := make(map[string]bool)
 			for _, roleKey := range roleKeys {
-				// Skip subforum-specific keys for admin operations
+				// Skip subforum-specific keys for role determination
 				if roleKey.SubforumID.Valid {
 					continue
 				}
@@ -1526,133 +1522,53 @@ func RecreateIdentityMappings(ctx context.Context, userID int64, db bob.Executor
 		Int64("user_id", userID).
 		Strs("roles", userRoles).
 		Int("pseudonym_count", len(pseudonyms)).
-		Msg("Recreating identity mappings")
+		Msg("Updating identity mappings")
 
-	// For each pseudonym, recreate identity mappings
+	// For each pseudonym, update existing identity mappings or create new ones
 	for _, pseudonym := range pseudonyms {
 		log.Info().
 			Str("pseudonym_id", pseudonym.PseudonymID).
 			Str("display_name", pseudonym.DisplayName).
-			Msg("Recreating mappings for pseudonym")
+			Msg("Updating mappings for pseudonym")
 
-		// Delete existing identity mappings for this pseudonym
-		_, err := models.IdentityMappings.Delete(
-			models.DeleteWhere.IdentityMappings.PseudonymID.EQ(pseudonym.PseudonymID),
-		).Exec(ctx, db)
+		// Get existing identity mappings for this pseudonym
+		existingMappings, err := models.IdentityMappings.Query(
+			models.SelectWhere.IdentityMappings.PseudonymID.EQ(pseudonym.PseudonymID),
+			models.SelectWhere.IdentityMappings.IsActive.EQ(true),
+		).All(ctx, db)
 		if err != nil {
-			return fmt.Errorf("failed to delete existing identity mappings: %w", err)
+			log.Warn().
+				Err(err).
+				Str("pseudonym_id", pseudonym.PseudonymID).
+				Msg("Failed to get existing mappings, will create new ones")
+			existingMappings = nil
 		}
 
-		// Create new identity mappings for each role
+		// Create a map of existing mappings by scope for easy lookup
+		existingMappingsByScope := make(map[string]*models.IdentityMapping)
+		for _, mapping := range existingMappings {
+			existingMappingsByScope[mapping.KeyScope] = mapping
+		}
+
+		// Update or create identity mappings for each role
 		for _, role := range userRoles {
-			// Get role key for this pseudonym and scope
-			authenticationKeyData, err := roleKeyDAO.GetKeyData(ctx, pseudonym.PseudonymID, constants.ScopeAuthentication, nil)
-			if err != nil {
-				log.Warn().
-					Err(err).
-					Str("pseudonym_id", pseudonym.PseudonymID).
-					Str("role", role).
-					Str("scope", constants.ScopeAuthentication).
-					Msg("Failed to get authentication key, skipping")
-				continue
+			// Handle authentication scope
+			if err := updateOrCreateIdentityMapping(ctx, pseudonym, role, constants.ScopeAuthentication, user, ibeSystem, roleKeyDAO, existingMappingsByScope, db); err != nil {
+				log.Warn().Err(err).Str("pseudonym_id", pseudonym.PseudonymID).Str("role", role).Str("scope", constants.ScopeAuthentication).Msg("Failed to update/create authentication mapping")
 			}
 
-			// Create authentication mapping
-			authenticationDomain := ibeSystem.GetDomainForRole(role)
-			authenticationFingerprint, err := ibeSystem.EncryptIdentityWithDomain(user.Email, pseudonym.PseudonymID, authenticationDomain, authenticationKeyData)
-			if err != nil {
-				log.Warn().
-					Err(err).
-					Str("pseudonym_id", pseudonym.PseudonymID).
-					Str("role", role).
-					Str("scope", constants.ScopeAuthentication).
-					Msg("Failed to encrypt authentication mapping, skipping")
-				continue
-			}
-
-			fingerprint := ibeSystem.GenerateFingerprint(user.Email)
-			keyVersion := ibeSystem.GetKeyVersion()
-			scopeAuth := constants.ScopeAuthentication
-
-			authenticationMapping := &models.IdentityMappingSetter{
-				Fingerprint:               &fingerprint,
-				PseudonymID:               &pseudonym.PseudonymID,
-				EncryptedRealIdentity:     &authenticationFingerprint,
-				EncryptedPseudonymMapping: &authenticationFingerprint,
-				KeyVersion:                &keyVersion,
-				UserID:                    &userID,
-				KeyScope:                  &scopeAuth,
-			}
-
-			_, err = models.IdentityMappings.Insert(authenticationMapping).One(ctx, db)
-			if err != nil {
-				log.Warn().
-					Err(err).
-					Str("pseudonym_id", pseudonym.PseudonymID).
-					Str("role", role).
-					Str("scope", constants.ScopeAuthentication).
-					Msg("Failed to create authentication mapping, skipping")
-				continue
-			}
-
-			log.Info().
-				Str("pseudonym_id", pseudonym.PseudonymID).
-				Str("role", role).
-				Str("scope", constants.ScopeAuthentication).
-				Msg("Created authentication mapping")
-
-			// Create self-correlation mapping if role supports it
+			// Handle self-correlation scope for supported roles
 			if role == "user" || role == "platform_admin" || role == "trust_safety" || role == "legal_team" {
-				selfCorrelationKeyData, err := roleKeyDAO.GetKeyData(ctx, pseudonym.PseudonymID, constants.ScopeSelfCorrelation, nil)
-				if err != nil {
-					log.Warn().
-						Err(err).
-						Str("pseudonym_id", pseudonym.PseudonymID).
-						Str("role", role).
-						Str("scope", constants.ScopeSelfCorrelation).
-						Msg("Failed to get self-correlation key, skipping")
-					continue
+				if err := updateOrCreateIdentityMapping(ctx, pseudonym, role, constants.ScopeSelfCorrelation, user, ibeSystem, roleKeyDAO, existingMappingsByScope, db); err != nil {
+					log.Warn().Err(err).Str("pseudonym_id", pseudonym.PseudonymID).Str("role", role).Str("scope", constants.ScopeSelfCorrelation).Msg("Failed to update/create self-correlation mapping")
 				}
+			}
 
-				selfCorrelationFingerprint, err := ibeSystem.EncryptIdentityWithDomain(user.Email, pseudonym.PseudonymID, authenticationDomain, selfCorrelationKeyData)
-				if err != nil {
-					log.Warn().
-						Err(err).
-						Str("pseudonym_id", pseudonym.PseudonymID).
-						Str("role", role).
-						Str("scope", constants.ScopeSelfCorrelation).
-						Msg("Failed to encrypt self-correlation mapping, skipping")
-					continue
+			// Handle correlation scope for admin roles
+			if role == "platform_admin" || role == "trust_safety" || role == "legal_team" {
+				if err := updateOrCreateIdentityMapping(ctx, pseudonym, role, constants.ScopeCorrelation, user, ibeSystem, roleKeyDAO, existingMappingsByScope, db); err != nil {
+					log.Warn().Err(err).Str("pseudonym_id", pseudonym.PseudonymID).Str("role", role).Str("scope", constants.ScopeCorrelation).Msg("Failed to update/create correlation mapping")
 				}
-
-				scopeSelfCorr := constants.ScopeSelfCorrelation
-
-				selfCorrelationMapping := &models.IdentityMappingSetter{
-					Fingerprint:               &fingerprint,
-					PseudonymID:               &pseudonym.PseudonymID,
-					EncryptedRealIdentity:     &selfCorrelationFingerprint,
-					EncryptedPseudonymMapping: &selfCorrelationFingerprint,
-					KeyVersion:                &keyVersion,
-					UserID:                    &userID,
-					KeyScope:                  &scopeSelfCorr,
-				}
-
-				_, err = models.IdentityMappings.Insert(selfCorrelationMapping).One(ctx, db)
-				if err != nil {
-					log.Warn().
-						Err(err).
-						Str("pseudonym_id", pseudonym.PseudonymID).
-						Str("role", role).
-						Str("scope", constants.ScopeSelfCorrelation).
-						Msg("Failed to create self-correlation mapping, skipping")
-					continue
-				}
-
-				log.Info().
-					Str("pseudonym_id", pseudonym.PseudonymID).
-					Str("role", role).
-					Str("scope", constants.ScopeSelfCorrelation).
-					Msg("Created self-correlation mapping")
 			}
 		}
 	}
@@ -1660,7 +1576,86 @@ func RecreateIdentityMappings(ctx context.Context, userID int64, db bob.Executor
 	log.Info().
 		Str("email", user.Email).
 		Int64("user_id", userID).
-		Msg("Successfully recreated identity mappings")
+		Msg("Successfully updated identity mappings")
+
+	return nil
+}
+
+// updateOrCreateIdentityMapping updates an existing identity mapping or creates a new one
+func updateOrCreateIdentityMapping(ctx context.Context, pseudonym *models.Pseudonym, role, scope string, user *models.User, ibeSystem *ibe.IBESystem, roleKeyDAO *dao.RoleKeyDAO, existingMappingsByScope map[string]*models.IdentityMapping, db bob.Executor) error {
+	// Get role key for this pseudonym and scope
+	keyData, err := roleKeyDAO.GetKeyData(ctx, pseudonym.PseudonymID, scope, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get key data: %w", err)
+	}
+
+	// Generate new fingerprint and encrypted data with current salt
+	newFingerprint := ibeSystem.GenerateFingerprint(user.Email)
+	domain := ibeSystem.GetDomainForRole(role)
+	encryptedData, err := ibeSystem.EncryptIdentityWithDomain(user.Email, pseudonym.PseudonymID, domain, keyData)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt identity mapping: %w", err)
+	}
+
+	keyVersion := ibeSystem.GetKeyVersion()
+
+	// Check if mapping already exists
+	if existingMapping, exists := existingMappingsByScope[scope]; exists {
+		// Update existing mapping
+		log.Info().
+			Str("pseudonym_id", pseudonym.PseudonymID).
+			Str("role", role).
+			Str("scope", scope).
+			Msg("Updating existing identity mapping")
+
+		// Create update setter
+		updates := &models.IdentityMappingSetter{
+			Fingerprint:               &newFingerprint,
+			EncryptedRealIdentity:     &encryptedData,
+			EncryptedPseudonymMapping: &encryptedData,
+			KeyVersion:                &keyVersion,
+		}
+
+		// Update the existing mapping
+		_, err = models.IdentityMappings.Update(updates.UpdateMod(), models.UpdateWhere.IdentityMappings.MappingID.EQ(existingMapping.MappingID)).Exec(ctx, db)
+		if err != nil {
+			return fmt.Errorf("failed to update identity mapping: %w", err)
+		}
+
+		log.Info().
+			Str("pseudonym_id", pseudonym.PseudonymID).
+			Str("role", role).
+			Str("scope", scope).
+			Msg("Updated existing identity mapping")
+	} else {
+		// Create new mapping
+		log.Info().
+			Str("pseudonym_id", pseudonym.PseudonymID).
+			Str("role", role).
+			Str("scope", scope).
+			Msg("Creating new identity mapping")
+
+		newMapping := &models.IdentityMappingSetter{
+			Fingerprint:               &newFingerprint,
+			PseudonymID:               &pseudonym.PseudonymID,
+			EncryptedRealIdentity:     &encryptedData,
+			EncryptedPseudonymMapping: &encryptedData,
+			KeyVersion:                &keyVersion,
+			UserID:                    &user.UserID,
+			KeyScope:                  &scope,
+		}
+
+		_, err = models.IdentityMappings.Insert(newMapping).One(ctx, db)
+		if err != nil {
+			return fmt.Errorf("failed to create identity mapping: %w", err)
+		}
+
+		log.Info().
+			Str("pseudonym_id", pseudonym.PseudonymID).
+			Str("role", role).
+			Str("scope", scope).
+			Msg("Created new identity mapping")
+	}
 
 	return nil
 }

@@ -875,7 +875,7 @@ func (h *AuthHandler) GetCurrentUserSession(ctx context.Context, input *middlewa
 		return nil, huma.Error403Forbidden("Account suspended")
 	}
 
-	// Get user roles from role keys
+	// Get user roles and capabilities from role keys
 	roles := []string{"user"}                                                                  // Default role
 	capabilities := []string{"create_content", "vote", "message", "report", "create_subforum"} // Default capabilities
 
@@ -900,61 +900,102 @@ func (h *AuthHandler) GetCurrentUserSession(ctx context.Context, input *middlewa
 		return nil, huma.Error500InternalServerError("user has no pseudonyms; please contact support")
 	}
 
-	// Get the default pseudonym for the user
-	defaultPseudonym, err := h.pseudonymDAO.GetDefaultPseudonymByUserID(ctx, user.UserID, primaryRole, constants.ScopeAuthentication)
-	if err != nil {
-		log.Error().
-			Err(err).
-			Int("user_id", userID).
-			Msg("Failed to get default pseudonym")
-		return nil, huma.Error500InternalServerError("failed to get default pseudonym")
-	}
+	// Get capabilities from the user's active pseudonym (from JWT token)
+	if userCtx.ActivePseudonymID != "" {
+		// Get role keys for the active pseudonym
+		roleKeys, err := h.roleKeyDAO.ListRoleKeysByPseudonym(ctx, userCtx.ActivePseudonymID)
+		if err != nil {
+			log.Warn().Err(err).Str("pseudonym_id", userCtx.ActivePseudonymID).Msg("Failed to get role keys for active pseudonym, using default capabilities")
+		} else {
+			capabilitySet := make(map[string]bool)
+			roleSet := make(map[string]bool)
 
-	// Get pseudonym capabilities from role keys
-	roleKeys, err := h.roleKeyDAO.ListRoleKeysByPseudonym(ctx, defaultPseudonym.PseudonymID)
-	if err != nil {
-		log.Warn().Err(err).Str("pseudonym_id", defaultPseudonym.PseudonymID).Msg("Failed to get role keys for pseudonym, using default capabilities")
-	} else {
-		capabilitySet := make(map[string]bool)
-		for _, roleKey := range roleKeys {
-			// Skip subforum-specific keys for session
-			if roleKey.SubforumID.Valid {
-				continue
-			}
+			for _, roleKey := range roleKeys {
+				// Skip subforum-specific keys for session
+				if roleKey.SubforumID.Valid {
+					continue
+				}
 
-			// Extract capabilities from JSON
-			rawValue, err := roleKey.Capabilities.Value()
-			if err == nil {
-				var roleCapabilities []string
-				if err := json.Unmarshal(rawValue.([]byte), &roleCapabilities); err == nil {
-					for _, capability := range roleCapabilities {
-						capabilitySet[capability] = true
+				// Add role name
+				roleSet[roleKey.RoleName] = true
+
+				// Extract capabilities from JSON
+				rawValue, err := roleKey.Capabilities.Value()
+				if err == nil {
+					var roleCapabilities []string
+					if err := json.Unmarshal(rawValue.([]byte), &roleCapabilities); err == nil {
+						for _, capability := range roleCapabilities {
+							capabilitySet[capability] = true
+						}
 					}
 				}
 			}
-		}
 
-		// Convert set to slice
-		capabilities = make([]string, 0, len(capabilitySet))
-		for cap := range capabilitySet {
-			capabilities = append(capabilities, cap)
+			// Update roles and capabilities if we found any
+			if len(roleSet) > 0 {
+				roles = make([]string, 0, len(roleSet))
+				for role := range roleSet {
+					roles = append(roles, role)
+				}
+			}
+
+			if len(capabilitySet) > 0 {
+				capabilities = make([]string, 0, len(capabilitySet))
+				for cap := range capabilitySet {
+					capabilities = append(capabilities, cap)
+				}
+			}
+		}
+	} else {
+		// Fallback: try to get capabilities from any pseudonym
+		log.Debug().Msg("No active pseudonym ID in JWT, trying fallback pseudonym")
+		fallbackPseudonym := pseudonyms[0]
+		roleKeys, err := h.roleKeyDAO.ListRoleKeysByPseudonym(ctx, fallbackPseudonym.PseudonymID)
+		if err != nil {
+			log.Warn().Err(err).Str("pseudonym_id", fallbackPseudonym.PseudonymID).Msg("Failed to get role keys for fallback pseudonym, using default capabilities")
+		} else {
+			capabilitySet := make(map[string]bool)
+			roleSet := make(map[string]bool)
+
+			for _, roleKey := range roleKeys {
+				// Skip subforum-specific keys for session
+				if roleKey.SubforumID.Valid {
+					continue
+				}
+
+				// Add role name
+				roleSet[roleKey.RoleName] = true
+
+				// Extract capabilities from JSON
+				rawValue, err := roleKey.Capabilities.Value()
+				if err == nil {
+					var roleCapabilities []string
+					if err := json.Unmarshal(rawValue.([]byte), &roleCapabilities); err == nil {
+						for _, capability := range roleCapabilities {
+							capabilitySet[capability] = true
+						}
+					}
+				}
+			}
+
+			// Update roles and capabilities if we found any
+			if len(roleSet) > 0 {
+				roles = make([]string, 0, len(roleSet))
+				for role := range roleSet {
+					roles = append(roles, role)
+				}
+			}
+
+			if len(capabilitySet) > 0 {
+				capabilities = make([]string, 0, len(capabilitySet))
+				for cap := range capabilitySet {
+					capabilities = append(capabilities, cap)
+				}
+			}
 		}
 	}
 
-	// Note: Capabilities will be set from the active pseudonym later in the method
-
-	// Get user's pseudonyms for the response
-	// Use IBE-based correlation to get user's pseudonyms
-	// Use the user's actual roles, not hardcoded "user"
-	primaryRole = roles[0] // Use the first role for authentication
-	pseudonyms, err = h.pseudonymDAO.GetPseudonymsByUserID(ctx, user.UserID, userCtx.ActivePseudonymID, primaryRole, constants.ScopeAuthentication)
-	if err != nil {
-		log.Error().
-			Err(err).
-			Int("user_id", userID).
-			Msg("Failed to get user pseudonyms")
-		return nil, fmt.Errorf("failed to get user pseudonyms: %w", err)
-	}
+	// Note: pseudonyms were already retrieved above, no need to fetch again
 
 	// Convert to API models
 	pseudonymInfos := make([]apimodels.PseudonymInfo, len(pseudonyms))

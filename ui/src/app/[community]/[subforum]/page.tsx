@@ -10,6 +10,7 @@ import { SubforumsApi } from '@/generated/api/src/apis/SubforumsApi';
 import type { SubforumDetailsResponseBody, SubforumModerator } from '@/generated/api/src/models';
 import { PostList } from '@/components/PostList';
 import { SubforumRulesDisplay } from '@/components/SubforumRulesDisplay';
+import { PlatformRulesDisplay } from '@/components/PlatformRulesDisplay';
 import { SubscribeButton } from '@/components/SubscribeButton';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth-context';
@@ -239,6 +240,15 @@ export default function SubforumPage() {
               <SubforumRulesDisplay 
                 communityType={communityType} 
                 subforumName={subforumName} 
+              />
+            </div>
+            
+            {/* Platform Rules */}
+            <div className="mt-6">
+              <PlatformRulesDisplay 
+                showTitle={true}
+                compact={true}
+                maxHeight="h-48"
               />
             </div>
           </div>

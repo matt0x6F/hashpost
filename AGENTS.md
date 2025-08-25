@@ -11,7 +11,7 @@
 ### Hot Reloading
 - Backend automatically restarts on Go file changes
 - Frontend automatically reloads on TypeScript/React changes
-- No manual restarts needed for development
+- No manual restarts or starts needed for development
 
 ## Unified Permission System
 
@@ -86,6 +86,12 @@ hasCapability, err := h.permissionDAO.HasUnifiedCapability(
 
 ## Handler Patterns
 
+When making changing to the API follow these steps:
+1. Make changes
+2. Run `make ui-generate-api`
+
+This updates all frontend SDK models and methods.
+
 ### Handler Structure
 All handlers follow this pattern:
 ```go
@@ -140,7 +146,10 @@ make generate  # Regenerate Bob models
 ### Unit Tests
 - Use table-driven tests for comprehensive coverage
 - Mock DAO interfaces for isolation
+- Use fixtures for repeatable, stable information
 - Test both success and error cases
+
+Run `make test` to run the unit tests
 
 ### Integration Tests
 - Run individual test suites: `make test-integration-local TESTS=./path/to/test.go`

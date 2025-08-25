@@ -44,6 +44,9 @@ type PseudonymDAOInterface interface {
 	CalculateKarmaForPseudonym(ctx context.Context, pseudonymID string) (int32, error)
 	UpdateKarmaForPseudonym(ctx context.Context, pseudonymID string) error
 	DeleteByUserID(ctx context.Context, userID int64) error
+	// Debug methods for troubleshooting IBE system issues
+	GetIBESystemSalt() string
+	GenerateFingerprintForEmail(email string) string
 }
 
 // IdentityMappingDAOInterface defines the interface for identity mapping data access operations

@@ -26,8 +26,11 @@ func TestNewRulesHandler(t *testing.T) {
 	mockSystemSettingsDAO := mocks.NewMockSystemSettingsDAO()
 	mockPermissionDAO := mocks.NewMockPermissionDAO()
 
+	// Create mock pseudonym DAO
+	mockPseudonymDAO := mocks.NewMockPseudonymDAO()
+
 	// Create handler
-	handler := NewRulesHandler(mockReportDAO, mockSubforumDAO, mockSystemSettingsDAO, mockPermissionDAO, nil)
+	handler := NewRulesHandler(mockReportDAO, mockSubforumDAO, mockSystemSettingsDAO, mockPermissionDAO, mockPseudonymDAO, nil)
 
 	// Assertions
 	assert.NotNil(t, handler)
@@ -35,6 +38,7 @@ func TestNewRulesHandler(t *testing.T) {
 	assert.Equal(t, mockSubforumDAO, handler.subforumDAO)
 	assert.Equal(t, mockSystemSettingsDAO, handler.systemSettingsDAO)
 	assert.Equal(t, mockPermissionDAO, handler.permissionDAO)
+	assert.Equal(t, mockPseudonymDAO, handler.pseudonymDAO)
 	assert.Nil(t, handler.db)
 }
 
@@ -292,12 +296,12 @@ func TestRulesHandler_CreateSubforumRule(t *testing.T) {
 				}
 			}
 
-			// Create handler
-			handler := &RulesHandler{
-				subforumDAO:   mockSubforumDAO,
-				permissionDAO: mockPermissionDAO,
-				db:            nil, // Mock database - the method will fail if it tries to use it
-			}
+			// Create mock pseudonym DAO for the UpdateLastActive call
+			mockPseudonymDAO := mocks.NewMockPseudonymDAO()
+			mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
+
+			// Create handler using the proper constructor
+			handler := NewRulesHandler(nil, mockSubforumDAO, nil, mockPermissionDAO, mockPseudonymDAO, nil)
 
 			// Set up proper authentication
 			userCtx := fixtures.CreateTestUserContext()
@@ -330,6 +334,11 @@ func TestRulesHandler_CreateSubforumRule(t *testing.T) {
 			if tt.mockSubforum != nil {
 				mockSubforumDAO.AssertExpectations(t)
 				mockPermissionDAO.AssertExpectations(t)
+			}
+
+			// Verify pseudonym DAO expectations for successful operations
+			if tt.mockSubforum != nil && tt.mockPermission && !tt.wantErr {
+				mockPseudonymDAO.AssertExpectations(t)
 			}
 		})
 	}
@@ -404,6 +413,7 @@ func TestRulesHandler_UpdateSubforumRule(t *testing.T) {
 			// Create mock DAOs
 			mockSubforumDAO := mocks.NewMockSubforumDAO()
 			mockPermissionDAO := mocks.NewMockPermissionDAO()
+			mockPseudonymDAO := mocks.NewMockPseudonymDAO()
 
 			// Set up mock expectations
 			if tt.mockSubforum != nil {
@@ -414,15 +424,13 @@ func TestRulesHandler_UpdateSubforumRule(t *testing.T) {
 				// For success cases, mock the UpdateRules call
 				if tt.mockPermission && !tt.wantErr {
 					mockSubforumDAO.On("UpdateRules", mock.Anything, tt.mockSubforum.SubforumID, mock.AnythingOfType("[]uint8")).Return(nil)
+					// Mock the UpdateLastActive call for successful operations
+					mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
 				}
 			}
 
-			// Create handler
-			handler := &RulesHandler{
-				subforumDAO:   mockSubforumDAO,
-				permissionDAO: mockPermissionDAO,
-				db:            nil,
-			}
+			// Create handler using the proper constructor
+			handler := NewRulesHandler(nil, mockSubforumDAO, nil, mockPermissionDAO, mockPseudonymDAO, nil)
 
 			// Execute test
 			result, err := handler.UpdateSubforumRule(context.Background(), tt.input)
@@ -438,6 +446,11 @@ func TestRulesHandler_UpdateSubforumRule(t *testing.T) {
 			// Verify mocks
 			mockSubforumDAO.AssertExpectations(t)
 			mockPermissionDAO.AssertExpectations(t)
+
+			// Verify pseudonym DAO expectations for successful operations
+			if tt.mockSubforum != nil && tt.mockPermission && !tt.wantErr {
+				mockPseudonymDAO.AssertExpectations(t)
+			}
 		})
 	}
 }
@@ -503,6 +516,7 @@ func TestRulesHandler_DeleteSubforumRule(t *testing.T) {
 			// Create mock DAOs
 			mockSubforumDAO := mocks.NewMockSubforumDAO()
 			mockPermissionDAO := mocks.NewMockPermissionDAO()
+			mockPseudonymDAO := mocks.NewMockPseudonymDAO()
 
 			// Set up mock expectations
 			if tt.mockSubforum != nil {
@@ -513,15 +527,13 @@ func TestRulesHandler_DeleteSubforumRule(t *testing.T) {
 				// For success cases, mock the UpdateRules call
 				if tt.mockPermission && !tt.wantErr {
 					mockSubforumDAO.On("UpdateRules", mock.Anything, tt.mockSubforum.SubforumID, mock.AnythingOfType("[]uint8")).Return(nil)
+					// Mock the UpdateLastActive call for successful operations
+					mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
 				}
 			}
 
-			// Create handler
-			handler := &RulesHandler{
-				subforumDAO:   mockSubforumDAO,
-				permissionDAO: mockPermissionDAO,
-				db:            nil,
-			}
+			// Create handler using the proper constructor
+			handler := NewRulesHandler(nil, mockSubforumDAO, nil, mockPermissionDAO, mockPseudonymDAO, nil)
 
 			// Execute test
 			result, err := handler.DeleteSubforumRule(context.Background(), tt.input)
@@ -537,6 +549,11 @@ func TestRulesHandler_DeleteSubforumRule(t *testing.T) {
 			// Verify mocks
 			mockSubforumDAO.AssertExpectations(t)
 			mockPermissionDAO.AssertExpectations(t)
+
+			// Verify pseudonym DAO expectations for successful operations
+			if tt.mockSubforum != nil && tt.mockPermission && !tt.wantErr {
+				mockPseudonymDAO.AssertExpectations(t)
+			}
 		})
 	}
 }
@@ -595,6 +612,7 @@ func TestRulesHandler_ReportRuleViolation(t *testing.T) {
 			// Create mock DAOs
 			mockReportDAO := mocks.NewMockReportDAO()
 			mockSystemSettingsDAO := mocks.NewMockSystemSettingsDAO()
+			mockPseudonymDAO := mocks.NewMockPseudonymDAO()
 
 			// Set up mock expectations for platform rule validation
 			if tt.input.Body.RuleType == "platform" {
@@ -613,13 +631,12 @@ func TestRulesHandler_ReportRuleViolation(t *testing.T) {
 					ReportID: int64(tt.mockReportID),
 				}
 				mockReportDAO.On("CreateReport", mock.Anything, mock.AnythingOfType("*models.ReportSetter")).Return(mockReport, nil)
+				// Mock the UpdateLastActive call for successful operations
+				mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
 			}
 
-			// Create handler
-			handler := &RulesHandler{
-				reportDAO:         mockReportDAO,
-				systemSettingsDAO: mockSystemSettingsDAO,
-			}
+			// Create handler using the proper constructor
+			handler := NewRulesHandler(mockReportDAO, nil, mockSystemSettingsDAO, nil, mockPseudonymDAO, nil)
 
 			// Execute test
 			result, err := handler.ReportRuleViolation(context.Background(), tt.input)
@@ -636,6 +653,8 @@ func TestRulesHandler_ReportRuleViolation(t *testing.T) {
 			// Verify mocks
 			if !tt.wantErr {
 				mockReportDAO.AssertExpectations(t)
+				// Verify pseudonym DAO expectations for successful operations
+				mockPseudonymDAO.AssertExpectations(t)
 			}
 			if tt.input.Body.RuleType == "platform" {
 				mockSystemSettingsDAO.AssertExpectations(t)

@@ -84,6 +84,24 @@ export default function CommentForm({
 
   return (
     <form onSubmit={handleSubmit} className="mb-4">
+      {/* Platform Rules Reminder */}
+      <div className="bg-muted/30 border border-border rounded-lg p-3 mb-3">
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 text-muted-foreground">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              <path d="m9 12 2 2 4-4"/>
+            </svg>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Remember to follow our{' '}
+            <a href="/platform-rules" className="text-foreground underline hover:text-foreground/80 transition-colors">
+              platform rules
+            </a>
+            {' '}when commenting.
+          </p>
+        </div>
+      </div>
       <div className="bg-card border border-border rounded-lg p-4">
         {isReply && (
           <div className="flex items-center justify-between mb-3">
