@@ -43,7 +43,7 @@ func GenerateIBEKeys(options *IBEKeyOptions, cfg *config.Config) error {
 	}
 
 	// Create role key DAO
-	roleKeyDAO := dao.NewRoleKeyDAO(db)
+	roleKeyDAO := dao.NewRoleKeyDAO(db, nil)
 	ctx := context.Background()
 
 	// Define all roles and their capabilities using constants

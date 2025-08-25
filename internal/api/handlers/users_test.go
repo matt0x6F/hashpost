@@ -163,6 +163,9 @@ func TestUserHandler_CreatePseudonym(t *testing.T) {
 		mockPseudonymDAO.On("UpdatePseudonym", ctx, "test-pseudonym-id", mock.AnythingOfType("*models.PseudonymSetter")).Return(nil)
 		mockPseudonymDAO.On("GetPseudonymByID", ctx, "test-pseudonym-id").Return(testPseudonym, nil)
 
+		// Set up mock expectation for UpdateLastActive
+		mockPseudonymDAO.On("UpdateLastActive", ctx, "test-pseudonym-id").Return(nil)
+
 		// Generate JWT token
 		token, err := middleware.GenerateJWT(userCtx, "test-secret", 24*time.Hour)
 		require.NoError(t, err)

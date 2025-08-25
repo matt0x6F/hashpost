@@ -23,6 +23,7 @@ type RulesHandler struct {
 	subforumDAO       dao.SubforumDAOInterface
 	systemSettingsDAO dao.SystemSettingsDAOInterface
 	permissionDAO     dao.PermissionDAOInterface
+	pseudonymDAO      dao.PseudonymDAOInterface
 	db                bob.Executor
 }
 
@@ -32,6 +33,7 @@ func NewRulesHandler(
 	subforumDAO dao.SubforumDAOInterface,
 	systemSettingsDAO dao.SystemSettingsDAOInterface,
 	permissionDAO dao.PermissionDAOInterface,
+	pseudonymDAO dao.PseudonymDAOInterface,
 	db bob.Executor,
 ) *RulesHandler {
 	return &RulesHandler{
@@ -39,6 +41,7 @@ func NewRulesHandler(
 		subforumDAO:       subforumDAO,
 		systemSettingsDAO: systemSettingsDAO,
 		permissionDAO:     permissionDAO,
+		pseudonymDAO:      pseudonymDAO,
 		db:                db,
 	}
 }
@@ -235,6 +238,13 @@ func (h *RulesHandler) CreateSubforumRule(ctx context.Context, input *apimodels.
 		return nil, fmt.Errorf("failed to save rule: %w", err)
 	}
 
+	// Update last active timestamp for the pseudonym since creating rules represents activity
+	err = h.pseudonymDAO.UpdateLastActive(ctx, userCtx.ActivePseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", userCtx.ActivePseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
+	}
+
 	log.Info().
 		Str("endpoint", "subforum/rules").
 		Str("component", "handler").
@@ -338,6 +348,13 @@ func (h *RulesHandler) UpdateSubforumRule(ctx context.Context, input *apimodels.
 		return nil, fmt.Errorf("failed to save rule: %w", err)
 	}
 
+	// Update last active timestamp for the pseudonym since updating rules represents activity
+	err = h.pseudonymDAO.UpdateLastActive(ctx, userCtx.ActivePseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", userCtx.ActivePseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
+	}
+
 	log.Info().
 		Str("endpoint", "subforum/rules").
 		Str("component", "handler").
@@ -424,6 +441,13 @@ func (h *RulesHandler) DeleteSubforumRule(ctx context.Context, input *apimodels.
 	if err := h.subforumDAO.UpdateRules(ctx, subforum.SubforumID, rulesJSON); err != nil {
 		log.Error().Err(err).Msg("Failed to update subforum rules")
 		return nil, fmt.Errorf("failed to delete rule: %w", err)
+	}
+
+	// Update last active timestamp for the pseudonym since deleting rules represents activity
+	err = h.pseudonymDAO.UpdateLastActive(ctx, userCtx.ActivePseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", userCtx.ActivePseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
 	}
 
 	log.Info().
@@ -532,6 +556,13 @@ func (h *RulesHandler) ReportRuleViolation(ctx context.Context, input *apimodels
 		return nil, err
 	}
 
+	// Update last active timestamp for the pseudonym since reporting represents activity
+	err = h.pseudonymDAO.UpdateLastActive(ctx, userCtx.ActivePseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", userCtx.ActivePseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
+	}
+
 	response := &apimodels.RuleViolationResponse{
 		ReportID:     int(report.ReportID),
 		RuleCode:     input.Body.RuleCode,
@@ -627,6 +658,74 @@ func (h *RulesHandler) ForwardReportToPlatform(ctx context.Context, input *apimo
 		Msg("Report forwarded to platform")
 
 	return response, nil
+}
+
+// UpdatePlatformRules updates platform-wide rules
+func (h *RulesHandler) UpdatePlatformRules(ctx context.Context, input *apimodels.PlatformRulesUpdateInput) (*apimodels.PlatformRulesResponse, error) {
+	// Extract user from context
+	userCtx, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to extract user from context")
+		return nil, fmt.Errorf("authentication required")
+	}
+
+	// Check if user has system admin capability
+	hasCapability, err := h.permissionDAO.HasUnifiedCapability(ctx, userCtx.UserID, userCtx.ActivePseudonymID, constants.CapabilitySystemAdmin, nil)
+	if err != nil {
+		log.Error().Err(err).Int("user_id", int(userCtx.UserID)).Msg("Failed to check system_admin capability")
+		return nil, fmt.Errorf("failed to check permissions: %w", err)
+	}
+	if !hasCapability {
+		log.Error().Err(err).Int("user_id", int(userCtx.UserID)).Msg("User lacks system_admin capability")
+		return nil, fmt.Errorf("insufficient permissions: system_admin capability required")
+	}
+
+	// Validate rules
+	if len(input.Body.Rules) == 0 {
+		return nil, huma.Error400BadRequest("at least one rule is required")
+	}
+
+	// Check for duplicate rule codes
+	ruleCodes := make(map[string]bool)
+	for _, rule := range input.Body.Rules {
+		if rule.Code == "" {
+			return nil, huma.Error400BadRequest("rule code is required")
+		}
+		if ruleCodes[rule.Code] {
+			return nil, huma.Error400BadRequest("duplicate rule code: " + rule.Code)
+		}
+		ruleCodes[rule.Code] = true
+	}
+
+	// Convert rules to JSON
+	rulesJSON, err := json.Marshal(input.Body.Rules)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to marshal platform rules to JSON")
+		return nil, fmt.Errorf("failed to save rules: %w", err)
+	}
+
+	// Save to system settings
+	err = h.systemSettingsDAO.SetSetting(ctx, "platform_rules", string(rulesJSON), "json", userCtx.UserID)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to save platform rules to system settings")
+		return nil, fmt.Errorf("failed to save platform rules: %w", err)
+	}
+
+	log.Info().
+		Str("endpoint", "platform/rules").
+		Str("component", "handler").
+		Int("user_id", int(userCtx.UserID)).
+		Int("rules_count", len(input.Body.Rules)).
+		Msg("Platform rules updated")
+
+	return &apimodels.PlatformRulesResponse{
+		Status: 200,
+		Body: struct {
+			Rules []apimodels.Rule `json:"rules"`
+		}{
+			Rules: input.Body.Rules,
+		},
+	}, nil
 }
 
 func (h *RulesHandler) validateModeratorPermissionsForSubforum(ctx context.Context, userCtx *middleware.UserContext, communityType, subforumName string) error {

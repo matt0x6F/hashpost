@@ -167,6 +167,9 @@ func TestContentHandler_DeletePost_HandlesDeletedPostResponse(t *testing.T) {
 	// Mock the deletion operation
 	mockPostDAO.On("MarkPostAsDeletedByPseudonym", mock.Anything, int64(123), "test-pseudonym-id", "User requested deletion").Return(nil)
 
+	// Mock the UpdateLastActive call that was added to track pseudonym activity
+	mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
+
 	// Set up pseudonym data for the test
 	testPseudonym := &models.Pseudonym{
 		PseudonymID: "test-pseudonym-id",
@@ -228,6 +231,9 @@ func TestContentHandler_DeleteComment_HandlesDeletedCommentResponse(t *testing.T
 
 	// Mock the deletion operation
 	mockCommentDAO.On("MarkCommentAsDeletedByPseudonym", mock.Anything, int64(456), "test-pseudonym-id", "User requested deletion").Return(nil)
+
+	// Mock the UpdateLastActive call that was added to track pseudonym activity
+	mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
 
 	// Set up pseudonym data for the test
 	testPseudonym := &models.Pseudonym{
@@ -1097,7 +1103,7 @@ func TestContentHandler_CreateComment_ValidationErrors(t *testing.T) {
 
 // TestContentHandler_EditPost_Success tests successful post editing
 func TestContentHandler_EditPost_Success(t *testing.T) {
-	handler, mockPostDAO, _, _, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, _, _, _, mockPseudonymDAO, _, _ := NewContentHandlerWithMocks()
 
 	// Create test post owned by the user
 	testPost := fixtures.CreateTestPost()
@@ -1109,6 +1115,9 @@ func TestContentHandler_EditPost_Success(t *testing.T) {
 		},
 	)
 	mockPostDAO.On("UpdatePost", mock.Anything, int64(123), "Updated Post Title", "Updated post content").Return(nil)
+
+	// Mock the UpdateLastActive call that was added to track pseudonym activity
+	mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
 
 	// Create test input
 	input := &apimodels.PostEditInput{
@@ -1141,6 +1150,7 @@ func TestContentHandler_EditPost_Success(t *testing.T) {
 
 	// Verify DAO calls
 	mockPostDAO.AssertExpectations(t)
+	mockPseudonymDAO.AssertExpectations(t)
 }
 
 // TestContentHandler_EditPost_NotOwner tests editing a post the user doesn't own
@@ -1187,7 +1197,7 @@ func TestContentHandler_EditPost_NotOwner(t *testing.T) {
 
 // TestContentHandler_EditComment_Success tests successful comment editing
 func TestContentHandler_EditComment_Success(t *testing.T) {
-	handler, _, mockCommentDAO, _, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, _, mockCommentDAO, _, _, mockPseudonymDAO, _, _ := NewContentHandlerWithMocks()
 
 	// Create test comment owned by the user
 	testComment := fixtures.CreateTestComment()
@@ -1199,6 +1209,9 @@ func TestContentHandler_EditComment_Success(t *testing.T) {
 		},
 	)
 	mockCommentDAO.On("UpdateComment", mock.Anything, int64(456), "Updated comment content", "Fixed typo").Return(nil)
+
+	// Mock the UpdateLastActive call that was added to track pseudonym activity
+	mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
 
 	// Create test input
 	input := &apimodels.CommentEditInput{
@@ -1228,11 +1241,12 @@ func TestContentHandler_EditComment_Success(t *testing.T) {
 
 	// Verify DAO calls
 	mockCommentDAO.AssertExpectations(t)
+	mockPseudonymDAO.AssertExpectations(t)
 }
 
 // TestContentHandler_RemoveComment_Success tests successful comment removal
 func TestContentHandler_RemoveComment_Success(t *testing.T) {
-	handler, _, mockCommentDAO, _, _, _, _, _ := NewContentHandlerWithMocks()
+	handler, _, mockCommentDAO, _, _, mockPseudonymDAO, _, _ := NewContentHandlerWithMocks()
 
 	// Create test comment owned by the user
 	testComment := fixtures.CreateTestComment()
@@ -1244,6 +1258,9 @@ func TestContentHandler_RemoveComment_Success(t *testing.T) {
 		},
 	)
 	mockCommentDAO.On("SetCommentRemoved", mock.Anything, int64(456), true, "Violates community guidelines", "test-pseudonym-id").Return(nil)
+
+	// Mock the UpdateLastActive call that was added to track pseudonym activity
+	mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
 
 	// Create test input
 	input := &apimodels.CommentRemoveInput{
@@ -1277,11 +1294,12 @@ func TestContentHandler_RemoveComment_Success(t *testing.T) {
 
 	// Verify DAO calls
 	mockCommentDAO.AssertExpectations(t)
+	mockPseudonymDAO.AssertExpectations(t)
 }
 
 // TestContentHandler_ReportComment_Success tests successful comment reporting
 func TestContentHandler_ReportComment_Success(t *testing.T) {
-	handler, _, mockCommentDAO, _, _, _, _, mockReportDAO := NewContentHandlerWithMocks()
+	handler, _, mockCommentDAO, _, _, mockPseudonymDAO, _, mockReportDAO := NewContentHandlerWithMocks()
 
 	// Create test comment owned by different user
 	testComment := fixtures.CreateTestComment()
@@ -1293,6 +1311,9 @@ func TestContentHandler_ReportComment_Success(t *testing.T) {
 			return testComment, nil
 		},
 	)
+
+	// Mock the UpdateLastActive call that was added to track pseudonym activity
+	mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
 
 	// Set up mock expectation for CreateReport
 	expectedReport := &dbmodels.Report{
@@ -1339,6 +1360,7 @@ func TestContentHandler_ReportComment_Success(t *testing.T) {
 
 	// Verify DAO calls
 	mockCommentDAO.AssertExpectations(t)
+	mockPseudonymDAO.AssertExpectations(t)
 	mockReportDAO.AssertExpectations(t)
 }
 
@@ -1385,7 +1407,7 @@ func TestContentHandler_ReportComment_OwnComment(t *testing.T) {
 
 // TestContentHandler_LockPost_Success tests successful post locking
 func TestContentHandler_LockPost_Success(t *testing.T) {
-	handler, mockPostDAO, _, mockVoteDAO, _, _, mockPermissionDAO, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, _, mockVoteDAO, _, mockPseudonymDAO, mockPermissionDAO, _ := NewContentHandlerWithMocks()
 
 	// Create test post
 	testPost := fixtures.CreateTestPost()
@@ -1399,6 +1421,9 @@ func TestContentHandler_LockPost_Success(t *testing.T) {
 	mockPostDAO.On("SetLocked", mock.Anything, int64(123), true).Return(nil)
 	mockVoteDAO.On("GetVoteByPseudonymAndContent", mock.Anything, "test-pseudonym-id", "post", int64(123)).Return(nil, nil)
 	mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", "moderate_content", mock.AnythingOfType("*int32")).Return(true, nil)
+
+	// Mock the UpdateLastActive call that was added to track pseudonym activity
+	mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
 
 	// Note: Permission DAO is mocked in the handler creation
 	// The test will pass if the permission check is properly mocked
@@ -1430,6 +1455,7 @@ func TestContentHandler_LockPost_Success(t *testing.T) {
 
 	// Verify DAO calls
 	mockPostDAO.AssertExpectations(t)
+	mockPseudonymDAO.AssertExpectations(t)
 	mockPermissionDAO.AssertExpectations(t)
 }
 
@@ -1470,7 +1496,7 @@ func TestContentHandler_LockPost_NotFound(t *testing.T) {
 
 // TestContentHandler_StickyPost_Success tests successful post stickying
 func TestContentHandler_StickyPost_Success(t *testing.T) {
-	handler, mockPostDAO, _, mockVoteDAO, _, _, mockPermissionDAO, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, _, mockVoteDAO, _, mockPseudonymDAO, mockPermissionDAO, _ := NewContentHandlerWithMocks()
 
 	// Create test post
 	testPost := fixtures.CreateTestPost()
@@ -1480,6 +1506,9 @@ func TestContentHandler_StickyPost_Success(t *testing.T) {
 	mockPostDAO.On("SetSticky", mock.Anything, int64(123), true).Return(nil)
 	mockVoteDAO.On("GetVoteByPseudonymAndContent", mock.Anything, "test-pseudonym-id", "post", int64(123)).Return(nil, nil)
 	mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", "moderate_content", mock.AnythingOfType("*int32")).Return(true, nil)
+
+	// Mock the UpdateLastActive call that was added to track pseudonym activity
+	mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
 
 	// Create test input
 	input := &apimodels.PostStickyInput{
@@ -1508,6 +1537,7 @@ func TestContentHandler_StickyPost_Success(t *testing.T) {
 
 	// Verify DAO calls
 	mockPostDAO.AssertExpectations(t)
+	mockPseudonymDAO.AssertExpectations(t)
 	mockPermissionDAO.AssertExpectations(t)
 }
 
@@ -1548,7 +1578,7 @@ func TestContentHandler_StickyPost_NotFound(t *testing.T) {
 
 // TestContentHandler_RemovePost_Success tests successful post removal
 func TestContentHandler_RemovePost_Success(t *testing.T) {
-	handler, mockPostDAO, _, mockVoteDAO, _, _, mockPermissionDAO, _ := NewContentHandlerWithMocks()
+	handler, mockPostDAO, _, mockVoteDAO, _, mockPseudonymDAO, mockPermissionDAO, _ := NewContentHandlerWithMocks()
 
 	// Create test post
 	testPost := fixtures.CreateTestPost()
@@ -1558,6 +1588,9 @@ func TestContentHandler_RemovePost_Success(t *testing.T) {
 	mockPostDAO.On("SetRemoved", mock.Anything, int64(123), true).Return(nil)
 	mockVoteDAO.On("GetVoteByPseudonymAndContent", mock.Anything, "test-pseudonym-id", "post", int64(123)).Return(nil, nil)
 	mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", "moderate_content", mock.AnythingOfType("*int32")).Return(true, nil)
+
+	// Mock the UpdateLastActive call that was added to track pseudonym activity
+	mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
 
 	// Create test input
 	input := &apimodels.PostRemoveInput{
@@ -1586,6 +1619,7 @@ func TestContentHandler_RemovePost_Success(t *testing.T) {
 
 	// Verify DAO calls
 	mockPostDAO.AssertExpectations(t)
+	mockPseudonymDAO.AssertExpectations(t)
 	mockPermissionDAO.AssertExpectations(t)
 }
 

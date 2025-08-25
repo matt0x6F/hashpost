@@ -21,7 +21,7 @@ import (
 func TestSubforumHandler_CreateSubforum_PermissionWorkflow(t *testing.T) {
 	t.Run("SubforumCreation_GrantsCreatorOwnerPermissions", func(t *testing.T) {
 		// Arrange
-		handler, mockSubforumDAO, mockRoleKeyDAO, mockPermissionDAO := NewSubforumHandlerWithMocks()
+		handler, mockSubforumDAO, mockRoleKeyDAO, mockPermissionDAO, mockPseudonymDAO := NewSubforumHandlerWithMocks()
 
 		// Set up global auth middleware
 		authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
@@ -88,6 +88,10 @@ func TestSubforumHandler_CreateSubforum_PermissionWorkflow(t *testing.T) {
 			pseudonymID,                      // pseudonym id
 			&subforumID,                      // subforum id
 		).Return(&dbmodels.RoleKey{}, nil)
+
+		// Mock: Pseudonym DAO calls during subforum creation
+		// The handler calls UpdateLastActive on the pseudonym DAO
+		mockPseudonymDAO.On("UpdateLastActive", mock.Anything, pseudonymID).Return(nil)
 
 		// Mock: Post-creation permission verification
 		// After creation, the user should have subforum owner role and all moderation capabilities in their subforum
@@ -207,7 +211,7 @@ func TestSubforumHandler_CreateSubforum_PermissionWorkflow(t *testing.T) {
 	t.Run("SubforumCreation_VerifiesModerationScope", func(t *testing.T) {
 		// This test specifically focuses on verifying that subforum creation
 		// creates role keys with moderation scope for owned subforums
-		handler, mockSubforumDAO, mockRoleKeyDAO, mockPermissionDAO := NewSubforumHandlerWithMocks()
+		handler, mockSubforumDAO, mockRoleKeyDAO, mockPermissionDAO, mockPseudonymDAO := NewSubforumHandlerWithMocks()
 
 		authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 		middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -279,6 +283,10 @@ func TestSubforumHandler_CreateSubforum_PermissionWorkflow(t *testing.T) {
 			&subforumID, // subforum id
 		).Return(&dbmodels.RoleKey{}, nil)
 
+		// Mock: Pseudonym DAO calls during subforum creation
+		// The handler calls UpdateLastActive on the pseudonym DAO
+		mockPseudonymDAO.On("UpdateLastActive", mock.Anything, pseudonymID).Return(nil)
+
 		// Mock that creator has capabilities from moderation scope after creation
 		moderationCapabilities := []string{
 			constants.CapabilityModerateContent,
@@ -331,7 +339,7 @@ func TestSubforumHandler_CreateSubforum_PermissionWorkflow(t *testing.T) {
 }
 
 // NewSubforumHandlerWithMocks creates a subforum handler with the necessary mocks for permission testing
-func NewSubforumHandlerWithMocks() (*handlers.SubforumHandler, *mocks.MockSubforumDAO, *mocks.MockRoleKeyDAO, *mocks.MockPermissionDAO) {
+func NewSubforumHandlerWithMocks() (*handlers.SubforumHandler, *mocks.MockSubforumDAO, *mocks.MockRoleKeyDAO, *mocks.MockPermissionDAO, *mocks.MockPseudonymDAO) {
 	mockSubforumDAO := mocks.NewMockSubforumDAO()
 	mockSubforumSubscriptionDAO := mocks.NewMockSubforumSubscriptionDAO()
 	mockRoleKeyDAO := &mocks.MockRoleKeyDAO{}
@@ -361,5 +369,5 @@ func NewSubforumHandlerWithMocks() (*handlers.SubforumHandler, *mocks.MockSubfor
 		mockUserDAO,
 	)
 
-	return handler, mockSubforumDAO, mockRoleKeyDAO, mockPermissionDAO
+	return handler, mockSubforumDAO, mockRoleKeyDAO, mockPermissionDAO, mockPseudonymDAO
 }

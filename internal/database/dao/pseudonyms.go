@@ -243,6 +243,17 @@ func (dao *PseudonymDAO) GetPseudonymsByRealIdentityDirect(ctx context.Context, 
 	return dao.getPseudonymsByRealIdentity(ctx, realIdentity)
 }
 
+// GetIBESystemSalt returns the current salt used by the IBE system for debugging purposes
+func (dao *PseudonymDAO) GetIBESystemSalt() string {
+	return dao.ibeSystem.GetSalt()
+}
+
+// GenerateFingerprintForEmail generates a fingerprint for the given email using the current IBE system salt
+// This method is for debugging purposes to help troubleshoot salt mismatches
+func (dao *PseudonymDAO) GenerateFingerprintForEmail(email string) string {
+	return dao.ibeSystem.GenerateFingerprint(email)
+}
+
 func (dao *PseudonymDAO) verifyPseudonymOwnershipWithKey(ctx context.Context, pseudonymID string, userID int64, keyData []byte) (bool, error) {
 	// 1. Get user's real identity
 	user, err := dao.userDAO.GetUserByID(ctx, userID)

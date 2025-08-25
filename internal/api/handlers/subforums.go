@@ -53,7 +53,7 @@ func NewSubforumHandler(
 		identityMappingDAO = dao.NewIdentityMappingDAO(db)
 		// Note: pseudonymDAO requires additional dependencies, so it should be passed in
 		postDAO = dao.NewPostDAO(db)
-		roleKeyDAO = dao.NewRoleKeyDAO(db)
+		roleKeyDAO = dao.NewRoleKeyDAO(db, nil)
 		userDAO = dao.NewUserDAO(db)
 	}
 
@@ -457,6 +457,13 @@ func (h *SubforumHandler) SubscribeToSubforum(ctx context.Context, input *struct
 		return nil, fmt.Errorf("failed to create subscription: %w", err)
 	}
 
+	// Update last active timestamp for the pseudonym since subscribing represents activity
+	err = h.pseudonymDAO.UpdateLastActive(ctx, userCtx.ActivePseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", userCtx.ActivePseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
+	}
+
 	// Get updated subscriber count
 	subscriberCount, err := h.subforumSubscriptionDAO.CountSubscriptionsBySubforum(ctx, subforum.SubforumID)
 	if err != nil {
@@ -531,6 +538,13 @@ func (h *SubforumHandler) UnsubscribeFromSubforum(ctx context.Context, input *st
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to delete subscription")
 		return nil, fmt.Errorf("failed to delete subscription: %w", err)
+	}
+
+	// Update last active timestamp for the pseudonym since unsubscribing represents activity
+	err = h.pseudonymDAO.UpdateLastActive(ctx, userCtx.ActivePseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", userCtx.ActivePseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
 	}
 
 	// Get updated subscriber count
@@ -809,6 +823,13 @@ func (h *SubforumHandler) CreateSubforum(ctx context.Context, input *models.Subf
 					Msg("Created elected moderator role key")
 			}
 		}
+	}
+
+	// Update last active timestamp for the pseudonym since creating a subforum represents significant activity
+	err = h.pseudonymDAO.UpdateLastActive(ctx, userCtx.ActivePseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", userCtx.ActivePseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
 	}
 
 	// Convert to API model

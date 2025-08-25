@@ -21,7 +21,7 @@ type PermissionDAO struct {
 func NewPermissionDAO(db bob.Executor) *PermissionDAO {
 	return &PermissionDAO{
 		db:         db,
-		roleKeyDAO: NewRoleKeyDAO(db),
+		roleKeyDAO: NewRoleKeyDAO(db, nil),
 	}
 }
 

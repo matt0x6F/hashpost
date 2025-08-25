@@ -10,14 +10,14 @@ import (
 )
 
 // RegisterRulesRoutes registers all rules-related routes
-func RegisterRulesRoutes(api huma.API, db bob.Executor) {
+func RegisterRulesRoutes(api huma.API, db bob.Executor, pseudonymDAO dao.PseudonymDAOInterface) {
 	// Initialize DAOs for rules handler
 	reportsDAO := dao.NewReportDAO(db)
 	subforumDAO := dao.NewSubforumDAO(db)
 	systemSettingsDAO := dao.NewSystemSettingsDAO(db)
 	permissionDAO := dao.NewPermissionDAO(db)
 
-	rulesHandler := handlers.NewRulesHandler(reportsDAO, subforumDAO, systemSettingsDAO, permissionDAO, db)
+	rulesHandler := handlers.NewRulesHandler(reportsDAO, subforumDAO, systemSettingsDAO, permissionDAO, pseudonymDAO, db)
 
 	// Platform rules routes
 	huma.Register(api, huma.Operation{
@@ -28,6 +28,16 @@ func RegisterRulesRoutes(api huma.API, db bob.Executor) {
 		Description: "Retrieves all platform-wide rules for content moderation.",
 		Tags:        []string{"Rules"},
 	}, rulesHandler.GetPlatformRules)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "update-platform-rules",
+		Method:      http.MethodPut,
+		Path:        "/platform/rules",
+		Summary:     "Update platform rules",
+		Description: "Updates platform-wide rules. Requires system_admin capability.",
+		Tags:        []string{"Rules"},
+		Security:    []map[string][]string{{"jwt": {}}},
+	}, rulesHandler.UpdatePlatformRules)
 
 	// Subforum rules routes
 	huma.Register(api, huma.Operation{

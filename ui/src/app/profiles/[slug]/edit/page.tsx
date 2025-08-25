@@ -104,7 +104,7 @@ export default function ProfileEditPage() {
       };
 
       // Debug: log what we're sending
-      console.log('Sending request data:', requestData);
+      		// Debug: sending request data logged
 
       await pseudonymsApi.updatePseudonymProfile(pseudonymId, requestData);
 

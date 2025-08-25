@@ -164,3 +164,14 @@ type RuleViolationResponse struct {
 	ReportStatus string `json:"status" example:"pending"`
 	CreatedAt    string `json:"created_at" example:"2024-01-01T16:00:00Z"`
 }
+
+// PlatformRulesUpdateInputBody represents the input for updating platform rules
+type PlatformRulesUpdateInputBody struct {
+	Rules []Rule `json:"rules" required:"true"`
+}
+
+// PlatformRulesUpdateInput represents the input for updating platform rules
+type PlatformRulesUpdateInput struct {
+	middleware.AuthInput
+	Body PlatformRulesUpdateInputBody `json:"body"`
+}

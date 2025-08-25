@@ -17,7 +17,7 @@ func RegisterSubforumRoutes(api huma.API, db bob.Executor, pseudonymDAO dao.Pseu
 	permissionDAO := dao.NewPermissionDAO(db)
 	identityMappingDAO := dao.NewIdentityMappingDAO(db)
 	postDAO := dao.NewPostDAO(db)
-	roleKeyDAO := dao.NewRoleKeyDAO(db)
+	roleKeyDAO := dao.NewRoleKeyDAO(db, nil)
 
 	userDAO := dao.NewUserDAO(db)
 	subforumHandler := handlers.NewSubforumHandler(db, subforumDAO, subforumSubscriptionDAO, permissionDAO, identityMappingDAO, pseudonymDAO, postDAO, roleKeyDAO, userDAO)

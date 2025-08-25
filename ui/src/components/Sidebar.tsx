@@ -5,7 +5,7 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
 } from "./shadcn/sidebar";
-import { Home, Radar, ChartNoAxesCombined, Users, Plus, X } from "lucide-react";
+import { Home, Radar, ChartNoAxesCombined, Users, Plus, X, Shield } from "lucide-react";
 import { CreateForumDialog } from "./CreateForumDialog";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
@@ -25,7 +25,9 @@ const items = [
 export function AppSidebar() {
   const [subscriptions, setSubscriptions] = useState<Subforum[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+
+
 
   const loadSubscriptions = async () => {
     if (!isAuthenticated || !user?.activePseudonymId) {
@@ -104,8 +106,25 @@ export function AppSidebar() {
           </CreateForumDialog>
         </div>
 
+        {/* Admin Section */}
+        {!authLoading && isAuthenticated && (user?.capabilities?.includes("system_admin") || user?.capabilities?.includes("user_management")) && (
+          <div className="mt-6 pt-6 border-t border-sidebar-border">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-medium text-sidebar-foreground">Administration</h3>
+            </div>
+            
+            <a
+              href="/admin"
+              className="flex items-center gap-3 px-3 py-2 rounded transition-colors text-sidebar-foreground font-medium font-sans hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            >
+              <Shield className="w-5 h-5" />
+              <span>Platform Admin</span>
+            </a>
+          </div>
+        )}
+
         {/* Subscriptions Section */}
-        {isAuthenticated && (
+        {!authLoading && isAuthenticated && (
           <div className="mt-6 pt-6 border-t border-sidebar-border">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-medium text-sidebar-foreground">Subscriptions</h3>
@@ -148,6 +167,8 @@ export function AppSidebar() {
             )}
           </div>
         )}
+
+
       </div>
     </aside>
   );

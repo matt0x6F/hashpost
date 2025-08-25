@@ -57,6 +57,9 @@ func TestUserHandler_BlockUser(t *testing.T) {
 		mockUserBlock := fixtures.CreateTestUserBlock(1, blockerPseudonymID, blockedPseudonymID, 0)
 		mockUserBlocksDAO.On("CreateUserBlock", mock.Anything, blockerPseudonymID, blockedPseudonymID, int64(0)).Return(mockUserBlock, nil)
 
+		// Set up mock expectation for UpdateLastActive
+		mockPseudonymDAO.On("UpdateLastActive", mock.Anything, blockerPseudonymID).Return(nil)
+
 		// Create input
 		blockAllPersonas := false
 		input := &struct {
@@ -112,6 +115,9 @@ func TestUserHandler_BlockUser(t *testing.T) {
 		// Mock user block creation (fingerprint level)
 		mockUserBlock := fixtures.CreateTestUserBlock(1, blockerPseudonymID, "", blockedUserID)
 		mockUserBlocksDAO.On("CreateUserBlock", mock.Anything, blockerPseudonymID, "", blockedUserID).Return(mockUserBlock, nil)
+
+		// Set up mock expectation for UpdateLastActive
+		mockPseudonymDAO.On("UpdateLastActive", mock.Anything, blockerPseudonymID).Return(nil)
 
 		// Create input
 		blockAllPersonas := true
@@ -247,7 +253,7 @@ func TestUserHandler_UnblockUser(t *testing.T) {
 	}, &config.SecurityConfig{}))
 
 	t.Run("UnblockPseudonymLevel", func(t *testing.T) {
-		handler, _, mockUserBlocksDAO := NewUserHandlerWithMocksForBlocking()
+		handler, mockPseudonymDAO, mockUserBlocksDAO := NewUserHandlerWithMocksForBlocking()
 
 		// Test data
 		blockerPseudonymID := "blocker-pseudonym-123"
@@ -259,6 +265,9 @@ func TestUserHandler_UnblockUser(t *testing.T) {
 
 		// Mock block deletion
 		mockUserBlocksDAO.On("DeleteUserBlock", mock.Anything, blockerPseudonymID, blockedPseudonymID).Return(nil)
+
+		// Set up mock expectation for UpdateLastActive
+		mockPseudonymDAO.On("UpdateLastActive", mock.Anything, blockerPseudonymID).Return(nil)
 
 		// Create input
 		input := &struct {
@@ -283,6 +292,7 @@ func TestUserHandler_UnblockUser(t *testing.T) {
 
 		// Verify mocks were called
 		mockUserBlocksDAO.AssertExpectations(t)
+		mockPseudonymDAO.AssertExpectations(t)
 	})
 
 	t.Run("UnblockFingerprintLevel", func(t *testing.T) {
@@ -305,6 +315,9 @@ func TestUserHandler_UnblockUser(t *testing.T) {
 
 		// Mock block deletion by ID
 		mockUserBlocksDAO.On("DeleteUserBlockByID", mock.Anything, int64(1)).Return(nil)
+
+		// Set up mock expectation for UpdateLastActive
+		mockPseudonymDAO.On("UpdateLastActive", mock.Anything, blockerPseudonymID).Return(nil)
 
 		// Create input
 		input := &struct {

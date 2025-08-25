@@ -331,6 +331,11 @@ func TestSubforumHandler_SubscribeToSubforum(t *testing.T) {
 			// Create mock pseudonym DAO
 			mockPseudonymDAO := mocks.NewMockPseudonymDAO()
 
+			// Set up mock expectations for UpdateLastActive call for successful operations
+			if !tt.wantErr && tt.userCtx != nil {
+				mockPseudonymDAO.On("UpdateLastActive", mock.Anything, tt.userCtx.ActivePseudonymID).Return(nil)
+			}
+
 			// Create mock role key DAO
 			mockRoleKeyDAO := mocks.NewMockRoleKeyDAO()
 
@@ -368,6 +373,11 @@ func TestSubforumHandler_SubscribeToSubforum(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, response)
 				assert.True(t, response.Body.IsSubscribed)
+			}
+
+			// Verify mock expectations for successful operations
+			if !tt.wantErr && tt.userCtx != nil {
+				mockPseudonymDAO.AssertExpectations(t)
 			}
 		})
 	}
@@ -460,6 +470,11 @@ func TestSubforumHandler_UnsubscribeFromSubforum(t *testing.T) {
 			// Create mock role key DAO
 			mockRoleKeyDAO := mocks.NewMockRoleKeyDAO()
 
+			// Set up mock expectations for successful operations
+			if !tt.wantErr && tt.userCtx != nil {
+				mockPseudonymDAO.On("UpdateLastActive", mock.Anything, tt.userCtx.ActivePseudonymID).Return(nil)
+			}
+
 			// Create handler with mocks
 			mockUserDAO := &mocks.MockUserDAO{}
 			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockIdentityMappingDAO, mockPseudonymDAO, mockPostDAO, mockRoleKeyDAO, mockUserDAO)
@@ -494,6 +509,11 @@ func TestSubforumHandler_UnsubscribeFromSubforum(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, response)
 				assert.False(t, response.Body.IsSubscribed)
+			}
+
+			// Verify mock expectations for successful operations
+			if !tt.wantErr && tt.userCtx != nil {
+				mockPseudonymDAO.AssertExpectations(t)
 			}
 		})
 	}
@@ -742,6 +762,9 @@ func TestSubforumHandler_CreateSubforum(t *testing.T) {
 					// Owned subforums create subforum_owner role key
 					mockRoleKeyDAO.On("CreateRoleKeyWithIBE", mock.Anything, constants.RoleSubforumOwner, constants.ScopeModeration, mock.Anything, mock.Anything, "test-pseudonym-id", "test-pseudonym-id", mock.Anything).Return(&dbmodels.RoleKey{}, nil)
 				}
+
+				// Set up mock expectation for UpdateLastActive
+				mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
 			}
 
 			// Create handler with mocks
@@ -772,6 +795,9 @@ func TestSubforumHandler_CreateSubforum(t *testing.T) {
 				} else {
 					assert.Equal(t, "test-pseudonym-id", response.Body.Subforum.OwnerPseudonymID, "Owned subforums should have creator as owner")
 				}
+
+				// Verify mock expectations for successful operations
+				mockPseudonymDAO.AssertExpectations(t)
 			}
 		})
 	}
@@ -860,6 +886,9 @@ func TestGovernanceStyleEnforcement(t *testing.T) {
 				mockRoleKeyDAO.On("CreateRoleKeyWithIBE", mock.Anything, constants.RoleSubforumOwner, constants.ScopeModeration, mock.Anything, mock.Anything, "test-pseudonym-id", mock.Anything, mock.Anything).Return(&dbmodels.RoleKey{}, nil)
 			}
 
+			// Set up mock expectation for UpdateLastActive
+			mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
+
 			// Create handler with mocks
 			mockUserDAO := &mocks.MockUserDAO{}
 
@@ -913,6 +942,9 @@ func TestGovernanceStyleEnforcement(t *testing.T) {
 			assert.NotNil(t, response)
 			assert.Equal(t, tt.expectedGovernance, response.Body.Subforum.GovernanceStyle,
 				"Community type %s should have governance style %s", tt.communityType, tt.expectedGovernance)
+
+			// Verify mock expectations
+			mockPseudonymDAO.AssertExpectations(t)
 		})
 	}
 }
@@ -1043,6 +1075,9 @@ func TestOwnerAssignment(t *testing.T) {
 			// Set up expectations for role key creation
 			mockRoleKeyDAO.On("CreateRoleKeyWithIBE", mock.Anything, constants.RoleSubforumOwner, constants.ScopeModeration, mock.Anything, mock.Anything, tt.activePseudonymID, tt.activePseudonymID, mock.Anything).Return(&dbmodels.RoleKey{}, nil)
 
+			// Set up mock expectation for UpdateLastActive
+			mockPseudonymDAO.On("UpdateLastActive", mock.Anything, tt.activePseudonymID).Return(nil)
+
 			// Create handler with mocks
 			mockUserDAO := &mocks.MockUserDAO{}
 			handler := NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, mockIdentityMappingDAO, mockPseudonymDAO, mockPostDAO, mockRoleKeyDAO, mockUserDAO)
@@ -1080,6 +1115,9 @@ func TestOwnerAssignment(t *testing.T) {
 			assert.NoError(t, err)
 			assert.NotNil(t, response)
 			assert.Equal(t, tt.expectedOwner, response.Body.Subforum.OwnerPseudonymID)
+
+			// Verify mock expectations
+			mockPseudonymDAO.AssertExpectations(t)
 		})
 	}
 }

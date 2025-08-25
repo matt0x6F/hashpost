@@ -537,7 +537,6 @@ func TestAuthHandler_CurrentUserSession(t *testing.T) {
 			DisplayName: testDisplayName,
 		}
 		mockPseudonymDAO.On("GetPseudonymsByUserID", mock.Anything, testUserID, testPseudonymID, "user", "authentication").Return([]*dbmodels.Pseudonym{mockPseudonym}, nil)
-		mockPseudonymDAO.On("GetDefaultPseudonymByUserID", mock.Anything, testUserID, "user", "authentication").Return(mockPseudonym, nil)
 
 		// Mock role keys for the default pseudonym
 		mockRoleKeyDAO.On("ListRoleKeysByPseudonym", mock.Anything, testPseudonymID).Return([]*dbmodels.RoleKey{}, nil)

@@ -8,25 +8,24 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8888';
-const OUTPUT_PATH = path.join(__dirname, '..', 'openapi.json');
+const OUTPUT_PATH = path.join(__dirname, '..', 'openapi.yaml');
 
 async function downloadOpenAPISchema() {
   try {
-    console.log(`Downloading OpenAPI schema from ${API_URL}/...`);
+    console.log(`Downloading OpenAPI schema from ${API_URL}/openapi.yaml...`);
     
-    const response = await fetch(`${API_URL}/`);
+    const response = await fetch(`${API_URL}/openapi.yaml`);
     
     if (!response.ok) {
       throw new Error(`Failed to download schema: ${response.status} ${response.statusText}`);
     }
     
-    const schema = await response.json();
+    const schema = await response.text();
     
     // Write the schema to file
-    fs.writeFileSync(OUTPUT_PATH, JSON.stringify(schema, null, 2));
+    fs.writeFileSync(OUTPUT_PATH, schema);
     
     console.log(`✅ OpenAPI schema downloaded to ${OUTPUT_PATH}`);
-    console.log(`📊 Schema contains ${Object.keys(schema.paths || {}).length} endpoints`);
     
   } catch (error) {
     console.error('❌ Failed to download OpenAPI schema:', error.message);

@@ -44,7 +44,7 @@ func NewServer(cfg *config.Config) *Server {
 	// Create DAOs
 	userDAO := dao.NewUserDAO(db)
 	identityMappingDAO := dao.NewIdentityMappingDAO(db)
-	roleKeyDAO := dao.NewRoleKeyDAO(db)
+	roleKeyDAO := dao.NewRoleKeyDAO(db, nil)
 	userBlocksDAO := dao.NewUserBlocksDAO(db)
 	pseudonymDAO := dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
 	postDAO := dao.NewPostDAO(db)
@@ -72,6 +72,16 @@ func NewServer(cfg *config.Config) *Server {
 	// Create Huma configuration
 	config := huma.DefaultConfig("HashPost API", "1.0.0")
 
+	contact := &huma.Contact{
+		Name:  "Matt Ouille",
+		URL:   "https://github.com/matt0x6f",
+		Email: "matt@hashpost.dev",
+	}
+
+	config.Info.Contact = contact
+
+	config.Info.Description = "HashPost is a modern forum platform with enhanced security and privacy features."
+
 	// Create a new Huma API with humago adapter
 	api := humago.New(mux, config)
 
@@ -79,11 +89,9 @@ func NewServer(cfg *config.Config) *Server {
 	api.UseMiddleware(middleware.LoggingMiddleware)
 	api.UseMiddleware(middleware.CORSMiddleware(&cfg.CORS))
 
-	// Add authentication middleware to extract user context
-	api.UseMiddleware(middleware.AuthenticateUserHuma)
-
 	// Note: Authentication middleware is applied per-route as needed
 	// Public routes (like register, login) don't require authentication
+	// Protected routes use AuthInput structs to handle authentication
 	log.Info().Str("jwt_secret_length", fmt.Sprintf("%d", len(cfg.JWT.Secret))).Msg("JWT configuration loaded")
 
 	// Register routes
@@ -91,10 +99,11 @@ func NewServer(cfg *config.Config) *Server {
 	routes.RegisterAuthRoutes(api, cfg, db, rawDB, ibeSystem)
 	routes.RegisterUserRoutes(api, userDAO, pseudonymDAO, userPreferencesDAO, userBlocksDAO, postDAO, commentDAO, ibeSystem)
 	routes.RegisterSubforumRoutes(api, db, pseudonymDAO)
-	routes.RegisterMessagesRoutes(api, db)
-	routes.RegisterSearchRoutes(api, db)
+	routes.RegisterMessagesRoutes(api, db, pseudonymDAO)
+	routes.RegisterSearchRoutes(api, db, ibeSystem)
 	routes.RegisterModerationRoutes(api, reportDAO, moderationActionDAO, userBanDAO, pseudonymDAO, subforumDAO, postDAO, commentDAO, voteDAO, permissionDAO)
-	routes.RegisterRulesRoutes(api, db)
+	routes.RegisterRulesRoutes(api, db, pseudonymDAO)
+	routes.RegisterSystemSettingsRoutes(api, db, pseudonymDAO)
 	routes.RegisterContentRoutes(api, db, rawDB, ibeSystem, identityMappingDAO, userDAO)
 	routes.RegisterCorrelationRoutes(api, db, ibeSystem, pseudonymDAO, identityMappingDAO, postDAO, commentDAO, subforumDAO)
 
