@@ -73,7 +73,7 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
   // Debug logging for moderation permissions
   useEffect(() => {
     if (isAuthenticated && user) {
-      		// Debug: TopBar moderation check logged
+      console.log('Debug: TopBar moderation check logged', {
         pathname,
         isInSubforumContext,
         currentSubforumPath,
