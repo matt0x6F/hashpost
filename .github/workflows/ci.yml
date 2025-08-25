@@ -33,6 +33,10 @@ jobs:
           cache-dependency-path: ui/package-lock.json
       - name: Install dependencies
         run: cd ui && npm ci
+      - name: Download OpenAPI spec
+        run: cd ui && npm run download-openapi
+      - name: Generate API client
+        run: cd ui && npm run generate-api
       - name: Type check
         run: cd ui && npm run type-check
       - name: Lint
