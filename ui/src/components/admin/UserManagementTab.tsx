@@ -21,23 +21,20 @@ import {
   UserPlus, 
   Shield,
   Eye,
-  Edit,
-  Trash2
+  Edit
 } from "lucide-react";
 import { toast } from "sonner";
 import { getApi } from "@/lib/api-client";
 import { SearchApi } from "@/generated/api/src/apis/SearchApi";
 import { SearchPseudonym } from "@/generated/api/src/models/SearchPseudonym";
-import { useAuth } from "@/lib/auth-context";
+
 
 export function UserManagementTab() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user } = useAuth();
   const [pseudonyms, setPseudonyms] = useState<SearchPseudonym[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedPseudonym, setSelectedPseudonym] = useState<SearchPseudonym | null>(null);
 
   // Restore search query from URL params
   useEffect(() => {
@@ -69,16 +66,21 @@ export function UserManagementTab() {
         setPseudonyms([]);
         toast.info("No pseudonyms found");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to search pseudonyms:", error);
       
       // Handle specific error cases
-      if (error.response?.status === 401) {
-        toast.error("Authentication required. Please log in again.");
-      } else if (error.response?.status === 403) {
-        toast.error("Insufficient permissions for pseudonym search");
-      } else if (error.response?.status === 500) {
-        toast.error("Server error. Please try again later.");
+      if (error && typeof error === 'object' && 'response' in error && error.response && typeof error.response === 'object' && 'status' in error.response) {
+        const status = (error.response as { status: number }).status;
+        if (status === 401) {
+          toast.error("Authentication required. Please log in again.");
+        } else if (status === 403) {
+          toast.error("Insufficient permissions for pseudonym search");
+        } else if (status === 500) {
+          toast.error("Server error. Please try again later.");
+        } else {
+          toast.error("Failed to search pseudonyms. Please try again.");
+        }
       } else {
         toast.error("Failed to search pseudonyms. Please try again.");
       }
@@ -123,7 +125,7 @@ export function UserManagementTab() {
     sessionStorage.setItem(pseudonymDataKey, pseudonymDataString);
     
     // Verify it was stored
-    const stored = sessionStorage.getItem(pseudonymDataKey);
+    sessionStorage.getItem(pseudonymDataKey);
     		// Debug: retrieved data from sessionStorage
     
     // Navigate to pseudonym detail page with search context preserved

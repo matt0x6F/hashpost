@@ -15,12 +15,9 @@ import {
 } from "@/components/shadcn/select";
 import { 
   Search, 
-  AlertTriangle, 
   CheckCircle, 
   Clock,
-  Eye,
   FileText,
-  Shield,
   Gavel
 } from "lucide-react";
 import { toast } from "sonner";
@@ -156,10 +153,10 @@ export function CorrelationTab() {
     toast.success("Correlation request submitted");
   };
 
-  const handleAction = (requestId: string, action: string) => {
+  const handleAction = (requestId: string, action: "pending" | "approved" | "rejected" | "completed") => {
     setRequests(requests.map(req => 
       req.id === requestId 
-        ? { ...req, status: action as any, completedAt: new Date().toISOString() }
+        ? { ...req, status: action, completedAt: new Date().toISOString() }
         : req
     ));
     toast.success(`Request ${action}`);

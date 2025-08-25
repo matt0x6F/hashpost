@@ -92,7 +92,7 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
       if (rules.length > 0) {
         try {
           rulesText = JSON.stringify(rules);
-        } catch (jsonErr) {
+        } catch {
           setIsLoading(false);
           setError('Failed to serialize rules. Please check your rules for invalid data.');
           return;

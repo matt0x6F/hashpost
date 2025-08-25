@@ -11,6 +11,7 @@ import MarkdownHelp from './MarkdownHelp';
 import { MarkdownPreview } from './MarkdownPreview';
 import { MarkdownTextarea } from './MarkdownTextarea';
 
+
 interface CommentFormProps {
   postId: number;
   parentCommentId?: number;
@@ -95,9 +96,9 @@ export default function CommentForm({
           </div>
           <p className="text-xs text-muted-foreground">
             Remember to follow our{' '}
-            <a href="/platform-rules" className="text-foreground underline hover:text-foreground/80 transition-colors">
+            <span className="text-foreground underline hover:text-foreground/80 transition-colors">
               platform rules
-            </a>
+            </span>
             {' '}when commenting.
           </p>
         </div>

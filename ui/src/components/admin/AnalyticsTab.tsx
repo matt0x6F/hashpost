@@ -4,7 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/shadcn/badge";
 import { 
   Users, 
-  MessageSquare, 
   FileText, 
   TrendingUp, 
   TrendingDown,

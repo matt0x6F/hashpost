@@ -4,9 +4,9 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/shadcn/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/shadcn/card'
 import { Badge } from '@/components/shadcn/badge'
-import { ArrowLeft, User, Shield, Calendar, Mail, MessageSquare, FileText, Activity } from 'lucide-react'
+import { ArrowLeft, User, Activity } from 'lucide-react'
 import { useEffect, useState, use } from 'react'
-import { SearchUser } from '@/generated/api/src/models/SearchUser'
+
 import { PseudonymProfileResponseBody } from '@/generated/api/src/models/PseudonymProfileResponseBody'
 import { Post } from '@/generated/api/src/models/Post'
 import { Comment } from '@/generated/api/src/models/Comment'
@@ -22,7 +22,6 @@ interface UserDetailPageProps {
 export default function UserDetailPage({ params }: UserDetailPageProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [user, setUser] = useState<SearchUser | null>(null)
   const [pseudonymProfile, setPseudonymProfile] = useState<PseudonymProfileResponseBody | null>(null)
   const [recentPosts, setRecentPosts] = useState<Post[]>([])
   const [recentComments, setRecentComments] = useState<Comment[]>([])
@@ -52,7 +51,6 @@ export default function UserDetailPage({ params }: UserDetailPageProps) {
         const decodedUserData = JSON.parse(storedUserData);
         		// Debug: parsed user data with email and pseudonyms
         
-        setUser(decodedUserData);
         // Fetch additional pseudonym details
         fetchPseudonymDetails(decodedUserData.pseudonymId);
         // Clean up the stored data after using it
@@ -92,24 +90,6 @@ export default function UserDetailPage({ params }: UserDetailPageProps) {
       // Get pseudonym profile - this gives us the real pseudonym data
       const profileResponse = await api.getPseudonymProfileBySlug(pseudonymId);
       setPseudonymProfile(profileResponse);
-      
-      // Create user object from real API data
-      const realUser: SearchUser = {
-        pseudonymId: profileResponse.pseudonymId,
-        displayName: profileResponse.displayName,
-        karmaScore: profileResponse.karmaScore,
-        createdAt: profileResponse.createdAt,
-        email: 'Email not available', // We can't get this from pseudonym profile API
-        userId: 0, // We can't get this from pseudonym profile API
-        pseudonyms: [{
-          id: profileResponse.pseudonymId,
-          displayName: profileResponse.displayName,
-          isDefault: true,
-          createdAt: profileResponse.createdAt
-        }]
-      };
-      
-      setUser(realUser);
       
       // Get recent posts
       try {
@@ -161,7 +141,7 @@ export default function UserDetailPage({ params }: UserDetailPageProps) {
     )
   }
 
-  if (error || !user) {
+  if (error || !pseudonymProfile) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center space-x-4">
@@ -171,7 +151,7 @@ export default function UserDetailPage({ params }: UserDetailPageProps) {
           </Button>
         </div>
         <div className="mt-8 text-center">
-          <p className="text-destructive">{error || 'User not found'}</p>
+          <p className="text-destructive">{error || 'Pseudonym not found'}</p>
         </div>
       </div>
     )
@@ -200,11 +180,11 @@ export default function UserDetailPage({ params }: UserDetailPageProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-foreground">Display Name</label>
-              <p className="text-sm text-foreground">{user.displayName}</p>
+              <p className="text-sm text-foreground">{pseudonymProfile.displayName}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-foreground">Pseudonym ID</label>
-              <p className="text-sm text-foreground font-mono">{user.pseudonymId}</p>
+              <p className="text-sm text-foreground font-mono">{pseudonymProfile.pseudonymId}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-foreground">Slug</label>
@@ -213,7 +193,7 @@ export default function UserDetailPage({ params }: UserDetailPageProps) {
             <div>
               <label className="text-sm font-medium text-foreground">Account Created</label>
               <p className="text-sm text-foreground">
-                {new Date(user.createdAt).toLocaleDateString()}
+                {new Date(pseudonymProfile.createdAt).toLocaleDateString()}
               </p>
             </div>
             <div>
@@ -230,7 +210,7 @@ export default function UserDetailPage({ params }: UserDetailPageProps) {
             </div>
             <div>
               <label className="text-sm font-medium text-foreground">Karma Score</label>
-              <p className="text-sm text-foreground">{user.karmaScore}</p>
+              <p className="text-sm text-foreground">{pseudonymProfile.karmaScore}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-foreground">Show Karma</label>

@@ -15,9 +15,7 @@ import {
   SelectValue,
 } from "@/components/shadcn/select";
 import { 
-  Settings, 
   Shield, 
-  Users, 
   Globe,
   Database,
   Key,
@@ -142,7 +140,7 @@ export function SystemSettingsTab() {
       
       toast.success("Platform rules saved successfully");
       setHasUnsavedRules(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to save platform rules:", error);
       toast.error("Failed to save platform rules. Please try again.");
     } finally {
@@ -152,7 +150,7 @@ export function SystemSettingsTab() {
 
   const categories = Array.from(new Set(settings.map(s => s.category)));
 
-  const updateSetting = (key: string, value: any) => {
+  const updateSetting = (key: string, value: string | boolean | number) => {
     setSettings(settings.map(s => 
       s.key === key ? { ...s, value } : s
     ));
@@ -166,7 +164,7 @@ export function SystemSettingsTab() {
       // TODO: Implement actual API call when system settings update endpoint is available
       toast.info("Saving system settings is not yet implemented.");
       setHasUnsavedChanges(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to save settings:", error);
       toast.error("Failed to save settings. Please try again.");
     } finally {

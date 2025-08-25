@@ -7,7 +7,7 @@ import { Button } from '@/components/shadcn/button';
 import { Label } from '@/components/shadcn/label';
 import { Switch } from '@/components/shadcn/switch';
 import { Save, ArrowLeft } from 'lucide-react';
-import { COMMUNITY_CONFIG, type CommunityType } from '@/lib/community-config';
+import { type CommunityType } from '@/lib/community-config';
 import { useAuth } from '@/lib/auth-context';
 import { authenticateUserForSubforum } from '@/lib/auth-utils';
 import { toast } from 'sonner';

@@ -14,6 +14,7 @@ import { SubforumsApi } from "@/generated/api/src/apis/SubforumsApi";
 import { toast } from "sonner";
 import type { Subforum } from "@/generated/api/src/models";
 import type { CommunityType } from "@/lib/community-config";
+import Link from "next/link";
 
 const items = [
   { title: "Home", url: "/", icon: Home },
@@ -83,13 +84,13 @@ export function AppSidebar() {
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <a
+                    <Link
                       href={item.url}
                       className="flex items-center gap-3 px-3 py-2 rounded transition-colors text-sidebar-foreground font-medium font-sans hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                     >
                       <item.icon className="w-5 h-5" />
                       <span>{item.title}</span>
-                    </a>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -113,13 +114,13 @@ export function AppSidebar() {
               <h3 className="text-sm font-medium text-sidebar-foreground">Administration</h3>
             </div>
             
-            <a
+            <Link
               href="/admin"
               className="flex items-center gap-3 px-3 py-2 rounded transition-colors text-sidebar-foreground font-medium font-sans hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
             >
               <Shield className="w-5 h-5" />
               <span>Platform Admin</span>
-            </a>
+            </Link>
           </div>
         )}
 
@@ -144,14 +145,14 @@ export function AppSidebar() {
                     key={subforum.name}
                     className="group relative flex items-center gap-2 px-3 py-2 rounded transition-colors text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   >
-                    <a
+                    <Link
                       href={`/${subforum.communityType}/${subforum.name}`}
                       className="flex-1 flex items-center gap-2 min-w-0"
                     >
                       <span className="text-xs font-medium truncate">
                         {subforum.communityType}/{subforum.name}
                       </span>
-                    </a>
+                    </Link>
                     
                     {/* Unsubscribe button - only visible on hover */}
                     <button
