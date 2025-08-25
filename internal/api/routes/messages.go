@@ -21,6 +21,7 @@ func RegisterMessagesRoutes(api huma.API, db bob.Executor, pseudonymDAO dao.Pseu
 		Summary:     "Send a direct message to another user",
 		Description: "Send a direct message to another user",
 		Tags:        []string{"Messages"},
+		Security:    []map[string][]string{{"jwt": {}}},
 	}, messagesHandler.SendDirectMessage)
 
 	// Get direct messages
@@ -31,5 +32,6 @@ func RegisterMessagesRoutes(api huma.API, db bob.Executor, pseudonymDAO dao.Pseu
 		Summary:     "Get direct messages for the current user",
 		Description: "Get direct messages for the current user",
 		Tags:        []string{"Messages"},
+		Security:    []map[string][]string{{"jwt": {}}},
 	}, messagesHandler.GetDirectMessages)
 }

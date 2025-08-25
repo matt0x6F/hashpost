@@ -38,6 +38,7 @@ func RegisterContentRoutes(api huma.API, db bob.Executor, rawDB *sql.DB, ibeSyst
 		Summary:     "Create a new post",
 		Description: "Creates a new post in the specified subforum",
 		Tags:        []string{"Content"},
+		Security:    []map[string][]string{{"jwt": {}}},
 	}, contentHandler.CreatePost)
 
 	// Get post details
@@ -68,6 +69,7 @@ func RegisterContentRoutes(api huma.API, db bob.Executor, rawDB *sql.DB, ibeSyst
 		Summary:     "Vote on a post",
 		Description: "Votes on a post (upvote, downvote, or remove vote)",
 		Tags:        []string{"Content"},
+		Security:    []map[string][]string{{"jwt": {}}},
 	}, contentHandler.VoteOnPost)
 
 	// Create comment on post
@@ -78,6 +80,7 @@ func RegisterContentRoutes(api huma.API, db bob.Executor, rawDB *sql.DB, ibeSyst
 		Summary:     "Create a comment on a post",
 		Description: "Creates a comment on a post, optionally as a reply to another comment",
 		Tags:        []string{"Content"},
+		Security:    []map[string][]string{{"jwt": {}}},
 	}, contentHandler.CreateComment)
 
 	// Vote on comment
@@ -88,6 +91,7 @@ func RegisterContentRoutes(api huma.API, db bob.Executor, rawDB *sql.DB, ibeSyst
 		Summary:     "Vote on a comment",
 		Description: "Votes on a comment (upvote, downvote, or remove vote)",
 		Tags:        []string{"Content"},
+		Security:    []map[string][]string{{"jwt": {}}},
 	}, contentHandler.VoteOnComment)
 
 	// Lock/Unlock post
@@ -98,6 +102,7 @@ func RegisterContentRoutes(api huma.API, db bob.Executor, rawDB *sql.DB, ibeSyst
 		Summary:     "Lock or unlock a post (moderators only)",
 		Description: "Locks or unlocks a post. Requires moderator permission.",
 		Tags:        []string{"Moderation"},
+		Security:    []map[string][]string{{"jwt": {}}},
 	}, contentHandler.LockPost)
 
 	// Sticky/Unsticky post
@@ -108,6 +113,7 @@ func RegisterContentRoutes(api huma.API, db bob.Executor, rawDB *sql.DB, ibeSyst
 		Summary:     "Sticky or unsticky a post (moderators only)",
 		Description: "Stickies or unstickies a post. Requires moderator permission.",
 		Tags:        []string{"Moderation"},
+		Security:    []map[string][]string{{"jwt": {}}},
 	}, contentHandler.StickyPost)
 
 	// Remove/Restore post
@@ -118,6 +124,7 @@ func RegisterContentRoutes(api huma.API, db bob.Executor, rawDB *sql.DB, ibeSyst
 		Summary:     "Remove or restore a post (moderators only)",
 		Description: "Removes or restores a post. Requires moderator permission.",
 		Tags:        []string{"Moderation"},
+		Security:    []map[string][]string{{"jwt": {}}},
 	}, contentHandler.RemovePost)
 
 	// Edit post
@@ -128,6 +135,7 @@ func RegisterContentRoutes(api huma.API, db bob.Executor, rawDB *sql.DB, ibeSyst
 		Summary:     "Edit a post",
 		Description: "Edits a post. Users can only edit their own posts.",
 		Tags:        []string{"Content"},
+		Security:    []map[string][]string{{"jwt": {}}},
 	}, contentHandler.EditPost)
 
 	// Edit comment
@@ -138,6 +146,7 @@ func RegisterContentRoutes(api huma.API, db bob.Executor, rawDB *sql.DB, ibeSyst
 		Summary:     "Edit a comment",
 		Description: "Edits a comment. Users can only edit their own comments.",
 		Tags:        []string{"Content"},
+		Security:    []map[string][]string{{"jwt": {}}},
 	}, contentHandler.EditComment)
 
 	// Remove/Restore comment
@@ -148,6 +157,7 @@ func RegisterContentRoutes(api huma.API, db bob.Executor, rawDB *sql.DB, ibeSyst
 		Summary:     "Remove or restore a comment",
 		Description: "Removes or restores a comment. Users can remove their own comments, moderators can remove any comment.",
 		Tags:        []string{"Moderation"},
+		Security:    []map[string][]string{{"jwt": {}}},
 	}, contentHandler.RemoveComment)
 
 	// Report comment
@@ -158,6 +168,7 @@ func RegisterContentRoutes(api huma.API, db bob.Executor, rawDB *sql.DB, ibeSyst
 		Summary:     "Report a comment",
 		Description: "Reports a comment for moderation review. Users cannot report their own comments.",
 		Tags:        []string{"Moderation"},
+		Security:    []map[string][]string{{"jwt": {}}},
 	}, contentHandler.ReportComment)
 
 	// User deletion endpoints
@@ -168,6 +179,7 @@ func RegisterContentRoutes(api huma.API, db bob.Executor, rawDB *sql.DB, ibeSyst
 		Summary:     "Delete post by user",
 		Description: "Allows users to delete their own posts",
 		Tags:        []string{"Content"},
+		Security:    []map[string][]string{{"jwt": {}}},
 	}, contentHandler.DeletePost)
 
 	huma.Register(api, huma.Operation{
@@ -177,5 +189,6 @@ func RegisterContentRoutes(api huma.API, db bob.Executor, rawDB *sql.DB, ibeSyst
 		Summary:     "Delete a comment (user-initiated)",
 		Description: "Allows the comment author to delete their own comment.",
 		Tags:        []string{"Content"},
+		Security:    []map[string][]string{{"jwt": {}}},
 	}, contentHandler.DeleteComment)
 }

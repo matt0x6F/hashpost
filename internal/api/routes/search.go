@@ -32,6 +32,7 @@ func RegisterSearchRoutes(api huma.API, db bob.Executor, ibeSystem *ibe.IBESyste
 		Summary:     "Search for users by display name",
 		Description: "Search for users by display name. Requires platform admin role.",
 		Tags:        []string{"Search"},
+		Security:    []map[string][]string{{"jwt": {}}},
 	}, searchHandler.SearchUsers)
 
 	// Search pseudonyms (platform admin only)
@@ -42,5 +43,6 @@ func RegisterSearchRoutes(api huma.API, db bob.Executor, ibeSystem *ibe.IBESyste
 		Summary:     "Search for pseudonyms by display name, slug, or bio",
 		Description: "Search for pseudonyms by display name, slug, or bio. Requires platform admin role.",
 		Tags:        []string{"Search"},
+		Security:    []map[string][]string{{"jwt": {}}},
 	}, searchHandler.SearchPseudonyms)
 }

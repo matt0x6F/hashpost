@@ -24,6 +24,7 @@ func RegisterCorrelationRoutes(api huma.API, db bob.Executor, ibeSystem *ibe.IBE
 		Summary:     "Request fingerprint-based correlation for moderation",
 		Description: "Request fingerprint-based correlation for moderation purposes (moderators only)",
 		Tags:        []string{"Correlation"},
+		Security:    []map[string][]string{{"jwt": {}}},
 	}, correlationHandler.RequestFingerprintCorrelation)
 
 	// Request identity correlation (admins)
@@ -34,6 +35,7 @@ func RegisterCorrelationRoutes(api huma.API, db bob.Executor, ibeSystem *ibe.IBE
 		Summary:     "Request identity-based correlation for platform-wide investigations",
 		Description: "Request identity-based correlation for platform-wide investigations (admins only)",
 		Tags:        []string{"Correlation"},
+		Security:    []map[string][]string{{"jwt": {}}},
 	}, correlationHandler.RequestIdentityCorrelation)
 
 	// Get correlation history
@@ -44,5 +46,6 @@ func RegisterCorrelationRoutes(api huma.API, db bob.Executor, ibeSystem *ibe.IBE
 		Summary:     "Get correlation request history",
 		Description: "Get correlation request history for the authenticated user",
 		Tags:        []string{"Correlation"},
+		Security:    []map[string][]string{{"jwt": {}}},
 	}, correlationHandler.GetCorrelationHistory)
 }
