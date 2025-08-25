@@ -375,7 +375,7 @@ func CreateAdminUser(cfg *config.Config) error {
 	}
 
 	// Create a pseudonym for the admin user with identity mapping
-	pseudonymDAO := dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO, dao.NewUserDAO(db), dao.NewRoleKeyDAO(db), dao.NewUserBlocksDAO(db))
+	pseudonymDAO := dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO, dao.NewUserDAO(db), dao.NewRoleKeyDAO(db, nil), dao.NewUserBlocksDAO(db))
 
 	// Use display name for pseudonym (it's required)
 	displayName := input.DisplayName
@@ -410,7 +410,7 @@ func CreateAdminUser(cfg *config.Config) error {
 	}
 
 	// Ensure default role keys for the admin user's pseudonym
-	roleKeyDAO := dao.NewRoleKeyDAO(db)
+	roleKeyDAO := dao.NewRoleKeyDAO(db, nil)
 	if err := roleKeyDAO.EnsureDefaultKeys(ctx, ibeSystem, pseudonym.PseudonymID, []string{adminRole}); err != nil {
 		return fmt.Errorf("failed to create default role keys for admin user: %w", err)
 	}
@@ -494,7 +494,7 @@ func SetModeratorWithCommand(cobraCmd *cobra.Command, cfg *config.Config) error 
 
 	// Create DAOs
 	subforumDAO := dao.NewSubforumDAO(db)
-	roleKeyDAO := dao.NewRoleKeyDAO(db)
+	roleKeyDAO := dao.NewRoleKeyDAO(db, nil)
 	userDAO := dao.NewUserDAO(db)
 
 	// Initialize IBE system using configuration instead of hardcoded defaults
@@ -743,7 +743,7 @@ func DeleteUser(cfg *config.Config) error {
 
 	// Create DAOs
 	userDAO := dao.NewUserDAO(db)
-	roleKeyDAO := dao.NewRoleKeyDAO(db)
+	roleKeyDAO := dao.NewRoleKeyDAO(db, nil)
 	identityMappingDAO := dao.NewIdentityMappingDAO(db)
 	userBlocksDAO := dao.NewUserBlocksDAO(db)
 	// Initialize IBE system using configuration instead of hardcoded defaults
@@ -1202,7 +1202,7 @@ func fixUserPseudonymMappings(ctx context.Context, user *models.User, role strin
 	// Create DAOs
 	identityMappingDAO := dao.NewIdentityMappingDAO(db)
 	userDAO := dao.NewUserDAO(db)
-	roleKeyDAO := dao.NewRoleKeyDAO(db)
+	roleKeyDAO := dao.NewRoleKeyDAO(db, nil)
 	userBlocksDAO := dao.NewUserBlocksDAO(db)
 
 	// Initialize IBE system using configuration instead of hardcoded defaults
@@ -1472,7 +1472,7 @@ func getScopesForRole(role string) []string {
 func recreateIdentityMappings(ctx context.Context, userID int64, ibeSystem *ibe.IBESystem, db bob.Executor) error {
 	// Get user and their pseudonyms
 	userDAO := dao.NewUserDAO(db)
-	roleKeyDAO := dao.NewRoleKeyDAO(db)
+	roleKeyDAO := dao.NewRoleKeyDAO(db, nil)
 
 	user, err := userDAO.GetUserByID(ctx, userID)
 	if err != nil {
@@ -1670,7 +1670,7 @@ func fixSubforumIdentityMappings(ctx context.Context, user *models.User, pseudon
 
 	// Create DAOs
 	identityMappingDAO := dao.NewIdentityMappingDAO(db)
-	roleKeyDAO := dao.NewRoleKeyDAO(db)
+	roleKeyDAO := dao.NewRoleKeyDAO(db, nil)
 
 	// Get existing identity mappings for this pseudonym
 	existingMappings, err := identityMappingDAO.GetIdentityMappingsByPseudonymID(ctx, pseudonym.PseudonymID)
