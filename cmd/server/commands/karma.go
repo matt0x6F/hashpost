@@ -79,7 +79,7 @@ func UpdateAllKarma(dryRun bool, batchSize int, cfg *config.Config) error {
 	defer db.Close()
 
 	// Create DAOs
-	pseudonymDAO := dao.NewPseudonymDAO(db, nil, nil, nil, nil, nil)
+	pseudonymDAO := dao.NewPseudonymDAOForKarma(db)
 
 	log.Info().Msg("Starting karma update for all pseudonyms")
 	if dryRun {
@@ -182,7 +182,7 @@ func UpdateKarmaForPseudonym(pseudonymIdentifier string, cfg *config.Config) err
 	defer db.Close()
 
 	// Create DAOs
-	pseudonymDAO := dao.NewPseudonymDAO(db, nil, nil, nil, nil, nil)
+	pseudonymDAO := dao.NewPseudonymDAOForKarma(db)
 
 	// Try to find pseudonym by ID first, then by display name
 	var pseudonym *models.Pseudonym
@@ -262,7 +262,7 @@ func VerifyKarmaCalculations(cfg *config.Config) error {
 	defer db.Close()
 
 	// Create DAOs
-	pseudonymDAO := dao.NewPseudonymDAO(db, nil, nil, nil, nil, nil)
+	pseudonymDAO := dao.NewPseudonymDAOForKarma(db)
 
 	log.Info().Msg("Starting karma verification for all pseudonyms")
 

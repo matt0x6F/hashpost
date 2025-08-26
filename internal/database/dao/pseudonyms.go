@@ -41,6 +41,16 @@ func NewPseudonymDAO(db bob.Executor, ibeSystem *ibe.IBESystem, identityMappingD
 	}
 }
 
+// NewPseudonymDAOForKarma creates a new PseudonymDAO specifically for karma operations
+// This constructor only requires the database connection since karma operations don't need
+// the other dependencies like IBE system, role keys, etc.
+func NewPseudonymDAOForKarma(db bob.Executor) *PseudonymDAO {
+	return &PseudonymDAO{
+		db: db,
+		// Other fields remain nil as they're not needed for karma operations
+	}
+}
+
 // GetPseudonymsByUserID retrieves all pseudonyms for a user using role-based access control
 func (dao *PseudonymDAO) GetPseudonymsByUserID(ctx context.Context, userID int64, activePseudonymID, roleName, scope string) ([]*models.Pseudonym, error) {
 	// Get the role key for the active pseudonym to verify ownership
