@@ -101,7 +101,7 @@ export default function ContentRulesPage() {
   // Check permissions
   if (isLoading || !user || (isAuthenticated && !subforumContextLoaded)) {
     return (
-      <div className="max-w-7xl mx-auto p-4">
+      <div className="max-w-7xl mx-auto p-2 sm:p-4">
         <div className="text-center py-12">
           <p className="text-muted-foreground">Loading...</p>
         </div>
@@ -114,7 +114,7 @@ export default function ContentRulesPage() {
 
   if (!hasModerateContent) {
     return (
-      <div className="max-w-7xl mx-auto p-4">
+      <div className="max-w-7xl mx-auto p-2 sm:p-4">
         <div className="text-center py-12">
           <p className="text-muted-foreground">You do not have permission to access this page.</p>
           <p className="text-sm text-muted-foreground mt-2">
@@ -127,7 +127,7 @@ export default function ContentRulesPage() {
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto p-4">
+      <div className="max-w-7xl mx-auto p-2 sm:p-4">
         <div className="text-center py-12">
           <p className="text-muted-foreground">Loading content rules...</p>
         </div>
@@ -137,7 +137,7 @@ export default function ContentRulesPage() {
 
   if (!settings) {
     return (
-      <div className="max-w-7xl mx-auto p-4">
+      <div className="max-w-7xl mx-auto p-2 sm:p-4">
         <div className="text-center py-12">
           <p className="text-muted-foreground">Failed to load content rules</p>
           <Button onClick={loadSettings} className="mt-4">
@@ -149,7 +149,7 @@ export default function ContentRulesPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-4">
+    <div className="max-w-7xl mx-auto p-2 sm:p-4">
       <div className="flex items-center gap-4 mb-8">
         <Link href={`/${fullSubforumPath}/moderation`}>
           <Button variant="outline" size="sm">

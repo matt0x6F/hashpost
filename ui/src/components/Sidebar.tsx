@@ -1,4 +1,6 @@
 import {
+  Sidebar,
+  SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
   SidebarMenu,
@@ -27,7 +29,6 @@ export function AppSidebar() {
   const [subscriptions, setSubscriptions] = useState<Subforum[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
-
 
 
   const loadSubscriptions = async () => {
@@ -76,8 +77,8 @@ export function AppSidebar() {
   }, [isAuthenticated, user?.activePseudonymId]);
 
   return (
-    <aside className="md:block w-64 bg-sidebar border-r border-sidebar-border flex flex-col">
-      <div className="flex-1 overflow-y-auto p-4">
+    <Sidebar>
+      <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -168,9 +169,7 @@ export function AppSidebar() {
             )}
           </div>
         )}
-
-
-      </div>
-    </aside>
+      </SidebarContent>
+    </Sidebar>
   );
 } 

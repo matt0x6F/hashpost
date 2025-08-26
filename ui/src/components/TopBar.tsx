@@ -107,24 +107,32 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
   };
 
   return (
-    <header className="w-full h-14 flex items-center justify-between px-6 bg-background border-b border-border shadow-sm z-50">
-      <div className="flex items-center gap-2">
+    <header className="w-full h-14 flex items-center justify-between px-3 sm:px-6 bg-background border-b border-border shadow-sm z-50">
+      <div className="flex items-center gap-2 min-w-0">
         {/* Hamburger for mobile */}
         <button
-          className="md:hidden flex items-center justify-center w-9 h-9 rounded-full hover:bg-muted transition-colors mr-2"
+          className="md:hidden flex items-center justify-center w-9 h-9 rounded-full hover:bg-muted transition-colors mr-2 flex-shrink-0"
           aria-label="Open sidebar"
+          title="Open sidebar menu"
           onClick={onMenuClick}
         >
           <Menu className="w-5 h-5" />
         </button>
-        <Image src="/logo.svg" alt="HashPost Logo" height={32} width={32} className="mr-2" />
-        <span className="font-bold text-xl tracking-tight">HashPost</span>
-        <span className="text-xs text-muted-foreground ml-2">alpha</span>
+        <Image src="/logo.svg" alt="HashPost Logo" height={32} width={32} className="mr-2 flex-shrink-0" />
+        <div className="flex items-center min-w-0">
+          <span className="font-bold text-xl tracking-tight truncate">HashPost</span>
+          <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">alpha</span>
+        </div>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
         {/* Platform Rules Link */}
         <Link href="/platform-rules">
-          <Button variant="ghost" size="sm" className="flex items-center gap-2">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="flex items-center gap-2"
+            title="Platform Rules"
+          >
             <Shield className="w-4 h-4" />
             <span className="hidden sm:inline">Rules</span>
           </Button>
@@ -133,7 +141,12 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
         {/* Moderator Dashboard Link */}
         {!isLoading && isAuthenticated && isModerator && currentSubforumPath && (
           <Link href={`/${currentSubforumPath}/moderation`}>
-            <Button variant="ghost" size="sm" className="flex items-center gap-2">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="flex items-center gap-2"
+              title="Moderation Dashboard"
+            >
               <Shield className="w-4 h-4" />
               <span className="hidden sm:inline">Moderation</span>
             </Button>
@@ -146,6 +159,7 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
           size="sm"
           onClick={toggleTheme}
           className="w-9 h-9 p-0"
+          title={mounted ? (theme === "dark" ? "Switch to light mode" : "Switch to dark mode") : "Toggle theme"}
         >
           {mounted && (
             theme === "dark" ? (
