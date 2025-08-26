@@ -94,6 +94,11 @@ spec:
             configMapKeyRef:
               name: hashpost-config
               key: JWT_DEVELOPMENT
+        - name: EMAIL_VALIDATION_VERIFIER_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: hashpost-secrets
+              key: EMAIL_VALIDATION_VERIFIER_PASSWORD
         envFrom:
         - configMapRef:
             name: hashpost-config
