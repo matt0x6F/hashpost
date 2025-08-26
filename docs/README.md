@@ -70,6 +70,7 @@ The permission system operates at multiple levels:
 - **Pseudonym Management**: Create, switch, and deactivate pseudonyms as needed
 - **Content Creation**: Create posts, comments, and engage with community content
 - **Voting System**: Upvote/downvote content to influence visibility
+- **Karma System**: Build reputation through community voting and content quality
 - **Direct Messaging**: Private communication between users
 - **Subforum Subscriptions**: Follow and participate in communities
 - **Privacy Controls**: Manage visibility of karma and messaging preferences

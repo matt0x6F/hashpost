@@ -106,6 +106,9 @@ func main() {
 	// Add key-rotation commands
 	rootCmd.AddCommand(commands.NewKeyRotationCommands(cfg)...)
 
+	// Add karma commands
+	rootCmd.AddCommand(commands.NewKarmaCommands(cfg)...)
+
 	// Run the CLI
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatal().Err(err).Msg("Failed to execute command")

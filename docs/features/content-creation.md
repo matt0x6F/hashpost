@@ -52,11 +52,14 @@ HashPost provides a comprehensive content creation system that allows users to s
 - Votes affect content visibility and ranking
 - High-scoring content appears more prominently
 - Community consensus shapes content discovery
+- **Karma Impact**: Votes contribute to the author's karma score
 
 **Vote Tracking**
 - See your voting history
 - Track how your votes affect content ranking
 - Understand voting patterns in communities
+
+> **📚 Learn More**: For detailed information about how voting affects karma and reputation, see [Karma System](../karma.md).
 
 ## User Experience
 
