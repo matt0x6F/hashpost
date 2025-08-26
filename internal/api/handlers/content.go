@@ -779,6 +779,13 @@ func (h *ContentHandler) VoteOnPost(ctx context.Context, input *models.PostVoteI
 		return nil, err
 	}
 
+	// Update karma for the post author
+	err = h.pseudonymDAO.UpdateKarmaForPseudonym(ctx, post.PseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", post.PseudonymID).Msg("Failed to update karma for post author")
+		// Don't fail the request for this error
+	}
+
 	response := models.NewVoteResponse(int(postID), voteValue, score, upvotes, downvotes)
 
 	log.Info().
@@ -996,6 +1003,13 @@ func (h *ContentHandler) VoteOnComment(ctx context.Context, input *models.Commen
 	if err != nil {
 		log.Error().Err(err).Int64("comment_id", commentID).Msg("Failed to update comment score")
 		return nil, err
+	}
+
+	// Update karma for the comment author
+	err = h.pseudonymDAO.UpdateKarmaForPseudonym(ctx, comment.PseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", comment.PseudonymID).Msg("Failed to update karma for comment author")
+		// Don't fail the request for this error
 	}
 
 	response := models.NewCommentVoteResponse(int(commentID), voteValue, score, upvotes, downvotes)

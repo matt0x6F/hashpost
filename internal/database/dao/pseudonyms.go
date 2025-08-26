@@ -451,34 +451,24 @@ func (dao *PseudonymDAO) GenerateSlugFromDisplayName(ctx context.Context, displa
 
 // CalculateKarmaForPseudonym calculates the total karma for a pseudonym based on their posts and comments
 func (dao *PseudonymDAO) CalculateKarmaForPseudonym(ctx context.Context, pseudonymID string) (int32, error) {
-	// Get all posts by the pseudonym
+	// Get all posts by the pseudonym (excluding only moderator-removed content)
 	posts, err := models.Posts.Query(
 		models.SelectWhere.Posts.PseudonymID.EQ(pseudonymID),
-		sm.Where(psql.Group(psql.And(
-			psql.Group(psql.Or(
-				psql.Quote("posts", "is_removed").IsNull(),
-				psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
-			)),
-			psql.Group(psql.Or(
-				psql.Quote("posts", "is_deleted").IsNull(),
-				psql.Quote("posts", "is_deleted").EQ(psql.Arg(false)),
-			)),
+		sm.Where(psql.Group(psql.Or(
+			psql.Quote("posts", "is_removed").IsNull(),
+			psql.Quote("posts", "is_removed").EQ(psql.Arg(false)),
 		))),
 	).All(ctx, dao.db)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get posts for karma calculation: %w", err)
 	}
 
-	// Get all comments by the pseudonym
+	// Get all comments by the pseudonym (excluding only moderator-removed content)
 	comments, err := models.Comments.Query(
 		models.SelectWhere.Comments.PseudonymID.EQ(pseudonymID),
 		sm.Where(psql.Group(psql.Or(
 			psql.Quote("comments", "is_removed").IsNull(),
 			psql.Quote("comments", "is_removed").EQ(psql.Arg(false)),
-		))),
-		sm.Where(psql.Group(psql.Or(
-			psql.Quote("comments", "is_deleted").IsNull(),
-			psql.Quote("comments", "is_deleted").EQ(psql.Arg(false)),
 		))),
 	).All(ctx, dao.db)
 	if err != nil {

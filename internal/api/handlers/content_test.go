@@ -795,6 +795,9 @@ func TestContentHandler_VoteOnPost_Success(t *testing.T) {
 	mockPostDAO.On("UpdatePostScore", mock.Anything, int64(123), int32(10), int32(16), int32(6)).Return(nil)
 	mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
 
+	// Mock the UpdateKarmaForPseudonym call that was added to update karma after voting
+	mockPseudonymDAO.On("UpdateKarmaForPseudonym", mock.Anything, "test-pseudonym-id").Return(nil)
+
 	// Create test input
 	input := &apimodels.PostVoteInput{
 		PostID: 123,
@@ -851,6 +854,9 @@ func TestContentHandler_VoteOnPost_RemoveVote(t *testing.T) {
 	mockVoteDAO.On("GetVoteSummaryByContent", mock.Anything, "post", int64(123)).Return(14, 5, 0, nil)
 	mockPostDAO.On("UpdatePostScore", mock.Anything, int64(123), int32(9), int32(14), int32(5)).Return(nil)
 	mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
+
+	// Mock the UpdateKarmaForPseudonym call that was added to update karma after voting
+	mockPseudonymDAO.On("UpdateKarmaForPseudonym", mock.Anything, "test-pseudonym-id").Return(nil)
 
 	// Create test input
 	input := &apimodels.PostVoteInput{
@@ -938,6 +944,9 @@ func TestContentHandler_VoteOnComment_Success(t *testing.T) {
 	mockCommentDAO.On("UpdateCommentScore", mock.Anything, int64(456), int32(9), int32(14), int32(5)).Return(nil)
 	mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
 
+	// Mock the UpdateKarmaForPseudonym call that was added to update karma after voting
+	mockPseudonymDAO.On("UpdateKarmaForPseudonym", mock.Anything, "test-pseudonym-id").Return(nil)
+
 	// Create test input
 	input := &apimodels.CommentVoteInput{
 		CommentID: 456,
@@ -994,6 +1003,9 @@ func TestContentHandler_VoteOnComment_RemoveVote(t *testing.T) {
 	mockVoteDAO.On("GetVoteSummaryByContent", mock.Anything, "comment", int64(456)).Return(8, 3, 0, nil)
 	mockCommentDAO.On("UpdateCommentScore", mock.Anything, int64(456), int32(5), int32(8), int32(3)).Return(nil)
 	mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
+
+	// Mock the UpdateKarmaForPseudonym call that was added to update karma after voting
+	mockPseudonymDAO.On("UpdateKarmaForPseudonym", mock.Anything, "test-pseudonym-id").Return(nil)
 
 	// Create test input
 	input := &apimodels.CommentVoteInput{
@@ -1262,6 +1274,13 @@ func TestContentHandler_RemoveComment_Success(t *testing.T) {
 	// Mock the UpdateLastActive call that was added to track pseudonym activity
 	mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
 
+	// Set up pseudonym data for the test
+	testPseudonym := &models.Pseudonym{
+		PseudonymID: "test-pseudonym-id",
+		DisplayName: "TestUser",
+	}
+	mockPseudonymDAO.InjectPseudonym(testPseudonym)
+
 	// Create test input
 	input := &apimodels.CommentRemoveInput{
 		CommentID: 456,
@@ -1510,6 +1529,13 @@ func TestContentHandler_StickyPost_Success(t *testing.T) {
 	// Mock the UpdateLastActive call that was added to track pseudonym activity
 	mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
 
+	// Set up pseudonym data for the test
+	testPseudonym := &models.Pseudonym{
+		PseudonymID: "test-pseudonym-id",
+		DisplayName: "TestUser",
+	}
+	mockPseudonymDAO.InjectPseudonym(testPseudonym)
+
 	// Create test input
 	input := &apimodels.PostStickyInput{
 		PostID: 123,
@@ -1591,6 +1617,13 @@ func TestContentHandler_RemovePost_Success(t *testing.T) {
 
 	// Mock the UpdateLastActive call that was added to track pseudonym activity
 	mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
+
+	// Set up pseudonym data for the test
+	testPseudonym := &models.Pseudonym{
+		PseudonymID: "test-pseudonym-id",
+		DisplayName: "TestUser",
+	}
+	mockPseudonymDAO.InjectPseudonym(testPseudonym)
 
 	// Create test input
 	input := &apimodels.PostRemoveInput{

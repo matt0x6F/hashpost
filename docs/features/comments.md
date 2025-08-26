@@ -34,11 +34,14 @@ HashPost provides a comprehensive comment system that enables rich discussions a
 - Votes affect comment visibility and ranking
 - High-scoring comments appear more prominently
 - Community consensus shapes discussion quality
+- **Karma Impact**: Votes contribute to the comment author's karma score
 
 **Vote Tracking**
 - See your voting history on comments
 - Track how your votes affect comment ranking
 - Understand voting patterns in discussions
+
+> **📚 Learn More**: For detailed information about how voting affects karma and reputation, see [Karma System](../karma.md).
 
 ### Managing Comments
 
