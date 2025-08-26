@@ -25,8 +25,10 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     <div className="flex flex-col h-screen">
       <TopBar onMenuClick={() => setOpen(!open)} />
       <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar is positioned fixed, so we just render it once */}
         <AppSidebar />
-        <main className="flex-1 p-2 sm:p-4 md:p-6 bg-background overflow-y-auto">
+        {/* Main content with left margin on desktop to account for fixed sidebar */}
+        <main className="flex-1 p-2 sm:p-4 md:p-6 bg-background overflow-y-auto md:ml-64">
           {children}
         </main>
       </div>

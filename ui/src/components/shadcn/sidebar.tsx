@@ -8,7 +8,23 @@ const SidebarContext = React.createContext<{
 } | null>(null);
 
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
-  const [open, setOpen] = React.useState(false); // Start collapsed on all screen sizes
+  // Start with sidebar closed by default to avoid mobile flash
+  const [open, setOpen] = React.useState(false);
+  
+  // Update state when component mounts and screen size changes
+  React.useEffect(() => {
+    const handleResize = () => {
+      const isDesktop = window.innerWidth >= 768;
+      setOpen(isDesktop);
+    };
+    
+    // Set initial state based on current screen size
+    handleResize();
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
   return (
     <SidebarContext.Provider value={{ open, setOpen }}>
       {children}
@@ -24,16 +40,27 @@ export function useSidebar() {
 
 export function Sidebar({ children }: { children: React.ReactNode }) {
   const { open, setOpen } = useSidebar();
+  const [isDesktop, setIsDesktop] = React.useState(false);
+  
+  React.useEffect(() => {
+    const checkScreenSize = () => {
+      setIsDesktop(window.innerWidth >= 768);
+    };
+    
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
   
   const handleBackdropClick = () => {
-    if (window.innerWidth < 768) { // Only close on mobile
+    if (!isDesktop) { // Only close on mobile
       setOpen(false);
     }
   };
   
   return (
     <>
-      {/* Backdrop overlay for mobile */}
+      {/* Backdrop overlay for mobile only */}
       <div 
         className={`fixed inset-0 bg-black/50 z-30 md:hidden transition-opacity duration-300 ease-in-out ${
           open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
@@ -42,10 +69,14 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
       />
       <aside
         data-open={open}
+        className={`sidebar transition-transform duration-300 ease-in-out ${
+          isDesktop 
+            ? 'fixed top-0 left-0 z-40 h-full w-64 bg-sidebar border-r border-sidebar-border' 
+            : 'fixed top-0 left-0 z-40 h-full w-64 bg-sidebar border-r border-sidebar-border'
+        }`}
         style={{
-          transform: open ? 'translateX(0)' : 'translateX(-100%)'
+          transform: isDesktop ? 'translateX(0)' : (open ? 'translateX(0)' : 'translateX(-100%)')
         }}
-        className="sidebar fixed top-0 left-0 z-40 h-full w-64 bg-sidebar border-r border-sidebar-border transition-transform duration-300 ease-in-out"
       >
         {children}
       </aside>
