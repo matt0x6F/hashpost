@@ -83,6 +83,9 @@ RUN chmod +x /usr/local/bin/migrate.sh /usr/local/bin/entrypoint.sh
 # Copy migrations directory
 COPY internal/database/migrations ./internal/database/migrations
 
+# Copy email templates
+COPY templates/email ./templates/email
+
 # Install sql-migrate in production (using a more efficient approach)
 RUN apk add --no-cache --virtual .build-deps go git && \
     GOBIN=/usr/local/bin go install github.com/rubenv/sql-migrate/...@latest && \
