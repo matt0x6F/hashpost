@@ -75,6 +75,7 @@ HashPost supports four distinct community types, each designed for different pur
 - Vote on content within communities
 - Engage with other community members
 - Respect the governance model of each community
+- Build reputation through karma in each community
 
 ### Understanding Governance
 

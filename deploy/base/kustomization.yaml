@@ -11,6 +11,7 @@ resources:
   - frontend-service.yaml
   - api-stripprefix-middleware.yaml
   - ingress.yaml
+  - configmap.yaml
 
 labels:
   - pairs:
@@ -43,13 +44,6 @@ configMapGenerator:
       - IBE_KEY_ROTATION_ENABLED=false
       - IBE_KEY_ROTATION_INTERVAL=8760h
       - IBE_KEY_ROTATION_GRACE_PERIOD=720h
-      # Email configuration
-      - EMAIL_PROVIDER=mailgun
-      - EMAIL_FROM_ADDRESS=noreply@hashpost.dev
-      - EMAIL_FROM_NAME=HashPost
-      - MAILGUN_DOMAIN=hashpost.dev
-      - MAILGUN_BASE_URL=https://api.mailgun.net
-      - MAILGUN_REGION=us
 
 images:
   - name: hashpost-backend
