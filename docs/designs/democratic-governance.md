@@ -209,7 +209,7 @@ When democratic communities face crisis:
 - Add `elected_moderator` and `appointed_moderator` role constants and definitions
 - Add new role entries to `role_definitions` database table  
 - Modify subforum creation to not assign owner role for democratic communities
-- Require user to select 2 other pseudonyms as co-moderators during creation
+- Allow single moderator with optional co-moderators (up to 4 total)
 - Validate selected pseudonyms are not owned by creator (via IBE) and tied to verified users
 
 ### Phase 2: Election Infrastructure (Future)
@@ -386,3 +386,10 @@ This phased approach allows us to:
 4. **Maintain flexibility** for crisis management and platform evolution
 
 The key insight is that true democracy requires mature, engaged communities - but we can establish democratic principles from day one through proper role assignment and governance structure.
+
+### Future Enhancements
+
+- **Election Thresholds**: Implement subforum-specific thresholds for moderator elections
+- **Co-Moderator Limits**: Allow communities to set their own co-moderator limits (currently max 4)
+- **Moderator Removal**: Add democratic processes for removing problematic moderators
+- **Term Limits**: Implement optional term limits for elected moderators

@@ -344,7 +344,7 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
                   {isDemocraticSubforum ? (
                     <>
                       <span className="font-medium text-foreground">Democratic</span>
-                      <span className="ml-2">- Owner commits to elected moderators</span>
+                      <span className="ml-2">- Community elects moderators, creator becomes initial moderator</span>
                     </>
                   ) : (
                     <>
@@ -373,7 +373,7 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
                     {/* Selected Co-Moderators */}
                     {selectedCoModerators.length > 0 && (
                       <div className="space-y-2 mb-4">
-                        <Label className="text-sm font-medium">Selected Co-Moderators ({selectedCoModerators.length}/2)</Label>
+                        <Label className="text-sm font-medium">Selected Co-Moderators ({selectedCoModerators.length}/4)</Label>
                         <div className="space-y-2">
                           {selectedCoModerators.map((coMod) => (
                             <div key={coMod.pseudonymId} className="flex items-center justify-between p-3 bg-muted rounded-md">
@@ -398,7 +398,7 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
                     )}
 
                     {/* Co-Moderator Search */}
-                    {selectedCoModerators.length < 2 && (
+                    {selectedCoModerators.length < 4 && (
                       <div className="space-y-3">
                         <div className="relative">
                           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -531,7 +531,7 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isLoading || (isDemocraticSubforum && selectedCoModerators.length !== 2)}>
+              <Button type="submit" disabled={isLoading}>
                 {isLoading ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
