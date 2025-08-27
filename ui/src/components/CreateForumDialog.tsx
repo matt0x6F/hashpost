@@ -377,11 +377,11 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
                         <div className="space-y-2">
                           {selectedCoModerators.map((coMod) => (
                             <div key={coMod.pseudonymId} className="flex items-center justify-between p-3 bg-muted rounded-md">
-                                                              <div className="flex items-center gap-2">
-                                  <User className="w-4 h-4 text-muted-foreground" />
-                                  <span className="font-medium">{coMod.displayName}</span>
-                                  <span className="text-sm text-muted-foreground">@{coMod.slug}</span>
-                                </div>
+                              <div className="flex items-center gap-2">
+                                <User className="w-4 h-4 text-muted-foreground" />
+                                <span className="font-medium">{coMod.displayName}</span>
+                                <span className="text-sm text-muted-foreground">@{coMod.slug}</span>
+                              </div>
                               <Button
                                 type="button"
                                 variant="ghost"

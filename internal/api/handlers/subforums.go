@@ -653,7 +653,8 @@ func (h *SubforumHandler) CreateSubforum(ctx context.Context, input *models.Subf
 		allPseudonyms := append([]string{userCtx.ActivePseudonymID}, input.Body.CoModerators...)
 
 		// First pass: validate that all pseudonyms are owned by unique users
-		userIDs := make(map[int64]string) // userID -> pseudonymID for tracking
+		userIDs := make(map[int64]string)           // userID -> pseudonymID for tracking
+		pseudonymToUserID := make(map[string]int64) // pseudonymID -> userID for reverse lookup
 
 		for _, pseudonymID := range allPseudonyms {
 			// Get user ID for this pseudonym using platform admin correlation
@@ -670,6 +671,7 @@ func (h *SubforumHandler) CreateSubforum(ctx context.Context, input *models.Subf
 
 			// Track this user ID
 			userIDs[userID] = pseudonymID
+			pseudonymToUserID[pseudonymID] = userID
 		}
 
 		// Second pass: validate co-moderator pseudonym existence and user status
@@ -690,14 +692,10 @@ func (h *SubforumHandler) CreateSubforum(ctx context.Context, input *models.Subf
 			}
 
 			// Get user ID for this pseudonym (we already validated it exists in the map)
-			userID := func() int64 {
-				for uid, pid := range userIDs {
-					if pid == pseudonymID {
-						return uid
-					}
-				}
-				return 0 // This should never happen since we validated above
-			}()
+			userID, ok := pseudonymToUserID[pseudonymID]
+			if !ok {
+				return nil, huma.Error400BadRequest("co-moderator pseudonym to user mapping not found")
+			}
 
 			// Check if the user is active and verified
 			user, err := h.userDAO.GetUserByID(ctx, userID)

@@ -14,6 +14,8 @@ import (
 	"github.com/matt0x6f/hashpost/internal/ibe"
 	"github.com/rs/zerolog/log"
 	"github.com/stephenafamo/bob"
+	"github.com/stephenafamo/bob/dialect/psql"
+	"github.com/stephenafamo/bob/dialect/psql/sm"
 )
 
 // SearchHandler handles search requests
@@ -905,44 +907,9 @@ func (h *SearchHandler) PublicSearchPseudonyms(ctx context.Context, input *model
 
 // searchPseudonyms implements the actual search logic for pseudonyms
 func (h *SearchHandler) searchPseudonyms(ctx context.Context, input *models.SearchPseudonymsInput) ([]*dbmodels.Pseudonym, error) {
-	// Get all pseudonyms from database
-	pseudonyms, err := dbmodels.Pseudonyms.Query().All(ctx, h.db)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get pseudonyms: %w", err)
-	}
-
-	log.Info().Int("total_pseudonyms_found", len(pseudonyms)).Msg("Search: Retrieved pseudonyms from database")
-
 	query := strings.ToLower(input.Query)
-	var matchingPseudonyms []*dbmodels.Pseudonym
 
-	// Filter pseudonyms by search criteria
-	for _, pseudonym := range pseudonyms {
-		// Check if pseudonym display name matches query
-		if strings.Contains(strings.ToLower(pseudonym.DisplayName), query) {
-			log.Debug().Str("pseudonym_id", pseudonym.PseudonymID).Str("display_name", pseudonym.DisplayName).Msg("Search: Pseudonym matched by display name")
-			matchingPseudonyms = append(matchingPseudonyms, pseudonym)
-			continue
-		}
-
-		// Check if pseudonym slug matches query
-		if pseudonym.Slug.Valid && strings.Contains(strings.ToLower(pseudonym.Slug.V), query) {
-			log.Debug().Str("pseudonym_id", pseudonym.PseudonymID).Str("slug", pseudonym.Slug.V).Msg("Search: Pseudonym matched by slug")
-			matchingPseudonyms = append(matchingPseudonyms, pseudonym)
-			continue
-		}
-
-		// Check if pseudonym bio matches query
-		if pseudonym.Bio.Valid && strings.Contains(strings.ToLower(pseudonym.Bio.V), query) {
-			log.Debug().Str("pseudonym_id", pseudonym.PseudonymID).Str("bio", pseudonym.Bio.V).Msg("Search: Pseudonym matched by bio")
-			matchingPseudonyms = append(matchingPseudonyms, pseudonym)
-			continue
-		}
-	}
-
-	log.Info().Int("matching_pseudonyms", len(matchingPseudonyms)).Str("query", query).Msg("Search: Found matching pseudonyms")
-
-	// Apply pagination
+	// Validate and set defaults for pagination
 	page := input.Page
 	if page <= 0 {
 		page = 1
@@ -952,69 +919,33 @@ func (h *SearchHandler) searchPseudonyms(ctx context.Context, input *models.Sear
 		limit = 25
 	}
 
-	start := (page - 1) * limit
-	end := start + limit
+	// Build database query with WHERE clauses for better performance
+	queryBuilder := dbmodels.Pseudonyms.Query(
+		sm.Where(psql.Group(psql.Or(
+			dbmodels.PseudonymColumns.DisplayName.ILike(psql.Arg("%"+query+"%")),
+			dbmodels.PseudonymColumns.Slug.ILike(psql.Arg("%"+query+"%")),
+			dbmodels.PseudonymColumns.Bio.ILike(psql.Arg("%"+query+"%")),
+		))),
+		sm.Limit(limit),
+		sm.Offset((page-1)*limit),
+	)
 
-	if start >= len(matchingPseudonyms) {
-		return []*dbmodels.Pseudonym{}, nil
+	// Execute query with pagination
+	pseudonyms, err := queryBuilder.All(ctx, h.db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search pseudonyms: %w", err)
 	}
 
-	if end > len(matchingPseudonyms) {
-		end = len(matchingPseudonyms)
-	}
+	log.Info().Int("result_count", len(pseudonyms)).Str("query", query).Int("page", page).Int("limit", limit).Msg("Search: Returning paginated results")
 
-	result := matchingPseudonyms[start:end]
-
-	log.Info().Int("result_count", len(result)).Int("page", page).Int("limit", limit).Msg("Search: Returning paginated results")
-
-	return result, nil
+	return pseudonyms, nil
 }
 
 // searchPseudonymsPublic implements the actual search logic for public pseudonym search
 func (h *SearchHandler) searchPseudonymsPublic(ctx context.Context, input *models.PublicSearchPseudonymsInput) ([]*dbmodels.Pseudonym, error) {
-	// Get all pseudonyms from database
-	pseudonyms, err := dbmodels.Pseudonyms.Query().All(ctx, h.db)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get pseudonyms: %w", err)
-	}
-
-	log.Info().Int("total_pseudonyms_found", len(pseudonyms)).Msg("Public Search: Retrieved pseudonyms from database")
-
 	query := strings.ToLower(input.Query)
-	var matchingPseudonyms []*dbmodels.Pseudonym
 
-	// Filter pseudonyms by search criteria
-	for _, pseudonym := range pseudonyms {
-		// Only include active pseudonyms
-		if !pseudonym.IsActive.Valid || !pseudonym.IsActive.V {
-			continue
-		}
-
-		// Check if pseudonym display name matches query
-		if strings.Contains(strings.ToLower(pseudonym.DisplayName), query) {
-			log.Debug().Str("pseudonym_id", pseudonym.PseudonymID).Str("display_name", pseudonym.DisplayName).Msg("Public Search: Pseudonym matched by display name")
-			matchingPseudonyms = append(matchingPseudonyms, pseudonym)
-			continue
-		}
-
-		// Check if pseudonym slug matches query
-		if pseudonym.Slug.Valid && strings.Contains(strings.ToLower(pseudonym.Slug.V), query) {
-			log.Debug().Str("pseudonym_id", pseudonym.PseudonymID).Str("slug", pseudonym.Slug.V).Msg("Public Search: Pseudonym matched by slug")
-			matchingPseudonyms = append(matchingPseudonyms, pseudonym)
-			continue
-		}
-
-		// Check if pseudonym bio matches query
-		if pseudonym.Bio.Valid && strings.Contains(strings.ToLower(pseudonym.Bio.V), query) {
-			log.Debug().Str("pseudonym_id", pseudonym.PseudonymID).Str("bio", pseudonym.Bio.V).Msg("Public Search: Pseudonym matched by bio")
-			matchingPseudonyms = append(matchingPseudonyms, pseudonym)
-			continue
-		}
-	}
-
-	log.Info().Int("matching_pseudonyms", len(matchingPseudonyms)).Str("query", query).Msg("Public Search: Found matching pseudonyms")
-
-	// Apply pagination
+	// Validate and set defaults for pagination
 	page := input.Page
 	if page <= 0 {
 		page = 1
@@ -1024,61 +955,50 @@ func (h *SearchHandler) searchPseudonymsPublic(ctx context.Context, input *model
 		limit = 25
 	}
 
-	start := (page - 1) * limit
-	end := start + limit
+	// Build database query with WHERE clauses for better performance
+	queryBuilder := dbmodels.Pseudonyms.Query(
+		sm.Where(dbmodels.PseudonymColumns.IsActive.EQ(psql.Arg(true))),
+		sm.Where(psql.Group(psql.Or(
+			dbmodels.PseudonymColumns.DisplayName.ILike(psql.Arg("%"+query+"%")),
+			dbmodels.PseudonymColumns.Slug.ILike(psql.Arg("%"+query+"%")),
+			dbmodels.PseudonymColumns.Bio.ILike(psql.Arg("%"+query+"%")),
+		))),
+		sm.Limit(limit),
+		sm.Offset((page-1)*limit),
+	)
 
-	if start >= len(matchingPseudonyms) {
-		return []*dbmodels.Pseudonym{}, nil
+	// Execute query with pagination
+	pseudonyms, err := queryBuilder.All(ctx, h.db)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to search pseudonyms: %w", err)
 	}
 
-	if end > len(matchingPseudonyms) {
-		end = len(matchingPseudonyms)
-	}
+	log.Info().Int("result_count", len(pseudonyms)).Str("query", query).Int("page", page).Int("limit", limit).Msg("Public Search: Returning paginated results")
 
-	result := matchingPseudonyms[start:end]
-
-	log.Info().Int("result_count", len(result)).Int("page", page).Int("limit", limit).Msg("Public Search: Returning paginated results")
-
-	return result, nil
+	return pseudonyms, nil
 }
 
 // countSearchPseudonyms counts the total number of pseudonyms matching the search criteria
 func (h *SearchHandler) countSearchPseudonyms(ctx context.Context, input *models.SearchPseudonymsInput) (int64, error) {
-	// Get all pseudonyms from database
-	pseudonyms, err := dbmodels.Pseudonyms.Query().All(ctx, h.db)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get pseudonyms: %w", err)
-	}
-
 	query := strings.ToLower(input.Query)
-	var total int64
 
-	log.Info().Int("total_pseudonyms_for_counting", len(pseudonyms)).Str("query", query).Msg("Search: Counting matching pseudonyms")
+	// Build database query with WHERE clauses for better performance
+	queryBuilder := dbmodels.Pseudonyms.Query(
+		sm.Where(psql.Group(psql.Or(
+			dbmodels.PseudonymColumns.DisplayName.ILike(psql.Arg("%"+query+"%")),
+			dbmodels.PseudonymColumns.Slug.ILike(psql.Arg("%"+query+"%")),
+			dbmodels.PseudonymColumns.Bio.ILike(psql.Arg("%"+query+"%")),
+		))),
+	)
 
-	// Count matching pseudonyms
-	for _, pseudonym := range pseudonyms {
-		// Check if pseudonym display name matches query
-		if strings.Contains(strings.ToLower(pseudonym.DisplayName), query) {
-			log.Debug().Str("pseudonym_id", pseudonym.PseudonymID).Str("display_name", pseudonym.DisplayName).Msg("Search: Count: Pseudonym matched by display name")
-			total++
-			continue
-		}
-
-		// Check if pseudonym slug matches query
-		if pseudonym.Slug.Valid && strings.Contains(strings.ToLower(pseudonym.Slug.V), query) {
-			log.Debug().Str("pseudonym_id", pseudonym.PseudonymID).Str("slug", pseudonym.Slug.V).Msg("Search: Count: Pseudonym matched by slug")
-			total++
-			continue
-		}
-
-		// Check if pseudonym bio matches query
-		if pseudonym.Bio.Valid && strings.Contains(strings.ToLower(pseudonym.Bio.V), query) {
-			log.Debug().Str("pseudonym_id", pseudonym.PseudonymID).Str("bio", pseudonym.Bio.V).Msg("Search: Count: Pseudonym matched by bio")
-			total++
-			continue
-		}
+	// Execute count query
+	pseudonyms, err := queryBuilder.All(ctx, h.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count pseudonyms: %w", err)
 	}
 
+	total := int64(len(pseudonyms))
 	log.Info().Int64("total_matching_pseudonyms", total).Str("query", query).Msg("Search: Count completed")
 
 	return total, nil
@@ -1086,46 +1006,25 @@ func (h *SearchHandler) countSearchPseudonyms(ctx context.Context, input *models
 
 // countSearchPseudonymsPublic counts the total number of pseudonyms matching the search criteria for public search
 func (h *SearchHandler) countSearchPseudonymsPublic(ctx context.Context, input *models.PublicSearchPseudonymsInput) (int64, error) {
-	// Get all pseudonyms from database
-	pseudonyms, err := dbmodels.Pseudonyms.Query().All(ctx, h.db)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get pseudonyms: %w", err)
-	}
-
 	query := strings.ToLower(input.Query)
-	var total int64
 
-	log.Info().Int("total_pseudonyms_for_counting", len(pseudonyms)).Str("query", query).Msg("Public Search: Counting matching pseudonyms")
+	// Build database query with WHERE clauses for better performance
+	queryBuilder := dbmodels.Pseudonyms.Query(
+		sm.Where(dbmodels.PseudonymColumns.IsActive.EQ(psql.Arg(true))),
+		sm.Where(psql.Group(psql.Or(
+			dbmodels.PseudonymColumns.DisplayName.ILike(psql.Arg("%"+query+"%")),
+			dbmodels.PseudonymColumns.Slug.ILike(psql.Arg("%"+query+"%")),
+			dbmodels.PseudonymColumns.Bio.ILike(psql.Arg("%"+query+"%")),
+		))),
+	)
 
-	// Count matching pseudonyms
-	for _, pseudonym := range pseudonyms {
-		// Only count active pseudonyms
-		if !pseudonym.IsActive.Valid || !pseudonym.IsActive.V {
-			continue
-		}
-
-		// Check if pseudonym display name matches query
-		if strings.Contains(strings.ToLower(pseudonym.DisplayName), query) {
-			log.Debug().Str("pseudonym_id", pseudonym.PseudonymID).Str("display_name", pseudonym.DisplayName).Msg("Public Search: Count: Pseudonym matched by display name")
-			total++
-			continue
-		}
-
-		// Check if pseudonym slug matches query
-		if pseudonym.Slug.Valid && strings.Contains(strings.ToLower(pseudonym.Slug.V), query) {
-			log.Debug().Str("pseudonym_id", pseudonym.PseudonymID).Str("slug", pseudonym.Slug.V).Msg("Public Search: Count: Pseudonym matched by slug")
-			total++
-			continue
-		}
-
-		// Check if pseudonym bio matches query
-		if pseudonym.Bio.Valid && strings.Contains(strings.ToLower(pseudonym.Bio.V), query) {
-			log.Debug().Str("pseudonym_id", pseudonym.PseudonymID).Str("bio", pseudonym.Bio.V).Msg("Public Search: Count: Pseudonym matched by bio")
-			total++
-			continue
-		}
+	// Execute count query
+	pseudonyms, err := queryBuilder.All(ctx, h.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count pseudonyms: %w", err)
 	}
 
+	total := int64(len(pseudonyms))
 	log.Info().Int64("total_matching_pseudonyms", total).Str("query", query).Msg("Public Search: Count completed")
 
 	return total, nil
