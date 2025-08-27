@@ -156,8 +156,8 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
 
     // Validate co-moderators for democratic subforums
     if (isDemocraticSubforum) {
-      if (selectedCoModerators.length !== 2) {
-        setError('Democratic subforums require exactly 2 co-moderators');
+      if (selectedCoModerators.length > 2) {
+        setError('Democratic subforums can have at most 2 co-moderators');
         return;
       }
     }
@@ -365,9 +365,9 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
               {isDemocraticSubforum && (
                 <div className="space-y-4">
                   <div>
-                    <Label className="mb-2 block">Co-Moderators *</Label>
+                    <Label className="mb-2 block">Co-Moderators</Label>
                     <p className="text-sm text-muted-foreground mb-3">
-                      Democratic subforums require exactly 2 co-moderators. You cannot select your own pseudonym.
+                      Democratic subforums can have up to 2 co-moderators (optional). You cannot select your own pseudonym.
                     </p>
                     
                     {/* Selected Co-Moderators */}
@@ -449,12 +449,9 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
                     )}
 
                     {/* Validation Message */}
-                    {selectedCoModerators.length !== 2 && (
+                    {selectedCoModerators.length > 2 && (
                       <p className="text-sm text-amber-600">
-                        {selectedCoModerators.length === 0 
-                          ? 'Please select 2 co-moderators to continue.'
-                          : `Please select ${2 - selectedCoModerators.length} more co-moderator${2 - selectedCoModerators.length === 1 ? '' : 's'}.`
-                        }
+                        Democratic subforums can have at most 2 co-moderators.
                       </p>
                     )}
                   </div>
