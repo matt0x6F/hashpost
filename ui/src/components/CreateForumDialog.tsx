@@ -156,8 +156,8 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
 
     // Validate co-moderators for democratic subforums
     if (isDemocraticSubforum) {
-      if (selectedCoModerators.length !== 2) {
-        setError('Democratic subforums require exactly 2 co-moderators');
+      if (selectedCoModerators.length > 4) {
+        setError('Democratic subforums can have at most 4 co-moderators');
         return;
       }
     }
@@ -355,7 +355,7 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   {isDemocraticSubforum 
-                    ? 'Topical and Geographic communities use Democratic governance and require 2 co-moderators'
+                    ? 'Topical and Geographic communities use Democratic governance'
                     : 'Branded and Creator communities use Owned governance'
                   }
                 </p>
@@ -365,9 +365,9 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
               {isDemocraticSubforum && (
                 <div className="space-y-4">
                   <div>
-                    <Label className="mb-2 block">Co-Moderators *</Label>
+                    <Label className="mb-2 block">Co-Moderators</Label>
                     <p className="text-sm text-muted-foreground mb-3">
-                      Democratic subforums require exactly 2 co-moderators. You cannot select your own pseudonym.
+                      Democratic subforums can have up to 4 co-moderators (optional). You cannot select your own pseudonym.
                     </p>
                     
                     {/* Selected Co-Moderators */}
@@ -404,7 +404,7 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
                           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                           <Input
                             type="text"
-                            placeholder="Search for pseudonyms by display name or email..."
+                            placeholder="Search for pseudonyms by display name, slug, or ID"
                             value={searchQuery}
                             onChange={(e) => {
                               const query = e.target.value;
@@ -449,12 +449,9 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
                     )}
 
                     {/* Validation Message */}
-                    {selectedCoModerators.length !== 2 && (
+                    {selectedCoModerators.length > 4 && (
                       <p className="text-sm text-amber-600">
-                        {selectedCoModerators.length === 0 
-                          ? 'Please select 2 co-moderators to continue.'
-                          : `Please select ${2 - selectedCoModerators.length} more co-moderator${2 - selectedCoModerators.length === 1 ? '' : 's'}.`
-                        }
+                        Democratic subforums can have at most 4 co-moderators.
                       </p>
                     )}
                   </div>
