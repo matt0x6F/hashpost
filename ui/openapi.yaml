@@ -7700,7 +7700,7 @@ paths:
         - Search
   /search/pseudonyms:
     get:
-      description: Search for pseudonyms by display name, slug, or bio. Requires platform admin role.
+      description: Search for pseudonyms by display name, slug, or ID. Requires platform admin role.
       operationId: search-pseudonyms
       parameters:
         - description: Bearer token for API authentication
@@ -7755,14 +7755,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
-      security:
-        - jwt: []
-      summary: Search for pseudonyms by display name, slug, or bio
+      summary: Search for pseudonyms by display name, slug, or ID
       tags:
         - Search
   /search/pseudonyms/public:
     get:
-      description: Search for active pseudonyms by display name, slug, or bio. This endpoint is public and doesn't require authentication. Used for selecting co-moderators when creating democratic subforums.
+      description: Search for active pseudonyms by display name, slug, or ID. This endpoint is public and doesn't require authentication. Used for selecting co-moderators when creating democratic subforums.
       operationId: search-pseudonyms-public
       parameters:
         - example: john

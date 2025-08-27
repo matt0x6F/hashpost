@@ -924,7 +924,7 @@ func (h *SearchHandler) searchPseudonyms(ctx context.Context, input *models.Sear
 		sm.Where(psql.Group(psql.Or(
 			dbmodels.PseudonymColumns.DisplayName.ILike(psql.Arg("%"+query+"%")),
 			dbmodels.PseudonymColumns.Slug.ILike(psql.Arg("%"+query+"%")),
-			dbmodels.PseudonymColumns.Bio.ILike(psql.Arg("%"+query+"%")),
+			dbmodels.PseudonymColumns.PseudonymID.ILike(psql.Arg("%"+query+"%")),
 		))),
 		sm.Limit(limit),
 		sm.Offset((page-1)*limit),
@@ -961,7 +961,7 @@ func (h *SearchHandler) searchPseudonymsPublic(ctx context.Context, input *model
 		sm.Where(psql.Group(psql.Or(
 			dbmodels.PseudonymColumns.DisplayName.ILike(psql.Arg("%"+query+"%")),
 			dbmodels.PseudonymColumns.Slug.ILike(psql.Arg("%"+query+"%")),
-			dbmodels.PseudonymColumns.Bio.ILike(psql.Arg("%"+query+"%")),
+			dbmodels.PseudonymColumns.PseudonymID.ILike(psql.Arg("%"+query+"%")),
 		))),
 		sm.Limit(limit),
 		sm.Offset((page-1)*limit),
@@ -988,7 +988,7 @@ func (h *SearchHandler) countSearchPseudonyms(ctx context.Context, input *models
 		sm.Where(psql.Group(psql.Or(
 			dbmodels.PseudonymColumns.DisplayName.ILike(psql.Arg("%"+query+"%")),
 			dbmodels.PseudonymColumns.Slug.ILike(psql.Arg("%"+query+"%")),
-			dbmodels.PseudonymColumns.Bio.ILike(psql.Arg("%"+query+"%")),
+			dbmodels.PseudonymColumns.PseudonymID.ILike(psql.Arg("%"+query+"%")),
 		))),
 	)
 
@@ -1014,7 +1014,7 @@ func (h *SearchHandler) countSearchPseudonymsPublic(ctx context.Context, input *
 		sm.Where(psql.Group(psql.Or(
 			dbmodels.PseudonymColumns.DisplayName.ILike(psql.Arg("%"+query+"%")),
 			dbmodels.PseudonymColumns.Slug.ILike(psql.Arg("%"+query+"%")),
-			dbmodels.PseudonymColumns.Bio.ILike(psql.Arg("%"+query+"%")),
+			dbmodels.PseudonymColumns.PseudonymID.ILike(psql.Arg("%"+query+"%")),
 		))),
 	)
 
