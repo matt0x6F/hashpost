@@ -45,4 +45,14 @@ func RegisterSearchRoutes(api huma.API, db bob.Executor, ibeSystem *ibe.IBESyste
 		Tags:        []string{"Search"},
 		Security:    []map[string][]string{{"jwt": {}}},
 	}, searchHandler.SearchPseudonyms)
+
+	// Public search pseudonyms (no auth required, for co-moderator selection)
+	huma.Register(api, huma.Operation{
+		OperationID: "search-pseudonyms-public",
+		Method:      http.MethodGet,
+		Path:        "/search/pseudonyms/public",
+		Summary:     "Search for pseudonyms publicly (for co-moderator selection)",
+		Description: "Search for active pseudonyms by display name, slug, or bio. This endpoint is public and doesn't require authentication. Used for selecting co-moderators when creating democratic subforums.",
+		Tags:        []string{"Search"},
+	}, searchHandler.PublicSearchPseudonyms)
 }
