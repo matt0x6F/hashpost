@@ -93,6 +93,9 @@ func TestSubforumHandler_CreateSubforum_PermissionWorkflow(t *testing.T) {
 		// The handler calls UpdateLastActive on the pseudonym DAO
 		mockPseudonymDAO.On("UpdateLastActive", mock.Anything, pseudonymID).Return(nil)
 
+		// Mock: Creator's pseudonym validation (new validation logic)
+		mockPseudonymDAO.On("GetUserIDByPseudonym", mock.Anything, pseudonymID, constants.RolePlatformAdmin, constants.ScopeCorrelation).Return(userID, nil)
+
 		// Mock: Post-creation permission verification
 		// After creation, the user should have subforum owner role and all moderation capabilities in their subforum
 		expectedRoles := []string{constants.RoleUser, constants.RoleSubforumOwner}
