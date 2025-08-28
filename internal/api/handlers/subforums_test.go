@@ -748,12 +748,18 @@ func TestSubforumHandler_CreateSubforum(t *testing.T) {
 					mockRoleKeyDAO.On("CreateRoleKeyWithIBE", mock.Anything, constants.RoleElectedModerator, constants.ScopeModeration, mock.Anything, mock.Anything, "test-pseudonym-id", mock.Anything, mock.Anything).Return(&dbmodels.RoleKey{}, nil).Times(3)
 
 					// Add mocks for democratic validation
-					for _, coModID := range tt.input.Body.CoModerators {
-						mockPseudonymDAO.On("ArePseudonymsOwnedBySameUser", mock.Anything, "test-pseudonym-id", coModID).Return(false, nil)
+					// Mock creator's pseudonym validation
+					mockPseudonymDAO.On("GetUserIDByPseudonym", mock.Anything, "test-pseudonym-id", constants.RolePlatformAdmin, constants.ScopeCorrelation).Return(int64(1), nil)
+
+					for i, coModID := range tt.input.Body.CoModerators {
+						// Note: The new validation logic checks user uniqueness by comparing user IDs
+						// rather than calling ArePseudonymsOwnedBySameUser
 						mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, coModID).Return(&dbmodels.Pseudonym{PseudonymID: coModID}, nil)
-						mockPseudonymDAO.On("GetUserIDByPseudonym", mock.Anything, coModID, constants.RolePlatformAdmin, constants.ScopeCorrelation).Return(int64(2), nil)
-						mockUserDAO.On("GetUserByID", mock.Anything, int64(2)).Return(&dbmodels.User{
-							UserID:        2,
+						// Use different user IDs for each co-moderator to satisfy the uniqueness requirement
+						userID := int64(2 + i) // co-mod-1 gets user 2, co-mod-2 gets user 3
+						mockPseudonymDAO.On("GetUserIDByPseudonym", mock.Anything, coModID, constants.RolePlatformAdmin, constants.ScopeCorrelation).Return(userID, nil)
+						mockUserDAO.On("GetUserByID", mock.Anything, userID).Return(&dbmodels.User{
+							UserID:        userID,
 							IsActive:      sql.Null[bool]{V: true, Valid: true},
 							EmailVerified: sql.Null[bool]{V: true, Valid: true},
 						}, nil)
@@ -852,9 +858,11 @@ func TestGovernanceStyleEnforcement(t *testing.T) {
 
 			// Set up democratic validation mocks if needed
 			if tt.expectedGovernance == constants.GovernanceStyleDemocratic {
-				// Mock pseudonym ownership validation - co-moderators not owned by same user
-				mockPseudonymDAO.On("ArePseudonymsOwnedBySameUser", mock.Anything, "test-pseudonym-id", "co-mod-1").Return(false, nil)
-				mockPseudonymDAO.On("ArePseudonymsOwnedBySameUser", mock.Anything, "test-pseudonym-id", "co-mod-2").Return(false, nil)
+				// Mock creator's pseudonym validation
+				mockPseudonymDAO.On("GetUserIDByPseudonym", mock.Anything, "test-pseudonym-id", constants.RolePlatformAdmin, constants.ScopeCorrelation).Return(int64(1), nil)
+
+				// Note: The new validation logic checks user uniqueness by comparing user IDs
+				// rather than calling ArePseudonymsOwnedBySameUser
 
 				// Mock pseudonym existence validation
 				mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, "co-mod-1").Return(&dbmodels.Pseudonym{

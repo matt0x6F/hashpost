@@ -175,3 +175,29 @@ code, pre, .font-mono {
 .dark .recharts-cartesian-axis-line {
   stroke: #323846 !important;
 }
+
+/* Sidebar responsive behavior */
+.sidebar {
+  transition: transform 0.3s ease-in-out;
+  will-change: transform;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 40;
+  }
+}
+
+@media (min-width: 768px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 40;
+  }
+}
