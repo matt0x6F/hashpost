@@ -186,7 +186,11 @@ export function EngagementAnalytics({ subforumPath, timeRange = '30d' }: Engagem
           <div>
             <h3 className="text-lg font-semibold mb-4">Combined Activity</h3>
             <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={chartData} style={chartStyle}>
+              <AreaChart 
+                data={chartData} 
+                style={chartStyle}
+                margin={{ left: -10, right: 10, top: 5, bottom: 5 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#323846' : '#e5e5e5'} />
                 <XAxis 
                   dataKey="date" 
@@ -234,7 +238,11 @@ export function EngagementAnalytics({ subforumPath, timeRange = '30d' }: Engagem
           <div>
             <h3 className="text-lg font-semibold mb-4">Voting Activity</h3>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData} style={chartStyle}>
+              <BarChart 
+                data={chartData} 
+                style={chartStyle}
+                margin={{ left: -10, right: 10, top: 5, bottom: 5 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#323846' : '#e5e5e5'} />
                 <XAxis 
                   dataKey="date" 
@@ -270,7 +278,11 @@ export function EngagementAnalytics({ subforumPath, timeRange = '30d' }: Engagem
           <div>
             <h3 className="text-lg font-semibold mb-4">Content Creation Trend</h3>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={chartData} style={chartStyle}>
+              <LineChart 
+                data={chartData} 
+                style={chartStyle}
+                margin={{ left: -10, right: 10, top: 5, bottom: 5 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#323846' : '#e5e5e5'} />
                 <XAxis 
                   dataKey="date" 

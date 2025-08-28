@@ -30,16 +30,16 @@ This document outlines the design for democratic governance in HashPost subforum
 ```mermaid
 graph TD
     %% Democratic Subforum Creation Flow
-    A[User Creates Democratic Subforum<br/>t/ or g/ type] --> B[User must select 2 other<br/>pseudonyms as co-moderators]
+    A[User Creates Democratic Subforum<br/>t/ or g/ type] --> B[User can optionally select<br/>up to 2 co-moderators]
     
     B --> C{Validate Pseudonyms}
     C -->|❌ Owned by creator| D[❌ Reject: IBE detects<br/>same user ownership]
     C -->|❌ Unverified users| E[❌ Reject: Must be<br/>verified active users]
     C -->|✅ Valid| F[Create subforum with<br/>owner_pseudonym_id = NULL]
     
-    F --> G[Create 3 elected_moderator<br/>role keys for all 3 pseudonyms]
+    F --> G[Create elected_moderator<br/>role keys for all moderators]
     
-    G --> H[All 3 moderators have:<br/>🗳️ elected_moderator role<br/>🔒 Cannot be removed<br/>✅ Full mod capabilities<br/>⚖️ Equal status - no founder privilege]
+    G --> H[All moderators have:<br/>🗳️ elected_moderator role<br/>🔒 Cannot be removed<br/>✅ Full mod capabilities<br/>⚖️ Equal status - no founder privilege]
     
     H --> I[Democratic subforum operational<br/>with elected moderator team]
     
@@ -57,17 +57,18 @@ graph TD
 
 #### Initial Setup Requirements
 1. **No Special Creator Role**: Creator becomes one of the elected moderators (NOT subforum_owner)
-2. **Minimum Team**: Must select 2 other pseudonyms as elected moderators (3 total minimum)
-3. **Pseudonym Validation**: Other pseudonyms must be:
+2. **Flexible Team Size**: Can start with just the creator (single moderator) or add up to 4 co-moderators
+3. **Pseudonym Validation**: Co-moderators must be:
    - Not owned by the creator (verified via IBE system)
    - Tied to active and verified users
 4. **No Owner**: `owner_pseudonym_id` remains NULL
 
 #### Bootstrap Phase Rules
-- All 3 initial moderators have `elected_moderator` role and cannot be removed
+- All initial moderators (creator + optional co-moderators) have `elected_moderator` role and cannot be removed
 - All elected moderators have full moderation capabilities
 - No special privileges for the subforum creator - they're just one of the elected moderators
 - Community operates under initial elected moderator team until election threshold
+- Single moderator communities are valid and can add co-moderators later through the democratic process
 
 ### Role Type Comparison
 
@@ -208,7 +209,7 @@ When democratic communities face crisis:
 - Add `elected_moderator` and `appointed_moderator` role constants and definitions
 - Add new role entries to `role_definitions` database table  
 - Modify subforum creation to not assign owner role for democratic communities
-- Require user to select 2 other pseudonyms as co-moderators during creation
+- Allow single moderator with optional co-moderators (up to 4 total)
 - Validate selected pseudonyms are not owned by creator (via IBE) and tied to verified users
 
 ### Phase 2: Election Infrastructure (Future)
@@ -385,3 +386,10 @@ This phased approach allows us to:
 4. **Maintain flexibility** for crisis management and platform evolution
 
 The key insight is that true democracy requires mature, engaged communities - but we can establish democratic principles from day one through proper role assignment and governance structure.
+
+### Future Enhancements
+
+- **Election Thresholds**: Implement subforum-specific thresholds for moderator elections
+- **Co-Moderator Limits**: Allow communities to set their own co-moderator limits (currently max 4)
+- **Moderator Removal**: Add democratic processes for removing problematic moderators
+- **Term Limits**: Implement optional term limits for elected moderators

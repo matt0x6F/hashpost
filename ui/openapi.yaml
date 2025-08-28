@@ -2970,6 +2970,63 @@ components:
         - comment_count
         - slug
       type: object
+    PublicSearchPseudonym:
+      additionalProperties: false
+      properties:
+        bio:
+          examples:
+            - Software developer
+          type: string
+        display_name:
+          examples:
+            - john_doe
+          type: string
+        is_active:
+          examples:
+            - true
+          type: boolean
+        pseudonym_id:
+          examples:
+            - abc123def456...
+          type: string
+        slug:
+          examples:
+            - john_doe
+          type: string
+      required:
+        - pseudonym_id
+        - display_name
+        - slug
+        - bio
+        - is_active
+      type: object
+    PublicSearchPseudonymsResponseBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/PublicSearchPseudonymsResponseBody.json
+          format: uri
+          readOnly: true
+          type: string
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+        pseudonyms:
+          items:
+            $ref: "#/components/schemas/PublicSearchPseudonym"
+          type:
+            - array
+            - "null"
+        query:
+          examples:
+            - john
+          type: string
+      required:
+        - query
+        - pseudonyms
+        - pagination
+      type: object
     RefreshTokenBody:
       additionalProperties: false
       properties:
@@ -5479,6 +5536,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - jwt: []
       summary: Delete a comment (user-initiated)
       tags:
         - Content
@@ -5528,6 +5587,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - jwt: []
       summary: Edit a comment
       tags:
         - Content
@@ -5578,6 +5639,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - jwt: []
       summary: Remove or restore a comment
       tags:
         - Moderation
@@ -5628,6 +5691,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - jwt: []
       summary: Report a comment
       tags:
         - Moderation
@@ -5678,6 +5743,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - jwt: []
       summary: Vote on a comment
       tags:
         - Content
@@ -5717,6 +5784,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - jwt: []
       summary: Request fingerprint-based correlation for moderation
       tags:
         - Correlation
@@ -5776,6 +5845,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - jwt: []
       summary: Get correlation request history
       tags:
         - Correlation
@@ -5815,6 +5886,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - jwt: []
       summary: Request identity-based correlation for platform-wide investigations
       tags:
         - Correlation
@@ -5884,6 +5957,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - jwt: []
       summary: Get direct messages for the current user
       tags:
         - Messages
@@ -5922,6 +5997,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - jwt: []
       summary: Send a direct message to another user
       tags:
         - Messages
@@ -6411,6 +6488,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - jwt: []
       summary: Delete post by user
       tags:
         - Content
@@ -6499,6 +6578,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - jwt: []
       summary: Edit a post
       tags:
         - Content
@@ -6549,6 +6630,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - jwt: []
       summary: Create a comment on a post
       tags:
         - Content
@@ -6599,6 +6682,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - jwt: []
       summary: Lock or unlock a post (moderators only)
       tags:
         - Moderation
@@ -6649,6 +6734,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - jwt: []
       summary: Remove or restore a post (moderators only)
       tags:
         - Moderation
@@ -6699,6 +6786,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - jwt: []
       summary: Sticky or unsticky a post (moderators only)
       tags:
         - Moderation
@@ -6749,6 +6838,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - jwt: []
       summary: Vote on a post
       tags:
         - Content
@@ -7609,7 +7700,7 @@ paths:
         - Search
   /search/pseudonyms:
     get:
-      description: Search for pseudonyms by display name, slug, or bio. Requires platform admin role.
+      description: Search for pseudonyms by display name, slug, or ID. Requires platform admin role.
       operationId: search-pseudonyms
       parameters:
         - description: Bearer token for API authentication
@@ -7664,7 +7755,55 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
-      summary: Search for pseudonyms by display name, slug, or bio
+      summary: Search for pseudonyms by display name, slug, or ID
+      tags:
+        - Search
+  /search/pseudonyms/public:
+    get:
+      description: Search for active pseudonyms by display name, slug, or ID. This endpoint is public and doesn't require authentication. Used for selecting co-moderators when creating democratic subforums.
+      operationId: search-pseudonyms-public
+      parameters:
+        - example: john
+          explode: false
+          in: query
+          name: q
+          required: true
+          schema:
+            examples:
+              - john
+            type: string
+        - example: 1
+          explode: false
+          in: query
+          name: page
+          schema:
+            examples:
+              - 1
+            format: int64
+            type: integer
+        - example: 25
+          explode: false
+          in: query
+          name: limit
+          schema:
+            examples:
+              - 25
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicSearchPseudonymsResponseBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Search for pseudonyms publicly (for co-moderator selection)
       tags:
         - Search
   /search/users:
@@ -7724,6 +7863,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - jwt: []
       summary: Search for users by display name
       tags:
         - Search
@@ -7936,6 +8077,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - jwt: []
       summary: Create a new post
       tags:
         - Content

@@ -644,61 +644,76 @@ func (h *SubforumHandler) CreateSubforum(ctx context.Context, input *models.Subf
 	case constants.CommunityTypeTopical, constants.CommunityTypeGeographic:
 		governanceStyle = constants.GovernanceStyleDemocratic
 
-		// Validate democratic governance requirements
-		if len(input.Body.CoModerators) != 2 {
-			return nil, huma.Error400BadRequest("democratic subforums require exactly 2 co-moderators")
+		// Validate democratic governance requirements - allow single moderator with optional co-moderators
+		if len(input.Body.CoModerators) > 4 {
+			return nil, huma.Error400BadRequest("democratic subforums can have at most 4 co-moderators")
 		}
 
-		// Validate co-moderators are not owned by the creator
-		for _, coModPseudonymID := range input.Body.CoModerators {
-			if coModPseudonymID == userCtx.ActivePseudonymID {
-				return nil, huma.Error400BadRequest("cannot select your own pseudonym as co-moderator")
+		// Only run pseudonym validation if there are co-moderators
+		if len(input.Body.CoModerators) > 0 {
+			// Collect all pseudonyms for uniqueness validation (creator + co-moderators)
+			allPseudonyms := append([]string{userCtx.ActivePseudonymID}, input.Body.CoModerators...)
+
+			// First pass: validate that all pseudonyms are owned by unique users
+			userIDs := make(map[int64]string)           // userID -> pseudonymID for tracking
+			pseudonymToUserID := make(map[string]int64) // pseudonymID -> userID for reverse lookup
+
+			for _, pseudonymID := range allPseudonyms {
+				// Get user ID for this pseudonym using platform admin correlation
+				userID, err := h.pseudonymDAO.GetUserIDByPseudonym(ctx, pseudonymID, constants.RolePlatformAdmin, constants.ScopeCorrelation)
+				if err != nil {
+					log.Error().Err(err).Str("pseudonym_id", pseudonymID).Msg("Failed to get user ID for pseudonym")
+					return nil, huma.Error400BadRequest("invalid pseudonym")
+				}
+
+				// Check if this user ID is already associated with another pseudonym
+				if existingPseudonymID, exists := userIDs[userID]; exists {
+					return nil, huma.Error400BadRequest(fmt.Sprintf("pseudonyms %s and %s are owned by the same user - all moderators must be different users", existingPseudonymID, pseudonymID))
+				}
+
+				// Track this user ID
+				userIDs[userID] = pseudonymID
+				pseudonymToUserID[pseudonymID] = userID
 			}
 
-			// Check if co-moderator pseudonym is owned by the same user (IBE validation)
-			isOwnedBySameUser, err := h.pseudonymDAO.ArePseudonymsOwnedBySameUser(ctx, userCtx.ActivePseudonymID, coModPseudonymID)
-			if err != nil {
-				log.Error().Err(err).
-					Str("creator_pseudonym", userCtx.ActivePseudonymID).
-					Str("co_moderator_pseudonym", coModPseudonymID).
-					Msg("Failed to validate pseudonym ownership")
-				return nil, huma.Error500InternalServerError("failed to validate co-moderator")
-			}
-			if isOwnedBySameUser {
-				return nil, huma.Error400BadRequest("co-moderators must be owned by different users")
-			}
+			// Second pass: validate co-moderator pseudonym existence and user status
+			for _, pseudonymID := range allPseudonyms {
+				// Skip validation for creator pseudonym
+				if pseudonymID == userCtx.ActivePseudonymID {
+					continue
+				}
 
-			// Validate co-moderator pseudonym exists
-			pseudonym, err := h.pseudonymDAO.GetPseudonymByID(ctx, coModPseudonymID)
-			if err != nil {
-				log.Error().Err(err).Str("pseudonym_id", coModPseudonymID).Msg("Failed to get co-moderator pseudonym")
-				return nil, huma.Error400BadRequest("invalid co-moderator pseudonym")
-			}
-			if pseudonym == nil {
-				return nil, huma.Error400BadRequest("co-moderator pseudonym not found")
-			}
+				// Validate co-moderator pseudonym exists
+				pseudonym, err := h.pseudonymDAO.GetPseudonymByID(ctx, pseudonymID)
+				if err != nil {
+					log.Error().Err(err).Str("pseudonym_id", pseudonymID).Msg("Failed to get co-moderator pseudonym")
+					return nil, huma.Error400BadRequest("invalid co-moderator pseudonym")
+				}
+				if pseudonym == nil {
+					return nil, huma.Error400BadRequest("co-moderator pseudonym not found")
+				}
 
-			// Get user ID for this pseudonym using platform admin correlation
-			userID, err := h.pseudonymDAO.GetUserIDByPseudonym(ctx, coModPseudonymID, constants.RolePlatformAdmin, constants.ScopeCorrelation)
-			if err != nil {
-				log.Error().Err(err).Str("pseudonym_id", coModPseudonymID).Msg("Failed to get user ID for co-moderator pseudonym")
-				return nil, huma.Error400BadRequest("invalid co-moderator pseudonym")
-			}
+				// Get user ID for this pseudonym (we already validated it exists in the map)
+				userID, ok := pseudonymToUserID[pseudonymID]
+				if !ok {
+					return nil, huma.Error400BadRequest("co-moderator pseudonym to user mapping not found")
+				}
 
-			// Check if the user is active and verified
-			user, err := h.userDAO.GetUserByID(ctx, userID)
-			if err != nil {
-				log.Error().Err(err).Int64("user_id", userID).Msg("Failed to get co-moderator user")
-				return nil, huma.Error400BadRequest("invalid co-moderator user")
-			}
-			if user == nil {
-				return nil, huma.Error400BadRequest("co-moderator user not found")
-			}
-			if !user.IsActive.Valid || !user.IsActive.V {
-				return nil, huma.Error400BadRequest("co-moderator user account is not active")
-			}
-			if !user.EmailVerified.Valid || !user.EmailVerified.V {
-				return nil, huma.Error400BadRequest("co-moderator user email is not verified")
+				// Check if the user is active and verified
+				user, err := h.userDAO.GetUserByID(ctx, userID)
+				if err != nil {
+					log.Error().Err(err).Int64("user_id", userID).Msg("Failed to get co-moderator user")
+					return nil, huma.Error400BadRequest("invalid co-moderator user")
+				}
+				if user == nil {
+					return nil, huma.Error400BadRequest("co-moderator user not found")
+				}
+				if !user.IsActive.Valid || !user.IsActive.V {
+					return nil, huma.Error400BadRequest("co-moderator user account is not active")
+				}
+				if !user.EmailVerified.Valid || !user.EmailVerified.V {
+					return nil, huma.Error400BadRequest("co-moderator user email is not verified")
+				}
 			}
 		}
 
@@ -784,7 +799,7 @@ func (h *SubforumHandler) CreateSubforum(ctx context.Context, input *models.Subf
 			// Don't fail the subforum creation, but log the error
 		}
 	} else if governanceStyle == constants.GovernanceStyleDemocratic {
-		// Create elected_moderator role keys for all 3 moderators (creator + 2 co-moderators)
+		// Create elected_moderator role keys for all moderators (creator + optional co-moderators)
 		electedModCapabilities := constants.GetRoleCapabilities(constants.RoleElectedModerator)
 		allModerators := append([]string{userCtx.ActivePseudonymID}, input.Body.CoModerators...)
 
