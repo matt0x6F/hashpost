@@ -45,7 +45,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
-    "@openapitools/openapi-generator-cli": "^2.21.4",
+    "@openapitools/openapi-generator-cli": "^2.22.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^24",
     "@types/react": "^19",
