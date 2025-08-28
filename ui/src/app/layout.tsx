@@ -1,5 +1,5 @@
 "use client";
-import { SidebarProvider, SidebarTrigger } from "../components/shadcn/sidebar";
+import { SidebarProvider, useSidebar } from "../components/shadcn/sidebar";
 import { AppSidebar } from "../components/Sidebar";
 import TopBar from "../components/TopBar";
 import { Geist, Geist_Mono } from "next/font/google";
@@ -18,6 +18,24 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+function LayoutContent({ children }: { children: React.ReactNode }) {
+  const { open, setOpen } = useSidebar();
+  
+  return (
+    <div className="flex flex-col h-screen">
+      <TopBar onMenuClick={() => setOpen(!open)} />
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar is positioned fixed, so we just render it once */}
+        <AppSidebar />
+        {/* Main content with left margin on desktop to account for fixed sidebar */}
+        <main className="flex-1 p-2 sm:p-4 md:p-6 bg-background overflow-y-auto md:ml-64">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
@@ -30,16 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         >
           <AuthProvider>
             <SidebarProvider>
-              <div className="flex flex-col h-screen">
-                <TopBar />
-                <div className="flex flex-1 overflow-hidden">
-                  <AppSidebar />
-                  <main className="flex-1 p-4 md:p-6 bg-background overflow-y-auto">
-                    <SidebarTrigger />
-                    {children}
-                  </main>
-                </div>
-              </div>
+              <LayoutContent>{children}</LayoutContent>
             </SidebarProvider>
           </AuthProvider>
           <Toaster />

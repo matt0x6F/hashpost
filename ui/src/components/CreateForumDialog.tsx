@@ -7,11 +7,13 @@ import { Input } from './shadcn/input';
 import { Label } from './shadcn/label';
 import { Textarea } from './shadcn/textarea';
 import { Checkbox } from './shadcn/checkbox';
-import { Plus, Loader2 } from 'lucide-react';
+import { Plus, Loader2, Search, X, User } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { getApi } from '@/lib/api-client';
 import { SubforumsApi } from '@/generated/api/src/apis/SubforumsApi';
+import { SearchApi } from '@/generated/api/src/apis/SearchApi';
 import type { SubforumCreateBody } from '@/generated/api/src/models/SubforumCreateBody';
+import type { PublicSearchPseudonym } from '@/generated/api/src/models/PublicSearchPseudonym';
 import { toast } from 'sonner';
 import { RulesEditor, type Rule } from './RulesEditor';
 
@@ -36,8 +38,17 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
     isRestricted: false,
     rulesText: '',
     sidebarText: '',
+    coModerators: [],
   });
   const [rules, setRules] = useState<Rule[]>([]);
+
+  // Co-moderator search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<PublicSearchPseudonym[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [selectedCoModerators, setSelectedCoModerators] = useState<PublicSearchPseudonym[]>([]);
+
+  const isDemocraticSubforum = formData.communityType === 't' || formData.communityType === 'g';
 
   const handleInputChange = (field: keyof SubforumCreateBody, value: string | boolean) => {
     setFormData(prev => ({
@@ -57,6 +68,68 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
         slug,
       }));
     }
+
+    // Reset co-moderators when community type changes
+    if (field === 'communityType') {
+      setSelectedCoModerators([]);
+      setFormData(prev => ({
+        ...prev,
+        coModerators: [],
+      }));
+    }
+  };
+
+  const searchPseudonyms = async (query: string) => {
+    if (!query.trim() || query.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const searchApi = getApi(SearchApi);
+      const response = await searchApi.searchPseudonymsPublic(query, 1, 25);
+      setSearchResults(response.pseudonyms || []);
+    } catch (error) {
+      console.error('Error searching pseudonyms:', error);
+      toast.error('Failed to search pseudonyms');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const addCoModerator = (pseudonym: PublicSearchPseudonym) => {
+    // Check if already selected
+    if (selectedCoModerators.some(cm => cm.pseudonymId === pseudonym.pseudonymId)) {
+      toast.error('This pseudonym is already selected as a co-moderator');
+      return;
+    }
+
+    // Check if it's the user's own pseudonym
+    if (pseudonym.pseudonymId === user?.activePseudonymId) {
+      toast.error('You cannot select your own pseudonym as a co-moderator');
+      return;
+    }
+
+    const newCoModerators = [...selectedCoModerators, pseudonym];
+    setSelectedCoModerators(newCoModerators);
+    setFormData(prev => ({
+      ...prev,
+      coModerators: newCoModerators.map(cm => cm.pseudonymId),
+    }));
+
+    // Clear search
+    setSearchQuery('');
+    setSearchResults([]);
+  };
+
+  const removeCoModerator = (pseudonymId: string) => {
+    const newCoModerators = selectedCoModerators.filter(cm => cm.pseudonymId !== pseudonymId);
+    setSelectedCoModerators(newCoModerators);
+    setFormData(prev => ({
+      ...prev,
+      coModerators: newCoModerators.map(cm => cm.pseudonymId),
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -79,6 +152,14 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
     if (!formData.slug.trim()) {
       setError('Slug is required');
       return;
+    }
+
+    // Validate co-moderators for democratic subforums
+    if (isDemocraticSubforum) {
+      if (selectedCoModerators.length > 4) {
+        setError('Democratic subforums can have at most 4 co-moderators');
+        return;
+      }
     }
 
     setIsLoading(true);
@@ -115,8 +196,10 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
         isRestricted: false,
         rulesText: '',
         sidebarText: '',
+        coModerators: [],
       });
       setRules([]);
+      setSelectedCoModerators([]);
       
       // Show success toast using Sonner
       toast.success(`Forum "${response.subforum.communityType}/${response.subforum.name}" created successfully!`, {
@@ -158,7 +241,7 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create New Forum</DialogTitle>
         </DialogHeader>
@@ -258,10 +341,10 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
               <div>
                 <Label htmlFor="governanceStyle" className="mb-1 block">Governance Style</Label>
                 <div className="w-full h-10 px-3 py-2 border border-input bg-background rounded-md text-sm flex items-center text-muted-foreground">
-                  {formData.communityType === 't' || formData.communityType === 'g' ? (
+                  {isDemocraticSubforum ? (
                     <>
                       <span className="font-medium text-foreground">Democratic</span>
-                      <span className="ml-2">- Owner commits to elected moderators</span>
+                      <span className="ml-2">- Community elects moderators, creator becomes initial moderator</span>
                     </>
                   ) : (
                     <>
@@ -271,12 +354,109 @@ export function CreateForumDialog({ onForumCreated, children }: CreateForumDialo
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {formData.communityType === 't' || formData.communityType === 'g' 
+                  {isDemocraticSubforum 
                     ? 'Topical and Geographic communities use Democratic governance'
                     : 'Branded and Creator communities use Owned governance'
                   }
                 </p>
               </div>
+
+              {/* Co-Moderator Selection for Democratic Subforums */}
+              {isDemocraticSubforum && (
+                <div className="space-y-4">
+                  <div>
+                    <Label className="mb-2 block">Co-Moderators</Label>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Democratic subforums can have up to 4 co-moderators (optional). You cannot select your own pseudonym.
+                    </p>
+                    
+                    {/* Selected Co-Moderators */}
+                    {selectedCoModerators.length > 0 && (
+                      <div className="space-y-2 mb-4">
+                        <Label className="text-sm font-medium">Selected Co-Moderators ({selectedCoModerators.length}/4)</Label>
+                        <div className="space-y-2">
+                          {selectedCoModerators.map((coMod) => (
+                            <div key={coMod.pseudonymId} className="flex items-center justify-between p-3 bg-muted rounded-md">
+                              <div className="flex items-center gap-2">
+                                <User className="w-4 h-4 text-muted-foreground" />
+                                <span className="font-medium">{coMod.displayName}</span>
+                                <span className="text-sm text-muted-foreground">@{coMod.slug}</span>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeCoModerator(coMod.pseudonymId)}
+                                className="h-8 w-8 p-0"
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Co-Moderator Search */}
+                    {selectedCoModerators.length < 4 && (
+                      <div className="space-y-3">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Input
+                            type="text"
+                            placeholder="Search for pseudonyms by display name, slug, or ID"
+                            value={searchQuery}
+                            onChange={(e) => {
+                              const query = e.target.value;
+                              setSearchQuery(query);
+                              if (query.trim()) {
+                                searchPseudonyms(query);
+                              } else {
+                                setSearchResults([]);
+                              }
+                            }}
+                            className="pl-10"
+                          />
+                        </div>
+
+                        {/* Search Results */}
+                        {searchResults.length > 0 && (
+                          <div className="border rounded-md max-h-48 overflow-y-auto">
+                            {searchResults.map((result) => (
+                              <button
+                                key={result.pseudonymId}
+                                type="button"
+                                onClick={() => addCoModerator(result)}
+                                className="w-full p-3 text-left hover:bg-muted border-b last:border-b-0 transition-colors"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <User className="w-4 h-4 text-muted-foreground" />
+                                  <span className="font-medium">{result.displayName}</span>
+                                  <span className="text-sm text-muted-foreground">@{result.slug}</span>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {isSearching && (
+                          <div className="flex items-center justify-center py-4">
+                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                            <span className="text-sm text-muted-foreground">Searching...</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Validation Message */}
+                    {selectedCoModerators.length > 4 && (
+                      <p className="text-sm text-amber-600">
+                        Democratic subforums can have at most 4 co-moderators.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-3">
                 <Label className="mb-1 block">Forum Settings</Label>

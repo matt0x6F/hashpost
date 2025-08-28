@@ -31,6 +31,13 @@ type SearchPseudonymsInput struct {
 	Limit int    `query:"limit" example:"25"`
 }
 
+// PublicSearchPseudonymsInput represents public search pseudonyms request parameters (no auth required)
+type PublicSearchPseudonymsInput struct {
+	Query string `query:"q" example:"john" required:"true"`
+	Page  int    `query:"page" example:"1"`
+	Limit int    `query:"limit" example:"25"`
+}
+
 // SearchPost represents a search result post
 type SearchPost struct {
 	PostID       int          `json:"post_id" example:"123"`
@@ -76,6 +83,15 @@ type SearchPseudonym struct {
 	Slug                string `json:"slug" example:"john_doe"`
 }
 
+// PublicSearchPseudonym represents a public search result pseudonym (limited info for co-moderator selection)
+type PublicSearchPseudonym struct {
+	PseudonymID string `json:"pseudonym_id" example:"abc123def456..."`
+	DisplayName string `json:"display_name" example:"john_doe"`
+	Slug        string `json:"slug" example:"john_doe"`
+	Bio         string `json:"bio" example:"Software developer"`
+	IsActive    bool   `json:"is_active" example:"true"`
+}
+
 // SearchPostsResponseBody represents the body of search posts response
 type SearchPostsResponseBody struct {
 	Query      string       `json:"query" example:"golang concurrency"`
@@ -97,6 +113,13 @@ type SearchPseudonymsResponseBody struct {
 	Pagination Pagination        `json:"pagination"`
 }
 
+// PublicSearchPseudonymsResponseBody represents the body of public search pseudonyms response
+type PublicSearchPseudonymsResponseBody struct {
+	Query      string                  `json:"query" example:"john"`
+	Pseudonyms []PublicSearchPseudonym `json:"pseudonyms"`
+	Pagination Pagination              `json:"pagination"`
+}
+
 // SearchPostsResponse represents search posts response
 type SearchPostsResponse struct {
 	Status int                     `json:"-" example:"200"`
@@ -113,6 +136,12 @@ type SearchUsersResponse struct {
 type SearchPseudonymsResponse struct {
 	Status int                          `json:"-" example:"200"`
 	Body   SearchPseudonymsResponseBody `json:"body"`
+}
+
+// PublicSearchPseudonymsResponse represents public search pseudonyms response
+type PublicSearchPseudonymsResponse struct {
+	Status int                                 `json:"-" example:"200"`
+	Body   PublicSearchPseudonymsResponseBody `json:"body"`
 }
 
 // NewSearchPostsResponse creates a new search posts response
@@ -160,6 +189,25 @@ func NewSearchPseudonymsResponse(query string, pseudonyms []SearchPseudonym, pag
 	return &SearchPseudonymsResponse{
 		Status: 200,
 		Body: SearchPseudonymsResponseBody{
+			Query:      query,
+			Pseudonyms: pseudonyms,
+			Pagination: Pagination{
+				Page:  page,
+				Limit: limit,
+				Total: total,
+				Pages: pages,
+			},
+		},
+	}
+}
+
+// NewPublicSearchPseudonymsResponse creates a new public search pseudonyms response
+func NewPublicSearchPseudonymsResponse(query string, pseudonyms []PublicSearchPseudonym, page, limit, total int) *PublicSearchPseudonymsResponse {
+	pages := (total + limit - 1) / limit // Ceiling division
+
+	return &PublicSearchPseudonymsResponse{
+		Status: 200,
+		Body: PublicSearchPseudonymsResponseBody{
 			Query:      query,
 			Pseudonyms: pseudonyms,
 			Pagination: Pagination{
