@@ -130,6 +130,10 @@ func NewServerForOpenAPI() *Server {
 	// Register only the routes that don't require IBE or database
 	// These are typically just the basic structure routes
 	routes.RegisterHealthRoutes(api)
+	
+	// Register search routes for OpenAPI generation (they don't require database connections)
+	// We'll create minimal mock dependencies for the search handler
+	routes.RegisterSearchRoutes(api, nil, nil)
 
 	return &Server{
 		API:       api,

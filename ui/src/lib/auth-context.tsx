@@ -60,8 +60,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Try to authenticate using tokens in cookies
         const authResult = await authenticateUser();
         
-        		// Debug: checkAuth result logged
-        
         if (authResult) {
           // If we already have a user, update their data instead of calling login
           if (user) {
@@ -127,9 +125,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Login response has pseudonyms array, registration response has pseudonymId
     const isLoginResponse = 'pseudonyms' in userData;
     
-    // Debug logging for capabilities
-    		// Debug: userData capabilities and roles logged
-    
     const normalizedUser: User = {
       userId: userData.userId,
       email: userData.email,
@@ -153,8 +148,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshToken: userData.refreshToken,
     };
     
-    		// Debug: normalized user capabilities logged
-    
     setUser(normalizedUser);
     // Store user data in localStorage (excluding sensitive tokens)
     const userDataToStore = {
@@ -165,34 +158,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     localStorage.setItem('hashpost_user', JSON.stringify(userDataToStore));
     
-    // After login, immediately fetch full user data to get capabilities
-    // This is needed because login response has empty capabilities
-    		// Debug: login complete, fetching full user data
-    try {
-      const fullUserData = await authenticateUser();
-      if (fullUserData && fullUserData.capabilities && fullUserData.capabilities.length > 0) {
-        		// Debug: got full user data with capabilities
-        // Update user with full capabilities
-        const updatedUser: User = {
-          ...normalizedUser,
-          roles: fullUserData.roles || normalizedUser.roles,
-          capabilities: fullUserData.capabilities || normalizedUser.capabilities,
-          activePseudonymId: fullUserData.activePseudonymID || normalizedUser.activePseudonymId,
-          displayName: fullUserData.displayName || normalizedUser.displayName,
-          pseudonyms: fullUserData.pseudonyms || normalizedUser.pseudonyms,
-        };
-        setUser(updatedUser);
-        
-        // Update localStorage
-        const userDataToStore = {
-          ...updatedUser,
-          accessToken: undefined,
-          refreshToken: undefined,
-        };
-        localStorage.setItem('hashpost_user', JSON.stringify(userDataToStore));
+    // Only fetch global user data if we don't already have subforum-specific capabilities
+    // This prevents overwriting subforum capabilities with global ones
+    if (!normalizedUser.capabilities || normalizedUser.capabilities.length === 0) {
+      try {
+        const fullUserData = await authenticateUser();
+        if (fullUserData && fullUserData.capabilities && fullUserData.capabilities.length > 0) {
+          // Update user with global capabilities
+          const updatedUser: User = {
+            ...normalizedUser,
+            roles: fullUserData.roles || normalizedUser.roles,
+            capabilities: fullUserData.capabilities || normalizedUser.capabilities,
+            activePseudonymId: fullUserData.activePseudonymID || normalizedUser.activePseudonymId,
+            displayName: fullUserData.displayName || normalizedUser.displayName,
+            pseudonyms: fullUserData.pseudonyms || normalizedUser.pseudonyms,
+          };
+          setUser(updatedUser);
+          
+          // Update localStorage
+          const userDataToStore = {
+            ...updatedUser,
+            accessToken: undefined,
+            refreshToken: undefined,
+          };
+          localStorage.setItem('hashpost_user', JSON.stringify(userDataToStore));
+        }
+      } catch (error) {
+        console.error('Failed to fetch global user data after login:', error);
       }
-    } catch (error) {
-      console.error('Failed to fetch full user data after login:', error);
     }
   };
 
@@ -213,13 +206,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Refresh user data from server
   const refreshUser = async () => {
-    		// Debug: refreshUser called, current user status logged
     try {
       const authResult = await authenticateUser();
       if (authResult) {
         // Update existing user data instead of calling login to avoid infinite loop
         if (user) {
-          			// Debug: updating existing user with fresh data
           const updatedUser: User = {
             ...user,
             roles: authResult.roles || user.roles,
@@ -240,12 +231,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           };
           localStorage.setItem('hashpost_user', JSON.stringify(userDataToStore));
         } else {
-          		// Debug: no existing user, calling login
           // No existing user, use login function
           login(authResult);
         }
       } else {
-        		// Debug: no auth result, clearing user
         setUser(null);
         localStorage.removeItem('hashpost_user');
       }

@@ -8,7 +8,23 @@ const SidebarContext = React.createContext<{
 } | null>(null);
 
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
-  const [open, setOpen] = React.useState(true);
+  // Start with sidebar closed by default to avoid mobile flash
+  const [open, setOpen] = React.useState(false);
+  
+  // Update state when component mounts and screen size changes
+  React.useEffect(() => {
+    const handleResize = () => {
+      const isDesktop = window.innerWidth >= 768;
+      setOpen(isDesktop);
+    };
+    
+    // Set initial state based on current screen size
+    handleResize();
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
   return (
     <SidebarContext.Provider value={{ open, setOpen }}>
       {children}
@@ -23,19 +39,77 @@ export function useSidebar() {
 }
 
 export function Sidebar({ children }: { children: React.ReactNode }) {
-  const { open } = useSidebar();
+  const { open, setOpen } = useSidebar();
+  const [isDesktop, setIsDesktop] = React.useState(false);
+  
+  React.useEffect(() => {
+    const checkScreenSize = () => {
+      setIsDesktop(window.innerWidth >= 768);
+    };
+    
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
+  
+  const handleBackdropClick = () => {
+    if (!isDesktop) { // Only close on mobile
+      setOpen(false);
+    }
+  };
+  
   return (
-    <aside
-      data-open={open}
-      className={`sidebar fixed md:static z-40 md:z-auto h-full w-64 bg-zinc-900 border-r border-zinc-800 transition-transform duration-200 ${open ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
-    >
-      {children}
-    </aside>
+    <>
+      {/* Backdrop overlay for mobile only */}
+      <div 
+        className={`fixed inset-0 bg-black/50 z-30 md:hidden transition-opacity duration-300 ease-in-out ${
+          open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        }`}
+        onClick={handleBackdropClick}
+      />
+      <aside
+        data-open={open}
+        className={`sidebar transition-transform duration-300 ease-in-out ${
+          isDesktop 
+            ? 'fixed top-0 left-0 z-40 h-full w-64 bg-sidebar border-r border-sidebar-border' 
+            : 'fixed top-0 left-0 z-40 h-full w-64 bg-sidebar border-r border-sidebar-border'
+        }`}
+        style={{
+          transform: isDesktop ? 'translateX(0)' : (open ? 'translateX(0)' : 'translateX(-100%)')
+        }}
+      >
+        {children}
+      </aside>
+    </>
   );
 }
 
 export function SidebarContent({ children }: { children: React.ReactNode }) {
-  return <div className="flex flex-col h-full overflow-y-auto">{children}</div>;
+  const { open, setOpen } = useSidebar();
+  
+  return (
+    <div className="flex flex-col h-full overflow-y-auto p-4">
+      {/* Collapse/Expand button */}
+      <div className="flex justify-end mb-4">
+        <button
+          onClick={() => setOpen(!open)}
+          className="p-2 rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+          aria-label={open ? "Collapse sidebar" : "Expand sidebar"}
+        >
+          {open ? (
+            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m15 18-6-6-6 6"/>
+            </svg>
+          ) : (
+            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m9 18 6-6-6-6"/>
+            </svg>
+          )}
+        </button>
+      </div>
+      {children}
+    </div>
+  );
 }
 
 export function SidebarGroup({ children }: { children: React.ReactNode }) {

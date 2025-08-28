@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { getApi } from "@/lib/api-client";
 import { SearchApi } from "@/generated/api/src/apis/SearchApi";
 import { SearchPseudonym } from "@/generated/api/src/models/SearchPseudonym";
+import { Label } from "@/components/shadcn/label";
 
 
 export function UserManagementTab() {
@@ -161,20 +162,30 @@ export function UserManagementTab() {
             Search Pseudonyms
           </CardTitle>
           <CardDescription>
-            Search for pseudonyms by display name, slug, or bio
+            Search for pseudonyms by display name, slug, or ID
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSearch} className="flex gap-2">
-            <Input
-              placeholder="Search by display name, slug, or bio..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1"
-            />
-            <Button type="submit" disabled={isLoading || !searchQuery.trim()}>
-              {isLoading ? "Searching..." : "Search"}
-            </Button>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="search" className="text-sm font-medium">
+                  Search for pseudonyms by display name, slug, or ID
+                </Label>
+                <div className="mt-2 flex gap-2">
+                  <Input
+                    id="search"
+                    placeholder="Search by display name, slug, or ID..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button type="submit" disabled={isLoading || !searchQuery.trim()}>
+                    {isLoading ? "Searching..." : "Search"}
+                  </Button>
+                </div>
+              </div>
+            </div>
           </form>
         </CardContent>
       </Card>
