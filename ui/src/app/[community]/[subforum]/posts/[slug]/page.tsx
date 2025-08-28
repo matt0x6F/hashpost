@@ -6,7 +6,7 @@ import { Button } from '@/components/shadcn/button';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { getApi } from '@/lib/api-client';
-import { ContentApi } from '@/generated/api/src/apis/ContentApi';
+import { ContentApi, ModerationApi } from '@/generated/api/src';
 import { PostDetailsResponseBody } from '@/generated/api/src/models';
 import { toast } from 'sonner';
 import { 
@@ -216,16 +216,16 @@ export default function PostPage() {
     }
     setIsLoading(true);
     try {
-      const contentApi = getApi(ContentApi);
+      const moderationApi = getApi(ModerationApi);
       switch (action) {
         case 'lock':
-          await contentApi.lockPost(postDetails.postId, { locked: value });
+          await moderationApi.lockPost(postDetails.postId, { locked: value });
           break;
         case 'sticky':
-          await contentApi.stickyPost(postDetails.postId, { sticky: value });
+          await moderationApi.stickyPost(postDetails.postId, { sticky: value });
           break;
         case 'remove':
-          await contentApi.removePost(postDetails.postId, { removed: value });
+          await moderationApi.removePost(postDetails.postId, { removed: value });
           break;
       }
       setPostDetails(prev => prev ? {
@@ -245,7 +245,7 @@ export default function PostPage() {
 
   if (isLoading) {
     return (
-      <div className="max-w-7xl mx-auto p-4">
+      <div className="max-w-7xl mx-auto p-2 sm:p-4">
         <div className="flex items-center gap-4 mb-8">
           <div className="h-8 w-8 bg-muted animate-pulse rounded" />
           <div className="h-8 w-32 bg-muted animate-pulse rounded" />
@@ -261,7 +261,7 @@ export default function PostPage() {
 
   if (error || !postDetails) {
     return (
-      <div className="max-w-7xl mx-auto p-4">
+      <div className="max-w-7xl mx-auto p-2 sm:p-4">
         <div className="flex items-center gap-4 mb-8">
           <Link href="/forums">
             <Button variant="outline" size="sm">
@@ -289,7 +289,7 @@ export default function PostPage() {
   const { comments } = postDetails;
 
   return (
-    <div className="max-w-7xl mx-auto p-4">
+    <div className="max-w-7xl mx-auto p-2 sm:p-4">
       {/* Navigation */}
       <div className="flex items-center gap-4 mb-8">
         <Link href={`/${communityType}/${postDetails.subforum.name}`}>

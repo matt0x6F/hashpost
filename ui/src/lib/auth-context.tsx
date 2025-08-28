@@ -34,9 +34,9 @@ export interface Pseudonym {
 }
 
 interface AuthContextType {
-  user: User | null;
+  user: User | null | undefined;
   isLoading: boolean;
-  login: (userData: UserLoginResponseBody | UserRegistrationResponseBody) => void;
+  login: (userData: UserLoginResponseBody | UserRegistrationResponseBody) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
   updateUserWithSubforumData: (userData: UserLoginResponseBody) => void;
@@ -61,11 +61,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const authResult = await authenticateUser();
         
         if (authResult) {
-          login(authResult);
+          // If we already have a user, update their data instead of calling login
+          if (user) {
+            // Update existing user with fresh data from server
+            const updatedUser: User = {
+              ...user,
+              roles: authResult.roles || user.roles,
+              capabilities: authResult.capabilities || user.capabilities,
+              activePseudonymId: authResult.activePseudonymId || user.activePseudonymId,
+              displayName: authResult.displayName || user.displayName,
+              pseudonyms: authResult.pseudonyms || user.pseudonyms,
+            };
+            setUser(updatedUser);
+            
+            // Update localStorage
+            const userDataToStore = {
+              ...updatedUser,
+              accessToken: undefined,
+              refreshToken: undefined,
+            };
+            localStorage.setItem('hashpost_user', JSON.stringify(userDataToStore));
+          } else {
+            // No existing user, use login function
+            await login(authResult);
+          }
         } else {
           // Clear any stale localStorage data when server says user is not authenticated
           localStorage.removeItem('hashpost_user');
-          setUser(null);
+          // Don't set user to null here - let it remain undefined until we're sure
         }
       } catch (error) {
         if (error instanceof AuthRefreshFailedError) {
@@ -77,8 +100,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           
           if (isPublicPage) {
             // Don't redirect on public pages, just clear the user state
-            setUser(null);
             localStorage.removeItem('hashpost_user');
+            // Don't set user to null here
           } else {
             // Refresh failed: log out and redirect
             await logout(getNearestUnprotectedPage());
@@ -88,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('Error checking authentication:', error);
         // Clear invalid data
         localStorage.removeItem('hashpost_user');
-        setUser(null);
+        // Don't set user to null here
       } finally {
         setIsLoading(false);
       }
@@ -97,7 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkAuth();
   }, []);
 
-  const login = (userData: UserLoginResponseBody | UserRegistrationResponseBody) => {
+  const login = async (userData: UserLoginResponseBody | UserRegistrationResponseBody) => {
     // Handle both login and registration responses
     // Login response has pseudonyms array, registration response has pseudonymId
     const isLoginResponse = 'pseudonyms' in userData;
@@ -134,6 +157,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshToken: undefined,
     };
     localStorage.setItem('hashpost_user', JSON.stringify(userDataToStore));
+    
+    // Only fetch global user data if we don't already have subforum-specific capabilities
+    // This prevents overwriting subforum capabilities with global ones
+    if (!normalizedUser.capabilities || normalizedUser.capabilities.length === 0) {
+      try {
+        const fullUserData = await authenticateUser();
+        if (fullUserData && fullUserData.capabilities && fullUserData.capabilities.length > 0) {
+          // Update user with global capabilities
+          const updatedUser: User = {
+            ...normalizedUser,
+            roles: fullUserData.roles || normalizedUser.roles,
+            capabilities: fullUserData.capabilities || normalizedUser.capabilities,
+            activePseudonymId: fullUserData.activePseudonymID || normalizedUser.activePseudonymId,
+            displayName: fullUserData.displayName || normalizedUser.displayName,
+            pseudonyms: fullUserData.pseudonyms || normalizedUser.pseudonyms,
+          };
+          setUser(updatedUser);
+          
+          // Update localStorage
+          const userDataToStore = {
+            ...updatedUser,
+            accessToken: undefined,
+            refreshToken: undefined,
+          };
+          localStorage.setItem('hashpost_user', JSON.stringify(userDataToStore));
+        }
+      } catch (error) {
+        console.error('Failed to fetch global user data after login:', error);
+      }
+    }
   };
 
   // Enhance logout to accept optional redirect
@@ -156,7 +209,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const authResult = await authenticateUser();
       if (authResult) {
-        login(authResult);
+        // Update existing user data instead of calling login to avoid infinite loop
+        if (user) {
+          const updatedUser: User = {
+            ...user,
+            roles: authResult.roles || user.roles,
+            capabilities: authResult.capabilities || user.capabilities,
+            activePseudonymId: authResult.activePseudonymID || user.activePseudonymId,
+            displayName: authResult.displayName || user.displayName,
+            pseudonyms: authResult.pseudonyms || user.pseudonyms,
+            accessToken: user.accessToken, // Keep existing tokens
+            refreshToken: user.refreshToken,
+          };
+          setUser(updatedUser);
+          
+          // Update localStorage
+          const userDataToStore = {
+            ...updatedUser,
+            accessToken: undefined,
+            refreshToken: undefined,
+          };
+          localStorage.setItem('hashpost_user', JSON.stringify(userDataToStore));
+        } else {
+          // No existing user, use login function
+          login(authResult);
+        }
       } else {
         setUser(null);
         localStorage.removeItem('hashpost_user');

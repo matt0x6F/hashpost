@@ -395,12 +395,18 @@ ui-install:
 	@echo "Installing UI dependencies..."
 	cd ui && npm install
 
-ui-generate-api: clean build
-	@echo "Generating TypeScript API client from OpenAPI spec (offline)..."
-	@echo "Generating OpenAPI spec first..."
-	./bin/hashpost openapi --output ui/openapi.json --format json
+ui-generate-api:
+	@echo "Generating TypeScript API client from OpenAPI spec (from running server)..."
+	@echo "Downloading OpenAPI spec from server..."
+	@if ! curl -f -s http://localhost:8888/openapi.yaml > ui/openapi.yaml; then \
+		echo "❌ Failed to download OpenAPI spec from server"; \
+		echo "💡 Make sure the server is running on localhost:8888"; \
+		echo "💡 Run 'make run' in another terminal to start the server"; \
+		exit 1; \
+	fi
+	@echo "✅ OpenAPI spec downloaded successfully"
 	@echo "Generating TypeScript client..."
-	cd ui && npm run generate-api-local
+	cd ui && npm run generate-api
 
 ui-dev:
 	@echo "Starting UI development server..."

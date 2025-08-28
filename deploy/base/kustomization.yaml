@@ -47,9 +47,21 @@ configMapGenerator:
       - EMAIL_PROVIDER=mailgun
       - EMAIL_FROM_ADDRESS=noreply@hashpost.dev
       - EMAIL_FROM_NAME=HashPost
+      # Mailgun configuration
       - MAILGUN_DOMAIN=hashpost.dev
       - MAILGUN_BASE_URL=https://api.mailgun.net
       - MAILGUN_REGION=us
+      # Email validation configuration
+      - EMAIL_VALIDATION_ENABLED=true
+      - EMAIL_VALIDATION_VERIFIER_EMAIL=noreply@hashpost.dev
+      - EMAIL_VALIDATION_VERIFIER_SMTP_USER=noreply@hashpost.dev
+      - EMAIL_VALIDATION_SMTP_HOST=smtp.mailgun.org
+      - EMAIL_VALIDATION_SMTP_PORT=587
+      - EMAIL_VALIDATION_CONNECTION_TIMEOUT=5
+      - EMAIL_VALIDATION_RESPONSE_TIMEOUT=2
+      - EMAIL_VALIDATION_SMTP_FAIL_FAST=true
+      - EMAIL_VALIDATION_SMTP_SAFE_CHECK=true
+      - EMAIL_VALIDATION_LEVEL=smtp
 
 images:
   - name: hashpost-backend

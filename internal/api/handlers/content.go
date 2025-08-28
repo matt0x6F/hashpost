@@ -111,7 +111,7 @@ func NewContentHandler(
 ) *ContentHandler {
 	// If db is provided, create real DAOs (production mode)
 	if db != nil {
-		roleKeyDAO = dao.NewRoleKeyDAO(db)
+		roleKeyDAO = dao.NewRoleKeyDAO(db, nil)
 		userBlocksDAO = dao.NewUserBlocksDAO(db)
 
 		// Safe type assertions with error handling
@@ -779,6 +779,13 @@ func (h *ContentHandler) VoteOnPost(ctx context.Context, input *models.PostVoteI
 		return nil, err
 	}
 
+	// Update karma for the post author
+	err = h.pseudonymDAO.UpdateKarmaForPseudonym(ctx, post.PseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", post.PseudonymID).Msg("Failed to update karma for post author")
+		// Don't fail the request for this error
+	}
+
 	response := models.NewVoteResponse(int(postID), voteValue, score, upvotes, downvotes)
 
 	log.Info().
@@ -998,6 +1005,13 @@ func (h *ContentHandler) VoteOnComment(ctx context.Context, input *models.Commen
 		return nil, err
 	}
 
+	// Update karma for the comment author
+	err = h.pseudonymDAO.UpdateKarmaForPseudonym(ctx, comment.PseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", comment.PseudonymID).Msg("Failed to update karma for comment author")
+		// Don't fail the request for this error
+	}
+
 	response := models.NewCommentVoteResponse(int(commentID), voteValue, score, upvotes, downvotes)
 
 	log.Info().
@@ -1028,6 +1042,14 @@ func (h *ContentHandler) LockPost(ctx context.Context, input *models.PostLockInp
 	if err := h.postDAO.SetLocked(ctx, input.PostID, input.Body.Locked); err != nil {
 		return nil, fmt.Errorf("failed to update lock state: %w", err)
 	}
+
+	// Update last active timestamp for the pseudonym since moderation represents activity
+	err = h.pseudonymDAO.UpdateLastActive(ctx, userCtx.ActivePseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", userCtx.ActivePseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
+	}
+
 	post, err = h.postDAO.GetPostByID(ctx, input.PostID)
 	if err != nil || post == nil {
 		return nil, fmt.Errorf("failed to fetch post: %w", err)
@@ -1053,6 +1075,14 @@ func (h *ContentHandler) StickyPost(ctx context.Context, input *models.PostStick
 	if err := h.postDAO.SetSticky(ctx, input.PostID, input.Body.Sticky); err != nil {
 		return nil, fmt.Errorf("failed to update sticky state: %w", err)
 	}
+
+	// Update last active timestamp for the pseudonym since moderation represents activity
+	err = h.pseudonymDAO.UpdateLastActive(ctx, userCtx.ActivePseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", userCtx.ActivePseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
+	}
+
 	post, err = h.postDAO.GetPostByID(ctx, input.PostID)
 	if err != nil || post == nil {
 		return nil, fmt.Errorf("failed to fetch post: %w", err)
@@ -1078,6 +1108,14 @@ func (h *ContentHandler) RemovePost(ctx context.Context, input *models.PostRemov
 	if err := h.postDAO.SetRemoved(ctx, input.PostID, input.Body.Removed); err != nil {
 		return nil, fmt.Errorf("failed to update removed state: %w", err)
 	}
+
+	// Update last active timestamp for the pseudonym since moderation represents activity
+	err = h.pseudonymDAO.UpdateLastActive(ctx, userCtx.ActivePseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", userCtx.ActivePseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
+	}
+
 	post, err = h.postDAO.GetPostByID(ctx, input.PostID)
 	if err != nil || post == nil {
 		return nil, fmt.Errorf("failed to fetch post: %w", err)
@@ -1145,6 +1183,13 @@ func (h *ContentHandler) EditPost(ctx context.Context, input *models.PostEditInp
 	if err != nil {
 		log.Error().Err(err).Int64("post_id", postID).Msg("Failed to update post")
 		return nil, err
+	}
+
+	// Update last active timestamp for the pseudonym since editing represents activity
+	err = h.pseudonymDAO.UpdateLastActive(ctx, pseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", pseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
 	}
 
 	response := models.NewPostEditResponse(int(postID), title, content, pseudonymID, displayName, "", true)
@@ -1215,6 +1260,13 @@ func (h *ContentHandler) EditComment(ctx context.Context, input *models.CommentE
 	if err != nil {
 		log.Error().Err(err).Int64("comment_id", commentID).Msg("Failed to update comment")
 		return nil, err
+	}
+
+	// Update last active timestamp for the pseudonym since editing represents activity
+	err = h.pseudonymDAO.UpdateLastActive(ctx, pseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", pseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
 	}
 
 	// Convert parent comment ID for response
@@ -1304,6 +1356,13 @@ func (h *ContentHandler) RemoveComment(ctx context.Context, input *models.Commen
 		return nil, err
 	}
 
+	// Update last active timestamp for the pseudonym since moderation represents activity
+	err = h.pseudonymDAO.UpdateLastActive(ctx, pseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", pseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
+	}
+
 	response := models.NewCommentRemoveResponse(int(commentID), removed, reason, pseudonymID, displayName)
 
 	log.Info().
@@ -1389,6 +1448,13 @@ func (h *ContentHandler) ReportComment(ctx context.Context, input *models.Commen
 		return nil, huma.Error500InternalServerError("Failed to create report")
 	}
 
+	// Update last active timestamp for the pseudonym since reporting represents activity
+	err = h.pseudonymDAO.UpdateLastActive(ctx, pseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", pseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
+	}
+
 	response := models.NewCommentReportResponse(int(report.ReportID), int(commentID), reportReason, reportDetails, pseudonymID, displayName)
 
 	log.Info().
@@ -1417,6 +1483,13 @@ func (h *ContentHandler) DeletePost(ctx context.Context, input *models.PostDelet
 	if err != nil {
 		log.Error().Err(err).Int64("post_id", input.PostID).Str("pseudonym_id", pseudonymID).Msg("Failed to delete post by user")
 		return nil, huma.Error500InternalServerError("Failed to delete post")
+	}
+
+	// Update last active timestamp for the pseudonym since deleting represents activity
+	err = h.pseudonymDAO.UpdateLastActive(ctx, pseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", pseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
 	}
 
 	// Get user info for response
@@ -1464,6 +1537,13 @@ func (h *ContentHandler) DeleteComment(ctx context.Context, input *models.Commen
 	if err != nil {
 		log.Error().Err(err).Int64("comment_id", input.CommentID).Str("pseudonym_id", pseudonymID).Msg("Failed to delete comment by user")
 		return nil, huma.Error500InternalServerError("Failed to delete comment")
+	}
+
+	// Update last active timestamp for the pseudonym since deleting represents activity
+	err = h.pseudonymDAO.UpdateLastActive(ctx, pseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", pseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
 	}
 
 	// Get user info for response

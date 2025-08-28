@@ -16,6 +16,8 @@ RUN \
 
 # Rebuild the source code only when needed
 FROM base AS builder
+# Install Java for OpenAPI Generator CLI (use headless JRE for smaller image)
+RUN apk add --no-cache openjdk17-jre-headless
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -29,10 +31,10 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 # Disable telemetry during the build for production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Generate API client from OpenAPI spec (openapi.json should be present from CI)
-RUN if [ -f openapi.json ]; then \
+# Generate API client from OpenAPI spec (openapi.yaml should be present from CI)
+RUN if [ -f openapi.yaml ]; then \
         echo "🔄 Generating API client from OpenAPI spec..." && \
-        npx @openapitools/openapi-generator-cli generate -i ./openapi.json -g typescript-fetch -o src/generated/api -c openapi-generator-config.json; \
+        npx @openapitools/openapi-generator-cli generate -i ./openapi.yaml -g typescript-fetch -o src/generated/api -c openapi-generator-config.json; \
     else \
         echo "⚠️  OpenAPI spec not found, skipping API client generation" && \
         echo "    This is expected in development mode"; \

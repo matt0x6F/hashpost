@@ -9,31 +9,25 @@ import (
 	"github.com/matt0x6f/hashpost/internal/api/models"
 	"github.com/matt0x6f/hashpost/internal/database/dao"
 	"github.com/rs/zerolog/log"
-	"github.com/stephenafamo/bob"
 )
 
 // MessagesHandler handles direct message requests
 type MessagesHandler struct {
 	directMessageDAO dao.DirectMessageDAOInterface
 	userDAO          dao.UserDAOInterface
+	pseudonymDAO     dao.PseudonymDAOInterface
 }
 
-// NewMessagesHandler creates a new messages handler with optional dependencies
-// If db is provided, real DAOs will be created. If nil, mock DAOs should be provided.
+// NewMessagesHandler creates a new messages handler
 func NewMessagesHandler(
-	db bob.Executor,
 	directMessageDAO dao.DirectMessageDAOInterface,
 	userDAO dao.UserDAOInterface,
+	pseudonymDAO dao.PseudonymDAOInterface,
 ) *MessagesHandler {
-	// If db is provided, create real DAOs (production mode)
-	if db != nil {
-		directMessageDAO = dao.NewDirectMessageDAO(db)
-		userDAO = dao.NewUserDAO(db)
-	}
-
 	return &MessagesHandler{
 		directMessageDAO: directMessageDAO,
 		userDAO:          userDAO,
+		pseudonymDAO:     pseudonymDAO,
 	}
 }
 
@@ -62,6 +56,13 @@ func (h *MessagesHandler) SendDirectMessage(ctx context.Context, input *models.D
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to create direct message")
 		return nil, fmt.Errorf("failed to send message: %w", err)
+	}
+
+	// Update last active timestamp for the pseudonym since sending messages represents activity
+	err = h.pseudonymDAO.UpdateLastActive(ctx, user.ActivePseudonymID)
+	if err != nil {
+		log.Error().Err(err).Str("pseudonym_id", user.ActivePseudonymID).Msg("Failed to update pseudonym last active timestamp")
+		// Don't fail the request for this error
 	}
 
 	response := models.NewDirectMessageResponse(

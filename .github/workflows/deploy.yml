@@ -1,5 +1,6 @@
 permissions:
   contents: read
+  deployments: write
 name: Deploy HashPost
 
 on:
@@ -46,27 +47,41 @@ jobs:
           echo "overlay=production" >> $GITHUB_OUTPUT
           echo "namespace=hashpost-production" >> $GITHUB_OUTPUT
           echo "api_url=https://hashpost.dev/api" >> $GITHUB_OUTPUT
-        elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
-          echo "environment=testing" >> $GITHUB_OUTPUT
-          echo "image_tag=$(echo $GITHUB_SHA | head -c7)" >> $GITHUB_OUTPUT
+        elif [[ "${{ github.event_name }}" == "push" ]]; then
+          # Handle all branch pushes (main, feature branches, PR branches, etc.)
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "environment=testing" >> $GITHUB_OUTPUT
+            echo "image_tag=$(echo $GITHUB_SHA | head -c7)" >> $GITHUB_OUTPUT
+            echo "overlay=testing" >> $GITHUB_OUTPUT
+            echo "namespace=hashpost-testing" >> $GITHUB_OUTPUT
+            echo "api_url=https://testing.hashpost.dev/api" >> $GITHUB_OUTPUT
+          else
+            # Handle non-main branch pushes (feature branches, PR branches, etc.)
+            branch_name=$(echo "${{ github.ref }}" | sed 's/refs\/heads\///')
+            echo "environment=branch-testing" >> $GITHUB_OUTPUT
+            echo "image_tag=branch-${branch_name}-$(echo $GITHUB_SHA | head -c7)" >> $GITHUB_OUTPUT
+            echo "overlay=testing" >> $GITHUB_OUTPUT
+            echo "namespace=hashpost-testing" >> $GITHUB_OUTPUT
+            echo "api_url=https://testing.hashpost.dev/api" >> $GITHUB_OUTPUT
+          fi
+        elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+          echo "environment=pr-testing" >> $GITHUB_OUTPUT
+          echo "image_tag=pr-${{ github.event.number }}-$(echo $GITHUB_SHA | head -c7)" >> $GITHUB_OUTPUT
           echo "overlay=testing" >> $GITHUB_OUTPUT
           echo "namespace=hashpost-testing" >> $GITHUB_OUTPUT
           echo "api_url=https://testing.hashpost.dev/api" >> $GITHUB_OUTPUT
         else
-          echo "Skipping deployment - not a main branch push or release"
+          echo "Skipping deployment - not a push or PR event"
           exit 0
         fi
 
-    - name: Build backend container image and extract OpenAPI spec
+    - name: Build backend container image
       run: |
-        # Build backend image
+        echo "Building backend image..."
         docker build -t ${{ secrets.REGISTRY_NAME }}/hashpost-backend:${{ steps.deployment-env.outputs.image_tag }} \
-          --target production .
+          --target production . --progress=plain
         
-        # Extract OpenAPI spec for frontend build
-        docker create --name temp-backend ${{ secrets.REGISTRY_NAME }}/hashpost-backend:${{ steps.deployment-env.outputs.image_tag }}
-        docker cp temp-backend:/app/openapi.json ./ui/openapi.json
-        docker rm temp-backend
+        echo "Backend image built successfully"
 
     - name: Build frontend container image
       run: |
@@ -81,6 +96,15 @@ jobs:
       run: |
         docker push ${{ secrets.REGISTRY_NAME }}/hashpost-backend:${{ steps.deployment-env.outputs.image_tag }}
         docker push ${{ secrets.REGISTRY_NAME }}/hashpost-frontend:${{ steps.deployment-env.outputs.image_tag }}
+        
+        # Also push to latest tag for branch pushes (not releases)
+        if [[ "${{ github.event_name }}" == "push" ]]; then
+          echo "Tagging and pushing as latest..."
+          docker tag ${{ secrets.REGISTRY_NAME }}/hashpost-backend:${{ steps.deployment-env.outputs.image_tag }} ${{ secrets.REGISTRY_NAME }}/hashpost-backend:latest
+          docker tag ${{ secrets.REGISTRY_NAME }}/hashpost-frontend:${{ steps.deployment-env.outputs.image_tag }} ${{ secrets.REGISTRY_NAME }}/hashpost-frontend:latest
+          docker push ${{ secrets.REGISTRY_NAME }}/hashpost-backend:latest
+          docker push ${{ secrets.REGISTRY_NAME }}/hashpost-frontend:latest
+        fi
 
     - name: Install kubectl
       uses: azure/setup-kubectl@v4
@@ -130,3 +154,68 @@ jobs:
         # Get service endpoints
         kubectl get services -n ${{ steps.deployment-env.outputs.namespace }}
         kubectl get ingress -n ${{ steps.deployment-env.outputs.namespace }}
+
+    - name: Create GitHub Deployment
+      run: |
+        # Create a GitHub deployment record
+        deployment_url="https://api.github.com/repos/${{ github.repository }}/deployments"
+        
+        # Set description based on environment
+        if [[ "${{ steps.deployment-env.outputs.environment }}" == "production" ]]; then
+          description="Production deployment of ${{ github.event.release.tag_name }}"
+          environment="production"
+        elif [[ "${{ steps.deployment-env.outputs.environment }}" == "testing" ]]; then
+          description="Testing deployment of main branch"
+          environment="testing"
+        else
+          description="Branch deployment of ${{ github.ref_name }}"
+          environment="testing"
+        fi
+        
+        # Create deployment payload
+        payload='{
+          "ref": "${{ github.sha }}",
+          "task": "deploy",
+          "auto_merge": false,
+          "required_contexts": [],
+          "environment": "'$environment'",
+          "description": "'$description'",
+          "transient_environment": false
+        }'
+        
+        # Create deployment
+        response=$(curl -s -X POST \
+          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          -H "Content-Type: application/json" \
+          -d "$payload" \
+          "$deployment_url")
+        
+        deployment_id=$(echo "$response" | jq -r '.id')
+        
+        if [[ "$deployment_id" != "null" && "$deployment_id" != "" ]]; then
+          echo "GitHub deployment created with ID: $deployment_id"
+          
+          # Update deployment status to success
+          status_url="https://api.github.com/repos/${{ github.repository }}/deployments/$deployment_id/statuses"
+          status_payload='{
+            "state": "success",
+            "description": "Deployment completed successfully",
+            "environment_url": "${{ steps.deployment-env.outputs.api_url }}",
+            "log_url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          }'
+          
+          curl -s -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Content-Type: application/json" \
+            -d "$status_payload" \
+            "$status_url"
+          
+          echo "Deployment status updated to success"
+        else
+          echo "Failed to create GitHub deployment"
+          echo "Response: $response"
+        fi
+
+

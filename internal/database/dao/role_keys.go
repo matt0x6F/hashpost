@@ -25,21 +25,27 @@ type RoleKeyDAO struct {
 }
 
 // NewRoleKeyDAO creates a new RoleKeyDAO
-func NewRoleKeyDAO(db bob.Executor) *RoleKeyDAO {
-	// Try to create IBE system, but don't fail if it's not available (e.g., in tests)
-	var ibeSystem *ibe.IBESystem
-	defer func() {
-		if r := recover(); r != nil {
-			// In test environments, we might not have the IBE keys available
-			// We'll create a minimal IBE system for testing
-			ibeSystem = &ibe.IBESystem{}
-		}
-	}()
-	ibeSystem = ibe.NewIBESystemFromEnv()
+func NewRoleKeyDAO(db bob.Executor, ibeSystem *ibe.IBESystem) *RoleKeyDAO {
+	var system *ibe.IBESystem
+	
+	// If IBE system is provided, use it; otherwise create from environment
+	if ibeSystem != nil {
+		system = ibeSystem
+	} else {
+		// Fallback to environment-based creation for backward compatibility
+		defer func() {
+			if r := recover(); r != nil {
+				// In test environments, we might not have the IBE keys available
+				// We'll create a minimal IBE system for testing
+				system = &ibe.IBESystem{}
+			}
+		}()
+		system = ibe.NewIBESystemFromEnv()
+	}
 
 	return &RoleKeyDAO{
 		db:        db,
-		ibeSystem: ibeSystem,
+		ibeSystem: system,
 	}
 }
 

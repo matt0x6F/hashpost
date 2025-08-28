@@ -5,12 +5,13 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/matt0x6f/hashpost/internal/api/handlers"
+	"github.com/matt0x6f/hashpost/internal/database/dao"
 	"github.com/stephenafamo/bob"
 )
 
 // RegisterMessagesRoutes registers direct message routes
-func RegisterMessagesRoutes(api huma.API, db bob.Executor) {
-	messagesHandler := handlers.NewMessagesHandler(db, nil, nil)
+func RegisterMessagesRoutes(api huma.API, db bob.Executor, pseudonymDAO dao.PseudonymDAOInterface) {
+	messagesHandler := handlers.NewMessagesHandler(dao.NewDirectMessageDAO(db), dao.NewUserDAO(db), pseudonymDAO)
 
 	// Send direct message
 	huma.Register(api, huma.Operation{
@@ -20,6 +21,7 @@ func RegisterMessagesRoutes(api huma.API, db bob.Executor) {
 		Summary:     "Send a direct message to another user",
 		Description: "Send a direct message to another user",
 		Tags:        []string{"Messages"},
+		Security:    []map[string][]string{{"jwt": {}}},
 	}, messagesHandler.SendDirectMessage)
 
 	// Get direct messages
@@ -30,5 +32,6 @@ func RegisterMessagesRoutes(api huma.API, db bob.Executor) {
 		Summary:     "Get direct messages for the current user",
 		Description: "Get direct messages for the current user",
 		Tags:        []string{"Messages"},
+		Security:    []map[string][]string{{"jwt": {}}},
 	}, messagesHandler.GetDirectMessages)
 }

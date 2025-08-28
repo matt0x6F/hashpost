@@ -1,11 +1,13 @@
 import {
+  Sidebar,
+  SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
 } from "./shadcn/sidebar";
-import { Home, Radar, ChartNoAxesCombined, Users, Plus, X } from "lucide-react";
+import { Home, Radar, ChartNoAxesCombined, Users, Plus, X, Shield } from "lucide-react";
 import { CreateForumDialog } from "./CreateForumDialog";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
@@ -14,6 +16,7 @@ import { SubforumsApi } from "@/generated/api/src/apis/SubforumsApi";
 import { toast } from "sonner";
 import type { Subforum } from "@/generated/api/src/models";
 import type { CommunityType } from "@/lib/community-config";
+import Link from "next/link";
 
 const items = [
   { title: "Home", url: "/", icon: Home },
@@ -25,7 +28,8 @@ const items = [
 export function AppSidebar() {
   const [subscriptions, setSubscriptions] = useState<Subforum[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+
 
   const loadSubscriptions = async () => {
     if (!isAuthenticated || !user?.activePseudonymId) {
@@ -73,21 +77,21 @@ export function AppSidebar() {
   }, [isAuthenticated, user?.activePseudonymId]);
 
   return (
-    <aside className="md:block w-64 bg-sidebar border-r border-sidebar-border flex flex-col">
-      <div className="flex-1 overflow-y-auto p-4">
+    <Sidebar>
+      <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <a
+                    <Link
                       href={item.url}
                       className="flex items-center gap-3 px-3 py-2 rounded transition-colors text-sidebar-foreground font-medium font-sans hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                     >
                       <item.icon className="w-5 h-5" />
                       <span>{item.title}</span>
-                    </a>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -104,8 +108,25 @@ export function AppSidebar() {
           </CreateForumDialog>
         </div>
 
+        {/* Admin Section */}
+        {!authLoading && isAuthenticated && (user?.capabilities?.includes("system_admin") || user?.capabilities?.includes("user_management")) && (
+          <div className="mt-6 pt-6 border-t border-sidebar-border">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-medium text-sidebar-foreground">Administration</h3>
+            </div>
+            
+            <Link
+              href="/admin"
+              className="flex items-center gap-3 px-3 py-2 rounded transition-colors text-sidebar-foreground font-medium font-sans hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            >
+              <Shield className="w-5 h-5" />
+              <span>Platform Admin</span>
+            </Link>
+          </div>
+        )}
+
         {/* Subscriptions Section */}
-        {isAuthenticated && (
+        {!authLoading && isAuthenticated && (
           <div className="mt-6 pt-6 border-t border-sidebar-border">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-medium text-sidebar-foreground">Subscriptions</h3>
@@ -125,14 +146,14 @@ export function AppSidebar() {
                     key={subforum.name}
                     className="group relative flex items-center gap-2 px-3 py-2 rounded transition-colors text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   >
-                    <a
+                    <Link
                       href={`/${subforum.communityType}/${subforum.name}`}
                       className="flex-1 flex items-center gap-2 min-w-0"
                     >
                       <span className="text-xs font-medium truncate">
                         {subforum.communityType}/{subforum.name}
                       </span>
-                    </a>
+                    </Link>
                     
                     {/* Unsubscribe button - only visible on hover */}
                     <button
@@ -148,7 +169,7 @@ export function AppSidebar() {
             )}
           </div>
         )}
-      </div>
-    </aside>
+      </SidebarContent>
+    </Sidebar>
   );
 } 

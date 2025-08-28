@@ -18,6 +18,9 @@ HashPost provides a comprehensive forum platform with advanced features for cont
 - **Moderation & Safety** - Content moderation and user safety features
 - **Reporting & Moderation System** - Comprehensive reporting and moderation workflows
 - **Comments & Discussions** - Comprehensive comment system
+- **Karma System** - Reputation tracking through community voting and content quality
+- **Platform Administration** - Centralized platform management and system settings
+- **System Settings Management** - Platform-wide configuration and rules management
 
 ### 📋 **Planned Features**
 - **Search & Discovery System** - Content and user search capabilities
@@ -95,6 +98,30 @@ Comment system implementation and usage:
 - Moderation workflows
 - Thread management
 
+### [Karma System](karma.md)
+Comprehensive reputation and voting system:
+- Karma calculation and real-time updates
+- Content filtering and moderation integration
+- Design rationale and implementation details
+- Testing and debugging guidance
+- Performance considerations and future enhancements
+
+### [Platform Administration](platform-administration.md)
+Centralized platform management:
+- Role-based access control with capabilities
+- User management and administration
+- Content moderation tools
+- System analytics and monitoring
+- Platform rules configuration
+- Cross-user correlation tools
+
+### [System Settings](system-settings.md)
+Platform-wide configuration management:
+- Type-validated system settings
+- Platform rules storage and management
+- Admin-only access control
+- JSON-based configuration storage
+
 ### [Key Rotation Migration](key-rotation-migration.md)
 Advanced key rotation system:
 - Resumable migration capabilities
@@ -125,6 +152,7 @@ Advanced key rotation system:
 - Direct messaging
 - User blocking system
 - Community participation
+- **Karma System**: Reputation tracking through community voting
 
 ### Moderation & Safety
 - Content moderation
@@ -139,6 +167,9 @@ Advanced key rotation system:
 - System configuration
 - Performance monitoring
 - Compliance reporting
+- Platform administration dashboard
+- System settings management
+- Platform-wide rules configuration
 
 ## Related Documentation
 

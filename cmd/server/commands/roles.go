@@ -103,7 +103,7 @@ func SetupRoles(cfg *config.Config) error {
 	}
 
 	// Create role key DAO
-	roleKeyDAO := dao.NewRoleKeyDAO(db)
+	roleKeyDAO := dao.NewRoleKeyDAO(db, nil)
 
 	// Find a user to use as the creator for role keys
 	// First try to find any existing user
@@ -262,7 +262,7 @@ func ListRoleKeys() error {
 	}
 
 	// Create role key DAO
-	roleKeyDAO := dao.NewRoleKeyDAO(db)
+	roleKeyDAO := dao.NewRoleKeyDAO(db, nil)
 	ctx := context.Background()
 
 	// Get all active role keys
@@ -320,7 +320,7 @@ func RotateRoleKeys(roleName string, force bool, cfg *config.Config) error {
 	}
 
 	// Create role key DAO
-	roleKeyDAO := dao.NewRoleKeyDAO(db)
+	roleKeyDAO := dao.NewRoleKeyDAO(db, nil)
 	ctx := context.Background()
 
 	// Define all roles and their capabilities (same as SetupRoles)

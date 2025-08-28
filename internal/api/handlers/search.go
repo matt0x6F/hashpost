@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/matt0x6f/hashpost/internal/api/constants"
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	"github.com/matt0x6f/hashpost/internal/api/models"
@@ -13,6 +14,8 @@ import (
 	"github.com/matt0x6f/hashpost/internal/ibe"
 	"github.com/rs/zerolog/log"
 	"github.com/stephenafamo/bob"
+	"github.com/stephenafamo/bob/dialect/psql"
+	"github.com/stephenafamo/bob/dialect/psql/sm"
 )
 
 // SearchHandler handles search requests
@@ -27,7 +30,7 @@ type SearchHandler struct {
 }
 
 // NewSearchHandler creates a new search handler
-// For production use, pass a database executor and nil for all DAO parameters
+// For production use, pass a database executor, nil for all DAO parameters, and the IBE system
 // For testing, pass nil for db and provide mocked DAOs
 func NewSearchHandler(
 	db bob.Executor,
@@ -36,12 +39,12 @@ func NewSearchHandler(
 	subforumDAO dao.SubforumDAOInterface,
 	pseudonymDAO dao.PseudonymDAOInterface,
 	permissionDAO dao.PermissionDAOInterface,
+	ibeSystem *ibe.IBESystem,
 ) *SearchHandler {
 	if db != nil {
-		// Production mode - create real DAOs
-		ibeSystem := ibe.NewTestIBESystem()
+		// Production mode - create real DAOs with provided IBE system
 		identityMappingDAO := dao.NewIdentityMappingDAO(db)
-		roleKeyDAO := dao.NewRoleKeyDAO(db)
+		roleKeyDAO := dao.NewRoleKeyDAO(db, ibeSystem)
 		userBlocksDAO := dao.NewUserBlocksDAO(db)
 		userDAO := dao.NewUserDAO(db)
 		pseudonymDAO := dao.NewPseudonymDAO(db, ibeSystem, identityMappingDAO, userDAO, roleKeyDAO, userBlocksDAO)
@@ -335,11 +338,11 @@ func (h *SearchHandler) countSearchPosts(ctx context.Context, input *models.Sear
 // SearchUsers handles searching for users by display name
 // This endpoint requires authentication and platform admin privileges
 func (h *SearchHandler) SearchUsers(ctx context.Context, input *models.SearchUsersInput) (*models.SearchUsersResponse, error) {
-	// Extract user from context - authentication is required
-	user, err := middleware.ExtractUserFromContext(ctx)
+	// Extract user from Huma input - authentication is required
+	user, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
 	if err != nil {
 		log.Warn().Err(err).Msg("Authentication required for user search")
-		return nil, fmt.Errorf("authentication required: %w", err)
+		return nil, huma.Error401Unauthorized("authentication required")
 	}
 
 	// Check if user has platform admin capability via database
@@ -374,14 +377,14 @@ func (h *SearchHandler) SearchUsers(ctx context.Context, input *models.SearchUse
 		return nil, fmt.Errorf("search query is required")
 	}
 
-	// Get users from database with proper search
-	users, err := h.searchUsers(ctx, input)
+	// Get users and their pseudonyms from database with proper search
+	users, pseudonyms, err := h.searchUsers(ctx, input)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to search users")
 		return nil, fmt.Errorf("failed to search users: %w", err)
 	}
 
-	// Convert database users to API users
+	// Convert database users and pseudonyms to API users
 	apiUsers := make([]models.SearchUser, 0, len(users))
 	for _, user := range users {
 		// Handle nullable fields
@@ -390,15 +393,42 @@ func (h *SearchHandler) SearchUsers(ctx context.Context, input *models.SearchUse
 			createdAt = user.CreatedAt.V.Format("2006-01-02T15:04:05Z")
 		}
 
-		// Get user's primary role for pseudonym access
-		// For search results, we'll use the default "user" role since we want consistent results
-		userRole := constants.RoleUser // Default role for search results
+		// Get the pseudonym that was already found during search
+		// Since users and pseudonyms are paired in the same order, we can use the same index
+		pseudonym := pseudonyms[len(apiUsers)] // Use current length as index
 
-		// Get default pseudonym for the user using the determined role
-		pseudonym, err := h.pseudonymDAO.GetDefaultPseudonymByUserID(ctx, user.UserID, userRole, "global")
+		// Get all pseudonyms for this user to populate the pseudonyms array
+		userPseudonyms, err := h.pseudonymDAO.GetPseudonymsByRealIdentityDirect(ctx, user.Email)
 		if err != nil {
-			log.Warn().Err(err).Int64("user_id", user.UserID).Msg("Failed to get user pseudonym")
-			continue
+			log.Warn().Err(err).Int64("user_id", user.UserID).Msg("Failed to get user pseudonyms for API response")
+			userPseudonyms = []*dbmodels.Pseudonym{}
+		}
+
+		// Convert database pseudonyms to API pseudonyms
+		apiPseudonyms := make([]struct {
+			ID          string `json:"id" example:"pseudo-123"`
+			DisplayName string `json:"display_name" example:"john_doe"`
+			IsDefault   bool   `json:"is_default" example:"true"`
+			CreatedAt   string `json:"created_at" example:"2024-01-01T12:00:00Z"`
+		}, 0, len(userPseudonyms))
+
+		for _, p := range userPseudonyms {
+			pseudoCreatedAt := ""
+			if p.CreatedAt.Valid {
+				pseudoCreatedAt = p.CreatedAt.V.Format("2006-01-02T15:04:05Z")
+			}
+
+			apiPseudonyms = append(apiPseudonyms, struct {
+				ID          string `json:"id" example:"pseudo-123"`
+				DisplayName string `json:"display_name" example:"john_doe"`
+				IsDefault   bool   `json:"is_default" example:"true"`
+				CreatedAt   string `json:"created_at" example:"2024-01-01T12:00:00Z"`
+			}{
+				ID:          p.PseudonymID,
+				DisplayName: p.DisplayName,
+				IsDefault:   p.IsDefault,
+				CreatedAt:   pseudoCreatedAt,
+			})
 		}
 
 		// Calculate karma score
@@ -413,6 +443,9 @@ func (h *SearchHandler) SearchUsers(ctx context.Context, input *models.SearchUse
 			DisplayName: pseudonym.DisplayName,
 			KarmaScore:  karmaScore,
 			CreatedAt:   createdAt,
+			Email:       user.Email,
+			UserID:      user.UserID,
+			Pseudonyms:  apiPseudonyms,
 		})
 	}
 
@@ -453,34 +486,91 @@ func (h *SearchHandler) SearchUsers(ctx context.Context, input *models.SearchUse
 }
 
 // searchUsers implements the actual search logic for users
-func (h *SearchHandler) searchUsers(ctx context.Context, input *models.SearchUsersInput) ([]*dbmodels.User, error) {
+func (h *SearchHandler) searchUsers(ctx context.Context, input *models.SearchUsersInput) ([]*dbmodels.User, []*dbmodels.Pseudonym, error) {
 	// Get all users
 	users, err := h.userDAO.ListUsers(ctx, 1000, 0)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get users: %w", err)
+		return nil, nil, fmt.Errorf("failed to get users: %w", err)
 	}
+
+	log.Info().Int("total_users_found", len(users)).Msg("Search: Retrieved users from database")
 
 	query := strings.ToLower(input.Query)
 	var matchingUsers []*dbmodels.User
+	var matchingPseudonyms []*dbmodels.Pseudonym
 
 	// Filter users by search criteria
 	for _, user := range users {
-		// Get user's primary role for pseudonym access
-		// For search results, we'll use the default "user" role since we want consistent results
-		userRole := constants.RoleUser // Default role for search results
+		// Check if user email matches query first (exact match for emails)
+		if strings.Contains(strings.ToLower(user.Email), query) {
+			log.Debug().Int64("user_id", user.UserID).Str("email", user.Email).Msg("Search: User matched by email")
 
-		// Get default pseudonym for the user using the determined role
-		pseudonym, err := h.pseudonymDAO.GetDefaultPseudonymByUserID(ctx, user.UserID, userRole, "global")
-		if err != nil {
-			log.Warn().Err(err).Int64("user_id", user.UserID).Msg("Failed to get user pseudonym for search")
+			// Debug: Show IBE system salt and fingerprint generation
+			log.Debug().
+				Str("ibe_salt", h.pseudonymDAO.GetIBESystemSalt()).
+				Str("email", user.Email).
+				Str("generated_fingerprint", h.pseudonymDAO.GenerateFingerprintForEmail(user.Email)).
+				Msg("Search: IBE system debug info")
+
+			// Get pseudonyms for the user using the direct method (bypasses role-based access control)
+			pseudonyms, err := h.pseudonymDAO.GetPseudonymsByRealIdentityDirect(ctx, user.Email)
+			if err != nil {
+				log.Warn().Err(err).Int64("user_id", user.UserID).Msg("Failed to get user pseudonyms for search")
+				continue
+			}
+
+			if len(pseudonyms) == 0 {
+				log.Warn().Int64("user_id", user.UserID).Msg("Search: No pseudonyms found for user")
+				continue
+			}
+
+			// Use the first pseudonym (or find the default one)
+			var pseudonym *dbmodels.Pseudonym
+			for _, p := range pseudonyms {
+				if p.IsDefault {
+					pseudonym = p
+					break
+				}
+			}
+			if pseudonym == nil {
+				pseudonym = pseudonyms[0] // Use first if no default found
+			}
+
+			matchingUsers = append(matchingUsers, user)
+			matchingPseudonyms = append(matchingPseudonyms, pseudonym)
 			continue
 		}
 
-		// Check if pseudonym display name matches query
-		if strings.Contains(strings.ToLower(pseudonym.DisplayName), query) {
+		// Get user's primary role for pseudonym access
+		// For search results, we'll use the default "user" role since we want consistent results
+		pseudonyms, err := h.pseudonymDAO.GetPseudonymsByRealIdentityDirect(ctx, user.Email)
+		if err != nil {
+			log.Warn().Err(err).Int64("user_id", user.UserID).Msg("Failed to get user pseudonyms for search")
+			continue
+		}
+
+		if len(pseudonyms) == 0 {
+			log.Warn().Int64("user_id", user.UserID).Msg("Search: No pseudonyms found for user")
+			continue
+		}
+
+		// Find a pseudonym that matches the display name query
+		var matchingPseudonym *dbmodels.Pseudonym
+		for _, p := range pseudonyms {
+			if strings.Contains(strings.ToLower(p.DisplayName), query) {
+				matchingPseudonym = p
+				break
+			}
+		}
+
+		if matchingPseudonym != nil {
+			log.Debug().Int64("user_id", user.UserID).Str("display_name", matchingPseudonym.DisplayName).Msg("Search: User matched by display name")
 			matchingUsers = append(matchingUsers, user)
+			matchingPseudonyms = append(matchingPseudonyms, matchingPseudonym)
 		}
 	}
+
+	log.Info().Int("matching_users", len(matchingUsers)).Str("query", query).Msg("Search: Found matching users")
 
 	// Apply pagination
 	page := input.Page
@@ -496,14 +586,19 @@ func (h *SearchHandler) searchUsers(ctx context.Context, input *models.SearchUse
 	end := start + limit
 
 	if start >= len(matchingUsers) {
-		return []*dbmodels.User{}, nil
+		return []*dbmodels.User{}, []*dbmodels.Pseudonym{}, nil
 	}
 
 	if end > len(matchingUsers) {
 		end = len(matchingUsers)
 	}
 
-	return matchingUsers[start:end], nil
+	usersResult := matchingUsers[start:end]
+	pseudonymsResult := matchingPseudonyms[start:end]
+
+	log.Info().Int("result_count", len(usersResult)).Int("page", page).Int("limit", limit).Msg("Search: Returning paginated results")
+
+	return usersResult, pseudonymsResult, nil
 }
 
 // countSearchUsers counts the total number of users matching the search criteria
@@ -517,53 +612,442 @@ func (h *SearchHandler) countSearchUsers(ctx context.Context, input *models.Sear
 	query := strings.ToLower(input.Query)
 	var total int64
 
+	log.Info().Int("total_users_for_counting", len(users)).Str("query", query).Msg("Search: Counting matching users")
+
 	// Count matching users
 	for _, user := range users {
-		// Get user's primary role for pseudonym access
-		// For search results, we'll use the default "user" role since we want consistent results
-		userRole := constants.RoleUser // Default role for search results
+		// Check if user email matches query first (exact match for emails)
+		if strings.Contains(strings.ToLower(user.Email), query) {
+			log.Debug().Int64("user_id", user.UserID).Str("email", user.Email).Msg("Search: Count: User matched by email")
 
-		// Get default pseudonym for the user using the determined role
-		pseudonym, err := h.pseudonymDAO.GetDefaultPseudonymByUserID(ctx, user.UserID, userRole, "global")
-		if err != nil {
-			log.Warn().Err(err).Int64("user_id", user.UserID).Msg("Failed to get user pseudonym for counting")
+			// Debug: Show IBE system salt and fingerprint generation
+			log.Debug().
+				Str("ibe_salt", h.pseudonymDAO.GetIBESystemSalt()).
+				Str("email", user.Email).
+				Str("generated_fingerprint", h.pseudonymDAO.GenerateFingerprintForEmail(user.Email)).
+				Msg("Search: Count: IBE system debug info")
+
+			// Get pseudonyms for the user using the direct method
+			pseudonyms, err := h.pseudonymDAO.GetPseudonymsByRealIdentityDirect(ctx, user.Email)
+			if err != nil {
+				log.Warn().Err(err).Int64("user_id", user.UserID).Msg("Failed to get user pseudonyms for counting")
+				continue
+			}
+
+			if len(pseudonyms) > 0 {
+				total++
+			}
 			continue
 		}
 
-		// Check if pseudonym display name matches query
-		if strings.Contains(strings.ToLower(pseudonym.DisplayName), query) {
-			total++
+		// Get pseudonyms for the user using the direct method
+		pseudonyms, err := h.pseudonymDAO.GetPseudonymsByRealIdentityDirect(ctx, user.Email)
+		if err != nil {
+			log.Warn().Err(err).Int64("user_id", user.UserID).Msg("Failed to get user pseudonyms for counting")
+			continue
+		}
+
+		if len(pseudonyms) == 0 {
+			log.Warn().Int64("user_id", user.UserID).Msg("Search: Count: No pseudonyms found for user")
+			continue
+		}
+
+		// Find a pseudonym that matches the display name query
+		for _, p := range pseudonyms {
+			if strings.Contains(strings.ToLower(p.DisplayName), query) {
+				log.Debug().Int64("user_id", user.UserID).Str("display_name", p.DisplayName).Msg("Search: Count: User matched by display name")
+				total++
+				break
+			}
 		}
 	}
+
+	log.Info().Int64("total_matching_users", total).Str("query", query).Msg("Search: Count completed")
+
+	return total, nil
+}
+
+// SearchPseudonyms handles searching for pseudonyms directly
+// This endpoint requires authentication and platform admin privileges
+func (h *SearchHandler) SearchPseudonyms(ctx context.Context, input *models.SearchPseudonymsInput) (*models.SearchPseudonymsResponse, error) {
+	// Extract user from Huma input - authentication is required
+	user, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+	if err != nil {
+		log.Warn().Err(err).Msg("Authentication required for pseudonym search")
+		return nil, huma.Error401Unauthorized("authentication required")
+	}
+
+	// Check if user has platform admin capability via database
+	hasCapability, err := h.permissionDAO.HasUnifiedCapability(ctx, user.UserID, user.ActivePseudonymID, constants.CapabilitySystemAdmin, nil)
+	if err != nil {
+		log.Error().Err(err).Int64("user_id", user.UserID).Msg("Failed to check platform admin capability")
+		return nil, fmt.Errorf("failed to check permissions: %w", err)
+	}
+	if !hasCapability {
+		log.Warn().
+			Int64("user_id", user.UserID).
+			Msg("Platform admin capability required for pseudonym search")
+		return nil, fmt.Errorf("insufficient permissions: platform admin capability required")
+	}
+
+	// Build request log fields
+	requestLog := log.Info().
+		Str("endpoint", "search/pseudonyms").
+		Str("component", "handler").
+		Str("query", input.Query)
+
+	// Add user_id to log if user context is available
+	if user != nil {
+		requestLog = requestLog.Int64("user_id", user.UserID)
+	}
+
+	requestLog.Msg("Search pseudonyms requested")
+
+	// Build search query
+	query := input.Query
+	if query == "" {
+		return nil, fmt.Errorf("search query is required")
+	}
+
+	// Get pseudonyms from database with proper search
+	pseudonyms, err := h.searchPseudonyms(ctx, input)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to search pseudonyms")
+		return nil, fmt.Errorf("failed to search pseudonyms: %w", err)
+	}
+
+	// Convert database pseudonyms to API pseudonyms
+	apiPseudonyms := make([]models.SearchPseudonym, 0, len(pseudonyms))
+	for _, pseudonym := range pseudonyms {
+		// Handle nullable fields
+		createdAt := ""
+		if pseudonym.CreatedAt.Valid {
+			createdAt = pseudonym.CreatedAt.V.Format("2006-01-02T15:04:05Z")
+		}
+
+		lastActiveAt := ""
+		if pseudonym.LastActiveAt.Valid {
+			lastActiveAt = pseudonym.LastActiveAt.V.Format("2006-01-02T15:04:05Z")
+		}
+
+		bio := ""
+		if pseudonym.Bio.Valid {
+			bio = pseudonym.Bio.V
+		}
+
+		avatarURL := ""
+		if pseudonym.AvatarURL.Valid {
+			avatarURL = pseudonym.AvatarURL.V
+		}
+
+		websiteURL := ""
+		if pseudonym.WebsiteURL.Valid {
+			websiteURL = pseudonym.WebsiteURL.V
+		}
+
+		slug := ""
+		if pseudonym.Slug.Valid {
+			slug = pseudonym.Slug.V
+		}
+
+		karmaScore := 0
+		if pseudonym.KarmaScore.Valid {
+			karmaScore = int(pseudonym.KarmaScore.V)
+		}
+
+		isActive := true
+		if pseudonym.IsActive.Valid {
+			isActive = pseudonym.IsActive.V
+		}
+
+		showKarma := true
+		if pseudonym.ShowKarma.Valid {
+			showKarma = pseudonym.ShowKarma.V
+		}
+
+		allowDirectMessages := true
+		if pseudonym.AllowDirectMessages.Valid {
+			allowDirectMessages = pseudonym.AllowDirectMessages.V
+		}
+
+		apiPseudonyms = append(apiPseudonyms, models.SearchPseudonym{
+			PseudonymID:         pseudonym.PseudonymID,
+			DisplayName:         pseudonym.DisplayName,
+			KarmaScore:          karmaScore,
+			CreatedAt:           createdAt,
+			LastActiveAt:        lastActiveAt,
+			IsActive:            isActive,
+			Bio:                 bio,
+			AvatarURL:           avatarURL,
+			WebsiteURL:          websiteURL,
+			ShowKarma:           showKarma,
+			AllowDirectMessages: allowDirectMessages,
+			IsDefault:           pseudonym.IsDefault,
+			Slug:                slug,
+		})
+	}
+
+	// Get actual total from database
+	total, err := h.countSearchPseudonyms(ctx, input)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to count search pseudonyms")
+		return nil, fmt.Errorf("failed to count search pseudonyms: %w", err)
+	}
+
+	// Handle pagination
+	page := input.Page
+	if page <= 0 {
+		page = 1
+	}
+	limit := input.Limit
+	if limit <= 0 {
+		limit = 25
+	}
+
+	response := models.NewSearchPseudonymsResponse(input.Query, apiPseudonyms, page, limit, int(total))
+
+	// Build completion log fields
+	completionLog := log.Info().
+		Str("endpoint", "search/pseudonyms").
+		Str("component", "handler").
+		Int("count", len(apiPseudonyms)).
+		Int("total", int(total))
+
+	// Add user_id to log if user context is available
+	if user != nil {
+		completionLog = completionLog.Int64("user_id", user.UserID)
+	}
+
+	completionLog.Msg("Search pseudonyms completed")
+
+	return response, nil
+}
+
+// PublicSearchPseudonyms handles searching for pseudonyms for co-moderator selection
+// This endpoint is public and doesn't require authentication
+func (h *SearchHandler) PublicSearchPseudonyms(ctx context.Context, input *models.PublicSearchPseudonymsInput) (*models.PublicSearchPseudonymsResponse, error) {
+	// Build request log fields
+	requestLog := log.Info().
+		Str("endpoint", "search/pseudonyms/public").
+		Str("component", "handler").
+		Str("query", input.Query)
+
+	requestLog.Msg("Public search pseudonyms requested")
+
+	// Build search query
+	query := input.Query
+	if query == "" {
+		return nil, fmt.Errorf("search query is required")
+	}
+
+	// Get pseudonyms from database with proper search
+	pseudonyms, err := h.searchPseudonymsPublic(ctx, input)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to search pseudonyms publicly")
+		return nil, fmt.Errorf("failed to search pseudonyms: %w", err)
+	}
+
+	// Convert database pseudonyms to public API pseudonyms (limited info)
+	publicPseudonyms := make([]models.PublicSearchPseudonym, 0, len(pseudonyms))
+	for _, pseudonym := range pseudonyms {
+		// Only include active pseudonyms for co-moderator selection
+		if !pseudonym.IsActive.Valid || !pseudonym.IsActive.V {
+			continue
+		}
+
+		bio := ""
+		if pseudonym.Bio.Valid {
+			bio = pseudonym.Bio.V
+		}
+
+		slug := ""
+		if pseudonym.Slug.Valid {
+			slug = pseudonym.Slug.V
+		}
+
+		publicPseudonyms = append(publicPseudonyms, models.PublicSearchPseudonym{
+			PseudonymID: pseudonym.PseudonymID,
+			DisplayName: pseudonym.DisplayName,
+			Slug:        slug,
+			Bio:         bio,
+			IsActive:    true,
+		})
+	}
+
+	// Get actual total from database
+	total, err := h.countSearchPseudonymsPublic(ctx, input)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to count public search pseudonyms")
+		return nil, fmt.Errorf("failed to count search pseudonyms: %w", err)
+	}
+
+	// Handle pagination
+	page := input.Page
+	if page <= 0 {
+		page = 1
+	}
+	limit := input.Limit
+	if limit <= 0 {
+		limit = 25
+	}
+
+	response := models.NewPublicSearchPseudonymsResponse(input.Query, publicPseudonyms, page, limit, int(total))
+
+	// Build completion log fields
+	completionLog := log.Info().
+		Str("endpoint", "search/pseudonyms/public").
+		Str("component", "handler").
+		Int("count", len(publicPseudonyms)).
+		Int("total", int(total))
+
+	completionLog.Msg("Public search pseudonyms completed")
+
+	return response, nil
+}
+
+// searchPseudonyms implements the actual search logic for pseudonyms
+func (h *SearchHandler) searchPseudonyms(ctx context.Context, input *models.SearchPseudonymsInput) ([]*dbmodels.Pseudonym, error) {
+	query := strings.ToLower(input.Query)
+
+	// Validate and set defaults for pagination
+	page := input.Page
+	if page <= 0 {
+		page = 1
+	}
+	limit := input.Limit
+	if limit <= 0 {
+		limit = 25
+	}
+
+	// Build database query with WHERE clauses for better performance
+	queryBuilder := dbmodels.Pseudonyms.Query(
+		sm.Where(psql.Group(psql.Or(
+			dbmodels.PseudonymColumns.DisplayName.ILike(psql.Arg("%"+query+"%")),
+			dbmodels.PseudonymColumns.Slug.ILike(psql.Arg("%"+query+"%")),
+			dbmodels.PseudonymColumns.PseudonymID.ILike(psql.Arg("%"+query+"%")),
+		))),
+		sm.Limit(limit),
+		sm.Offset((page-1)*limit),
+	)
+
+	// Execute query with pagination
+	pseudonyms, err := queryBuilder.All(ctx, h.db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search pseudonyms: %w", err)
+	}
+
+	log.Info().Int("result_count", len(pseudonyms)).Str("query", query).Int("page", page).Int("limit", limit).Msg("Search: Returning paginated results")
+
+	return pseudonyms, nil
+}
+
+// searchPseudonymsPublic implements the actual search logic for public pseudonym search
+func (h *SearchHandler) searchPseudonymsPublic(ctx context.Context, input *models.PublicSearchPseudonymsInput) ([]*dbmodels.Pseudonym, error) {
+	query := strings.ToLower(input.Query)
+
+	// Validate and set defaults for pagination
+	page := input.Page
+	if page <= 0 {
+		page = 1
+	}
+	limit := input.Limit
+	if limit <= 0 {
+		limit = 25
+	}
+
+	// Build database query with WHERE clauses for better performance
+	queryBuilder := dbmodels.Pseudonyms.Query(
+		sm.Where(dbmodels.PseudonymColumns.IsActive.EQ(psql.Arg(true))),
+		sm.Where(psql.Group(psql.Or(
+			dbmodels.PseudonymColumns.DisplayName.ILike(psql.Arg("%"+query+"%")),
+			dbmodels.PseudonymColumns.Slug.ILike(psql.Arg("%"+query+"%")),
+			dbmodels.PseudonymColumns.PseudonymID.ILike(psql.Arg("%"+query+"%")),
+		))),
+		sm.Limit(limit),
+		sm.Offset((page-1)*limit),
+	)
+
+	// Execute query with pagination
+	pseudonyms, err := queryBuilder.All(ctx, h.db)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to search pseudonyms: %w", err)
+	}
+
+	log.Info().Int("result_count", len(pseudonyms)).Str("query", query).Int("page", page).Int("limit", limit).Msg("Public Search: Returning paginated results")
+
+	return pseudonyms, nil
+}
+
+// countSearchPseudonyms counts the total number of pseudonyms matching the search criteria
+func (h *SearchHandler) countSearchPseudonyms(ctx context.Context, input *models.SearchPseudonymsInput) (int64, error) {
+	query := strings.ToLower(input.Query)
+
+	// Build database query with WHERE clauses for better performance
+	queryBuilder := dbmodels.Pseudonyms.Query(
+		sm.Where(psql.Group(psql.Or(
+			dbmodels.PseudonymColumns.DisplayName.ILike(psql.Arg("%"+query+"%")),
+			dbmodels.PseudonymColumns.Slug.ILike(psql.Arg("%"+query+"%")),
+			dbmodels.PseudonymColumns.PseudonymID.ILike(psql.Arg("%"+query+"%")),
+		))),
+	)
+
+	// Execute count query
+	pseudonyms, err := queryBuilder.All(ctx, h.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count pseudonyms: %w", err)
+	}
+
+	total := int64(len(pseudonyms))
+	log.Info().Int64("total_matching_pseudonyms", total).Str("query", query).Msg("Search: Count completed")
+
+	return total, nil
+}
+
+// countSearchPseudonymsPublic counts the total number of pseudonyms matching the search criteria for public search
+func (h *SearchHandler) countSearchPseudonymsPublic(ctx context.Context, input *models.PublicSearchPseudonymsInput) (int64, error) {
+	query := strings.ToLower(input.Query)
+
+	// Build database query with WHERE clauses for better performance
+	queryBuilder := dbmodels.Pseudonyms.Query(
+		sm.Where(dbmodels.PseudonymColumns.IsActive.EQ(psql.Arg(true))),
+		sm.Where(psql.Group(psql.Or(
+			dbmodels.PseudonymColumns.DisplayName.ILike(psql.Arg("%"+query+"%")),
+			dbmodels.PseudonymColumns.Slug.ILike(psql.Arg("%"+query+"%")),
+			dbmodels.PseudonymColumns.PseudonymID.ILike(psql.Arg("%"+query+"%")),
+		))),
+	)
+
+	// Execute count query
+	pseudonyms, err := queryBuilder.All(ctx, h.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count pseudonyms: %w", err)
+	}
+
+	total := int64(len(pseudonyms))
+	log.Info().Int64("total_matching_pseudonyms", total).Str("query", query).Msg("Public Search: Count completed")
 
 	return total, nil
 }
 
 // calculateKarmaScore calculates the karma score for a user
 func (h *SearchHandler) calculateKarmaScore(ctx context.Context) (int, error) {
-	// Calculate karma based on post and comment scores
+	// Calculate karma based on post scores
 	// This is a simplified implementation - in production, this would be more sophisticated
 
 	// Get user's posts
 	posts, err := h.postDAO.GetPostsBySubforum(ctx, 0, 1, 1000, "created_at", true) // 0 means all subforums
 	if err != nil {
-		return 0, fmt.Errorf("failed to get posts for karma calculation: %w", err)
+		return 0, fmt.Errorf("failed to get posts: %w", err)
 	}
 
-	var totalScore int
+	// Calculate total score
+	totalScore := 0
 	for _, post := range posts {
-		// Check if this post belongs to the user
-		// This would need to be enhanced to check pseudonym ownership
 		if post.Score.Valid {
 			totalScore += int(post.Score.V)
 		}
 	}
 
-	// For now, return a simple score
-	// In production, this would consider:
-	// - Post scores
-	// - Comment scores
-	// - Time decay
-	// - Community standing
 	return totalScore, nil
 }

@@ -2,7 +2,6 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: hashpost-config
-  namespace: hashpost
 data:
   # Database configuration - Managed PostgreSQL cluster
   DB_HOST: "hashpost-postgres-cluster"
@@ -13,13 +12,16 @@ data:
   # Application environment
   ENV: "production"
   
+  # Server configuration
+  SERVER_SITE_URL: "https://testing.hashpost.dev"
+  
   # Migration configuration
   MIGRATIONS_DIR: "/app/internal/database/migrations"
 
   JWT_DEVELOPMENT: "false"
   
   # CORS configuration
-  CORS_ALLOWED_ORIGINS: "https://hashpost.dev"  # Update this for production
+  CORS_ALLOWED_ORIGINS: "https://testing.hashpost.dev"  # Update this for production
   CORS_ALLOWED_METHODS: "GET,POST,PUT,DELETE,OPTIONS,PATCH"
   CORS_ALLOWED_HEADERS: "Content-Type,Authorization,X-Requested-With,Accept,Origin"
   CORS_ALLOW_CREDENTIALS: "true"
@@ -32,3 +34,31 @@ data:
   IBE_KEY_ROTATION_ENABLED: "false"
   IBE_KEY_ROTATION_INTERVAL: "8760h"
   IBE_KEY_ROTATION_GRACE_PERIOD: "720h"
+  
+  # Email configuration
+  EMAIL_PROVIDER: "mailgun"
+  EMAIL_FROM_ADDRESS: "noreply@hashpost.dev"
+  EMAIL_FROM_NAME: "HashPost"
+  
+  # Mailgun configuration
+  MAILGUN_DOMAIN: "hashpost.dev"
+  MAILGUN_BASE_URL: "https://api.mailgun.net"
+  MAILGUN_REGION: "us"
+  
+  # Email validation configuration
+  EMAIL_VALIDATION_ENABLED: "true"
+  EMAIL_VALIDATION_VERIFIER_EMAIL: "noreply@hashpost.dev"
+  EMAIL_VALIDATION_VERIFIER_SMTP_USER: "noreply@hashpost.dev"
+  EMAIL_VALIDATION_SMTP_HOST: "smtp.mailgun.org"
+  EMAIL_VALIDATION_SMTP_PORT: "587"
+  EMAIL_VALIDATION_CONNECTION_TIMEOUT: "5"
+  EMAIL_VALIDATION_RESPONSE_TIMEOUT: "2"
+  EMAIL_VALIDATION_SMTP_FAIL_FAST: "true"
+  EMAIL_VALIDATION_SMTP_SAFE_CHECK: "true"
+  EMAIL_VALIDATION_LEVEL: "smtp"
+  
+  # Advanced validation blacklists
+  EMAIL_VALIDATION_BLACKLISTED_DOMAINS: "tempmail.com,10minutemail.com,guerrillamail.com,mailinator.com,mailnesia.com,sharklasers.com,grr.la,guerrillamailblock.com,guerrillamail.org,guerrillamail.net,guerrillamail.biz,guerrillamail.info,guerrillamail.de,guerrillamail.co.uk,guerrillamail.fr,guerrillamail.it,guerrillamail.es,guerrillamail.nl,guerrillamail.se,guerrillamail.no,guerrillamail.dk,guerrillamail.fi,guerrillamail.pl,guerrillamail.ru,guerrillamail.jp,guerrillamail.cn,guerrillamail.in,guerrillamail.com.br,guerrillamail.com.au,guerrillamail.ca,guerrillamail.mx,guerrillamail.ar,guerrillamail.cl,guerrillamail.pe,guerrillamail.co,guerrillamail.ve,guerrillamail.uy,guerrillamail.py,guerrillamail.bo,guerrillamail.ec,guerrillamail.gt,guerrillamail.hn,guerrillamail.sv,guerrillamail.ni,guerrillamail.cr,guerrillamail.pa,guerrillamail.do,guerrillamail.pr,guerrillamail.jm,guerrillamail.tt,guerrillamail.bb,guerrillamail.gd,guerrillamail.lc,guerrillamail.vc,guerrillamail.ag,guerrillamail.kn,guerrillamail.dm,guerrillamail.ms,guerrillamail.ai,guerrillamail.ky,guerrillamail.tc,guerrillamail.vg,guerrillamail.vi,guerrillamail.bm,guerrillamail.bs,guerrillamail.je,guerrillamail.im,guerrillamail.gg,guerrillamail.mt,guerrillamail.cy,guerrillamail.gr,guerrillamail.tr,guerrillamail.il,guerrillamail.ae,guerrillamail.sa,guerrillamail.qa,guerrillamail.kw,guerrillamail.bh,guerrillamail.om,guerrillamail.ye,guerrillamail.iq,guerrillamail.sy,guerrillamail.lb,guerrillamail.jo,guerrillamail.ps,guerrillamail.eg,guerrillamail.ly,guerrillamail.tn,guerrillamail.dz,guerrillamail.ma,guerrillamail.mr,guerrillamail.sn,guerrillamail.gm,guerrillamail.gn,guerrillamail.sl,guerrillamail.lr,guerrillamail.ci,guerrillamail.bf,guerrillamail.ne,guerrillamail.ml,guerrillamail.cf,guerrillamail.td,guerrillamail.cm,guerrillamail.ga,guerrillamail.cg,guerrillamail.cd,guerrillamail.ao,guerrillamail.zm,guerrillamail.zw,guerrillamail.na,guerrillamail.bw,guerrillamail.ls,guerrillamail.sz,guerrillamail.mg,guerrillamail.mu,guerrillamail.sc,guerrillamail.km,guerrillamail.dj,guerrillamail.sn,guerrillamail.et,guerrillamail.er,guerrillamail.sd,guerrillamail.ss,guerrillamail.ke,guerrillamail.ug,guerrillamail.rw,guerrillamail.bi,guerrillamail.tz,guerrillamail.mw,guerrillamail.mz,guerrillamail.zw,guerrillamail.za,guerrillamail.namibia,guerrillamail.botswana,guerrillamail.lesotho,guerrillamail.eswatini,guerrillamail.madagascar,guerrillamail.mauritius,guerrillamail.seychelles,guerrillamail.comoros,guerrillamail.mayotte,guerrillamail.reunion,guerrillamail.djibouti,guerrillamail.somalia,guerrillamail.ethiopia,guerrillamail.eritrea,guerrillamail.sudan,guerrillamail.southsudan,guerrillamail.kenya,guerrillamail.uganda,guerrillamail.rwanda,guerrillamail.burundi,guerrillamail.tanzania,guerrillamail.malawi,guerrillamail.mozambique,guerrillamail.zimbabwe,guerrillamail.southafrica"
+  
+  # MX IP blacklist for suspicious mail servers
+  EMAIL_VALIDATION_BLACKLISTED_MX_IPS: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.0/8,169.254.0.0/16,224.0.0.0/4,240.0.0.0/4"

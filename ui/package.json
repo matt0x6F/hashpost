@@ -10,8 +10,7 @@
     "lint": "next lint",
     "type-check": "tsc --noEmit",
     "download-openapi": "node scripts/download-openapi.js",
-    "generate-api": "openapi-generator-cli generate -i ./openapi.json -g typescript-fetch -o src/generated/api -c openapi-generator-config.json",
-    "generate-api-local": "openapi-generator-cli generate -i ./openapi.json -g typescript-fetch -o src/generated/api -c openapi-generator-config.json"
+    "generate-api": "openapi-generator-cli generate -i ./openapi.yaml -g typescript-fetch -o src/generated/api -c openapi-generator-config.json"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.10",
@@ -52,7 +51,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "15.4.5",
+    "eslint-config-next": "15.5.0",
     "tailwindcss": "^4",
     "tw-animate-css": "^1.3.6",
     "typescript": "^5"

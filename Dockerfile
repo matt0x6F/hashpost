@@ -21,9 +21,6 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-w -s" \
     -o main ./cmd/server
 
-# Generate OpenAPI specification for frontend builds
-RUN ./main openapi --output openapi.json --format json
-
 # Development stage with Air
 FROM golang:1.24-alpine AS development
 
@@ -75,8 +72,7 @@ WORKDIR /app
 # Copy the binary from builder stage
 COPY --from=builder /app/main .
 
-# Copy the generated OpenAPI specification
-COPY --from=builder /app/openapi.json .
+# OpenAPI specification will be fetched from running service during CI/CD
 
 # Copy migration configuration and scripts
 COPY dbconfig.yml ./
@@ -86,6 +82,9 @@ RUN chmod +x /usr/local/bin/migrate.sh /usr/local/bin/entrypoint.sh
 
 # Copy migrations directory
 COPY internal/database/migrations ./internal/database/migrations
+
+# Copy email templates
+COPY templates/email ./templates/email
 
 # Install sql-migrate in production (using a more efficient approach)
 RUN apk add --no-cache --virtual .build-deps go git && \

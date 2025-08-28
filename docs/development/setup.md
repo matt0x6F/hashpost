@@ -44,6 +44,13 @@ curl http://localhost:8888/health
 make migrate-status
 ```
 
+### 4. Platform Administration Setup
+After initial setup, platform administrators can:
+- Access the admin dashboard at `/admin`
+- Configure platform rules at `/platform-rules`
+- Manage system settings through the admin interface
+- Use CLI commands for bulk user management and key rotation
+
 ## Development Environment
 
 ### Docker Services

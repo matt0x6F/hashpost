@@ -11,6 +11,7 @@ import (
 	"github.com/matt0x6f/hashpost/internal/api/models"
 	"github.com/matt0x6f/hashpost/internal/database/dao/mocks"
 	dbmodels "github.com/matt0x6f/hashpost/internal/database/models"
+	"github.com/matt0x6f/hashpost/internal/ibe"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -24,6 +25,9 @@ func NewSearchHandlerWithMocks() (*handlers.SearchHandler, *mocks.MockPostDAO, *
 	mockPseudonymDAO := &mocks.MockPseudonymDAO{}
 	mockPermissionDAO := &mocks.MockPermissionDAO{}
 
+	// Create a test IBE system for testing
+	testIBESystem := ibe.NewTestIBESystem()
+
 	// Create handler with mocked DAOs
 	handler := handlers.NewSearchHandler(
 		nil, // nil db for testing
@@ -32,6 +36,7 @@ func NewSearchHandlerWithMocks() (*handlers.SearchHandler, *mocks.MockPostDAO, *
 		mockSubforumDAO,
 		mockPseudonymDAO,
 		mockPermissionDAO,
+		testIBESystem,
 	)
 
 	return handler, mockPostDAO, mockUserDAO, mockSubforumDAO, mockPseudonymDAO, mockPermissionDAO
@@ -60,6 +65,30 @@ func createTestPlatformAdminContext(t *testing.T, userID int64, activePseudonymI
 	}
 
 	return context.WithValue(context.Background(), middleware.UserContextKeyValue, user)
+}
+
+// createAuthenticatedSearchUsersInput creates a SearchUsersInput with a valid JWT token for testing
+func createAuthenticatedSearchUsersInput(userID int64, activePseudonymID string, displayName string, query string) *models.SearchUsersInput {
+	// Create a user context
+	user := &middleware.UserContext{
+		UserID:            userID,
+		Email:             "admin@example.com",
+		ActivePseudonymID: activePseudonymID,
+		DisplayName:       displayName,
+		MFAEnabled:        false, // roles and capabilities deprecated
+	}
+
+	// Generate a JWT token
+	token, _ := middleware.GenerateJWT(user, "test-secret", time.Hour)
+
+	return &models.SearchUsersInput{
+		AuthInput: middleware.AuthInput{
+			Authorization: "Bearer " + token,
+		},
+		Query: query,
+		Page:  1,
+		Limit: 25,
+	}
 }
 
 // TestSearchHandler_SearchPosts tests the search posts functionality
@@ -321,6 +350,8 @@ func TestSearchHandler_SearchPosts(t *testing.T) {
 
 // TestSearchHandler_SearchUsers tests the search users functionality
 func TestSearchHandler_SearchUsers(t *testing.T) {
+	// Set up global auth middleware for testing
+	setupTestAuthMiddleware()
 	t.Run("SearchUsersSuccess", func(t *testing.T) {
 		handler, mockPostDAO, mockUserDAO, _, mockPseudonymDAO, mockPermissionDAO := NewSearchHandlerWithMocks()
 
@@ -367,18 +398,21 @@ func TestSearchHandler_SearchUsers(t *testing.T) {
 
 		// Mock database calls
 		mockUserDAO.On("ListUsers", mock.Anything, 1000, 0).Return(mockUsers, nil)
-		mockPseudonymDAO.On("GetDefaultPseudonymByUserID", mock.Anything, int64(1), "user", "global").Return(mockPseudonym1, nil)
-		mockPseudonymDAO.On("GetDefaultPseudonymByUserID", mock.Anything, int64(2), "user", "global").Return(mockPseudonym2, nil)
+
+		// Mock IBE system calls
+		mockPseudonymDAO.On("GetIBESystemSalt").Return("test-salt")
+		mockPseudonymDAO.On("GenerateFingerprintForEmail", "john.doe@example.com").Return("fingerprint1")
+		mockPseudonymDAO.On("GenerateFingerprintForEmail", "johnny@example.com").Return("fingerprint2")
+
+		// Mock pseudonym retrieval calls
+		mockPseudonymDAO.On("GetPseudonymsByRealIdentityDirect", mock.Anything, "john.doe@example.com").Return([]*dbmodels.Pseudonym{mockPseudonym1}, nil)
+		mockPseudonymDAO.On("GetPseudonymsByRealIdentityDirect", mock.Anything, "johnny@example.com").Return([]*dbmodels.Pseudonym{mockPseudonym2}, nil)
 
 		// Mock karma score calculation calls
 		mockPostDAO.On("GetPostsBySubforum", mock.Anything, int32(0), 1, 1000, "created_at", true).Return([]*dbmodels.Post{}, nil)
 
-		// Create input
-		input := &models.SearchUsersInput{
-			Query: query,
-			Page:  1,
-			Limit: 25,
-		}
+		// Create authenticated input
+		input := createAuthenticatedSearchUsersInput(userID, activePseudonymID, displayName, query)
 
 		// Call handler
 		response, err := handler.SearchUsers(ctx, input)
@@ -406,18 +440,19 @@ func TestSearchHandler_SearchUsers(t *testing.T) {
 	t.Run("SearchUsersEmptyQuery", func(t *testing.T) {
 		handler, _, _, _, _, mockPermissionDAO := NewSearchHandlerWithMocks()
 
+		// Test data
+		userID := int64(1)
+		activePseudonymID := "admin-pseudonym-123"
+		displayName := "AdminUser"
+
 		// Create context with platform admin user
-		ctx := createTestPlatformAdminContext(t, 1, "admin-pseudonym-123", "AdminUser")
+		ctx := createTestPlatformAdminContext(t, userID, activePseudonymID, displayName)
 
 		// Mock permission check to return true for platform admin capability
-		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "admin-pseudonym-123", "system_admin", (*int32)(nil)).Return(true, nil)
+		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, userID, activePseudonymID, "system_admin", (*int32)(nil)).Return(true, nil)
 
-		// Create input with empty query
-		input := &models.SearchUsersInput{
-			Query: "",
-			Page:  1,
-			Limit: 25,
-		}
+		// Create authenticated input with empty query
+		input := createAuthenticatedSearchUsersInput(userID, activePseudonymID, displayName, "")
 
 		// Call handler
 		response, err := handler.SearchUsers(ctx, input)
@@ -456,21 +491,23 @@ func TestSearchHandler_SearchUsers(t *testing.T) {
 	t.Run("SearchUsersDatabaseError", func(t *testing.T) {
 		handler, _, mockUserDAO, _, _, mockPermissionDAO := NewSearchHandlerWithMocks()
 
+		// Test data
+		userID := int64(1)
+		activePseudonymID := "admin-pseudonym-123"
+		displayName := "AdminUser"
+		query := "test query"
+
 		// Create context with platform admin user
-		ctx := createTestPlatformAdminContext(t, 1, "admin-pseudonym-123", "AdminUser")
+		ctx := createTestPlatformAdminContext(t, userID, activePseudonymID, displayName)
 
 		// Mock permission check to return true for platform admin capability
-		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "admin-pseudonym-123", "system_admin", (*int32)(nil)).Return(true, nil)
+		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, userID, activePseudonymID, "system_admin", (*int32)(nil)).Return(true, nil)
 
 		// Mock database error
 		mockUserDAO.On("ListUsers", mock.Anything, 1000, 0).Return(nil, assert.AnError)
 
-		// Create input
-		input := &models.SearchUsersInput{
-			Query: "test query",
-			Page:  1,
-			Limit: 25,
-		}
+		// Create authenticated input
+		input := createAuthenticatedSearchUsersInput(userID, activePseudonymID, displayName, query)
 
 		// Call handler
 		response, err := handler.SearchUsers(ctx, input)
@@ -494,6 +531,9 @@ func TestSearchHandler_NewSearchHandler(t *testing.T) {
 		mockSubforumDAO := mocks.NewMockSubforumDAO()
 		mockPseudonymDAO := mocks.NewMockPseudonymDAO()
 
+		// Create a test IBE system for testing
+		testIBESystem := ibe.NewTestIBESystem()
+
 		// Create handler with mocked dependencies
 		handler := handlers.NewSearchHandler(
 			nil, // Mock DB
@@ -502,6 +542,7 @@ func TestSearchHandler_NewSearchHandler(t *testing.T) {
 			mockSubforumDAO,
 			mockPseudonymDAO,
 			&mocks.MockPermissionDAO{},
+			testIBESystem,
 		)
 
 		// Verify handler was created successfully
