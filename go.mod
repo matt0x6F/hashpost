@@ -11,7 +11,7 @@ require (
 	github.com/rs/zerolog v1.34.0
 	github.com/shopspring/decimal v1.4.0
 	github.com/spf13/cobra v1.9.1
-	github.com/stephenafamo/bob v0.39.0
+	github.com/stephenafamo/bob v0.40.2
 	github.com/stretchr/testify v1.10.0
 	github.com/truemail-rb/truemail-go v1.1.4
 	golang.org/x/crypto v0.41.0
