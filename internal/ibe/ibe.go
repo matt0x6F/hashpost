@@ -20,6 +20,7 @@ import (
 const (
 	DOMAIN_USER_PSEUDONYMS   = "user_pseudonyms_v1"
 	DOMAIN_USER_CORRELATION  = "user_self_correlation_v1"
+	DOMAIN_USER_MESSAGING    = "user_messaging_v1" // NEW DOMAIN for user-to-user messaging
 	DOMAIN_MOD_CORRELATION   = "moderator_correlation_v1"
 	DOMAIN_ADMIN_CORRELATION = "admin_correlation_v1"
 	DOMAIN_LEGAL_CORRELATION = "legal_correlation_v1"
@@ -394,6 +395,7 @@ func NewIBESystemWithOptions(opts IBEOptions) *IBESystem {
 	domains := []string{
 		DOMAIN_USER_PSEUDONYMS,
 		DOMAIN_USER_CORRELATION,
+		DOMAIN_USER_MESSAGING, // NEW DOMAIN
 		DOMAIN_MOD_CORRELATION,
 		DOMAIN_ADMIN_CORRELATION,
 		DOMAIN_LEGAL_CORRELATION,
@@ -622,6 +624,29 @@ func (ibe *IBESystem) GenerateTimeBoundedKey(role, scope string, duration time.D
 	return ibe.GenerateCorrelationKey(role, scope, duration)
 }
 
+// GenerateMessagingKey creates a time-bounded messaging key for user-to-user communication
+func (ibe *IBESystem) GenerateMessagingKey(role, scope string, timeWindow time.Duration) []byte {
+	// For messaging operations, always use the messaging domain
+	domain := DOMAIN_USER_MESSAGING
+	domainMaster, err := ibe.getDomainMaster(domain)
+	if err != nil {
+		log.Error().Err(err).Str("domain", domain).Msg("Failed to get messaging domain master")
+		return nil
+	}
+
+	// Include time epoch in key derivation for forward secrecy
+	epoch := time.Now().Truncate(timeWindow).Unix()
+
+	// Combine domain master, role, scope, and time for key derivation
+	combined := append(domainMaster, []byte(role)...)
+	combined = append(combined, []byte(scope)...)
+	combined = append(combined, []byte(fmt.Sprintf("%d", epoch))...)
+
+	// Generate deterministic key using SHA-256
+	hash := sha256.Sum256(combined)
+	return hash[:]
+}
+
 // NewIBESystemFromConfig creates a new IBE system from configuration
 func NewIBESystemFromConfig(domainKeysDir string, keyVersion int32, salt string) (*IBESystem, error) {
 	opts := IBEOptions{
@@ -651,6 +676,7 @@ func LoadDomainMastersFromDir(dir string) (map[string][]byte, error) {
 	domains := []string{
 		DOMAIN_USER_PSEUDONYMS,
 		DOMAIN_USER_CORRELATION,
+		DOMAIN_USER_MESSAGING, // NEW DOMAIN
 		DOMAIN_MOD_CORRELATION,
 		DOMAIN_ADMIN_CORRELATION,
 		DOMAIN_LEGAL_CORRELATION,
@@ -727,6 +753,7 @@ func createDefaultIBEOptions() IBEOptions {
 		DomainMasters: map[string][]byte{
 			DOMAIN_USER_PSEUDONYMS:   []byte("0123456789abcdef0123456789abcdef"),
 			DOMAIN_USER_CORRELATION:  []byte("0123456789abcdef0123456789abcdef"),
+			DOMAIN_USER_MESSAGING:    []byte("0123456789abcdef0123456789abcdef"),
 			DOMAIN_MOD_CORRELATION:   []byte("0123456789abcdef0123456789abcdef"),
 			DOMAIN_ADMIN_CORRELATION: []byte("0123456789abcdef0123456789abcdef"),
 			DOMAIN_LEGAL_CORRELATION: []byte("0123456789abcdef0123456789abcdef"),

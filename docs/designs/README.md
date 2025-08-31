@@ -29,6 +29,7 @@ Architectural designs for:
 ## Current Designs
 
 - **Democratic Governance** (`democratic-governance.md`) - Community-controlled subforum governance system with elections and crisis management
+- **E2E Encrypted Direct Messaging** (`e2e-encrypted-direct-messaging.md`) - End-to-end encrypted messaging system with server-side key management
 
 ## Related Directories
 

@@ -19,6 +19,7 @@ func createTestIBESystem() *IBESystem {
 		DomainMasters: map[string][]byte{
 			DOMAIN_USER_PSEUDONYMS:   []byte("0123456789abcdef0123456789abcdef"),
 			DOMAIN_USER_CORRELATION:  []byte("0123456789abcdef0123456789abcdef"),
+			DOMAIN_USER_MESSAGING:    []byte("0123456789abcdef0123456789abcdef"),
 			DOMAIN_MOD_CORRELATION:   []byte("0123456789abcdef0123456789abcdef"),
 			DOMAIN_ADMIN_CORRELATION: []byte("0123456789abcdef0123456789abcdef"),
 			DOMAIN_LEGAL_CORRELATION: []byte("0123456789abcdef0123456789abcdef"),

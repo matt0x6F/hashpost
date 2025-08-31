@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/matt0x6f/hashpost/internal/api/constants"
@@ -90,6 +91,7 @@ func initializeIBESystem(opts *IBEKeyOptions) (*ibe.IBESystem, error) {
 	domains := []string{
 		ibe.DOMAIN_USER_PSEUDONYMS,
 		ibe.DOMAIN_USER_CORRELATION,
+		ibe.DOMAIN_USER_MESSAGING, // NEW DOMAIN for user-to-user messaging
 		ibe.DOMAIN_MOD_CORRELATION,
 		ibe.DOMAIN_ADMIN_CORRELATION,
 		ibe.DOMAIN_LEGAL_CORRELATION,
@@ -379,6 +381,346 @@ func NewGenerateIBEKeysCommand(cfg *config.Config) *cobra.Command {
 	cmd.Flags().String("salt", "", "Salt for fingerprint generation (defaults to config value)")
 	cmd.Flags().Bool("non-interactive", false, "Non-interactive mode")
 	cmd.Flags().Int("key-size", 32, "Key size in bytes (default 32, i.e., 256 bits)")
+
+	return cmd
+}
+
+// generateSingleDomainKey generates and saves a single domain key with upsert behavior
+func generateSingleDomainKey(domain string, outputDir string, keySize int) error {
+	domainKeysDir := filepath.Join(outputDir, "domains")
+	if err := os.MkdirAll(domainKeysDir, 0755); err != nil {
+		return fmt.Errorf("failed to create domain keys directory: %w", err)
+	}
+
+	// Check if domain key already exists
+	keyPath := filepath.Join(domainKeysDir, domain+".key")
+	if _, err := os.Stat(keyPath); err == nil {
+		log.Info().Str("domain", domain).Str("key_path", keyPath).Msg("Domain key already exists, skipping")
+		return nil
+	}
+
+	// Generate new domain key
+	master := make([]byte, keySize)
+	if _, err := rand.Read(master); err != nil {
+		return fmt.Errorf("failed to generate domain key for %s: %w", domain, err)
+	}
+
+	// Save the domain key
+	if err := saveKeyToFile(master, keyPath); err != nil {
+		return fmt.Errorf("failed to save domain key for %s: %w", domain, err)
+	}
+
+	log.Info().
+		Str("domain", domain).
+		Str("key_path", keyPath).
+		Str("key_hash", hex.EncodeToString(master)).
+		Msg("Domain key generated and saved")
+
+	// Now generate role keys for this domain
+	if err := generateRoleKeysForDomain(domain, master, outputDir); err != nil {
+		log.Warn().Err(err).Str("domain", domain).Msg("Failed to generate role keys for domain, but domain key was created successfully")
+	}
+
+	return nil
+}
+
+// generateRoleKeysForDomain generates role keys for a specific domain
+func generateRoleKeysForDomain(domain string, domainKey []byte, outputDir string) error {
+	// Create IBE system with just this domain key
+	domainMasters := map[string][]byte{domain: domainKey}
+	ibeSystem := ibe.NewIBESystemWithOptions(ibe.IBEOptions{
+		DomainMasters: domainMasters,
+		KeyVersion:    1,
+		Salt:          "default_salt", // Will be overridden by config
+	})
+
+	// Get all roles from constants
+	roles := constants.GetAllRoles()
+
+	// Define standard time windows for key expiration
+	timeWindows := []time.Duration{
+		time.Hour,           // 1 hour
+		24 * time.Hour,      // 1 day
+		7 * 24 * time.Hour,  // 1 week
+		30 * 24 * time.Hour, // 1 month
+	}
+
+	roleKeysDir := filepath.Join(outputDir, "roles")
+	if err := os.MkdirAll(roleKeysDir, 0755); err != nil {
+		return fmt.Errorf("failed to create role keys directory: %w", err)
+	}
+
+	for _, role := range roles {
+		roleDir := filepath.Join(roleKeysDir, role)
+		if err := os.MkdirAll(roleDir, 0755); err != nil {
+			return fmt.Errorf("failed to create role directory: %w", err)
+		}
+
+		// Get scopes for this role from constants
+		roleDefinition := constants.GetRoleDefinition(role)
+		if roleDefinition == nil {
+			log.Warn().Str("role", role).Msg("No role definition found, skipping")
+			continue
+		}
+
+		// Only generate keys for scopes that match this domain
+		for _, scope := range roleDefinition.Scopes {
+			// Check if this scope should use this domain
+			if shouldUseDomainForScope(domain, scope) {
+				scopeDir := filepath.Join(roleDir, scope)
+				if err := os.MkdirAll(scopeDir, 0755); err != nil {
+					return fmt.Errorf("failed to create scope directory: %w", err)
+				}
+
+				for _, timeWindow := range timeWindows {
+					// Generate time-bounded key
+					roleKey := ibeSystem.GenerateTimeBoundedKey(role, scope, timeWindow)
+
+					// Create filename with time window
+					timeWindowStr := formatTimeWindow(timeWindow)
+					keyPath := filepath.Join(scopeDir, fmt.Sprintf("%s.key", timeWindowStr))
+
+					if err := saveKeyToFile(roleKey, keyPath); err != nil {
+						return fmt.Errorf("failed to save role key: %w", err)
+					}
+
+					log.Info().
+						Str("domain", domain).
+						Str("role", role).
+						Str("scope", scope).
+						Str("time_window", timeWindowStr).
+						Str("key_path", keyPath).
+						Str("key_hash", hex.EncodeToString(roleKey)).
+						Msg("Role key generated and saved")
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// shouldUseDomainForScope determines if a scope should use a specific domain
+func shouldUseDomainForScope(domain, scope string) bool {
+	switch domain {
+	case ibe.DOMAIN_USER_MESSAGING:
+		return scope == "messaging"
+	case ibe.DOMAIN_USER_PSEUDONYMS:
+		return scope == "authentication"
+	case ibe.DOMAIN_USER_CORRELATION:
+		return scope == "self_correlation"
+	case ibe.DOMAIN_MOD_CORRELATION:
+		return scope == "correlation" && (strings.Contains(domain, "mod") || strings.Contains(domain, "subforum"))
+	case ibe.DOMAIN_ADMIN_CORRELATION:
+		return scope == "correlation" && (strings.Contains(domain, "admin") || strings.Contains(domain, "platform"))
+	case ibe.DOMAIN_LEGAL_CORRELATION:
+		return scope == "correlation" && (strings.Contains(domain, "legal") || strings.Contains(domain, "trust"))
+	default:
+		return false
+	}
+}
+
+// NewKeysCommands creates and returns the keys command with subcommands
+func NewKeysCommands(cfg *config.Config) []*cobra.Command {
+	// Create the main keys command
+	keysCmd := &cobra.Command{
+		Use:   "keys",
+		Short: "Manage Identity-Based Encryption keys",
+		Long:  "Manage Identity-Based Encryption keys for HashPost. This includes generating domain keys, role keys, and checking key status.",
+	}
+
+	// Add subcommands
+	keysCmd.AddCommand(newGenerateAllSubcommand(cfg))
+	keysCmd.AddCommand(newGenerateDomainSubcommand(cfg))
+	keysCmd.AddCommand(newListDomainsSubcommand())
+	keysCmd.AddCommand(newStatusSubcommand(cfg))
+
+	return []*cobra.Command{keysCmd}
+}
+
+// newGenerateAllSubcommand creates the generate-all subcommand
+func newGenerateAllSubcommand(cfg *config.Config) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "generate-all",
+		Short: "Generate all IBE keys for enhanced architecture",
+		Long:  "Generate Identity-Based Encryption keys with automatic domain separation and role-scope mapping. This command automatically generates all necessary domain keys and role keys based on the system's predefined mappings.",
+		Run: func(cmd *cobra.Command, args []string) {
+			// Parse command line flags
+			outputDir, _ := cmd.Flags().GetString("output-dir")
+			keyVersion, _ := cmd.Flags().GetInt32("key-version")
+			salt, _ := cmd.Flags().GetString("salt")
+			nonInteractive, _ := cmd.Flags().GetBool("non-interactive")
+			keySize, _ := cmd.Flags().GetInt("key-size")
+
+			// Use configuration salt if not specified via command line
+			if salt == "" {
+				salt = cfg.IBE.Salt
+			}
+
+			// Create IBE key options
+			ibeOptions := &IBEKeyOptions{
+				OutputDir:      outputDir,
+				KeyVersion:     keyVersion,
+				Salt:           salt,
+				NonInteractive: nonInteractive,
+				KeySize:        keySize,
+			}
+
+			// Generate IBE keys
+			if err := GenerateIBEKeys(ibeOptions, cfg); err != nil {
+				log.Fatal().Err(err).Msg("Failed to generate IBE keys")
+			}
+
+			fmt.Println("✅ IBE keys generated successfully!")
+			fmt.Printf("   Output directory: %s\n", outputDir)
+			fmt.Printf("   Key version: %d\n", keyVersion)
+			fmt.Printf("   Salt: %s\n", salt)
+			fmt.Println("   Generated domain keys for all domains")
+			fmt.Println("   Generated role keys for all roles with appropriate scopes")
+		},
+	}
+
+	// Add flags for generate-all subcommand
+	cmd.Flags().String("output-dir", "./keys", "Output directory for generated keys")
+	cmd.Flags().Int32("key-version", 1, "Key version to generate")
+	cmd.Flags().String("salt", "", "Salt for fingerprint generation (defaults to config value)")
+	cmd.Flags().Bool("non-interactive", false, "Non-interactive mode")
+	cmd.Flags().Int("key-size", 32, "Key size in bytes (default 32, i.e., 256 bits)")
+
+	return cmd
+}
+
+// newGenerateDomainSubcommand creates the generate-domain subcommand
+func newGenerateDomainSubcommand(cfg *config.Config) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "generate-domain [domain]",
+		Short: "Generate a single domain key with upsert behavior",
+		Long:  "Generate a single Identity-Based Encryption domain key. This command will only generate the key if it doesn't already exist, making it safe to run on existing HashPost instances.",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			domain := args[0]
+
+			// Validate domain name
+			validDomains := []string{
+				ibe.DOMAIN_USER_PSEUDONYMS,
+				ibe.DOMAIN_USER_CORRELATION,
+				ibe.DOMAIN_USER_MESSAGING,
+				ibe.DOMAIN_MOD_CORRELATION,
+				ibe.DOMAIN_ADMIN_CORRELATION,
+				ibe.DOMAIN_LEGAL_CORRELATION,
+			}
+
+			isValid := false
+			for _, validDomain := range validDomains {
+				if domain == validDomain {
+					isValid = true
+					break
+				}
+			}
+
+			if !isValid {
+				log.Fatal().
+					Str("domain", domain).
+					Strs("valid_domains", validDomains).
+					Msg("Invalid domain name")
+			}
+
+			// Parse command line flags
+			outputDir, _ := cmd.Flags().GetString("output-dir")
+			keySize, _ := cmd.Flags().GetInt("key-size")
+
+			// Generate the single domain key
+			if err := generateSingleDomainKey(domain, outputDir, keySize); err != nil {
+				log.Fatal().Err(err).Str("domain", domain).Msg("Failed to generate domain key")
+			}
+
+			fmt.Printf("✅ Domain key for '%s' generated successfully!\n", domain)
+			fmt.Printf("   Output directory: %s\n", outputDir)
+			fmt.Printf("   Key size: %d bytes\n", keySize)
+		},
+	}
+
+	// Add flags for generate-domain subcommand
+	cmd.Flags().String("output-dir", "./keys", "Output directory for generated keys")
+	cmd.Flags().Int("key-size", 32, "Key size in bytes (default 32, i.e., 256 bits)")
+
+	return cmd
+}
+
+// newListDomainsSubcommand creates the list-domains subcommand
+func newListDomainsSubcommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "list-domains",
+		Short: "List all available IBE domains",
+		Long:  "List all available Identity-Based Encryption domains that can be used with HashPost.",
+		Run: func(cmd *cobra.Command, args []string) {
+			domains := []struct {
+				Name        string
+				Description string
+			}{
+				{ibe.DOMAIN_USER_PSEUDONYMS, "User pseudonym generation and management"},
+				{ibe.DOMAIN_USER_CORRELATION, "User self-correlation and identity linking"},
+				{ibe.DOMAIN_USER_MESSAGING, "User-to-user encrypted messaging"},
+				{ibe.DOMAIN_MOD_CORRELATION, "Moderator correlation and oversight"},
+				{ibe.DOMAIN_ADMIN_CORRELATION, "Administrative correlation and system management"},
+				{ibe.DOMAIN_LEGAL_CORRELATION, "Legal compliance and law enforcement"},
+			}
+
+			fmt.Println("Available IBE domains:")
+			fmt.Println()
+			for _, domain := range domains {
+				fmt.Printf("  %-25s %s\n", domain.Name, domain.Description)
+			}
+		},
+	}
+
+	return cmd
+}
+
+// newStatusSubcommand creates the status subcommand
+func newStatusSubcommand(cfg *config.Config) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "status",
+		Short: "Check the status of IBE keys",
+		Long:  "Check which IBE domain keys exist and their status.",
+		Run: func(cmd *cobra.Command, args []string) {
+			outputDir, _ := cmd.Flags().GetString("output-dir")
+			domainKeysDir := filepath.Join(outputDir, "domains")
+
+			domains := []string{
+				ibe.DOMAIN_USER_PSEUDONYMS,
+				ibe.DOMAIN_USER_CORRELATION,
+				ibe.DOMAIN_USER_MESSAGING,
+				ibe.DOMAIN_MOD_CORRELATION,
+				ibe.DOMAIN_ADMIN_CORRELATION,
+				ibe.DOMAIN_LEGAL_CORRELATION,
+			}
+
+			fmt.Printf("IBE Key Status (checking %s):\n", domainKeysDir)
+			fmt.Println()
+
+			allExist := true
+			for _, domain := range domains {
+				keyPath := filepath.Join(domainKeysDir, domain+".key")
+				if _, err := os.Stat(keyPath); err == nil {
+					fmt.Printf("  ✅ %-25s [EXISTS]\n", domain)
+				} else {
+					fmt.Printf("  ❌ %-25s [MISSING]\n", domain)
+					allExist = false
+				}
+			}
+
+			fmt.Println()
+			if allExist {
+				fmt.Println("🎉 All domain keys are present!")
+			} else {
+				fmt.Println("⚠️  Some domain keys are missing. Use 'generate-domain <domain>' to create them.")
+			}
+		},
+	}
+
+	// Add flags for status subcommand
+	cmd.Flags().String("output-dir", "./keys", "Output directory to check for keys")
 
 	return cmd
 }

@@ -11,6 +11,10 @@ const (
 	// This allows users to access and manage their own identity mappings.
 	ScopeSelfCorrelation = "self_correlation"
 
+	// Messaging scope is used for user-to-user direct messaging operations.
+	// This includes sending, receiving, and managing encrypted messages.
+	ScopeMessaging = "messaging"
+
 	// Moderation scope is used for content moderation, report reviews, and rule management.
 	// This includes subforum-level and platform-level moderation operations.
 	ScopeModeration = "moderation"
@@ -29,6 +33,7 @@ func AllScopes() []string {
 	return []string{
 		ScopeAuthentication,
 		ScopeSelfCorrelation,
+		ScopeMessaging,
 		ScopeModeration,
 		ScopeAdministration,
 		ScopeCorrelation,

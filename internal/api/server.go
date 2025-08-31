@@ -99,7 +99,7 @@ func NewServer(cfg *config.Config) *Server {
 	routes.RegisterAuthRoutes(api, cfg, db, rawDB, ibeSystem)
 	routes.RegisterUserRoutes(api, userDAO, pseudonymDAO, userPreferencesDAO, userBlocksDAO, postDAO, commentDAO, ibeSystem)
 	routes.RegisterSubforumRoutes(api, db, pseudonymDAO)
-	routes.RegisterMessagesRoutes(api, db, pseudonymDAO)
+	routes.RegisterMessagesRoutes(api, db, pseudonymDAO, ibeSystem)
 	routes.RegisterSearchRoutes(api, db, ibeSystem)
 	routes.RegisterModerationRoutes(api, reportDAO, moderationActionDAO, userBanDAO, pseudonymDAO, subforumDAO, postDAO, commentDAO, voteDAO, permissionDAO)
 	routes.RegisterRulesRoutes(api, db, pseudonymDAO)
@@ -130,7 +130,7 @@ func NewServerForOpenAPI() *Server {
 	// Register only the routes that don't require IBE or database
 	// These are typically just the basic structure routes
 	routes.RegisterHealthRoutes(api)
-	
+
 	// Register search routes for OpenAPI generation (they don't require database connections)
 	// We'll create minimal mock dependencies for the search handler
 	routes.RegisterSearchRoutes(api, nil, nil)

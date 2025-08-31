@@ -40,7 +40,7 @@ func GetRoleDefinitions() []RoleDefinition {
 	return []RoleDefinition{
 		{
 			RoleName: RoleUser,
-			Scopes:   []string{ScopeAuthentication, ScopeSelfCorrelation},
+			Scopes:   []string{ScopeAuthentication, ScopeSelfCorrelation, ScopeMessaging},
 			Capabilities: map[string][]string{
 				ScopeAuthentication: {
 					CapabilityAccessOwnPseudonyms,
@@ -50,6 +50,11 @@ func GetRoleDefinitions() []RoleDefinition {
 				ScopeSelfCorrelation: {
 					CapabilityVerifyOwnPseudonymOwnership,
 					CapabilityManageOwnProfile,
+				},
+				ScopeMessaging: {
+					CapabilitySendDirectMessages,
+					CapabilityReceiveDirectMessages,
+					CapabilityManageConversationKeys,
 				},
 			},
 		},

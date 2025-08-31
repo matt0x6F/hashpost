@@ -23,9 +23,11 @@ var TableNames = struct {
 	Comments                string
 	ComplianceCorrelations  string
 	ComplianceReports       string
+	ConversationKeys        string
 	CorrelationAudits       string
 	DirectMessages          string
 	EmailVerificationTokens string
+	EncryptedMessages       string
 	IdentityMappings        string
 	KeyRotationMigrations   string
 	KeyUsageAudits          string
@@ -48,6 +50,7 @@ var TableNames = struct {
 	SystemSettings          string
 	UserBans                string
 	UserBlocks              string
+	UserEncryptionKeys      string
 	UserPreferences         string
 	Users                   string
 	Votes                   string
@@ -56,9 +59,11 @@ var TableNames = struct {
 	Comments:                "comments",
 	ComplianceCorrelations:  "compliance_correlations",
 	ComplianceReports:       "compliance_reports",
+	ConversationKeys:        "conversation_keys",
 	CorrelationAudits:       "correlation_audit",
 	DirectMessages:          "direct_messages",
 	EmailVerificationTokens: "email_verification_tokens",
+	EncryptedMessages:       "encrypted_messages",
 	IdentityMappings:        "identity_mappings",
 	KeyRotationMigrations:   "key_rotation_migrations",
 	KeyUsageAudits:          "key_usage_audit",
@@ -81,6 +86,7 @@ var TableNames = struct {
 	SystemSettings:          "system_settings",
 	UserBans:                "user_bans",
 	UserBlocks:              "user_blocks",
+	UserEncryptionKeys:      "user_encryption_keys",
 	UserPreferences:         "user_preferences",
 	Users:                   "users",
 	Votes:                   "votes",
@@ -91,9 +97,11 @@ var ColumnNames = struct {
 	Comments                commentColumnNames
 	ComplianceCorrelations  complianceCorrelationColumnNames
 	ComplianceReports       complianceReportColumnNames
+	ConversationKeys        conversationKeyColumnNames
 	CorrelationAudits       correlationAuditColumnNames
 	DirectMessages          directMessageColumnNames
 	EmailVerificationTokens emailVerificationTokenColumnNames
+	EncryptedMessages       encryptedMessageColumnNames
 	IdentityMappings        identityMappingColumnNames
 	KeyRotationMigrations   keyRotationMigrationColumnNames
 	KeyUsageAudits          keyUsageAuditColumnNames
@@ -116,6 +124,7 @@ var ColumnNames = struct {
 	SystemSettings          systemSettingColumnNames
 	UserBans                userBanColumnNames
 	UserBlocks              userBlockColumnNames
+	UserEncryptionKeys      userEncryptionKeyColumnNames
 	UserPreferences         userPreferenceColumnNames
 	Users                   userColumnNames
 	Votes                   voteColumnNames
@@ -177,6 +186,17 @@ var ColumnNames = struct {
 		CompletedAt:         "completed_at",
 		Notes:               "notes",
 	},
+	ConversationKeys: conversationKeyColumnNames{
+		ConversationID:     "conversation_id",
+		Participant1UserID: "participant1_user_id",
+		Participant2UserID: "participant2_user_id",
+		EncryptedSharedKey: "encrypted_shared_key",
+		KeyFingerprint:     "key_fingerprint",
+		CreatedAt:          "created_at",
+		ExpiresAt:          "expires_at",
+		IsActive:           "is_active",
+		KeyVersion:         "key_version",
+	},
 	CorrelationAudits: correlationAuditColumnNames{
 		AuditID:              "audit_id",
 		UserID:               "user_id",
@@ -210,6 +230,16 @@ var ColumnNames = struct {
 		CreatedAt: "created_at",
 		ExpiresAt: "expires_at",
 		UsedAt:    "used_at",
+	},
+	EncryptedMessages: encryptedMessageColumnNames{
+		MessageID:        "message_id",
+		ConversationID:   "conversation_id",
+		EncryptedContent: "encrypted_content",
+		ContentHash:      "content_hash",
+		Iv:               "iv",
+		Signature:        "signature",
+		KeyVersion:       "key_version",
+		CreatedAt:        "created_at",
 	},
 	IdentityMappings: identityMappingColumnNames{
 		MappingID:                 "mapping_id",
@@ -488,6 +518,16 @@ var ColumnNames = struct {
 		BlockedUserID:      "blocked_user_id",
 		CreatedAt:          "created_at",
 	},
+	UserEncryptionKeys: userEncryptionKeyColumnNames{
+		UserID:                "user_id",
+		EncryptedMasterKey:    "encrypted_master_key",
+		EncryptedMessageKeys:  "encrypted_message_keys",
+		EncryptedSignatureKey: "encrypted_signature_key",
+		PublicSignatureKey:    "public_signature_key",
+		KeyFingerprint:        "key_fingerprint",
+		CreatedAt:             "created_at",
+		LastRotated:           "last_rotated",
+	},
 	UserPreferences: userPreferenceColumnNames{
 		UserID:             "user_id",
 		Timezone:           "timezone",
@@ -539,9 +579,11 @@ func Where[Q psql.Filterable]() struct {
 	Comments                commentWhere[Q]
 	ComplianceCorrelations  complianceCorrelationWhere[Q]
 	ComplianceReports       complianceReportWhere[Q]
+	ConversationKeys        conversationKeyWhere[Q]
 	CorrelationAudits       correlationAuditWhere[Q]
 	DirectMessages          directMessageWhere[Q]
 	EmailVerificationTokens emailVerificationTokenWhere[Q]
+	EncryptedMessages       encryptedMessageWhere[Q]
 	IdentityMappings        identityMappingWhere[Q]
 	KeyRotationMigrations   keyRotationMigrationWhere[Q]
 	KeyUsageAudits          keyUsageAuditWhere[Q]
@@ -564,6 +606,7 @@ func Where[Q psql.Filterable]() struct {
 	SystemSettings          systemSettingWhere[Q]
 	UserBans                userBanWhere[Q]
 	UserBlocks              userBlockWhere[Q]
+	UserEncryptionKeys      userEncryptionKeyWhere[Q]
 	UserPreferences         userPreferenceWhere[Q]
 	Users                   userWhere[Q]
 	Votes                   voteWhere[Q]
@@ -573,9 +616,11 @@ func Where[Q psql.Filterable]() struct {
 		Comments                commentWhere[Q]
 		ComplianceCorrelations  complianceCorrelationWhere[Q]
 		ComplianceReports       complianceReportWhere[Q]
+		ConversationKeys        conversationKeyWhere[Q]
 		CorrelationAudits       correlationAuditWhere[Q]
 		DirectMessages          directMessageWhere[Q]
 		EmailVerificationTokens emailVerificationTokenWhere[Q]
+		EncryptedMessages       encryptedMessageWhere[Q]
 		IdentityMappings        identityMappingWhere[Q]
 		KeyRotationMigrations   keyRotationMigrationWhere[Q]
 		KeyUsageAudits          keyUsageAuditWhere[Q]
@@ -598,6 +643,7 @@ func Where[Q psql.Filterable]() struct {
 		SystemSettings          systemSettingWhere[Q]
 		UserBans                userBanWhere[Q]
 		UserBlocks              userBlockWhere[Q]
+		UserEncryptionKeys      userEncryptionKeyWhere[Q]
 		UserPreferences         userPreferenceWhere[Q]
 		Users                   userWhere[Q]
 		Votes                   voteWhere[Q]
@@ -606,9 +652,11 @@ func Where[Q psql.Filterable]() struct {
 		Comments:                buildCommentWhere[Q](CommentColumns),
 		ComplianceCorrelations:  buildComplianceCorrelationWhere[Q](ComplianceCorrelationColumns),
 		ComplianceReports:       buildComplianceReportWhere[Q](ComplianceReportColumns),
+		ConversationKeys:        buildConversationKeyWhere[Q](ConversationKeyColumns),
 		CorrelationAudits:       buildCorrelationAuditWhere[Q](CorrelationAuditColumns),
 		DirectMessages:          buildDirectMessageWhere[Q](DirectMessageColumns),
 		EmailVerificationTokens: buildEmailVerificationTokenWhere[Q](EmailVerificationTokenColumns),
+		EncryptedMessages:       buildEncryptedMessageWhere[Q](EncryptedMessageColumns),
 		IdentityMappings:        buildIdentityMappingWhere[Q](IdentityMappingColumns),
 		KeyRotationMigrations:   buildKeyRotationMigrationWhere[Q](KeyRotationMigrationColumns),
 		KeyUsageAudits:          buildKeyUsageAuditWhere[Q](KeyUsageAuditColumns),
@@ -631,6 +679,7 @@ func Where[Q psql.Filterable]() struct {
 		SystemSettings:          buildSystemSettingWhere[Q](SystemSettingColumns),
 		UserBans:                buildUserBanWhere[Q](UserBanColumns),
 		UserBlocks:              buildUserBlockWhere[Q](UserBlockColumns),
+		UserEncryptionKeys:      buildUserEncryptionKeyWhere[Q](UserEncryptionKeyColumns),
 		UserPreferences:         buildUserPreferenceWhere[Q](UserPreferenceColumns),
 		Users:                   buildUserWhere[Q](UserColumns),
 		Votes:                   buildVoteWhere[Q](VoteColumns),
@@ -644,9 +693,11 @@ type preloaders struct {
 	Comment                commentPreloader
 	ComplianceCorrelation  complianceCorrelationPreloader
 	ComplianceReport       complianceReportPreloader
+	ConversationKey        conversationKeyPreloader
 	CorrelationAudit       correlationAuditPreloader
 	DirectMessage          directMessagePreloader
 	EmailVerificationToken emailVerificationTokenPreloader
+	EncryptedMessage       encryptedMessagePreloader
 	IdentityMapping        identityMappingPreloader
 	KeyRotationMigration   keyRotationMigrationPreloader
 	KeyUsageAudit          keyUsageAuditPreloader
@@ -665,6 +716,7 @@ type preloaders struct {
 	SystemSetting          systemSettingPreloader
 	UserBan                userBanPreloader
 	UserBlock              userBlockPreloader
+	UserEncryptionKey      userEncryptionKeyPreloader
 	UserPreference         userPreferencePreloader
 	User                   userPreloader
 	Vote                   votePreloader
@@ -676,9 +728,11 @@ func getPreloaders() preloaders {
 		Comment:                buildCommentPreloader(),
 		ComplianceCorrelation:  buildComplianceCorrelationPreloader(),
 		ComplianceReport:       buildComplianceReportPreloader(),
+		ConversationKey:        buildConversationKeyPreloader(),
 		CorrelationAudit:       buildCorrelationAuditPreloader(),
 		DirectMessage:          buildDirectMessagePreloader(),
 		EmailVerificationToken: buildEmailVerificationTokenPreloader(),
+		EncryptedMessage:       buildEncryptedMessagePreloader(),
 		IdentityMapping:        buildIdentityMappingPreloader(),
 		KeyRotationMigration:   buildKeyRotationMigrationPreloader(),
 		KeyUsageAudit:          buildKeyUsageAuditPreloader(),
@@ -697,6 +751,7 @@ func getPreloaders() preloaders {
 		SystemSetting:          buildSystemSettingPreloader(),
 		UserBan:                buildUserBanPreloader(),
 		UserBlock:              buildUserBlockPreloader(),
+		UserEncryptionKey:      buildUserEncryptionKeyPreloader(),
 		UserPreference:         buildUserPreferencePreloader(),
 		User:                   buildUserPreloader(),
 		Vote:                   buildVotePreloader(),
@@ -714,9 +769,11 @@ type thenLoaders[Q orm.Loadable] struct {
 	Comment                commentThenLoader[Q]
 	ComplianceCorrelation  complianceCorrelationThenLoader[Q]
 	ComplianceReport       complianceReportThenLoader[Q]
+	ConversationKey        conversationKeyThenLoader[Q]
 	CorrelationAudit       correlationAuditThenLoader[Q]
 	DirectMessage          directMessageThenLoader[Q]
 	EmailVerificationToken emailVerificationTokenThenLoader[Q]
+	EncryptedMessage       encryptedMessageThenLoader[Q]
 	IdentityMapping        identityMappingThenLoader[Q]
 	KeyRotationMigration   keyRotationMigrationThenLoader[Q]
 	KeyUsageAudit          keyUsageAuditThenLoader[Q]
@@ -735,6 +792,7 @@ type thenLoaders[Q orm.Loadable] struct {
 	SystemSetting          systemSettingThenLoader[Q]
 	UserBan                userBanThenLoader[Q]
 	UserBlock              userBlockThenLoader[Q]
+	UserEncryptionKey      userEncryptionKeyThenLoader[Q]
 	UserPreference         userPreferenceThenLoader[Q]
 	User                   userThenLoader[Q]
 	Vote                   voteThenLoader[Q]
@@ -746,9 +804,11 @@ func getThenLoaders[Q orm.Loadable]() thenLoaders[Q] {
 		Comment:                buildCommentThenLoader[Q](),
 		ComplianceCorrelation:  buildComplianceCorrelationThenLoader[Q](),
 		ComplianceReport:       buildComplianceReportThenLoader[Q](),
+		ConversationKey:        buildConversationKeyThenLoader[Q](),
 		CorrelationAudit:       buildCorrelationAuditThenLoader[Q](),
 		DirectMessage:          buildDirectMessageThenLoader[Q](),
 		EmailVerificationToken: buildEmailVerificationTokenThenLoader[Q](),
+		EncryptedMessage:       buildEncryptedMessageThenLoader[Q](),
 		IdentityMapping:        buildIdentityMappingThenLoader[Q](),
 		KeyRotationMigration:   buildKeyRotationMigrationThenLoader[Q](),
 		KeyUsageAudit:          buildKeyUsageAuditThenLoader[Q](),
@@ -767,6 +827,7 @@ func getThenLoaders[Q orm.Loadable]() thenLoaders[Q] {
 		SystemSetting:          buildSystemSettingThenLoader[Q](),
 		UserBan:                buildUserBanThenLoader[Q](),
 		UserBlock:              buildUserBlockThenLoader[Q](),
+		UserEncryptionKey:      buildUserEncryptionKeyThenLoader[Q](),
 		UserPreference:         buildUserPreferenceThenLoader[Q](),
 		User:                   buildUserThenLoader[Q](),
 		Vote:                   buildVoteThenLoader[Q](),
@@ -818,9 +879,11 @@ type joins[Q dialect.Joinable] struct {
 	Comments                joinSet[commentJoins[Q]]
 	ComplianceCorrelations  joinSet[complianceCorrelationJoins[Q]]
 	ComplianceReports       joinSet[complianceReportJoins[Q]]
+	ConversationKeys        joinSet[conversationKeyJoins[Q]]
 	CorrelationAudits       joinSet[correlationAuditJoins[Q]]
 	DirectMessages          joinSet[directMessageJoins[Q]]
 	EmailVerificationTokens joinSet[emailVerificationTokenJoins[Q]]
+	EncryptedMessages       joinSet[encryptedMessageJoins[Q]]
 	IdentityMappings        joinSet[identityMappingJoins[Q]]
 	KeyRotationMigrations   joinSet[keyRotationMigrationJoins[Q]]
 	KeyUsageAudits          joinSet[keyUsageAuditJoins[Q]]
@@ -839,6 +902,7 @@ type joins[Q dialect.Joinable] struct {
 	SystemSettings          joinSet[systemSettingJoins[Q]]
 	UserBans                joinSet[userBanJoins[Q]]
 	UserBlocks              joinSet[userBlockJoins[Q]]
+	UserEncryptionKeys      joinSet[userEncryptionKeyJoins[Q]]
 	UserPreferences         joinSet[userPreferenceJoins[Q]]
 	Users                   joinSet[userJoins[Q]]
 	Votes                   joinSet[voteJoins[Q]]
@@ -858,9 +922,11 @@ func getJoins[Q dialect.Joinable]() joins[Q] {
 		Comments:                buildJoinSet[commentJoins[Q]](CommentColumns, buildCommentJoins),
 		ComplianceCorrelations:  buildJoinSet[complianceCorrelationJoins[Q]](ComplianceCorrelationColumns, buildComplianceCorrelationJoins),
 		ComplianceReports:       buildJoinSet[complianceReportJoins[Q]](ComplianceReportColumns, buildComplianceReportJoins),
+		ConversationKeys:        buildJoinSet[conversationKeyJoins[Q]](ConversationKeyColumns, buildConversationKeyJoins),
 		CorrelationAudits:       buildJoinSet[correlationAuditJoins[Q]](CorrelationAuditColumns, buildCorrelationAuditJoins),
 		DirectMessages:          buildJoinSet[directMessageJoins[Q]](DirectMessageColumns, buildDirectMessageJoins),
 		EmailVerificationTokens: buildJoinSet[emailVerificationTokenJoins[Q]](EmailVerificationTokenColumns, buildEmailVerificationTokenJoins),
+		EncryptedMessages:       buildJoinSet[encryptedMessageJoins[Q]](EncryptedMessageColumns, buildEncryptedMessageJoins),
 		IdentityMappings:        buildJoinSet[identityMappingJoins[Q]](IdentityMappingColumns, buildIdentityMappingJoins),
 		KeyRotationMigrations:   buildJoinSet[keyRotationMigrationJoins[Q]](KeyRotationMigrationColumns, buildKeyRotationMigrationJoins),
 		KeyUsageAudits:          buildJoinSet[keyUsageAuditJoins[Q]](KeyUsageAuditColumns, buildKeyUsageAuditJoins),
@@ -879,6 +945,7 @@ func getJoins[Q dialect.Joinable]() joins[Q] {
 		SystemSettings:          buildJoinSet[systemSettingJoins[Q]](SystemSettingColumns, buildSystemSettingJoins),
 		UserBans:                buildJoinSet[userBanJoins[Q]](UserBanColumns, buildUserBanJoins),
 		UserBlocks:              buildJoinSet[userBlockJoins[Q]](UserBlockColumns, buildUserBlockJoins),
+		UserEncryptionKeys:      buildJoinSet[userEncryptionKeyJoins[Q]](UserEncryptionKeyColumns, buildUserEncryptionKeyJoins),
 		UserPreferences:         buildJoinSet[userPreferenceJoins[Q]](UserPreferenceColumns, buildUserPreferenceJoins),
 		Users:                   buildJoinSet[userJoins[Q]](UserColumns, buildUserJoins),
 		Votes:                   buildJoinSet[voteJoins[Q]](VoteColumns, buildVoteJoins),
