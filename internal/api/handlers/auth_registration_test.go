@@ -5,19 +5,22 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 
 	"github.com/matt0x6f/hashpost/internal/api/constants"
 	apimodels "github.com/matt0x6f/hashpost/internal/api/models"
 	dbmodels "github.com/matt0x6f/hashpost/internal/database/models"
+	gomock "go.uber.org/mock/gomock"
 )
 
-// TestAuthHandler_RegisterUser_PermissionWorkflow tests the complete user registration workflow
-// and verifies that proper permissions are set up for new users
-func TestAuthHandler_RegisterUser_PermissionWorkflow(t *testing.T) {
+// TestAuthHandler_RegisterUser_PermissionWorkflow_Gomock tests the complete user registration workflow
+// and verifies that proper permissions are set up for new users using gomock
+func TestAuthHandler_RegisterUser_PermissionWorkflow_Gomock(t *testing.T) {
 	t.Run("UserRegistration_CreatesUserWithProperPermissions", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
 		// Arrange
-		handler, mockUserDAO, mockPseudonymDAO, _, mockRoleKeyDAO, _, mockPermissionDAO := NewAuthHandlerWithMocks()
+		handler, mockUserDAO, mockPseudonymDAO, _, mockRoleKeyDAO, _, mockPermissionDAO := NewAuthHandlerWithGomocks(ctrl)
 
 		// Test data
 		email := "newuser@example.com"
@@ -27,26 +30,34 @@ func TestAuthHandler_RegisterUser_PermissionWorkflow(t *testing.T) {
 		pseudonymID := "new-user-pseudo-1"
 
 		// Mock email uniqueness check (should return error if user doesn't exist)
-		mockUserDAO.On("GetUserByEmail", mock.Anything, email).
-			Return(nil, assert.AnError) // User doesn't exist, so error is expected
+		mockUserDAO.EXPECT().
+			GetUserByEmail(gomock.Any(), email).
+			Return(nil, assert.AnError). // User doesn't exist, so error is expected
+			Times(1)
 
 		// Mock user creation
-		mockUserDAO.On("CreateUser", mock.Anything, email, mock.AnythingOfType("string")).
+		mockUserDAO.EXPECT().
+			CreateUser(gomock.Any(), email, gomock.Any()).
 			Return(&dbmodels.User{
 				UserID: userID,
 				Email:  email,
-			}, nil)
+			}, nil).
+			Times(1)
 
 		// Mock pseudonym creation with identity mapping
-		mockPseudonymDAO.On("CreatePseudonymWithIdentityMapping", mock.Anything, userID, displayName).
+		mockPseudonymDAO.EXPECT().
+			CreatePseudonymWithIdentityMapping(gomock.Any(), userID, displayName).
 			Return(&dbmodels.Pseudonym{
 				PseudonymID: pseudonymID,
 				DisplayName: displayName,
-			}, nil)
+			}, nil).
+			Times(1)
 
 		// Mock role key creation - this is where we verify proper permission setup
-		mockRoleKeyDAO.On("EnsureDefaultKeys", mock.Anything, mock.Anything, pseudonymID, []string{constants.RoleUser}).
-			Return(nil)
+		mockRoleKeyDAO.EXPECT().
+			EnsureDefaultKeys(gomock.Any(), gomock.Any(), pseudonymID, []string{constants.RoleUser}).
+			Return(nil).
+			Times(1)
 
 		// Mock permission verification after user creation
 		// New users should have these capabilities through their user role keys with authentication and self-correlation scopes
@@ -67,23 +78,31 @@ func TestAuthHandler_RegisterUser_PermissionWorkflow(t *testing.T) {
 			constants.CapabilityManageOwnPseudonyms,
 		}
 
-		mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities",
-			mock.Anything, userID, pseudonymID, (*int32)(nil)).
-			Return([]string{constants.RoleUser}, expectedNewUserCapabilities, nil)
+		mockPermissionDAO.EXPECT().
+			GetUnifiedActivePseudonymRolesAndCapabilities(
+				gomock.Any(), userID, pseudonymID, (*int32)(nil)).
+			Return([]string{constants.RoleUser}, expectedNewUserCapabilities, nil).
+			Times(1)
 
 		// Mock specific capability checks for key workflows
-		mockPermissionDAO.On("HasUnifiedCapability",
-			mock.Anything, userID, pseudonymID, constants.CapabilityCreateSubforum, (*int32)(nil)).
-			Return(true, nil)
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(
+				gomock.Any(), userID, pseudonymID, constants.CapabilityCreateSubforum, (*int32)(nil)).
+			Return(true, nil).
+			Times(1)
 
-		mockPermissionDAO.On("HasUnifiedCapability",
-			mock.Anything, userID, pseudonymID, constants.CapabilityManageOwnProfile, (*int32)(nil)).
-			Return(true, nil)
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(
+				gomock.Any(), userID, pseudonymID, constants.CapabilityManageOwnProfile, (*int32)(nil)).
+			Return(true, nil).
+			Times(1)
 
 		// Mock that new users should NOT have admin capabilities
-		mockPermissionDAO.On("HasUnifiedCapability",
-			mock.Anything, userID, pseudonymID, constants.CapabilitySystemAdmin, (*int32)(nil)).
-			Return(false, nil)
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(
+				gomock.Any(), userID, pseudonymID, constants.CapabilitySystemAdmin, (*int32)(nil)).
+			Return(false, nil).
+			Times(1)
 
 		// Act - Register the user
 		input := &apimodels.UserRegistrationInput{
@@ -106,11 +125,6 @@ func TestAuthHandler_RegisterUser_PermissionWorkflow(t *testing.T) {
 		assert.Equal(t, email, response.Body.Email)
 		assert.Equal(t, pseudonymID, response.Body.PseudonymID)
 		assert.Equal(t, displayName, response.Body.DisplayName)
-
-		// Verify all mocks were called as expected
-		mockUserDAO.AssertExpectations(t)
-		mockPseudonymDAO.AssertExpectations(t)
-		mockRoleKeyDAO.AssertExpectations(t)
 
 		// Now test the permission setup by verifying the new user has expected capabilities
 		roles, capabilities, err := mockPermissionDAO.GetUnifiedActivePseudonymRolesAndCapabilities(
@@ -142,14 +156,15 @@ func TestAuthHandler_RegisterUser_PermissionWorkflow(t *testing.T) {
 			context.Background(), userID, pseudonymID, constants.CapabilitySystemAdmin, nil)
 		assert.NoError(t, err)
 		assert.False(t, hasSystemAdmin, "New user should NOT have system admin capabilities")
-
-		mockPermissionDAO.AssertExpectations(t)
 	})
 
 	t.Run("UserRegistration_VerifiesAuthenticationAndSelfCorrelationScopes", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
 		// This test focuses specifically on verifying that the registration process
 		// creates role keys with the correct scopes (authentication and self_correlation)
-		handler, mockUserDAO, mockPseudonymDAO, _, mockRoleKeyDAO, _, mockPermissionDAO := NewAuthHandlerWithMocks()
+		handler, mockUserDAO, mockPseudonymDAO, _, mockRoleKeyDAO, _, mockPermissionDAO := NewAuthHandlerWithGomocks(ctrl)
 
 		email := "scopetest@example.com"
 		password := "SecurePassword123!"
@@ -158,19 +173,27 @@ func TestAuthHandler_RegisterUser_PermissionWorkflow(t *testing.T) {
 		pseudonymID := "scope-test-pseudo-2"
 
 		// Mock the creation steps
-		mockUserDAO.On("GetUserByEmail", mock.Anything, email).
-			Return(nil, assert.AnError) // User doesn't exist
+		mockUserDAO.EXPECT().
+			GetUserByEmail(gomock.Any(), email).
+			Return(nil, assert.AnError). // User doesn't exist
+			Times(1)
 
-		mockUserDAO.On("CreateUser", mock.Anything, email, mock.AnythingOfType("string")).
-			Return(&dbmodels.User{UserID: userID, Email: email}, nil)
+		mockUserDAO.EXPECT().
+			CreateUser(gomock.Any(), email, gomock.Any()).
+			Return(&dbmodels.User{UserID: userID, Email: email}, nil).
+			Times(1)
 
-		mockPseudonymDAO.On("CreatePseudonymWithIdentityMapping", mock.Anything, userID, displayName).
-			Return(&dbmodels.Pseudonym{PseudonymID: pseudonymID, DisplayName: displayName}, nil)
+		mockPseudonymDAO.EXPECT().
+			CreatePseudonymWithIdentityMapping(gomock.Any(), userID, displayName).
+			Return(&dbmodels.Pseudonym{PseudonymID: pseudonymID, DisplayName: displayName}, nil).
+			Times(1)
 
 		// This is the critical mock - verify that EnsureDefaultKeys is called to create
 		// role keys with the proper scopes for a user role
-		mockRoleKeyDAO.On("EnsureDefaultKeys", mock.Anything, mock.Anything, pseudonymID, []string{constants.RoleUser}).
-			Return(nil)
+		mockRoleKeyDAO.EXPECT().
+			EnsureDefaultKeys(gomock.Any(), gomock.Any(), pseudonymID, []string{constants.RoleUser}).
+			Return(nil).
+			Times(1)
 
 		// Mock that the user now has capabilities from both authentication and self-correlation scopes
 		authScopeCapabilities := []string{
@@ -187,15 +210,19 @@ func TestAuthHandler_RegisterUser_PermissionWorkflow(t *testing.T) {
 
 		// Mock individual capability checks for both scope types
 		for _, capability := range authScopeCapabilities {
-			mockPermissionDAO.On("HasUnifiedCapability",
-				mock.Anything, userID, pseudonymID, capability, (*int32)(nil)).
-				Return(true, nil)
+			mockPermissionDAO.EXPECT().
+				HasUnifiedCapability(
+					gomock.Any(), userID, pseudonymID, capability, (*int32)(nil)).
+				Return(true, nil).
+				Times(1)
 		}
 
 		for _, capability := range selfCorrelationScopeCapabilities {
-			mockPermissionDAO.On("HasUnifiedCapability",
-				mock.Anything, userID, pseudonymID, capability, (*int32)(nil)).
-				Return(true, nil)
+			mockPermissionDAO.EXPECT().
+				HasUnifiedCapability(
+					gomock.Any(), userID, pseudonymID, capability, (*int32)(nil)).
+				Return(true, nil).
+				Times(1)
 		}
 
 		// Act
@@ -212,10 +239,6 @@ func TestAuthHandler_RegisterUser_PermissionWorkflow(t *testing.T) {
 		// Assert
 		assert.NoError(t, err)
 		assert.NotNil(t, response)
-
-		// The key assertion: verify that EnsureDefaultKeys was called
-		// This ensures that the user gets role keys with authentication and self_correlation scopes
-		mockRoleKeyDAO.AssertExpectations(t)
 
 		// Verify the user has capabilities from both scopes
 		ctx := context.Background()
@@ -235,7 +258,5 @@ func TestAuthHandler_RegisterUser_PermissionWorkflow(t *testing.T) {
 			assert.NoError(t, err)
 			assert.True(t, hasCapability, "New user should have self-correlation scope capability: %s", capability)
 		}
-
-		mockPermissionDAO.AssertExpectations(t)
 	})
 }

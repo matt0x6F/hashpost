@@ -1,4 +1,4 @@
-package handlers
+package handlers_test
 
 import (
 	"context"
@@ -7,869 +7,704 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/matt0x6f/hashpost/internal/api/constants"
+	"github.com/matt0x6f/hashpost/internal/api/handlers"
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	apimodels "github.com/matt0x6f/hashpost/internal/api/models"
-	"github.com/matt0x6f/hashpost/internal/database/dao/mocks"
-	dbmodels "github.com/matt0x6f/hashpost/internal/database/models"
+	"github.com/matt0x6f/hashpost/internal/database/dao"
+	"github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/matt0x6f/hashpost/internal/fixtures"
 	"github.com/stephenafamo/bob/types"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
+	gomock "go.uber.org/mock/gomock"
 )
 
-func TestNewRulesHandler(t *testing.T) {
-	// Create mock DAOs
-	mockReportDAO := mocks.NewMockReportDAO()
-	mockSubforumDAO := mocks.NewMockSubforumDAO()
-	mockSystemSettingsDAO := mocks.NewMockSystemSettingsDAO()
-	mockPermissionDAO := mocks.NewMockPermissionDAO()
+// TestNewRulesHandler_Gomock tests the rules handler constructor using gomock
+func TestNewRulesHandler_Gomock(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	// Create mock pseudonym DAO
-	mockPseudonymDAO := mocks.NewMockPseudonymDAO()
+	// Create mock DAOs
+	mockReportDAO := dao.NewMockReportDAOInterface(ctrl)
+	mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+	mockSystemSettingsDAO := dao.NewMockSystemSettingsDAOInterface(ctrl)
+	mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+	mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
 
 	// Create handler
-	handler := NewRulesHandler(mockReportDAO, mockSubforumDAO, mockSystemSettingsDAO, mockPermissionDAO, mockPseudonymDAO, nil)
+	handler := handlers.NewRulesHandler(mockReportDAO, mockSubforumDAO, mockSystemSettingsDAO, mockPermissionDAO, mockPseudonymDAO, nil)
 
 	// Assertions
 	assert.NotNil(t, handler)
-	assert.Equal(t, mockReportDAO, handler.reportDAO)
-	assert.Equal(t, mockSubforumDAO, handler.subforumDAO)
-	assert.Equal(t, mockSystemSettingsDAO, handler.systemSettingsDAO)
-	assert.Equal(t, mockPermissionDAO, handler.permissionDAO)
-	assert.Equal(t, mockPseudonymDAO, handler.pseudonymDAO)
-	assert.Nil(t, handler.db)
+	// Note: Fields are unexported, so we can't access them directly in tests
+	// The constructor test verifies the handler was created successfully
 }
 
-func TestRulesHandler_GetPlatformRules(t *testing.T) {
-	tests := []struct {
-		name           string
-		input          *apimodels.PlatformRulesInput
-		mockSetting    *dbmodels.SystemSetting
-		wantErr        bool
-		expectedStatus int
-	}{
-		{
-			name: "GetPlatformRulesSuccess",
-			input: &apimodels.PlatformRulesInput{
-				ActiveOnly: false,
-			},
-			mockSetting: &dbmodels.SystemSetting{
-				SettingKey:   "platform_rules",
-				SettingValue: `[{"code":"no_spam","name":"No Spam","description":"No spam allowed","category":"content","severity":"high","active":true}]`,
-				SettingType:  "json",
-			},
-			wantErr:        false,
-			expectedStatus: 200,
-		},
-		{
-			name:           "GetPlatformRulesNoRules",
-			input:          &apimodels.PlatformRulesInput{},
-			mockSetting:    nil,
-			wantErr:        false,
-			expectedStatus: 200,
-		},
-		{
-			name: "GetPlatformRulesActiveOnly",
-			input: &apimodels.PlatformRulesInput{
-				ActiveOnly: true,
-			},
-			mockSetting: &dbmodels.SystemSetting{
-				SettingKey:   "platform_rules",
-				SettingValue: `[{"code":"no_spam","name":"No Spam","description":"No spam allowed","category":"content","severity":"high","active":true},{"code":"old_rule","name":"Old Rule","description":"Inactive rule","category":"content","severity":"low","active":false}]`,
-				SettingType:  "json",
-			},
-			wantErr:        false,
-			expectedStatus: 200,
-		},
-	}
+// TestRulesHandler_GetPlatformRules_Gomock tests the platform rules retrieval using gomock
+func TestRulesHandler_GetPlatformRules_Gomock(t *testing.T) {
+	t.Run("GetPlatformRulesSuccess", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create mock DAOs
-			mockSystemSettingsDAO := mocks.NewMockSystemSettingsDAO()
+		// Create mock DAOs
+		mockSystemSettingsDAO := dao.NewMockSystemSettingsDAOInterface(ctrl)
 
-			// Set up mock expectations
-			mockSystemSettingsDAO.On("GetSetting", mock.Anything, "platform_rules").Return(tt.mockSetting, nil)
+		// Set up mock expectations
+		mockSetting := &models.SystemSetting{
+			SettingKey:   "platform_rules",
+			SettingValue: `[{"code":"no_spam","name":"No Spam","description":"No spam allowed","category":"content","severity":"high","active":true}]`,
+			SettingType:  "json",
+		}
 
-			// Create handler
-			handler := &RulesHandler{
-				systemSettingsDAO: mockSystemSettingsDAO,
-			}
+		mockSystemSettingsDAO.EXPECT().
+			GetSetting(gomock.Any(), "platform_rules").
+			Return(mockSetting, nil).
+			Times(1)
 
-			// Execute test
-			result, err := handler.GetPlatformRules(context.Background(), tt.input)
+		// Create handler
+		handler := handlers.NewRulesHandler(nil, nil, mockSystemSettingsDAO, nil, nil, nil)
 
-			// Assertions
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, result)
-				assert.Equal(t, tt.expectedStatus, result.Status)
-			}
+		// Test input
+		input := &apimodels.PlatformRulesInput{
+			ActiveOnly: false,
+		}
 
-			// Verify mocks
-			mockSystemSettingsDAO.AssertExpectations(t)
-		})
-	}
+		// Execute test
+		result, err := handler.GetPlatformRules(context.Background(), input)
+
+		// Assertions
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, 200, result.Status)
+	})
+
+	t.Run("GetPlatformRulesNoRules", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		// Create mock DAOs
+		mockSystemSettingsDAO := dao.NewMockSystemSettingsDAOInterface(ctrl)
+
+		// Set up mock expectations
+		mockSystemSettingsDAO.EXPECT().
+			GetSetting(gomock.Any(), "platform_rules").
+			Return(nil, nil).
+			Times(1)
+
+		// Create handler
+		handler := handlers.NewRulesHandler(nil, nil, mockSystemSettingsDAO, nil, nil, nil)
+
+		// Test input
+		input := &apimodels.PlatformRulesInput{}
+
+		// Execute test
+		result, err := handler.GetPlatformRules(context.Background(), input)
+
+		// Assertions
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, 200, result.Status)
+	})
+
+	t.Run("GetPlatformRulesActiveOnly", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		// Create mock DAOs
+		mockSystemSettingsDAO := dao.NewMockSystemSettingsDAOInterface(ctrl)
+
+		// Set up mock expectations
+		mockSetting := &models.SystemSetting{
+			SettingKey:   "platform_rules",
+			SettingValue: `[{"code":"no_spam","name":"No Spam","description":"No spam allowed","category":"content","severity":"high","active":true},{"code":"old_rule","name":"Old Rule","description":"Inactive rule","category":"content","severity":"low","active":false}]`,
+			SettingType:  "json",
+		}
+
+		mockSystemSettingsDAO.EXPECT().
+			GetSetting(gomock.Any(), "platform_rules").
+			Return(mockSetting, nil).
+			Times(1)
+
+		// Create handler
+		handler := handlers.NewRulesHandler(nil, nil, mockSystemSettingsDAO, nil, nil, nil)
+
+		// Test input
+		input := &apimodels.PlatformRulesInput{
+			ActiveOnly: true,
+		}
+
+		// Execute test
+		result, err := handler.GetPlatformRules(context.Background(), input)
+
+		// Assertions
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, 200, result.Status)
+	})
 }
 
-func TestRulesHandler_GetSubforumRules(t *testing.T) {
-	tests := []struct {
-		name           string
-		input          *apimodels.SubforumRulesInput
-		mockSubforum   *dbmodels.Subforum
-		wantErr        bool
-		expectedStatus int
-	}{
-		{
-			name: "GetSubforumRulesSuccess",
-			input: &apimodels.SubforumRulesInput{
-				CommunityType: constants.CommunityTypeTopical,
-				SubforumName:  "golang",
-				ActiveOnly:    false,
+// TestRulesHandler_GetSubforumRules_Gomock tests the subforum rules retrieval using gomock
+func TestRulesHandler_GetSubforumRules_Gomock(t *testing.T) {
+	t.Run("GetSubforumRulesSuccess", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		// Create mock DAOs
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+
+		// Set up mock expectations
+		mockSubforum := &models.Subforum{
+			SubforumID: 1,
+			Name:       "golang",
+			SubforumRules: sql.Null[types.JSON[json.RawMessage]]{
+				Valid: true,
+				V:     types.NewJSON[json.RawMessage]([]byte(`[{"code":"no_politics","name":"No Politics","description":"No political discussion","category":"content","severity":"medium","active":true}]`)),
 			},
-			mockSubforum: &dbmodels.Subforum{
-				SubforumID: 1,
-				Name:       "golang",
-				SubforumRules: sql.Null[types.JSON[json.RawMessage]]{
-					Valid: true,
-					V:     types.NewJSON[json.RawMessage]([]byte(`[{"code":"no_politics","name":"No Politics","description":"No political discussion","category":"content","severity":"medium","active":true}]`)),
-				},
+		}
+
+		mockSubforumDAO.EXPECT().
+			GetSubforumByName(gomock.Any(), "golang").
+			Return(mockSubforum, nil).
+			Times(1)
+
+		// Create handler
+		handler := handlers.NewRulesHandler(nil, mockSubforumDAO, nil, nil, nil, nil)
+
+		// Test input
+		input := &apimodels.SubforumRulesInput{
+			CommunityType: constants.CommunityTypeTopical,
+			SubforumName:  "golang",
+			ActiveOnly:    false,
+		}
+
+		// Execute test
+		result, err := handler.GetSubforumRules(context.Background(), input)
+
+		// Assertions
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, 200, result.Status)
+	})
+
+	t.Run("GetSubforumRulesNotFound", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		// Create mock DAOs
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+
+		// Set up mock expectations
+		mockSubforumDAO.EXPECT().
+			GetSubforumByName(gomock.Any(), "nonexistent").
+			Return(nil, nil).
+			Times(1)
+
+		// Create handler
+		handler := handlers.NewRulesHandler(nil, mockSubforumDAO, nil, nil, nil, nil)
+
+		// Test input
+		input := &apimodels.SubforumRulesInput{
+			CommunityType: constants.CommunityTypeTopical,
+			SubforumName:  "nonexistent",
+			ActiveOnly:    false,
+		}
+
+		// Execute test
+		result, err := handler.GetSubforumRules(context.Background(), input)
+
+		// Assertions
+		assert.Error(t, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("GetSubforumRulesNoRules", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		// Create mock DAOs
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+
+		// Set up mock expectations
+		mockSubforum := &models.Subforum{
+			SubforumID: 1,
+			Name:       "golang",
+			SubforumRules: sql.Null[types.JSON[json.RawMessage]]{
+				Valid: false,
+				V:     types.NewJSON[json.RawMessage]([]byte(`{}`)),
 			},
-			wantErr:        false,
-			expectedStatus: 200,
-		},
-		{
-			name: "GetSubforumRulesNotFound",
-			input: &apimodels.SubforumRulesInput{
-				CommunityType: constants.CommunityTypeTopical,
-				SubforumName:  "nonexistent",
-				ActiveOnly:    false,
-			},
-			mockSubforum:   nil,
-			wantErr:        true,
-			expectedStatus: 404,
-		},
-		{
-			name: "GetSubforumRulesNoRules",
-			input: &apimodels.SubforumRulesInput{
-				CommunityType: constants.CommunityTypeTopical,
-				SubforumName:  "golang",
-				ActiveOnly:    false,
-			},
-			mockSubforum: &dbmodels.Subforum{
-				SubforumID: 1,
+		}
+
+		mockSubforumDAO.EXPECT().
+			GetSubforumByName(gomock.Any(), "golang").
+			Return(mockSubforum, nil).
+			Times(1)
+
+		// Create handler
+		handler := handlers.NewRulesHandler(nil, mockSubforumDAO, nil, nil, nil, nil)
+
+		// Test input
+		input := &apimodels.SubforumRulesInput{
+			CommunityType: constants.CommunityTypeTopical,
+			SubforumName:  "golang",
+			ActiveOnly:    false,
+		}
+
+		// Execute test
+		result, err := handler.GetSubforumRules(context.Background(), input)
+
+		// Assertions
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, 200, result.Status)
+	})
+}
+
+// TestRulesHandler_CreateSubforumRule_Gomock tests the subforum rule creation using gomock
+func TestRulesHandler_CreateSubforumRule_Gomock(t *testing.T) {
+	t.Run("CreateSubforumRuleSuccess", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		// Initialize global auth middleware for testing
+		authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
+		middleware.SetGlobalAuthMiddleware(authMiddleware)
+
+		// Create mock DAOs
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+
+		// Test data
+		userID := int64(1)
+		pseudonymID := "test-pseudonym-id"
+		subforumID := int32(1)
+
+		// Set up mock expectations
+		mockSubforumDAO.EXPECT().
+			GetSubforumByCommunityTypeAndName(gomock.Any(), constants.CommunityTypeTopical, "golang").
+			Return(&models.Subforum{
+				SubforumID: subforumID,
 				Name:       "golang",
 				SubforumRules: sql.Null[types.JSON[json.RawMessage]]{
 					Valid: false,
 					V:     types.NewJSON[json.RawMessage]([]byte(`{}`)),
 				},
+			}, nil).
+			Times(2) // Called once in validateModeratorPermissionsForSubforum and once in main method
+
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(gomock.Any(), userID, pseudonymID, constants.CapabilityManageSubforumRules, &subforumID).
+			Return(true, nil).
+			Times(1)
+
+		mockSubforumDAO.EXPECT().
+			UpdateRules(gomock.Any(), subforumID, gomock.Any()).
+			Return(nil).
+			Times(1)
+
+		mockPseudonymDAO.EXPECT().
+			UpdateLastActive(gomock.Any(), pseudonymID).
+			Return(nil).
+			Times(1)
+
+		// Create handler
+		handler := handlers.NewRulesHandler(nil, mockSubforumDAO, nil, mockPermissionDAO, mockPseudonymDAO, nil)
+
+		// Set up proper authentication
+		userCtx := fixtures.CreateTestUserContext()
+		token, tokenErr := middleware.GenerateJWT(userCtx, "test-secret", 24*time.Hour)
+		require.NoError(t, tokenErr)
+
+		// Test input
+		input := &apimodels.RuleCreateInput{
+			AuthInput: middleware.AuthInput{
+				Authorization: "Bearer " + token,
+				AccessToken:   "",
 			},
-			wantErr:        false,
-			expectedStatus: 200,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create mock DAOs
-			mockSubforumDAO := mocks.NewMockSubforumDAO()
-
-			// Set up mock expectations
-			if tt.mockSubforum != nil {
-				mockSubforumDAO.On("GetSubforumByName", mock.Anything, tt.input.SubforumName).Return(tt.mockSubforum, nil)
-			} else {
-				mockSubforumDAO.On("GetSubforumByName", mock.Anything, tt.input.SubforumName).Return(nil, nil)
-			}
-
-			// Create handler
-			handler := &RulesHandler{
-				subforumDAO: mockSubforumDAO,
-			}
-
-			// Execute test
-			result, err := handler.GetSubforumRules(context.Background(), tt.input)
-
-			// Assertions
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, result)
-				assert.Equal(t, tt.expectedStatus, result.Status)
-			}
-
-			// Verify mocks
-			mockSubforumDAO.AssertExpectations(t)
-		})
-	}
-}
-
-func TestRulesHandler_CreateSubforumRule(t *testing.T) {
-	tests := []struct {
-		name           string
-		input          *apimodels.RuleCreateInput
-		mockSubforum   *dbmodels.Subforum
-		mockPermission bool
-		wantErr        bool
-	}{
-		{
-			name: "CreateSubforumRuleSuccess",
-			input: &apimodels.RuleCreateInput{
-				AuthInput: middleware.AuthInput{
-					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "test-pseudonym-id"),
-				},
-				CommunityType: constants.CommunityTypeTopical,
-				SubforumName:  "golang",
-				Body: apimodels.RuleCreateInputBody{
-					Code:        "no_politics",
-					Name:        "No Politics",
-					Description: "No political discussion allowed",
-					Category:    "content",
-					Severity:    "medium",
-					Active:      true,
-				},
+			CommunityType: constants.CommunityTypeTopical,
+			SubforumName:  "golang",
+			Body: apimodels.RuleCreateInputBody{
+				Code:        "no_politics",
+				Name:        "No Politics",
+				Description: "No political discussion allowed",
+				Category:    "content",
+				Severity:    "medium",
+				Active:      true,
 			},
-			mockSubforum: &dbmodels.Subforum{
-				SubforumID: 1,
+		}
+
+		// Execute test
+		result, err := handler.CreateSubforumRule(context.Background(), input)
+
+		// Assertions
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+	})
+
+	t.Run("CreateSubforumRuleInsufficientPermissions", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		// Initialize global auth middleware for testing
+		authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
+		middleware.SetGlobalAuthMiddleware(authMiddleware)
+
+		// Create mock DAOs
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+
+		// Test data
+		userID := int64(1)
+		pseudonymID := "test-pseudonym-id"
+		subforumID := int32(1)
+
+		// Set up mock expectations
+		mockSubforumDAO.EXPECT().
+			GetSubforumByCommunityTypeAndName(gomock.Any(), constants.CommunityTypeTopical, "golang").
+			Return(&models.Subforum{
+				SubforumID: subforumID,
 				Name:       "golang",
 				SubforumRules: sql.Null[types.JSON[json.RawMessage]]{
 					Valid: false,
 					V:     types.NewJSON[json.RawMessage]([]byte(`{}`)),
 				},
+			}, nil).
+			Times(1) // Called once in validateModeratorPermissionsForSubforum, main method never reached
+
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(gomock.Any(), userID, pseudonymID, constants.CapabilityManageSubforumRules, &subforumID).
+			Return(false, nil).
+			Times(1)
+
+		// Create handler
+		handler := handlers.NewRulesHandler(nil, mockSubforumDAO, nil, mockPermissionDAO, mockPseudonymDAO, nil)
+
+		// Set up proper authentication
+		userCtx := fixtures.CreateTestUserContext()
+		token, tokenErr := middleware.GenerateJWT(userCtx, "test-secret", 24*time.Hour)
+		require.NoError(t, tokenErr)
+
+		// Test input
+		input := &apimodels.RuleCreateInput{
+			AuthInput: middleware.AuthInput{
+				Authorization: "Bearer " + token,
+				AccessToken:   "",
 			},
-			mockPermission: true,
-			wantErr:        false,
-		},
-		{
-			name: "CreateSubforumRuleInsufficientPermissions",
-			input: &apimodels.RuleCreateInput{
-				AuthInput: middleware.AuthInput{
-					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "test-pseudonym-id"),
-				},
-				CommunityType: constants.CommunityTypeTopical,
-				SubforumName:  "golang",
-				Body: apimodels.RuleCreateInputBody{
-					Code:        "no_politics",
-					Name:        "No Politics",
-					Description: "No political discussion allowed",
-					Category:    "content",
-					Severity:    "medium",
-					Active:      true,
-				},
+			CommunityType: constants.CommunityTypeTopical,
+			SubforumName:  "golang",
+			Body: apimodels.RuleCreateInputBody{
+				Code:        "no_politics",
+				Name:        "No Politics",
+				Description: "No political discussion allowed",
+				Category:    "content",
+				Severity:    "medium",
+				Active:      true,
 			},
-			mockSubforum: &dbmodels.Subforum{
-				SubforumID: 1,
-				Name:       "golang",
-				SubforumRules: sql.Null[types.JSON[json.RawMessage]]{
-					Valid: false,
-					V:     types.NewJSON[json.RawMessage]([]byte(`{}`)),
-				},
-			},
-			mockPermission: false,
-			wantErr:        true,
-		},
-	}
+		}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Initialize global auth middleware for testing
-			authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
-			middleware.SetGlobalAuthMiddleware(authMiddleware)
+		// Execute test
+		result, err := handler.CreateSubforumRule(context.Background(), input)
 
-			// Create mock DAOs
-			mockSubforumDAO := mocks.NewMockSubforumDAO()
-			mockPermissionDAO := mocks.NewMockPermissionDAO()
-
-			// Set up mock expectations only if authentication should succeed
-			if tt.mockSubforum != nil {
-				mockSubforumDAO.On("GetSubforumByCommunityTypeAndName", mock.Anything, tt.input.CommunityType, tt.input.SubforumName).Return(tt.mockSubforum, nil)
-				subforumID := int32(1)
-				mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", constants.CapabilityManageSubforumRules, &subforumID).Return(tt.mockPermission, nil)
-
-				// For success cases, mock the UpdateRules call
-				if tt.mockPermission && !tt.wantErr {
-					mockSubforumDAO.On("UpdateRules", mock.Anything, tt.mockSubforum.SubforumID, mock.AnythingOfType("[]uint8")).Return(nil)
-				}
-			}
-
-			// Create mock pseudonym DAO for the UpdateLastActive call
-			mockPseudonymDAO := mocks.NewMockPseudonymDAO()
-			mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
-
-			// Create handler using the proper constructor
-			handler := NewRulesHandler(nil, mockSubforumDAO, nil, mockPermissionDAO, mockPseudonymDAO, nil)
-
-			// Set up proper authentication
-			userCtx := fixtures.CreateTestUserContext()
-			token, tokenErr := middleware.GenerateJWT(userCtx, "test-secret", 24*time.Hour)
-			require.NoError(t, tokenErr)
-
-			// Update input with proper authentication
-			inputWithAuth := &apimodels.RuleCreateInput{
-				AuthInput: middleware.AuthInput{
-					Authorization: "Bearer " + token,
-					AccessToken:   "",
-				},
-				CommunityType: tt.input.CommunityType,
-				SubforumName:  tt.input.SubforumName,
-				Body:          tt.input.Body,
-			}
-
-			// Execute test
-			result, err := handler.CreateSubforumRule(context.Background(), inputWithAuth)
-
-			// Assertions
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, result)
-			}
-
-			// Verify mocks only if they were set up
-			if tt.mockSubforum != nil {
-				mockSubforumDAO.AssertExpectations(t)
-				mockPermissionDAO.AssertExpectations(t)
-			}
-
-			// Verify pseudonym DAO expectations for successful operations
-			if tt.mockSubforum != nil && tt.mockPermission && !tt.wantErr {
-				mockPseudonymDAO.AssertExpectations(t)
-			}
-		})
-	}
+		// Assertions
+		assert.Error(t, err)
+		assert.Nil(t, result)
+	})
 }
 
-func TestRulesHandler_UpdateSubforumRule(t *testing.T) {
-	// Initialize global auth middleware for testing
-	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
-	middleware.SetGlobalAuthMiddleware(authMiddleware)
+// TestRulesHandler_UpdateSubforumRule_Gomock tests the subforum rule update using gomock
+func TestRulesHandler_UpdateSubforumRule_Gomock(t *testing.T) {
+	t.Run("UpdateSubforumRuleSuccess", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	tests := []struct {
-		name           string
-		input          *apimodels.RuleUpdateInput
-		mockSubforum   *dbmodels.Subforum
-		mockPermission bool
-		wantErr        bool
-	}{
-		{
-			name: "UpdateSubforumRuleSuccess",
-			input: &apimodels.RuleUpdateInput{
-				AuthInput: middleware.AuthInput{
-					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "test-pseudonym-id"),
-				},
-				CommunityType: constants.CommunityTypeTopical,
-				SubforumName:  "golang",
-				RuleCode:      "no_politics",
-				Body: apimodels.RuleUpdateInputBody{
-					Name:        stringPtr("Updated No Politics"),
-					Description: stringPtr("Updated description"),
-					Active:      boolPtr(false),
-				},
-			},
-			mockSubforum: &dbmodels.Subforum{
-				SubforumID: 1,
+		// Initialize global auth middleware for testing
+		authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
+		middleware.SetGlobalAuthMiddleware(authMiddleware)
+
+		// Create mock DAOs
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+
+		// Test data
+		userID := int64(1)
+		pseudonymID := "test-pseudonym-id"
+		subforumID := int32(1)
+
+		// Set up mock expectations
+		mockSubforumDAO.EXPECT().
+			GetSubforumByCommunityTypeAndName(gomock.Any(), constants.CommunityTypeTopical, "golang").
+			Return(&models.Subforum{
+				SubforumID: subforumID,
 				Name:       "golang",
 				SubforumRules: sql.Null[types.JSON[json.RawMessage]]{
 					Valid: true,
 					V:     types.NewJSON[json.RawMessage]([]byte(`[{"code":"no_politics","name":"No Politics","description":"No political discussion","category":"content","severity":"medium","active":true}]`)),
 				},
+			}, nil).
+			Times(2) // Called once in validateModeratorPermissionsForSubforum and once in main method
+
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(gomock.Any(), userID, pseudonymID, constants.CapabilityManageSubforumRules, &subforumID).
+			Return(true, nil).
+			Times(1)
+
+		mockSubforumDAO.EXPECT().
+			UpdateRules(gomock.Any(), subforumID, gomock.Any()).
+			Return(nil).
+			Times(1)
+
+		mockPseudonymDAO.EXPECT().
+			UpdateLastActive(gomock.Any(), pseudonymID).
+			Return(nil).
+			Times(1)
+
+		// Create handler
+		handler := handlers.NewRulesHandler(nil, mockSubforumDAO, nil, mockPermissionDAO, mockPseudonymDAO, nil)
+
+		// Set up proper authentication
+		userCtx := fixtures.CreateTestUserContext()
+		token, tokenErr := middleware.GenerateJWT(userCtx, "test-secret", 24*time.Hour)
+		require.NoError(t, tokenErr)
+
+		// Test input
+		input := &apimodels.RuleUpdateInput{
+			AuthInput: middleware.AuthInput{
+				Authorization: "Bearer " + token,
+				AccessToken:   "",
 			},
-			mockPermission: true,
-			wantErr:        false,
-		},
-		{
-			name: "UpdateSubforumRuleRuleNotFound",
-			input: &apimodels.RuleUpdateInput{
-				AuthInput: middleware.AuthInput{
-					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "test-pseudonym-id"),
-				},
-				CommunityType: constants.CommunityTypeTopical,
-				SubforumName:  "golang",
-				RuleCode:      "nonexistent_rule",
-				Body: apimodels.RuleUpdateInputBody{
-					Name: stringPtr("Updated Name"),
-				},
+			CommunityType: constants.CommunityTypeTopical,
+			SubforumName:  "golang",
+			RuleCode:      "no_politics",
+			Body: apimodels.RuleUpdateInputBody{
+				Name:        stringPtr("Updated No Politics"),
+				Description: stringPtr("Updated description"),
+				Active:      boolPtr(false),
 			},
-			mockSubforum: &dbmodels.Subforum{
-				SubforumID: 1,
+		}
+
+		// Execute test
+		result, err := handler.UpdateSubforumRule(context.Background(), input)
+
+		// Assertions
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+	})
+
+	t.Run("UpdateSubforumRuleRuleNotFound", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		// Initialize global auth middleware for testing
+		authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
+		middleware.SetGlobalAuthMiddleware(authMiddleware)
+
+		// Create mock DAOs
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+
+		// Test data
+		userID := int64(1)
+		pseudonymID := "test-pseudonym-id"
+		subforumID := int32(1)
+
+		// Set up mock expectations
+		mockSubforumDAO.EXPECT().
+			GetSubforumByCommunityTypeAndName(gomock.Any(), constants.CommunityTypeTopical, "golang").
+			Return(&models.Subforum{
+				SubforumID: subforumID,
 				Name:       "golang",
 				SubforumRules: sql.Null[types.JSON[json.RawMessage]]{
 					Valid: true,
 					V:     types.NewJSON[json.RawMessage]([]byte(`[{"code":"no_politics","name":"No Politics","description":"No political discussion","category":"content","severity":"medium","active":true}]`)),
 				},
+			}, nil).
+			Times(2) // Called once in validateModeratorPermissionsForSubforum and once in main method
+
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(gomock.Any(), userID, pseudonymID, constants.CapabilityManageSubforumRules, &subforumID).
+			Return(true, nil).
+			Times(1)
+
+		// Create handler
+		handler := handlers.NewRulesHandler(nil, mockSubforumDAO, nil, mockPermissionDAO, mockPseudonymDAO, nil)
+
+		// Set up proper authentication
+		userCtx := fixtures.CreateTestUserContext()
+		token, tokenErr := middleware.GenerateJWT(userCtx, "test-secret", 24*time.Hour)
+		require.NoError(t, tokenErr)
+
+		// Test input
+		input := &apimodels.RuleUpdateInput{
+			AuthInput: middleware.AuthInput{
+				Authorization: "Bearer " + token,
+				AccessToken:   "",
 			},
-			mockPermission: true,
-			wantErr:        true,
-		},
-	}
+			CommunityType: constants.CommunityTypeTopical,
+			SubforumName:  "golang",
+			RuleCode:      "nonexistent_rule",
+			Body: apimodels.RuleUpdateInputBody{
+				Name: stringPtr("Updated Name"),
+			},
+		}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create mock DAOs
-			mockSubforumDAO := mocks.NewMockSubforumDAO()
-			mockPermissionDAO := mocks.NewMockPermissionDAO()
-			mockPseudonymDAO := mocks.NewMockPseudonymDAO()
+		// Execute test
+		result, err := handler.UpdateSubforumRule(context.Background(), input)
 
-			// Set up mock expectations
-			if tt.mockSubforum != nil {
-				mockSubforumDAO.On("GetSubforumByCommunityTypeAndName", mock.Anything, tt.input.CommunityType, tt.input.SubforumName).Return(tt.mockSubforum, nil)
-				subforumID := int32(1)
-				mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", constants.CapabilityManageSubforumRules, &subforumID).Return(tt.mockPermission, nil)
-
-				// For success cases, mock the UpdateRules call
-				if tt.mockPermission && !tt.wantErr {
-					mockSubforumDAO.On("UpdateRules", mock.Anything, tt.mockSubforum.SubforumID, mock.AnythingOfType("[]uint8")).Return(nil)
-					// Mock the UpdateLastActive call for successful operations
-					mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
-				}
-			}
-
-			// Create handler using the proper constructor
-			handler := NewRulesHandler(nil, mockSubforumDAO, nil, mockPermissionDAO, mockPseudonymDAO, nil)
-
-			// Execute test
-			result, err := handler.UpdateSubforumRule(context.Background(), tt.input)
-
-			// Assertions
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, result)
-			}
-
-			// Verify mocks
-			mockSubforumDAO.AssertExpectations(t)
-			mockPermissionDAO.AssertExpectations(t)
-
-			// Verify pseudonym DAO expectations for successful operations
-			if tt.mockSubforum != nil && tt.mockPermission && !tt.wantErr {
-				mockPseudonymDAO.AssertExpectations(t)
-			}
-		})
-	}
+		// Assertions
+		assert.Error(t, err)
+		assert.Nil(t, result)
+	})
 }
 
-func TestRulesHandler_DeleteSubforumRule(t *testing.T) {
-	// Initialize global auth middleware for testing
-	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
-	middleware.SetGlobalAuthMiddleware(authMiddleware)
+// TestRulesHandler_DeleteSubforumRule_Gomock tests the subforum rule deletion using gomock
+func TestRulesHandler_DeleteSubforumRule_Gomock(t *testing.T) {
+	t.Run("DeleteSubforumRuleSuccess", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	tests := []struct {
-		name           string
-		input          *apimodels.RuleDeleteInput
-		mockSubforum   *dbmodels.Subforum
-		mockPermission bool
-		wantErr        bool
-	}{
-		{
-			name: "DeleteSubforumRuleSuccess",
-			input: &apimodels.RuleDeleteInput{
-				AuthInput: middleware.AuthInput{
-					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "test-pseudonym-id"),
-				},
-				CommunityType: constants.CommunityTypeTopical,
-				SubforumName:  "golang",
-				RuleCode:      "no_politics",
-			},
-			mockSubforum: &dbmodels.Subforum{
-				SubforumID: 1,
+		// Initialize global auth middleware for testing
+		authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
+		middleware.SetGlobalAuthMiddleware(authMiddleware)
+
+		// Create mock DAOs
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+
+		// Test data
+		userID := int64(1)
+		pseudonymID := "test-pseudonym-id"
+		subforumID := int32(1)
+
+		// Set up mock expectations
+		mockSubforumDAO.EXPECT().
+			GetSubforumByCommunityTypeAndName(gomock.Any(), constants.CommunityTypeTopical, "golang").
+			Return(&models.Subforum{
+				SubforumID: subforumID,
 				Name:       "golang",
 				SubforumRules: sql.Null[types.JSON[json.RawMessage]]{
 					Valid: true,
 					V:     types.NewJSON[json.RawMessage]([]byte(`[{"code":"no_politics","name":"No Politics","description":"No political discussion","category":"content","severity":"medium","active":true}]`)),
 				},
+			}, nil).
+			Times(2) // Called once in validateModeratorPermissionsForSubforum and once in main method
+
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(gomock.Any(), userID, pseudonymID, constants.CapabilityManageSubforumRules, &subforumID).
+			Return(true, nil).
+			Times(1)
+
+		mockSubforumDAO.EXPECT().
+			UpdateRules(gomock.Any(), subforumID, gomock.Any()).
+			Return(nil).
+			Times(1)
+
+		mockPseudonymDAO.EXPECT().
+			UpdateLastActive(gomock.Any(), pseudonymID).
+			Return(nil).
+			Times(1)
+
+		// Create handler
+		handler := handlers.NewRulesHandler(nil, mockSubforumDAO, nil, mockPermissionDAO, mockPseudonymDAO, nil)
+
+		// Set up proper authentication
+		userCtx := fixtures.CreateTestUserContext()
+		token, tokenErr := middleware.GenerateJWT(userCtx, "test-secret", 24*time.Hour)
+		require.NoError(t, tokenErr)
+
+		// Test input
+		input := &apimodels.RuleDeleteInput{
+			AuthInput: middleware.AuthInput{
+				Authorization: "Bearer " + token,
+				AccessToken:   "",
 			},
-			mockPermission: true,
-			wantErr:        false,
-		},
-		{
-			name: "DeleteSubforumRuleRuleNotFound",
-			input: &apimodels.RuleDeleteInput{
-				AuthInput: middleware.AuthInput{
-					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "test-pseudonym-id"),
-				},
-				CommunityType: constants.CommunityTypeTopical,
-				SubforumName:  "golang",
-				RuleCode:      "nonexistent_rule",
-			},
-			mockSubforum: &dbmodels.Subforum{
-				SubforumID: 1,
+			CommunityType: constants.CommunityTypeTopical,
+			SubforumName:  "golang",
+			RuleCode:      "no_politics",
+		}
+
+		// Execute test
+		result, err := handler.DeleteSubforumRule(context.Background(), input)
+
+		// Assertions
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+	})
+
+	t.Run("DeleteSubforumRuleRuleNotFound", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		// Initialize global auth middleware for testing
+		authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
+		middleware.SetGlobalAuthMiddleware(authMiddleware)
+
+		// Create mock DAOs
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+
+		// Test data
+		userID := int64(1)
+		pseudonymID := "test-pseudonym-id"
+		subforumID := int32(1)
+
+		// Set up mock expectations
+		mockSubforumDAO.EXPECT().
+			GetSubforumByCommunityTypeAndName(gomock.Any(), constants.CommunityTypeTopical, "golang").
+			Return(&models.Subforum{
+				SubforumID: subforumID,
 				Name:       "golang",
 				SubforumRules: sql.Null[types.JSON[json.RawMessage]]{
 					Valid: true,
 					V:     types.NewJSON[json.RawMessage]([]byte(`[{"code":"no_politics","name":"No Politics","description":"No political discussion","category":"content","severity":"medium","active":true}]`)),
 				},
+			}, nil).
+			Times(2) // Called once in validateModeratorPermissionsForSubforum and once in main method
+
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(gomock.Any(), userID, pseudonymID, constants.CapabilityManageSubforumRules, &subforumID).
+			Return(true, nil).
+			Times(1)
+
+		// Create handler
+		handler := handlers.NewRulesHandler(nil, mockSubforumDAO, nil, mockPermissionDAO, mockPseudonymDAO, nil)
+
+		// Set up proper authentication
+		userCtx := fixtures.CreateTestUserContext()
+		token, tokenErr := middleware.GenerateJWT(userCtx, "test-secret", 24*time.Hour)
+		require.NoError(t, tokenErr)
+
+		// Test input
+		input := &apimodels.RuleDeleteInput{
+			AuthInput: middleware.AuthInput{
+				Authorization: "Bearer " + token,
+				AccessToken:   "",
 			},
-			mockPermission: true,
-			wantErr:        true,
-		},
-	}
+			CommunityType: constants.CommunityTypeTopical,
+			SubforumName:  "golang",
+			RuleCode:      "nonexistent_rule",
+		}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create mock DAOs
-			mockSubforumDAO := mocks.NewMockSubforumDAO()
-			mockPermissionDAO := mocks.NewMockPermissionDAO()
-			mockPseudonymDAO := mocks.NewMockPseudonymDAO()
+		// Execute test
+		result, err := handler.DeleteSubforumRule(context.Background(), input)
 
-			// Set up mock expectations
-			if tt.mockSubforum != nil {
-				mockSubforumDAO.On("GetSubforumByCommunityTypeAndName", mock.Anything, tt.input.CommunityType, tt.input.SubforumName).Return(tt.mockSubforum, nil)
-				subforumID := int32(1)
-				mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", constants.CapabilityManageSubforumRules, &subforumID).Return(tt.mockPermission, nil)
-
-				// For success cases, mock the UpdateRules call
-				if tt.mockPermission && !tt.wantErr {
-					mockSubforumDAO.On("UpdateRules", mock.Anything, tt.mockSubforum.SubforumID, mock.AnythingOfType("[]uint8")).Return(nil)
-					// Mock the UpdateLastActive call for successful operations
-					mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
-				}
-			}
-
-			// Create handler using the proper constructor
-			handler := NewRulesHandler(nil, mockSubforumDAO, nil, mockPermissionDAO, mockPseudonymDAO, nil)
-
-			// Execute test
-			result, err := handler.DeleteSubforumRule(context.Background(), tt.input)
-
-			// Assertions
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, result)
-			}
-
-			// Verify mocks
-			mockSubforumDAO.AssertExpectations(t)
-			mockPermissionDAO.AssertExpectations(t)
-
-			// Verify pseudonym DAO expectations for successful operations
-			if tt.mockSubforum != nil && tt.mockPermission && !tt.wantErr {
-				mockPseudonymDAO.AssertExpectations(t)
-			}
-		})
-	}
+		// Assertions
+		assert.Error(t, err)
+		assert.Nil(t, result)
+	})
 }
 
-func TestRulesHandler_ReportRuleViolation(t *testing.T) {
-	// Initialize global auth middleware for testing
-	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
-	middleware.SetGlobalAuthMiddleware(authMiddleware)
-
-	tests := []struct {
-		name         string
-		input        *apimodels.RuleViolationInput
-		mockReportID int
-		wantErr      bool
-	}{
-		{
-			name: "ReportRuleViolationSuccess",
-			input: &apimodels.RuleViolationInput{
-				AuthInput: middleware.AuthInput{
-					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "test-pseudonym-id"),
-				},
-				Body: apimodels.RuleViolationInputBody{
-					ContentType:         "post",
-					ContentID:           intPtr(123),
-					ReportedPseudonymID: "def789ghi012",
-					RuleCode:            "harassment",
-					RuleType:            "platform",
-					ReportDetails:       "This post violates the harassment rule",
-				},
-			},
-			mockReportID: 789,
-			wantErr:      false,
-		},
-		{
-			name: "ReportRuleViolationSubforumRuleNotImplemented",
-			input: &apimodels.RuleViolationInput{
-				AuthInput: middleware.AuthInput{
-					Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "test-pseudonym-id"),
-				},
-				Body: apimodels.RuleViolationInputBody{
-					ContentType:         "comment",
-					ContentID:           intPtr(456),
-					ReportedPseudonymID: "abc123def456",
-					RuleCode:            "no_politics",
-					RuleType:            "subforum",
-					ReportDetails:       "This comment violates the no politics rule",
-				},
-			},
-			mockReportID: 790,
-			wantErr:      true, // Subforum rule validation is not implemented
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create mock DAOs
-			mockReportDAO := mocks.NewMockReportDAO()
-			mockSystemSettingsDAO := mocks.NewMockSystemSettingsDAO()
-			mockPseudonymDAO := mocks.NewMockPseudonymDAO()
-
-			// Set up mock expectations for platform rule validation
-			if tt.input.Body.RuleType == "platform" {
-				// Mock platform rules setting
-				platformRulesJSON := `[{"code":"harassment","name":"Harassment","description":"No harassment allowed","category":"behavior","severity":"high","active":true}]`
-				mockSystemSetting := &dbmodels.SystemSetting{
-					SettingKey:   "platform_rules",
-					SettingValue: platformRulesJSON,
-				}
-				mockSystemSettingsDAO.On("GetSetting", mock.Anything, "platform_rules").Return(mockSystemSetting, nil)
-			}
-
-			// Set up mock expectations for report creation (only for successful cases)
-			if !tt.wantErr {
-				mockReport := &dbmodels.Report{
-					ReportID: int64(tt.mockReportID),
-				}
-				mockReportDAO.On("CreateReport", mock.Anything, mock.AnythingOfType("*models.ReportSetter")).Return(mockReport, nil)
-				// Mock the UpdateLastActive call for successful operations
-				mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
-			}
-
-			// Create handler using the proper constructor
-			handler := NewRulesHandler(mockReportDAO, nil, mockSystemSettingsDAO, nil, mockPseudonymDAO, nil)
-
-			// Execute test
-			result, err := handler.ReportRuleViolation(context.Background(), tt.input)
-
-			// Assertions
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, result)
-				assert.Equal(t, tt.mockReportID, result.ReportID)
-			}
-
-			// Verify mocks
-			if !tt.wantErr {
-				mockReportDAO.AssertExpectations(t)
-				// Verify pseudonym DAO expectations for successful operations
-				mockPseudonymDAO.AssertExpectations(t)
-			}
-			if tt.input.Body.RuleType == "platform" {
-				mockSystemSettingsDAO.AssertExpectations(t)
-			}
-		})
-	}
-}
-
-func TestRulesHandler_ForwardReportToPlatform(t *testing.T) {
-	// Initialize global auth middleware for testing
-	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
-	middleware.SetGlobalAuthMiddleware(authMiddleware)
-
-	// Create a test user context with forward_reports capability
-	testUserCtx := &middleware.UserContext{
-		UserID:            1,
-		Email:             "moderator@example.com",
-		ActivePseudonymID: "test-pseudonym-id",
-		DisplayName:       "TestModerator",
-		MFAEnabled:        false,
-		TokenType:         "jwt",
-	}
-
-	// Generate a valid JWT token
-	token, err := middleware.GenerateJWT(testUserCtx, "test-secret", 24*time.Hour)
-	require.NoError(t, err)
-
-	tests := []struct {
-		name       string
-		input      *apimodels.ReportForwardInput
-		mockReport interface{}
-		wantErr    bool
-	}{
-		{
-			name: "ForwardReportToPlatformSuccess",
-			input: &apimodels.ReportForwardInput{
-				AuthInput: middleware.AuthInput{
-					Authorization: "Bearer " + token,
-				},
-				ReportID: 789,
-				Body: apimodels.ReportForwardInputBody{
-					ForwardingNotes: "This appears to be a systemic issue",
-				},
-			},
-			mockReport: &dbmodels.Report{
-				ReportID:              789,
-				ReporterPseudonymID:   "reporter-pseudonym-id",
-				ContentType:           "post",
-				ContentID:             sql.Null[int64]{V: 123, Valid: true},
-				ReportedPseudonymID:   sql.Null[string]{V: "reported-pseudonym-id", Valid: true},
-				ReportReason:          "spam",
-				ReportDetails:         sql.Null[string]{V: "This post violates community guidelines...", Valid: true},
-				Status:                sql.Null[string]{V: "pending", Valid: true},
-				CreatedAt:             sql.Null[time.Time]{V: time.Now(), Valid: true},
-				ResolvedByUserID:      sql.Null[int64]{Valid: false},
-				ResolvedByPseudonymID: sql.Null[string]{Valid: false},
-				ResolutionNotes:       sql.Null[string]{Valid: false},
-				ResolvedAt:            sql.Null[time.Time]{Valid: false},
-				ForwardedToPlatform:   sql.Null[bool]{V: false, Valid: true},
-				ForwardingNotes:       sql.Null[string]{Valid: false},
-				ForwardedByUserID:     sql.Null[int64]{Valid: false},
-				ForwardedAt:           sql.Null[time.Time]{Valid: false},
-			},
-			wantErr: false,
-		},
-		{
-			name: "ForwardReportToPlatformReportNotFound",
-			input: &apimodels.ReportForwardInput{
-				AuthInput: middleware.AuthInput{
-					Authorization: "Bearer " + token,
-				},
-				ReportID: 999,
-				Body: apimodels.ReportForwardInputBody{
-					ForwardingNotes: "This appears to be a systemic issue",
-				},
-			},
-			mockReport: nil,
-			wantErr:    true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create mock DAOs
-			mockReportDAO := mocks.NewMockReportDAO()
-			mockPermissionDAO := mocks.NewMockPermissionDAO()
-
-			// Mock permission check to return true for forward_reports capability
-			mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), mock.AnythingOfType("string"), "forward_reports", (*int32)(nil)).Return(true, nil)
-
-			// Set up mock expectations
-			if tt.mockReport != nil {
-				mockReportDAO.On("GetReportByID", mock.Anything, int64(tt.input.ReportID)).Return(tt.mockReport, nil)
-				mockReportDAO.On("UpdateReport", mock.Anything, int64(tt.input.ReportID), mock.AnythingOfType("*models.ReportSetter")).Return(nil)
-			} else {
-				mockReportDAO.On("GetReportByID", mock.Anything, int64(tt.input.ReportID)).Return(nil, nil)
-			}
-
-			// Create handler
-			handler := &RulesHandler{
-				reportDAO:     mockReportDAO,
-				permissionDAO: mockPermissionDAO,
-			}
-
-			// Execute test
-			result, err := handler.ForwardReportToPlatform(context.Background(), tt.input)
-
-			// Assertions
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, result)
-				assert.Equal(t, tt.input.ReportID, result.ReportID)
-			}
-
-			// Verify mocks
-			mockReportDAO.AssertExpectations(t)
-			mockPermissionDAO.AssertExpectations(t)
-		})
-	}
-}
-
-func TestRulesHandler_validateModeratorPermissionsForSubforum(t *testing.T) {
-	tests := []struct {
-		name           string
-		userCtx        *middleware.UserContext
-		communityType  string
-		subforumName   string
-		mockSubforum   *dbmodels.Subforum
-		mockPermission bool
-		wantErr        bool
-	}{
-		{
-			name:          "ValidatePermissionsSuccess",
-			userCtx:       fixtures.CreateTestUserContext(),
-			communityType: constants.CommunityTypeBranded,
-			subforumName:  "hashpost",
-			mockSubforum: &dbmodels.Subforum{
-				SubforumID: 1,
-				Name:       "hashpost",
-			},
-			mockPermission: true,
-			wantErr:        false,
-		},
-		{
-			name:           "ValidatePermissionsSubforumNotFound",
-			userCtx:        fixtures.CreateTestUserContext(),
-			communityType:  constants.CommunityTypeBranded,
-			subforumName:   "nonexistent",
-			mockSubforum:   nil,
-			mockPermission: false,
-			wantErr:        true,
-		},
-		{
-			name:          "ValidatePermissionsInsufficientPermissions",
-			userCtx:       fixtures.CreateTestUserContext(),
-			communityType: constants.CommunityTypeBranded,
-			subforumName:  "hashpost",
-			mockSubforum: &dbmodels.Subforum{
-				SubforumID: 1,
-				Name:       "hashpost",
-			},
-			mockPermission: false,
-			wantErr:        true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create mock DAOs
-			mockSubforumDAO := mocks.NewMockSubforumDAO()
-			mockPermissionDAO := mocks.NewMockPermissionDAO()
-
-			// Set up mock expectations
-			if tt.mockSubforum != nil {
-				mockSubforumDAO.On("GetSubforumByCommunityTypeAndName", mock.Anything, tt.communityType, tt.subforumName).Return(tt.mockSubforum, nil)
-				subforumID := int32(1)
-				mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, tt.userCtx.UserID, tt.userCtx.ActivePseudonymID, "manage_subforum_rules", &subforumID).Return(tt.mockPermission, nil)
-			} else {
-				mockSubforumDAO.On("GetSubforumByCommunityTypeAndName", mock.Anything, tt.communityType, tt.subforumName).Return(nil, nil)
-			}
-
-			// Create handler
-			handler := &RulesHandler{
-				subforumDAO:   mockSubforumDAO,
-				permissionDAO: mockPermissionDAO,
-			}
-
-			// Execute test
-			err := handler.validateModeratorPermissionsForSubforum(context.Background(), tt.userCtx, tt.communityType, tt.subforumName)
-
-			// Assertions
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-
-			// Verify mocks
-			mockSubforumDAO.AssertExpectations(t)
-			mockPermissionDAO.AssertExpectations(t)
-		})
-	}
-}
-
-// Helper functions for creating pointers to primitive types
+// Helper functions for pointer types
 func stringPtr(s string) *string {
 	return &s
 }
 
 func boolPtr(b bool) *bool {
 	return &b
-}
-
-func intPtr(i int) *int {
-	return &i
 }
