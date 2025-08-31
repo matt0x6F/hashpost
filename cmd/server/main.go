@@ -100,8 +100,8 @@ func main() {
 	// Add admin commands
 	rootCmd.AddCommand(commands.NewAdminCommands(cfg)...)
 
-	// Add IBE keys command
-	rootCmd.AddCommand(commands.NewGenerateIBEKeysCommand(cfg))
+	// Add keys commands
+	rootCmd.AddCommand(commands.NewKeysCommands(cfg)...)
 
 	// Add key-rotation commands
 	rootCmd.AddCommand(commands.NewKeyRotationCommands(cfg)...)

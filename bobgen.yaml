@@ -32,7 +32,7 @@ generator: "HashPost Generated Code"
 
 # PostgreSQL driver configuration
 psql:
-  dsn: "postgres://hashpost:hashpost_dev@localhost:5432/hashpost?sslmode=disable"
+  dsn: "postgres://hashpost:hashpost_dev@postgres:5432/hashpost?sslmode=disable"
 
 # Schema to generate code for
 schema: "public"

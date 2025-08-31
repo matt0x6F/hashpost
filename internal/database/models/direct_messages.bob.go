@@ -46,8 +46,9 @@ type DirectMessagesQuery = *psql.ViewQuery[*DirectMessage, DirectMessageSlice]
 
 // directMessageR is where relationships are stored.
 type directMessageR struct {
-	RecipientPseudonymPseudonym *Pseudonym `scan:"RecipientPseudonymPseudonym" json:"RecipientPseudonymPseudonym"` // direct_messages.direct_messages_recipient_pseudonym_id_fkey
-	SenderPseudonymPseudonym    *Pseudonym `scan:"SenderPseudonymPseudonym" json:"SenderPseudonymPseudonym"`       // direct_messages.direct_messages_sender_pseudonym_id_fkey
+	RecipientPseudonymPseudonym *Pseudonym        `scan:"RecipientPseudonymPseudonym" json:"RecipientPseudonymPseudonym"` // direct_messages.direct_messages_recipient_pseudonym_id_fkey
+	SenderPseudonymPseudonym    *Pseudonym        `scan:"SenderPseudonymPseudonym" json:"SenderPseudonymPseudonym"`       // direct_messages.direct_messages_sender_pseudonym_id_fkey
+	MessageEncryptedMessage     *EncryptedMessage `scan:"MessageEncryptedMessage" json:"MessageEncryptedMessage"`         // encrypted_messages.encrypted_messages_message_id_fkey
 }
 
 type directMessageColumnNames struct {
@@ -516,6 +517,7 @@ type directMessageJoins[Q dialect.Joinable] struct {
 	typ                         string
 	RecipientPseudonymPseudonym modAs[Q, pseudonymColumns]
 	SenderPseudonymPseudonym    modAs[Q, pseudonymColumns]
+	MessageEncryptedMessage     modAs[Q, encryptedMessageColumns]
 }
 
 func (j directMessageJoins[Q]) aliasedAs(alias string) directMessageJoins[Q] {
@@ -547,6 +549,20 @@ func buildDirectMessageJoins[Q dialect.Joinable](cols directMessageColumns, typ 
 				{
 					mods = append(mods, dialect.Join[Q](typ, Pseudonyms.Name().As(to.Alias())).On(
 						to.PseudonymID.EQ(cols.SenderPseudonymID),
+					))
+				}
+
+				return mods
+			},
+		},
+		MessageEncryptedMessage: modAs[Q, encryptedMessageColumns]{
+			c: EncryptedMessageColumns,
+			f: func(to encryptedMessageColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, EncryptedMessages.Name().As(to.Alias())).On(
+						to.MessageID.EQ(cols.MessageID),
 					))
 				}
 
@@ -598,6 +614,27 @@ func (os DirectMessageSlice) SenderPseudonymPseudonym(mods ...bob.Mod[*dialect.S
 	)...)
 }
 
+// MessageEncryptedMessage starts a query for related objects on encrypted_messages
+func (o *DirectMessage) MessageEncryptedMessage(mods ...bob.Mod[*dialect.SelectQuery]) EncryptedMessagesQuery {
+	return EncryptedMessages.Query(append(mods,
+		sm.Where(EncryptedMessageColumns.MessageID.EQ(psql.Arg(o.MessageID))),
+	)...)
+}
+
+func (os DirectMessageSlice) MessageEncryptedMessage(mods ...bob.Mod[*dialect.SelectQuery]) EncryptedMessagesQuery {
+	pkMessageID := make(pgtypes.Array[int64], len(os))
+	for i, o := range os {
+		pkMessageID[i] = o.MessageID
+	}
+	PKArgExpr := psql.Select(sm.Columns(
+		psql.F("unnest", psql.Cast(psql.Arg(pkMessageID), "bigint[]")),
+	))
+
+	return EncryptedMessages.Query(append(mods,
+		sm.Where(psql.Group(EncryptedMessageColumns.MessageID).OP("IN", PKArgExpr)),
+	)...)
+}
+
 func (o *DirectMessage) Preload(name string, retrieved any) error {
 	if o == nil {
 		return nil
@@ -628,6 +665,18 @@ func (o *DirectMessage) Preload(name string, retrieved any) error {
 			rel.R.SenderPseudonymDirectMessages = DirectMessageSlice{o}
 		}
 		return nil
+	case "MessageEncryptedMessage":
+		rel, ok := retrieved.(*EncryptedMessage)
+		if !ok {
+			return fmt.Errorf("directMessage cannot load %T as %q", retrieved, name)
+		}
+
+		o.R.MessageEncryptedMessage = rel
+
+		if rel != nil {
+			rel.R.MessageDirectMessage = o
+		}
+		return nil
 	default:
 		return fmt.Errorf("directMessage has no relationship %q", name)
 	}
@@ -636,6 +685,7 @@ func (o *DirectMessage) Preload(name string, retrieved any) error {
 type directMessagePreloader struct {
 	RecipientPseudonymPseudonym func(...psql.PreloadOption) psql.Preloader
 	SenderPseudonymPseudonym    func(...psql.PreloadOption) psql.Preloader
+	MessageEncryptedMessage     func(...psql.PreloadOption) psql.Preloader
 }
 
 func buildDirectMessagePreloader() directMessagePreloader {
@@ -674,12 +724,30 @@ func buildDirectMessagePreloader() directMessagePreloader {
 				},
 			}, Pseudonyms.Columns().Names(), opts...)
 		},
+		MessageEncryptedMessage: func(opts ...psql.PreloadOption) psql.Preloader {
+			return psql.Preload[*EncryptedMessage, EncryptedMessageSlice](orm.Relationship{
+				Name: "MessageEncryptedMessage",
+				Sides: []orm.RelSide{
+					{
+						From: TableNames.DirectMessages,
+						To:   TableNames.EncryptedMessages,
+						FromColumns: []string{
+							ColumnNames.DirectMessages.MessageID,
+						},
+						ToColumns: []string{
+							ColumnNames.EncryptedMessages.MessageID,
+						},
+					},
+				},
+			}, EncryptedMessages.Columns().Names(), opts...)
+		},
 	}
 }
 
 type directMessageThenLoader[Q orm.Loadable] struct {
 	RecipientPseudonymPseudonym func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 	SenderPseudonymPseudonym    func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	MessageEncryptedMessage     func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 }
 
 func buildDirectMessageThenLoader[Q orm.Loadable]() directMessageThenLoader[Q] {
@@ -688,6 +756,9 @@ func buildDirectMessageThenLoader[Q orm.Loadable]() directMessageThenLoader[Q] {
 	}
 	type SenderPseudonymPseudonymLoadInterface interface {
 		LoadSenderPseudonymPseudonym(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	}
+	type MessageEncryptedMessageLoadInterface interface {
+		LoadMessageEncryptedMessage(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 
 	return directMessageThenLoader[Q]{
@@ -701,6 +772,12 @@ func buildDirectMessageThenLoader[Q orm.Loadable]() directMessageThenLoader[Q] {
 			"SenderPseudonymPseudonym",
 			func(ctx context.Context, exec bob.Executor, retrieved SenderPseudonymPseudonymLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
 				return retrieved.LoadSenderPseudonymPseudonym(ctx, exec, mods...)
+			},
+		),
+		MessageEncryptedMessage: thenLoadBuilder[Q](
+			"MessageEncryptedMessage",
+			func(ctx context.Context, exec bob.Executor, retrieved MessageEncryptedMessageLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadMessageEncryptedMessage(ctx, exec, mods...)
 			},
 		),
 	}
@@ -800,6 +877,53 @@ func (os DirectMessageSlice) LoadSenderPseudonymPseudonym(ctx context.Context, e
 	return nil
 }
 
+// LoadMessageEncryptedMessage loads the directMessage's MessageEncryptedMessage into the .R struct
+func (o *DirectMessage) LoadMessageEncryptedMessage(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if o == nil {
+		return nil
+	}
+
+	// Reset the relationship
+	o.R.MessageEncryptedMessage = nil
+
+	related, err := o.MessageEncryptedMessage(mods...).One(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	related.R.MessageDirectMessage = o
+
+	o.R.MessageEncryptedMessage = related
+	return nil
+}
+
+// LoadMessageEncryptedMessage loads the directMessage's MessageEncryptedMessage into the .R struct
+func (os DirectMessageSlice) LoadMessageEncryptedMessage(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if len(os) == 0 {
+		return nil
+	}
+
+	encryptedMessages, err := os.MessageEncryptedMessage(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range os {
+		for _, rel := range encryptedMessages {
+			if o.MessageID != rel.MessageID {
+				continue
+			}
+
+			rel.R.MessageDirectMessage = o
+
+			o.R.MessageEncryptedMessage = rel
+			break
+		}
+	}
+
+	return nil
+}
+
 func attachDirectMessageRecipientPseudonymPseudonym0(ctx context.Context, exec bob.Executor, count int, directMessage0 *DirectMessage, pseudonym1 *Pseudonym) (*DirectMessage, error) {
 	setter := &DirectMessageSetter{
 		RecipientPseudonymID: &pseudonym1.PseudonymID,
@@ -888,6 +1012,58 @@ func (directMessage0 *DirectMessage) AttachSenderPseudonymPseudonym(ctx context.
 	directMessage0.R.SenderPseudonymPseudonym = pseudonym1
 
 	pseudonym1.R.SenderPseudonymDirectMessages = append(pseudonym1.R.SenderPseudonymDirectMessages, directMessage0)
+
+	return nil
+}
+
+func insertDirectMessageMessageEncryptedMessage0(ctx context.Context, exec bob.Executor, encryptedMessage1 *EncryptedMessageSetter, directMessage0 *DirectMessage) (*EncryptedMessage, error) {
+	encryptedMessage1.MessageID = &directMessage0.MessageID
+
+	ret, err := EncryptedMessages.Insert(encryptedMessage1).One(ctx, exec)
+	if err != nil {
+		return ret, fmt.Errorf("insertDirectMessageMessageEncryptedMessage0: %w", err)
+	}
+
+	return ret, nil
+}
+
+func attachDirectMessageMessageEncryptedMessage0(ctx context.Context, exec bob.Executor, count int, encryptedMessage1 *EncryptedMessage, directMessage0 *DirectMessage) (*EncryptedMessage, error) {
+	setter := &EncryptedMessageSetter{
+		MessageID: &directMessage0.MessageID,
+	}
+
+	err := encryptedMessage1.Update(ctx, exec, setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachDirectMessageMessageEncryptedMessage0: %w", err)
+	}
+
+	return encryptedMessage1, nil
+}
+
+func (directMessage0 *DirectMessage) InsertMessageEncryptedMessage(ctx context.Context, exec bob.Executor, related *EncryptedMessageSetter) error {
+	encryptedMessage1, err := insertDirectMessageMessageEncryptedMessage0(ctx, exec, related, directMessage0)
+	if err != nil {
+		return err
+	}
+
+	directMessage0.R.MessageEncryptedMessage = encryptedMessage1
+
+	encryptedMessage1.R.MessageDirectMessage = directMessage0
+
+	return nil
+}
+
+func (directMessage0 *DirectMessage) AttachMessageEncryptedMessage(ctx context.Context, exec bob.Executor, encryptedMessage1 *EncryptedMessage) error {
+	var err error
+
+	_, err = attachDirectMessageMessageEncryptedMessage0(ctx, exec, 1, encryptedMessage1, directMessage0)
+	if err != nil {
+		return err
+	}
+
+	directMessage0.R.MessageEncryptedMessage = encryptedMessage1
+
+	encryptedMessage1.R.MessageDirectMessage = directMessage0
 
 	return nil
 }

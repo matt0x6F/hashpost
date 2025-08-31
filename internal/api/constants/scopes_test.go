@@ -12,6 +12,7 @@ func TestAllScopes(t *testing.T) {
 		ScopeModeration,
 		ScopeAdministration,
 		ScopeCorrelation,
+		ScopeMessaging,
 	}
 
 	if len(scopes) != len(expectedScopes) {

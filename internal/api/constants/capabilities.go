@@ -117,6 +117,21 @@ const (
 	CapabilityCreateSubforum = "create_subforum"
 )
 
+// Messaging capabilities - used for encrypted direct messaging operations
+const (
+	// SendDirectMessages allows users to send encrypted direct messages
+	CapabilitySendDirectMessages = "send_direct_messages"
+
+	// ReceiveDirectMessages allows users to receive encrypted direct messages
+	CapabilityReceiveDirectMessages = "receive_direct_messages"
+
+	// ManageConversationKeys allows users to manage encryption keys for conversations
+	CapabilityManageConversationKeys = "manage_conversation_keys"
+
+	// VerifyMessageKeys allows users to verify encryption keys for message authenticity
+	CapabilityVerifyMessageKeys = "verify_message_keys"
+)
+
 // GetCapabilitiesByScope returns the capabilities available for a given scope
 func GetCapabilitiesByScope(scope string) []string {
 	switch scope {
@@ -131,6 +146,13 @@ func GetCapabilitiesByScope(scope string) []string {
 			CapabilityVerifyOwnPseudonymOwnership,
 			CapabilityManageOwnProfile,
 			CapabilityManageOwnPseudonyms,
+		}
+	case ScopeMessaging:
+		return []string{
+			CapabilitySendDirectMessages,
+			CapabilityReceiveDirectMessages,
+			CapabilityManageConversationKeys,
+			CapabilityVerifyMessageKeys,
 		}
 	case ScopeModeration:
 		return []string{
@@ -220,5 +242,11 @@ func GetAllCapabilities() []string {
 		CapabilityMessage,
 		CapabilityReport,
 		CapabilityCreateSubforum,
+
+		// Messaging capabilities
+		CapabilitySendDirectMessages,
+		CapabilityReceiveDirectMessages,
+		CapabilityManageConversationKeys,
+		CapabilityVerifyMessageKeys,
 	}
 }

@@ -56,25 +56,28 @@ type UsersQuery = *psql.ViewQuery[*User, UserSlice]
 
 // userR is where relationships are stored.
 type userR struct {
-	RemovedByUserComments          CommentSlice                `scan:"RemovedByUserComments" json:"RemovedByUserComments"`                   // comments.comments_removed_by_user_id_fkey
-	AssignedUserComplianceReports  ComplianceReportSlice       `scan:"AssignedUserComplianceReports" json:"AssignedUserComplianceReports"`   // compliance_reports.compliance_reports_assigned_user_id_fkey
-	CorrelationAudits              CorrelationAuditSlice       `scan:"CorrelationAudits" json:"CorrelationAudits"`                           // correlation_audit.correlation_audit_user_id_fkey
-	EmailVerificationTokens        EmailVerificationTokenSlice `scan:"EmailVerificationTokens" json:"EmailVerificationTokens"`               // email_verification_tokens.email_verification_tokens_user_id_fkey
-	IdentityMappings               IdentityMappingSlice        `scan:"IdentityMappings" json:"IdentityMappings"`                             // identity_mappings.identity_mappings_user_id_fkey
-	CreatedByKeyRotationMigrations KeyRotationMigrationSlice   `scan:"CreatedByKeyRotationMigrations" json:"CreatedByKeyRotationMigrations"` // key_rotation_migrations.key_rotation_migrations_created_by_fkey
-	KeyUsageAudits                 KeyUsageAuditSlice          `scan:"KeyUsageAudits" json:"KeyUsageAudits"`                                 // key_usage_audit.key_usage_audit_user_id_fkey
-	ModeratorUserModerationActions ModerationActionSlice       `scan:"ModeratorUserModerationActions" json:"ModeratorUserModerationActions"` // moderation_actions.moderation_actions_moderator_user_id_fkey
-	TargetUserModerationActions    ModerationActionSlice       `scan:"TargetUserModerationActions" json:"TargetUserModerationActions"`       // moderation_actions.moderation_actions_target_user_id_fkey
-	PasswordResetTokens            PasswordResetTokenSlice     `scan:"PasswordResetTokens" json:"PasswordResetTokens"`                       // password_reset_tokens.password_reset_tokens_user_id_fkey
-	RemovedByUserPosts             PostSlice                   `scan:"RemovedByUserPosts" json:"RemovedByUserPosts"`                         // posts.posts_removed_by_user_id_fkey
-	ForwardedByUserReports         ReportSlice                 `scan:"ForwardedByUserReports" json:"ForwardedByUserReports"`                 // reports.fk_reports_forwarded_by
-	ResolvedByUserReports          ReportSlice                 `scan:"ResolvedByUserReports" json:"ResolvedByUserReports"`                   // reports.reports_resolved_by_user_id_fkey
-	CreatedByUserSubforums         SubforumSlice               `scan:"CreatedByUserSubforums" json:"CreatedByUserSubforums"`                 // subforums.subforums_created_by_user_id_fkey
-	UpdatedBySystemSettings        SystemSettingSlice          `scan:"UpdatedBySystemSettings" json:"UpdatedBySystemSettings"`               // system_settings.system_settings_updated_by_fkey
-	BannedByUserUserBans           UserBanSlice                `scan:"BannedByUserUserBans" json:"BannedByUserUserBans"`                     // user_bans.user_bans_banned_by_user_id_fkey
-	BannedUserUserBans             UserBanSlice                `scan:"BannedUserUserBans" json:"BannedUserUserBans"`                         // user_bans.user_bans_banned_user_id_fkey
-	BlockedUserUserBlocks          UserBlockSlice              `scan:"BlockedUserUserBlocks" json:"BlockedUserUserBlocks"`                   // user_blocks.user_blocks_blocked_user_id_fkey
-	UserPreference                 *UserPreference             `scan:"UserPreference" json:"UserPreference"`                                 // user_preferences.user_preferences_user_id_fkey
+	RemovedByUserComments            CommentSlice                `scan:"RemovedByUserComments" json:"RemovedByUserComments"`                       // comments.comments_removed_by_user_id_fkey
+	AssignedUserComplianceReports    ComplianceReportSlice       `scan:"AssignedUserComplianceReports" json:"AssignedUserComplianceReports"`       // compliance_reports.compliance_reports_assigned_user_id_fkey
+	Participant1UserConversationKeys ConversationKeySlice        `scan:"Participant1UserConversationKeys" json:"Participant1UserConversationKeys"` // conversation_keys.conversation_keys_participant1_user_id_fkey
+	Participant2UserConversationKeys ConversationKeySlice        `scan:"Participant2UserConversationKeys" json:"Participant2UserConversationKeys"` // conversation_keys.conversation_keys_participant2_user_id_fkey
+	CorrelationAudits                CorrelationAuditSlice       `scan:"CorrelationAudits" json:"CorrelationAudits"`                               // correlation_audit.correlation_audit_user_id_fkey
+	EmailVerificationTokens          EmailVerificationTokenSlice `scan:"EmailVerificationTokens" json:"EmailVerificationTokens"`                   // email_verification_tokens.email_verification_tokens_user_id_fkey
+	IdentityMappings                 IdentityMappingSlice        `scan:"IdentityMappings" json:"IdentityMappings"`                                 // identity_mappings.identity_mappings_user_id_fkey
+	CreatedByKeyRotationMigrations   KeyRotationMigrationSlice   `scan:"CreatedByKeyRotationMigrations" json:"CreatedByKeyRotationMigrations"`     // key_rotation_migrations.key_rotation_migrations_created_by_fkey
+	KeyUsageAudits                   KeyUsageAuditSlice          `scan:"KeyUsageAudits" json:"KeyUsageAudits"`                                     // key_usage_audit.key_usage_audit_user_id_fkey
+	ModeratorUserModerationActions   ModerationActionSlice       `scan:"ModeratorUserModerationActions" json:"ModeratorUserModerationActions"`     // moderation_actions.moderation_actions_moderator_user_id_fkey
+	TargetUserModerationActions      ModerationActionSlice       `scan:"TargetUserModerationActions" json:"TargetUserModerationActions"`           // moderation_actions.moderation_actions_target_user_id_fkey
+	PasswordResetTokens              PasswordResetTokenSlice     `scan:"PasswordResetTokens" json:"PasswordResetTokens"`                           // password_reset_tokens.password_reset_tokens_user_id_fkey
+	RemovedByUserPosts               PostSlice                   `scan:"RemovedByUserPosts" json:"RemovedByUserPosts"`                             // posts.posts_removed_by_user_id_fkey
+	ForwardedByUserReports           ReportSlice                 `scan:"ForwardedByUserReports" json:"ForwardedByUserReports"`                     // reports.fk_reports_forwarded_by
+	ResolvedByUserReports            ReportSlice                 `scan:"ResolvedByUserReports" json:"ResolvedByUserReports"`                       // reports.reports_resolved_by_user_id_fkey
+	CreatedByUserSubforums           SubforumSlice               `scan:"CreatedByUserSubforums" json:"CreatedByUserSubforums"`                     // subforums.subforums_created_by_user_id_fkey
+	UpdatedBySystemSettings          SystemSettingSlice          `scan:"UpdatedBySystemSettings" json:"UpdatedBySystemSettings"`                   // system_settings.system_settings_updated_by_fkey
+	BannedByUserUserBans             UserBanSlice                `scan:"BannedByUserUserBans" json:"BannedByUserUserBans"`                         // user_bans.user_bans_banned_by_user_id_fkey
+	BannedUserUserBans               UserBanSlice                `scan:"BannedUserUserBans" json:"BannedUserUserBans"`                             // user_bans.user_bans_banned_user_id_fkey
+	BlockedUserUserBlocks            UserBlockSlice              `scan:"BlockedUserUserBlocks" json:"BlockedUserUserBlocks"`                       // user_blocks.user_blocks_blocked_user_id_fkey
+	UserEncryptionKey                *UserEncryptionKey          `scan:"UserEncryptionKey" json:"UserEncryptionKey"`                               // user_encryption_keys.user_encryption_keys_user_id_fkey
+	UserPreference                   *UserPreference             `scan:"UserPreference" json:"UserPreference"`                                     // user_preferences.user_preferences_user_id_fkey
 }
 
 type userColumnNames struct {
@@ -757,26 +760,29 @@ func (o UserSlice) ReloadAll(ctx context.Context, exec bob.Executor) error {
 }
 
 type userJoins[Q dialect.Joinable] struct {
-	typ                            string
-	RemovedByUserComments          modAs[Q, commentColumns]
-	AssignedUserComplianceReports  modAs[Q, complianceReportColumns]
-	CorrelationAudits              modAs[Q, correlationAuditColumns]
-	EmailVerificationTokens        modAs[Q, emailVerificationTokenColumns]
-	IdentityMappings               modAs[Q, identityMappingColumns]
-	CreatedByKeyRotationMigrations modAs[Q, keyRotationMigrationColumns]
-	KeyUsageAudits                 modAs[Q, keyUsageAuditColumns]
-	ModeratorUserModerationActions modAs[Q, moderationActionColumns]
-	TargetUserModerationActions    modAs[Q, moderationActionColumns]
-	PasswordResetTokens            modAs[Q, passwordResetTokenColumns]
-	RemovedByUserPosts             modAs[Q, postColumns]
-	ForwardedByUserReports         modAs[Q, reportColumns]
-	ResolvedByUserReports          modAs[Q, reportColumns]
-	CreatedByUserSubforums         modAs[Q, subforumColumns]
-	UpdatedBySystemSettings        modAs[Q, systemSettingColumns]
-	BannedByUserUserBans           modAs[Q, userBanColumns]
-	BannedUserUserBans             modAs[Q, userBanColumns]
-	BlockedUserUserBlocks          modAs[Q, userBlockColumns]
-	UserPreference                 modAs[Q, userPreferenceColumns]
+	typ                              string
+	RemovedByUserComments            modAs[Q, commentColumns]
+	AssignedUserComplianceReports    modAs[Q, complianceReportColumns]
+	Participant1UserConversationKeys modAs[Q, conversationKeyColumns]
+	Participant2UserConversationKeys modAs[Q, conversationKeyColumns]
+	CorrelationAudits                modAs[Q, correlationAuditColumns]
+	EmailVerificationTokens          modAs[Q, emailVerificationTokenColumns]
+	IdentityMappings                 modAs[Q, identityMappingColumns]
+	CreatedByKeyRotationMigrations   modAs[Q, keyRotationMigrationColumns]
+	KeyUsageAudits                   modAs[Q, keyUsageAuditColumns]
+	ModeratorUserModerationActions   modAs[Q, moderationActionColumns]
+	TargetUserModerationActions      modAs[Q, moderationActionColumns]
+	PasswordResetTokens              modAs[Q, passwordResetTokenColumns]
+	RemovedByUserPosts               modAs[Q, postColumns]
+	ForwardedByUserReports           modAs[Q, reportColumns]
+	ResolvedByUserReports            modAs[Q, reportColumns]
+	CreatedByUserSubforums           modAs[Q, subforumColumns]
+	UpdatedBySystemSettings          modAs[Q, systemSettingColumns]
+	BannedByUserUserBans             modAs[Q, userBanColumns]
+	BannedUserUserBans               modAs[Q, userBanColumns]
+	BlockedUserUserBlocks            modAs[Q, userBlockColumns]
+	UserEncryptionKey                modAs[Q, userEncryptionKeyColumns]
+	UserPreference                   modAs[Q, userPreferenceColumns]
 }
 
 func (j userJoins[Q]) aliasedAs(alias string) userJoins[Q] {
@@ -808,6 +814,34 @@ func buildUserJoins[Q dialect.Joinable](cols userColumns, typ string) userJoins[
 				{
 					mods = append(mods, dialect.Join[Q](typ, ComplianceReports.Name().As(to.Alias())).On(
 						to.AssignedUserID.EQ(cols.UserID),
+					))
+				}
+
+				return mods
+			},
+		},
+		Participant1UserConversationKeys: modAs[Q, conversationKeyColumns]{
+			c: ConversationKeyColumns,
+			f: func(to conversationKeyColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, ConversationKeys.Name().As(to.Alias())).On(
+						to.Participant1UserID.EQ(cols.UserID),
+					))
+				}
+
+				return mods
+			},
+		},
+		Participant2UserConversationKeys: modAs[Q, conversationKeyColumns]{
+			c: ConversationKeyColumns,
+			f: func(to conversationKeyColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, ConversationKeys.Name().As(to.Alias())).On(
+						to.Participant2UserID.EQ(cols.UserID),
 					))
 				}
 
@@ -1038,6 +1072,20 @@ func buildUserJoins[Q dialect.Joinable](cols userColumns, typ string) userJoins[
 				return mods
 			},
 		},
+		UserEncryptionKey: modAs[Q, userEncryptionKeyColumns]{
+			c: UserEncryptionKeyColumns,
+			f: func(to userEncryptionKeyColumns) bob.Mod[Q] {
+				mods := make(mods.QueryMods[Q], 0, 1)
+
+				{
+					mods = append(mods, dialect.Join[Q](typ, UserEncryptionKeys.Name().As(to.Alias())).On(
+						to.UserID.EQ(cols.UserID),
+					))
+				}
+
+				return mods
+			},
+		},
 		UserPreference: modAs[Q, userPreferenceColumns]{
 			c: UserPreferenceColumns,
 			f: func(to userPreferenceColumns) bob.Mod[Q] {
@@ -1094,6 +1142,48 @@ func (os UserSlice) AssignedUserComplianceReports(mods ...bob.Mod[*dialect.Selec
 
 	return ComplianceReports.Query(append(mods,
 		sm.Where(psql.Group(ComplianceReportColumns.AssignedUserID).OP("IN", PKArgExpr)),
+	)...)
+}
+
+// Participant1UserConversationKeys starts a query for related objects on conversation_keys
+func (o *User) Participant1UserConversationKeys(mods ...bob.Mod[*dialect.SelectQuery]) ConversationKeysQuery {
+	return ConversationKeys.Query(append(mods,
+		sm.Where(ConversationKeyColumns.Participant1UserID.EQ(psql.Arg(o.UserID))),
+	)...)
+}
+
+func (os UserSlice) Participant1UserConversationKeys(mods ...bob.Mod[*dialect.SelectQuery]) ConversationKeysQuery {
+	pkUserID := make(pgtypes.Array[int64], len(os))
+	for i, o := range os {
+		pkUserID[i] = o.UserID
+	}
+	PKArgExpr := psql.Select(sm.Columns(
+		psql.F("unnest", psql.Cast(psql.Arg(pkUserID), "bigint[]")),
+	))
+
+	return ConversationKeys.Query(append(mods,
+		sm.Where(psql.Group(ConversationKeyColumns.Participant1UserID).OP("IN", PKArgExpr)),
+	)...)
+}
+
+// Participant2UserConversationKeys starts a query for related objects on conversation_keys
+func (o *User) Participant2UserConversationKeys(mods ...bob.Mod[*dialect.SelectQuery]) ConversationKeysQuery {
+	return ConversationKeys.Query(append(mods,
+		sm.Where(ConversationKeyColumns.Participant2UserID.EQ(psql.Arg(o.UserID))),
+	)...)
+}
+
+func (os UserSlice) Participant2UserConversationKeys(mods ...bob.Mod[*dialect.SelectQuery]) ConversationKeysQuery {
+	pkUserID := make(pgtypes.Array[int64], len(os))
+	for i, o := range os {
+		pkUserID[i] = o.UserID
+	}
+	PKArgExpr := psql.Select(sm.Columns(
+		psql.F("unnest", psql.Cast(psql.Arg(pkUserID), "bigint[]")),
+	))
+
+	return ConversationKeys.Query(append(mods,
+		sm.Where(psql.Group(ConversationKeyColumns.Participant2UserID).OP("IN", PKArgExpr)),
 	)...)
 }
 
@@ -1433,6 +1523,27 @@ func (os UserSlice) BlockedUserUserBlocks(mods ...bob.Mod[*dialect.SelectQuery])
 	)...)
 }
 
+// UserEncryptionKey starts a query for related objects on user_encryption_keys
+func (o *User) UserEncryptionKey(mods ...bob.Mod[*dialect.SelectQuery]) UserEncryptionKeysQuery {
+	return UserEncryptionKeys.Query(append(mods,
+		sm.Where(UserEncryptionKeyColumns.UserID.EQ(psql.Arg(o.UserID))),
+	)...)
+}
+
+func (os UserSlice) UserEncryptionKey(mods ...bob.Mod[*dialect.SelectQuery]) UserEncryptionKeysQuery {
+	pkUserID := make(pgtypes.Array[int64], len(os))
+	for i, o := range os {
+		pkUserID[i] = o.UserID
+	}
+	PKArgExpr := psql.Select(sm.Columns(
+		psql.F("unnest", psql.Cast(psql.Arg(pkUserID), "bigint[]")),
+	))
+
+	return UserEncryptionKeys.Query(append(mods,
+		sm.Where(psql.Group(UserEncryptionKeyColumns.UserID).OP("IN", PKArgExpr)),
+	)...)
+}
+
 // UserPreference starts a query for related objects on user_preferences
 func (o *User) UserPreference(mods ...bob.Mod[*dialect.SelectQuery]) UserPreferencesQuery {
 	return UserPreferences.Query(append(mods,
@@ -1485,6 +1596,34 @@ func (o *User) Preload(name string, retrieved any) error {
 		for _, rel := range rels {
 			if rel != nil {
 				rel.R.AssignedUserUser = o
+			}
+		}
+		return nil
+	case "Participant1UserConversationKeys":
+		rels, ok := retrieved.(ConversationKeySlice)
+		if !ok {
+			return fmt.Errorf("user cannot load %T as %q", retrieved, name)
+		}
+
+		o.R.Participant1UserConversationKeys = rels
+
+		for _, rel := range rels {
+			if rel != nil {
+				rel.R.Participant1UserUser = o
+			}
+		}
+		return nil
+	case "Participant2UserConversationKeys":
+		rels, ok := retrieved.(ConversationKeySlice)
+		if !ok {
+			return fmt.Errorf("user cannot load %T as %q", retrieved, name)
+		}
+
+		o.R.Participant2UserConversationKeys = rels
+
+		for _, rel := range rels {
+			if rel != nil {
+				rel.R.Participant2UserUser = o
 			}
 		}
 		return nil
@@ -1712,6 +1851,18 @@ func (o *User) Preload(name string, retrieved any) error {
 			}
 		}
 		return nil
+	case "UserEncryptionKey":
+		rel, ok := retrieved.(*UserEncryptionKey)
+		if !ok {
+			return fmt.Errorf("user cannot load %T as %q", retrieved, name)
+		}
+
+		o.R.UserEncryptionKey = rel
+
+		if rel != nil {
+			rel.R.User = o
+		}
+		return nil
 	case "UserPreference":
 		rel, ok := retrieved.(*UserPreference)
 		if !ok {
@@ -1730,11 +1881,29 @@ func (o *User) Preload(name string, retrieved any) error {
 }
 
 type userPreloader struct {
-	UserPreference func(...psql.PreloadOption) psql.Preloader
+	UserEncryptionKey func(...psql.PreloadOption) psql.Preloader
+	UserPreference    func(...psql.PreloadOption) psql.Preloader
 }
 
 func buildUserPreloader() userPreloader {
 	return userPreloader{
+		UserEncryptionKey: func(opts ...psql.PreloadOption) psql.Preloader {
+			return psql.Preload[*UserEncryptionKey, UserEncryptionKeySlice](orm.Relationship{
+				Name: "UserEncryptionKey",
+				Sides: []orm.RelSide{
+					{
+						From: TableNames.Users,
+						To:   TableNames.UserEncryptionKeys,
+						FromColumns: []string{
+							ColumnNames.Users.UserID,
+						},
+						ToColumns: []string{
+							ColumnNames.UserEncryptionKeys.UserID,
+						},
+					},
+				},
+			}, UserEncryptionKeys.Columns().Names(), opts...)
+		},
 		UserPreference: func(opts ...psql.PreloadOption) psql.Preloader {
 			return psql.Preload[*UserPreference, UserPreferenceSlice](orm.Relationship{
 				Name: "UserPreference",
@@ -1756,25 +1925,28 @@ func buildUserPreloader() userPreloader {
 }
 
 type userThenLoader[Q orm.Loadable] struct {
-	RemovedByUserComments          func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	AssignedUserComplianceReports  func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	CorrelationAudits              func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	EmailVerificationTokens        func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	IdentityMappings               func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	CreatedByKeyRotationMigrations func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	KeyUsageAudits                 func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	ModeratorUserModerationActions func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	TargetUserModerationActions    func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	PasswordResetTokens            func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	RemovedByUserPosts             func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	ForwardedByUserReports         func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	ResolvedByUserReports          func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	CreatedByUserSubforums         func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	UpdatedBySystemSettings        func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	BannedByUserUserBans           func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	BannedUserUserBans             func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	BlockedUserUserBlocks          func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
-	UserPreference                 func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	RemovedByUserComments            func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	AssignedUserComplianceReports    func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	Participant1UserConversationKeys func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	Participant2UserConversationKeys func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	CorrelationAudits                func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	EmailVerificationTokens          func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	IdentityMappings                 func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	CreatedByKeyRotationMigrations   func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	KeyUsageAudits                   func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	ModeratorUserModerationActions   func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	TargetUserModerationActions      func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	PasswordResetTokens              func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	RemovedByUserPosts               func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	ForwardedByUserReports           func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	ResolvedByUserReports            func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	CreatedByUserSubforums           func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	UpdatedBySystemSettings          func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	BannedByUserUserBans             func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	BannedUserUserBans               func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	BlockedUserUserBlocks            func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	UserEncryptionKey                func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
+	UserPreference                   func(...bob.Mod[*dialect.SelectQuery]) orm.Loader[Q]
 }
 
 func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
@@ -1783,6 +1955,12 @@ func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
 	}
 	type AssignedUserComplianceReportsLoadInterface interface {
 		LoadAssignedUserComplianceReports(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	}
+	type Participant1UserConversationKeysLoadInterface interface {
+		LoadParticipant1UserConversationKeys(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	}
+	type Participant2UserConversationKeysLoadInterface interface {
+		LoadParticipant2UserConversationKeys(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
 	type CorrelationAuditsLoadInterface interface {
 		LoadCorrelationAudits(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
@@ -1832,6 +2010,9 @@ func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
 	type BlockedUserUserBlocksLoadInterface interface {
 		LoadBlockedUserUserBlocks(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
+	type UserEncryptionKeyLoadInterface interface {
+		LoadUserEncryptionKey(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
+	}
 	type UserPreferenceLoadInterface interface {
 		LoadUserPreference(context.Context, bob.Executor, ...bob.Mod[*dialect.SelectQuery]) error
 	}
@@ -1847,6 +2028,18 @@ func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
 			"AssignedUserComplianceReports",
 			func(ctx context.Context, exec bob.Executor, retrieved AssignedUserComplianceReportsLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
 				return retrieved.LoadAssignedUserComplianceReports(ctx, exec, mods...)
+			},
+		),
+		Participant1UserConversationKeys: thenLoadBuilder[Q](
+			"Participant1UserConversationKeys",
+			func(ctx context.Context, exec bob.Executor, retrieved Participant1UserConversationKeysLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadParticipant1UserConversationKeys(ctx, exec, mods...)
+			},
+		),
+		Participant2UserConversationKeys: thenLoadBuilder[Q](
+			"Participant2UserConversationKeys",
+			func(ctx context.Context, exec bob.Executor, retrieved Participant2UserConversationKeysLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadParticipant2UserConversationKeys(ctx, exec, mods...)
 			},
 		),
 		CorrelationAudits: thenLoadBuilder[Q](
@@ -1943,6 +2136,12 @@ func buildUserThenLoader[Q orm.Loadable]() userThenLoader[Q] {
 			"BlockedUserUserBlocks",
 			func(ctx context.Context, exec bob.Executor, retrieved BlockedUserUserBlocksLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
 				return retrieved.LoadBlockedUserUserBlocks(ctx, exec, mods...)
+			},
+		),
+		UserEncryptionKey: thenLoadBuilder[Q](
+			"UserEncryptionKey",
+			func(ctx context.Context, exec bob.Executor, retrieved UserEncryptionKeyLoadInterface, mods ...bob.Mod[*dialect.SelectQuery]) error {
+				return retrieved.LoadUserEncryptionKey(ctx, exec, mods...)
 			},
 		),
 		UserPreference: thenLoadBuilder[Q](
@@ -2052,6 +2251,110 @@ func (os UserSlice) LoadAssignedUserComplianceReports(ctx context.Context, exec 
 			rel.R.AssignedUserUser = o
 
 			o.R.AssignedUserComplianceReports = append(o.R.AssignedUserComplianceReports, rel)
+		}
+	}
+
+	return nil
+}
+
+// LoadParticipant1UserConversationKeys loads the user's Participant1UserConversationKeys into the .R struct
+func (o *User) LoadParticipant1UserConversationKeys(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if o == nil {
+		return nil
+	}
+
+	// Reset the relationship
+	o.R.Participant1UserConversationKeys = nil
+
+	related, err := o.Participant1UserConversationKeys(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, rel := range related {
+		rel.R.Participant1UserUser = o
+	}
+
+	o.R.Participant1UserConversationKeys = related
+	return nil
+}
+
+// LoadParticipant1UserConversationKeys loads the user's Participant1UserConversationKeys into the .R struct
+func (os UserSlice) LoadParticipant1UserConversationKeys(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if len(os) == 0 {
+		return nil
+	}
+
+	conversationKeys, err := os.Participant1UserConversationKeys(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range os {
+		o.R.Participant1UserConversationKeys = nil
+	}
+
+	for _, o := range os {
+		for _, rel := range conversationKeys {
+			if o.UserID != rel.Participant1UserID {
+				continue
+			}
+
+			rel.R.Participant1UserUser = o
+
+			o.R.Participant1UserConversationKeys = append(o.R.Participant1UserConversationKeys, rel)
+		}
+	}
+
+	return nil
+}
+
+// LoadParticipant2UserConversationKeys loads the user's Participant2UserConversationKeys into the .R struct
+func (o *User) LoadParticipant2UserConversationKeys(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if o == nil {
+		return nil
+	}
+
+	// Reset the relationship
+	o.R.Participant2UserConversationKeys = nil
+
+	related, err := o.Participant2UserConversationKeys(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, rel := range related {
+		rel.R.Participant2UserUser = o
+	}
+
+	o.R.Participant2UserConversationKeys = related
+	return nil
+}
+
+// LoadParticipant2UserConversationKeys loads the user's Participant2UserConversationKeys into the .R struct
+func (os UserSlice) LoadParticipant2UserConversationKeys(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if len(os) == 0 {
+		return nil
+	}
+
+	conversationKeys, err := os.Participant2UserConversationKeys(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range os {
+		o.R.Participant2UserConversationKeys = nil
+	}
+
+	for _, o := range os {
+		for _, rel := range conversationKeys {
+			if o.UserID != rel.Participant2UserID {
+				continue
+			}
+
+			rel.R.Participant2UserUser = o
+
+			o.R.Participant2UserConversationKeys = append(o.R.Participant2UserConversationKeys, rel)
 		}
 	}
 
@@ -2890,6 +3193,53 @@ func (os UserSlice) LoadBlockedUserUserBlocks(ctx context.Context, exec bob.Exec
 	return nil
 }
 
+// LoadUserEncryptionKey loads the user's UserEncryptionKey into the .R struct
+func (o *User) LoadUserEncryptionKey(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if o == nil {
+		return nil
+	}
+
+	// Reset the relationship
+	o.R.UserEncryptionKey = nil
+
+	related, err := o.UserEncryptionKey(mods...).One(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	related.R.User = o
+
+	o.R.UserEncryptionKey = related
+	return nil
+}
+
+// LoadUserEncryptionKey loads the user's UserEncryptionKey into the .R struct
+func (os UserSlice) LoadUserEncryptionKey(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
+	if len(os) == 0 {
+		return nil
+	}
+
+	userEncryptionKeys, err := os.UserEncryptionKey(mods...).All(ctx, exec)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range os {
+		for _, rel := range userEncryptionKeys {
+			if o.UserID != rel.UserID {
+				continue
+			}
+
+			rel.R.User = o
+
+			o.R.UserEncryptionKey = rel
+			break
+		}
+	}
+
+	return nil
+}
+
 // LoadUserPreference loads the user's UserPreference into the .R struct
 func (o *User) LoadUserPreference(ctx context.Context, exec bob.Executor, mods ...bob.Mod[*dialect.SelectQuery]) error {
 	if o == nil {
@@ -3080,6 +3430,142 @@ func (user0 *User) AttachAssignedUserComplianceReports(ctx context.Context, exec
 
 	for _, rel := range related {
 		rel.R.AssignedUserUser = user0
+	}
+
+	return nil
+}
+
+func insertUserParticipant1UserConversationKeys0(ctx context.Context, exec bob.Executor, conversationKeys1 []*ConversationKeySetter, user0 *User) (ConversationKeySlice, error) {
+	for i := range conversationKeys1 {
+		conversationKeys1[i].Participant1UserID = &user0.UserID
+	}
+
+	ret, err := ConversationKeys.Insert(bob.ToMods(conversationKeys1...)).All(ctx, exec)
+	if err != nil {
+		return ret, fmt.Errorf("insertUserParticipant1UserConversationKeys0: %w", err)
+	}
+
+	return ret, nil
+}
+
+func attachUserParticipant1UserConversationKeys0(ctx context.Context, exec bob.Executor, count int, conversationKeys1 ConversationKeySlice, user0 *User) (ConversationKeySlice, error) {
+	setter := &ConversationKeySetter{
+		Participant1UserID: &user0.UserID,
+	}
+
+	err := conversationKeys1.UpdateAll(ctx, exec, *setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachUserParticipant1UserConversationKeys0: %w", err)
+	}
+
+	return conversationKeys1, nil
+}
+
+func (user0 *User) InsertParticipant1UserConversationKeys(ctx context.Context, exec bob.Executor, related ...*ConversationKeySetter) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+
+	conversationKeys1, err := insertUserParticipant1UserConversationKeys0(ctx, exec, related, user0)
+	if err != nil {
+		return err
+	}
+
+	user0.R.Participant1UserConversationKeys = append(user0.R.Participant1UserConversationKeys, conversationKeys1...)
+
+	for _, rel := range conversationKeys1 {
+		rel.R.Participant1UserUser = user0
+	}
+	return nil
+}
+
+func (user0 *User) AttachParticipant1UserConversationKeys(ctx context.Context, exec bob.Executor, related ...*ConversationKey) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+	conversationKeys1 := ConversationKeySlice(related)
+
+	_, err = attachUserParticipant1UserConversationKeys0(ctx, exec, len(related), conversationKeys1, user0)
+	if err != nil {
+		return err
+	}
+
+	user0.R.Participant1UserConversationKeys = append(user0.R.Participant1UserConversationKeys, conversationKeys1...)
+
+	for _, rel := range related {
+		rel.R.Participant1UserUser = user0
+	}
+
+	return nil
+}
+
+func insertUserParticipant2UserConversationKeys0(ctx context.Context, exec bob.Executor, conversationKeys1 []*ConversationKeySetter, user0 *User) (ConversationKeySlice, error) {
+	for i := range conversationKeys1 {
+		conversationKeys1[i].Participant2UserID = &user0.UserID
+	}
+
+	ret, err := ConversationKeys.Insert(bob.ToMods(conversationKeys1...)).All(ctx, exec)
+	if err != nil {
+		return ret, fmt.Errorf("insertUserParticipant2UserConversationKeys0: %w", err)
+	}
+
+	return ret, nil
+}
+
+func attachUserParticipant2UserConversationKeys0(ctx context.Context, exec bob.Executor, count int, conversationKeys1 ConversationKeySlice, user0 *User) (ConversationKeySlice, error) {
+	setter := &ConversationKeySetter{
+		Participant2UserID: &user0.UserID,
+	}
+
+	err := conversationKeys1.UpdateAll(ctx, exec, *setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachUserParticipant2UserConversationKeys0: %w", err)
+	}
+
+	return conversationKeys1, nil
+}
+
+func (user0 *User) InsertParticipant2UserConversationKeys(ctx context.Context, exec bob.Executor, related ...*ConversationKeySetter) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+
+	conversationKeys1, err := insertUserParticipant2UserConversationKeys0(ctx, exec, related, user0)
+	if err != nil {
+		return err
+	}
+
+	user0.R.Participant2UserConversationKeys = append(user0.R.Participant2UserConversationKeys, conversationKeys1...)
+
+	for _, rel := range conversationKeys1 {
+		rel.R.Participant2UserUser = user0
+	}
+	return nil
+}
+
+func (user0 *User) AttachParticipant2UserConversationKeys(ctx context.Context, exec bob.Executor, related ...*ConversationKey) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+	conversationKeys1 := ConversationKeySlice(related)
+
+	_, err = attachUserParticipant2UserConversationKeys0(ctx, exec, len(related), conversationKeys1, user0)
+	if err != nil {
+		return err
+	}
+
+	user0.R.Participant2UserConversationKeys = append(user0.R.Participant2UserConversationKeys, conversationKeys1...)
+
+	for _, rel := range related {
+		rel.R.Participant2UserUser = user0
 	}
 
 	return nil
@@ -4211,6 +4697,58 @@ func (user0 *User) AttachBlockedUserUserBlocks(ctx context.Context, exec bob.Exe
 	for _, rel := range related {
 		rel.R.BlockedUserUser = user0
 	}
+
+	return nil
+}
+
+func insertUserUserEncryptionKey0(ctx context.Context, exec bob.Executor, userEncryptionKey1 *UserEncryptionKeySetter, user0 *User) (*UserEncryptionKey, error) {
+	userEncryptionKey1.UserID = &user0.UserID
+
+	ret, err := UserEncryptionKeys.Insert(userEncryptionKey1).One(ctx, exec)
+	if err != nil {
+		return ret, fmt.Errorf("insertUserUserEncryptionKey0: %w", err)
+	}
+
+	return ret, nil
+}
+
+func attachUserUserEncryptionKey0(ctx context.Context, exec bob.Executor, count int, userEncryptionKey1 *UserEncryptionKey, user0 *User) (*UserEncryptionKey, error) {
+	setter := &UserEncryptionKeySetter{
+		UserID: &user0.UserID,
+	}
+
+	err := userEncryptionKey1.Update(ctx, exec, setter)
+	if err != nil {
+		return nil, fmt.Errorf("attachUserUserEncryptionKey0: %w", err)
+	}
+
+	return userEncryptionKey1, nil
+}
+
+func (user0 *User) InsertUserEncryptionKey(ctx context.Context, exec bob.Executor, related *UserEncryptionKeySetter) error {
+	userEncryptionKey1, err := insertUserUserEncryptionKey0(ctx, exec, related, user0)
+	if err != nil {
+		return err
+	}
+
+	user0.R.UserEncryptionKey = userEncryptionKey1
+
+	userEncryptionKey1.R.User = user0
+
+	return nil
+}
+
+func (user0 *User) AttachUserEncryptionKey(ctx context.Context, exec bob.Executor, userEncryptionKey1 *UserEncryptionKey) error {
+	var err error
+
+	_, err = attachUserUserEncryptionKey0(ctx, exec, 1, userEncryptionKey1, user0)
+	if err != nil {
+		return err
+	}
+
+	user0.R.UserEncryptionKey = userEncryptionKey1
+
+	userEncryptionKey1.R.User = user0
 
 	return nil
 }
