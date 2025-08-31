@@ -15,8 +15,8 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// TestContentHandler_GetPosts_Success_Gomock tests successful post retrieval
-func TestContentHandler_GetPosts_Success_Gomock(t *testing.T) {
+// TestContentHandler_GetPosts_Success tests successful post retrieval
+func TestContentHandler_GetPosts_Success(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -84,8 +84,8 @@ func TestContentHandler_GetPosts_Success_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_GetPosts_PrivateSubforumAccess_Gomock tests private subforum access
-func TestContentHandler_GetPosts_PrivateSubforumAccess_Gomock(t *testing.T) {
+// TestContentHandler_GetPosts_PrivateSubforumAccess tests private subforum access
+func TestContentHandler_GetPosts_PrivateSubforumAccess(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -156,8 +156,8 @@ func TestContentHandler_GetPosts_PrivateSubforumAccess_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_CreatePost_Success_Gomock tests successful post creation
-func TestContentHandler_CreatePost_Success_Gomock(t *testing.T) {
+// TestContentHandler_CreatePost_Success tests successful post creation
+func TestContentHandler_CreatePost_Success(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -220,8 +220,8 @@ func TestContentHandler_CreatePost_Success_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_DeletePost_Success_Gomock tests successful post deletion
-func TestContentHandler_DeletePost_Success_Gomock(t *testing.T) {
+// TestContentHandler_DeletePost_Success tests successful post deletion
+func TestContentHandler_DeletePost_Success(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -272,8 +272,8 @@ func TestContentHandler_DeletePost_Success_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_DeletePost_HandlesDeletedPostResponse_Gomock tests that deleting an already deleted post returns appropriate response
-func TestContentHandler_DeletePost_HandlesDeletedPostResponse_Gomock(t *testing.T) {
+// TestContentHandler_DeletePost_HandlesDeletedPostResponse tests that deleting an already deleted post returns appropriate response
+func TestContentHandler_DeletePost_HandlesDeletedPostResponse(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -325,8 +325,8 @@ func TestContentHandler_DeletePost_HandlesDeletedPostResponse_Gomock(t *testing.
 	})
 }
 
-// TestContentHandler_GetPostDetails_FiltersDeletedPosts_Gomock tests that deleted posts are filtered out
-func TestContentHandler_GetPostDetails_FiltersDeletedPosts_Gomock(t *testing.T) {
+// TestContentHandler_GetPostDetails_FiltersDeletedPosts tests that deleted posts are filtered out
+func TestContentHandler_GetPostDetails_FiltersDeletedPosts(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -361,8 +361,8 @@ func TestContentHandler_GetPostDetails_FiltersDeletedPosts_Gomock(t *testing.T) 
 	})
 }
 
-// TestContentHandler_GetPostBySlug_FiltersDeletedPosts_Gomock tests that deleted posts are filtered out when fetching by slug
-func TestContentHandler_GetPostBySlug_FiltersDeletedPosts_Gomock(t *testing.T) {
+// TestContentHandler_GetPostBySlug_FiltersDeletedPosts tests that deleted posts are filtered out when fetching by slug
+func TestContentHandler_GetPostBySlug_FiltersDeletedPosts(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -408,8 +408,8 @@ func TestContentHandler_GetPostBySlug_FiltersDeletedPosts_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_CreatePost_SubforumNotFound_Gomock tests post creation with non-existent subforum
-func TestContentHandler_CreatePost_SubforumNotFound_Gomock(t *testing.T) {
+// TestContentHandler_CreatePost_SubforumNotFound tests post creation with non-existent subforum
+func TestContentHandler_CreatePost_SubforumNotFound(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -442,8 +442,8 @@ func TestContentHandler_CreatePost_SubforumNotFound_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_CreatePost_InsufficientPermissions_Gomock tests post creation without required permissions
-func TestContentHandler_CreatePost_InsufficientPermissions_Gomock(t *testing.T) {
+// TestContentHandler_CreatePost_InsufficientPermissions tests post creation without required permissions
+func TestContentHandler_CreatePost_InsufficientPermissions(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -495,8 +495,8 @@ func TestContentHandler_CreatePost_InsufficientPermissions_Gomock(t *testing.T) 
 	})
 }
 
-// TestContentHandler_DeletePost_InsufficientPermissions_Gomock tests post deletion without required permissions
-func TestContentHandler_DeletePost_InsufficientPermissions_Gomock(t *testing.T) {
+// TestContentHandler_DeletePost_InsufficientPermissions tests post deletion without required permissions
+func TestContentHandler_DeletePost_InsufficientPermissions(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -539,8 +539,8 @@ func TestContentHandler_DeletePost_InsufficientPermissions_Gomock(t *testing.T) 
 	})
 }
 
-// TestContentHandler_GetPostDetails_Success_Gomock tests successful post details retrieval
-func TestContentHandler_GetPostDetails_Success_Gomock(t *testing.T) {
+// TestContentHandler_GetPostDetails_Success tests successful post details retrieval
+func TestContentHandler_GetPostDetails_Success(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -592,8 +592,8 @@ func TestContentHandler_GetPostDetails_Success_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_GetPostBySlug_Success_Gomock tests successful post retrieval by slug
-func TestContentHandler_GetPostBySlug_Success_Gomock(t *testing.T) {
+// TestContentHandler_GetPostBySlug_Success tests successful post retrieval by slug
+func TestContentHandler_GetPostBySlug_Success(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -655,8 +655,8 @@ func TestContentHandler_GetPostBySlug_Success_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_EditPost_Success_Gomock tests successful post editing
-func TestContentHandler_EditPost_Success_Gomock(t *testing.T) {
+// TestContentHandler_EditPost_Success tests successful post editing
+func TestContentHandler_EditPost_Success(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -716,8 +716,8 @@ func TestContentHandler_EditPost_Success_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_EditPost_NotOwner_Gomock tests that non-owners cannot edit posts
-func TestContentHandler_EditPost_NotOwner_Gomock(t *testing.T) {
+// TestContentHandler_EditPost_NotOwner tests that non-owners cannot edit posts
+func TestContentHandler_EditPost_NotOwner(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -767,8 +767,8 @@ func TestContentHandler_EditPost_NotOwner_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_GetPostBySlug_SubforumNotFound_Gomock tests post retrieval by slug with non-existent subforum
-func TestContentHandler_GetPostBySlug_SubforumNotFound_Gomock(t *testing.T) {
+// TestContentHandler_GetPostBySlug_SubforumNotFound tests post retrieval by slug with non-existent subforum
+func TestContentHandler_GetPostBySlug_SubforumNotFound(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -799,8 +799,8 @@ func TestContentHandler_GetPostBySlug_SubforumNotFound_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_GetPostBySlug_PostNotFound_Gomock tests post retrieval by slug with non-existent post
-func TestContentHandler_GetPostBySlug_PostNotFound_Gomock(t *testing.T) {
+// TestContentHandler_GetPostBySlug_PostNotFound tests post retrieval by slug with non-existent post
+func TestContentHandler_GetPostBySlug_PostNotFound(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -839,8 +839,8 @@ func TestContentHandler_GetPostBySlug_PostNotFound_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_EditPost_PostNotFound_Gomock tests post editing with non-existent post
-func TestContentHandler_EditPost_PostNotFound_Gomock(t *testing.T) {
+// TestContentHandler_EditPost_PostNotFound tests post editing with non-existent post
+func TestContentHandler_EditPost_PostNotFound(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -882,8 +882,8 @@ func TestContentHandler_EditPost_PostNotFound_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_DeletePost_PostNotFound_Gomock tests post deletion with non-existent post
-func TestContentHandler_DeletePost_PostNotFound_Gomock(t *testing.T) {
+// TestContentHandler_DeletePost_PostNotFound tests post deletion with non-existent post
+func TestContentHandler_DeletePost_PostNotFound(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -919,8 +919,8 @@ func TestContentHandler_DeletePost_PostNotFound_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_GetPosts_SubforumNotFound_Gomock tests getting posts from non-existent subforum
-func TestContentHandler_GetPosts_SubforumNotFound_Gomock(t *testing.T) {
+// TestContentHandler_GetPosts_SubforumNotFound tests getting posts from non-existent subforum
+func TestContentHandler_GetPosts_SubforumNotFound(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -949,8 +949,8 @@ func TestContentHandler_GetPosts_SubforumNotFound_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_GetPostDetails_NotFound_Gomock tests getting details of non-existent post
-func TestContentHandler_GetPostDetails_NotFound_Gomock(t *testing.T) {
+// TestContentHandler_GetPostDetails_NotFound tests getting details of non-existent post
+func TestContentHandler_GetPostDetails_NotFound(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -979,8 +979,8 @@ func TestContentHandler_GetPostDetails_NotFound_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_CreatePost_ValidationErrors_Gomock tests post creation with validation errors
-func TestContentHandler_CreatePost_ValidationErrors_Gomock(t *testing.T) {
+// TestContentHandler_CreatePost_ValidationErrors tests post creation with validation errors
+func TestContentHandler_CreatePost_ValidationErrors(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -1009,8 +1009,8 @@ func TestContentHandler_CreatePost_ValidationErrors_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_RemovePost_Success_Gomock tests successful post removal
-func TestContentHandler_RemovePost_Success_Gomock(t *testing.T) {
+// TestContentHandler_RemovePost_Success tests successful post removal
+func TestContentHandler_RemovePost_Success(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -1081,8 +1081,8 @@ func TestContentHandler_RemovePost_Success_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_RemovePost_NotOwner_Gomock tests that non-owners cannot remove posts
-func TestContentHandler_RemovePost_NotOwner_Gomock(t *testing.T) {
+// TestContentHandler_RemovePost_NotOwner tests that non-owners cannot remove posts
+func TestContentHandler_RemovePost_NotOwner(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -1135,8 +1135,8 @@ func TestContentHandler_RemovePost_NotOwner_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_LockPost_Success_Gomock tests successful post locking
-func TestContentHandler_LockPost_Success_Gomock(t *testing.T) {
+// TestContentHandler_LockPost_Success tests successful post locking
+func TestContentHandler_LockPost_Success(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -1201,8 +1201,8 @@ func TestContentHandler_LockPost_Success_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_StickyPost_Success_Gomock tests successful post stickying
-func TestContentHandler_StickyPost_Success_Gomock(t *testing.T) {
+// TestContentHandler_StickyPost_Success tests successful post stickying
+func TestContentHandler_StickyPost_Success(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)

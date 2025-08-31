@@ -12,9 +12,9 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// TestAuthHandler_RegisterUser_PermissionWorkflow_Gomock tests the complete user registration workflow
+// TestAuthHandler_RegisterUser_PermissionWorkflow tests the complete user registration workflow
 // and verifies that proper permissions are set up for new users using gomock
-func TestAuthHandler_RegisterUser_PermissionWorkflow_Gomock(t *testing.T) {
+func TestAuthHandler_RegisterUser_PermissionWorkflow(t *testing.T) {
 	t.Run("UserRegistration_CreatesUserWithProperPermissions", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()

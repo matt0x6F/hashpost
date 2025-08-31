@@ -10,8 +10,8 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// TestNewCorrelationHandler_Gomock tests the correlation handler constructor using gomock
-func TestNewCorrelationHandler_Gomock(t *testing.T) {
+// TestNewCorrelationHandler tests the correlation handler constructor using gomock
+func TestNewCorrelationHandler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -34,8 +34,8 @@ func TestNewCorrelationHandler_Gomock(t *testing.T) {
 	// The constructor test verifies the handler was created successfully
 }
 
-// TestCorrelationHandler_BasicFunctionality_Gomock tests basic correlation handler functionality
-func TestCorrelationHandler_BasicFunctionality_Gomock(t *testing.T) {
+// TestCorrelationHandler_BasicFunctionality tests basic correlation handler functionality
+func TestCorrelationHandler_BasicFunctionality(t *testing.T) {
 	t.Run("HandlerCreation", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -84,8 +84,8 @@ func TestCorrelationHandler_BasicFunctionality_Gomock(t *testing.T) {
 	})
 }
 
-// TestCorrelationModels_Gomock tests the correlation models
-func TestCorrelationModels_Gomock(t *testing.T) {
+// TestCorrelationModels tests the correlation models
+func TestCorrelationModels(t *testing.T) {
 	t.Run("ModelCreation", func(t *testing.T) {
 		// Test that we can create basic model structures
 		// This verifies the models are properly imported and accessible

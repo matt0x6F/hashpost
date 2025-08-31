@@ -16,9 +16,9 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// TestSubforumHandler_CreateSubforum_PermissionWorkflow_Gomock tests the complete subforum creation workflow
+// TestSubforumHandler_CreateSubforum_PermissionWorkflow tests the complete subforum creation workflow
 // and verifies that the creator gets proper owner permissions using gomock
-func TestSubforumHandler_CreateSubforum_PermissionWorkflow_Gomock(t *testing.T) {
+func TestSubforumHandler_CreateSubforum_PermissionWorkflow(t *testing.T) {
 	t.Run("SubforumCreation_GrantsCreatorOwnerPermissions", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()

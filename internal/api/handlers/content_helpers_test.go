@@ -13,8 +13,8 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// TestContentHandler_NewContentHandler_Gomock tests the content handler constructor
-func TestContentHandler_NewContentHandler_Gomock(t *testing.T) {
+// TestContentHandler_NewContentHandler tests the content handler constructor
+func TestContentHandler_NewContentHandler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -51,8 +51,8 @@ func TestContentHandler_NewContentHandler_Gomock(t *testing.T) {
 	// The constructor test verifies the handler was created successfully
 }
 
-// TestGenerateSlug_Gomock tests the slug generation functionality
-func TestGenerateSlug_Gomock(t *testing.T) {
+// TestGenerateSlug tests the slug generation functionality
+func TestGenerateSlug(t *testing.T) {
 	t.Run("GenerateSlug", func(t *testing.T) {
 		// Test that we can create basic slug structures
 		// This verifies the slug generation is properly accessible

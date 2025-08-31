@@ -17,8 +17,8 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// TestAuthHandler_DeactivatePseudonym_Gomock tests the pseudonym deactivation functionality using gomock
-func TestAuthHandler_DeactivatePseudonym_Gomock(t *testing.T) {
+// TestAuthHandler_DeactivatePseudonym tests the pseudonym deactivation functionality using gomock
+func TestAuthHandler_DeactivatePseudonym(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -203,7 +203,6 @@ func TestAuthHandler_DeactivatePseudonym_Gomock(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, response)
 
-		
 	})
 
 	t.Run("PseudonymNotFound", func(t *testing.T) {
@@ -269,7 +268,6 @@ func TestAuthHandler_DeactivatePseudonym_Gomock(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, response)
 
-		
 	})
 
 	t.Run("DatabaseError", func(t *testing.T) {
@@ -335,12 +333,11 @@ func TestAuthHandler_DeactivatePseudonym_Gomock(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, response)
 
-		
 	})
 }
 
-// TestAuthHandler_DeactivatePseudonym_Simple_Gomock tests the simple pseudonym deactivation functionality using gomock
-func TestAuthHandler_DeactivatePseudonym_Simple_Gomock(t *testing.T) {
+// TestAuthHandler_DeactivatePseudonym_Simple tests the simple pseudonym deactivation functionality using gomock
+func TestAuthHandler_DeactivatePseudonym_Simple(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -407,6 +404,6 @@ func TestAuthHandler_DeactivatePseudonym_Simple_Gomock(t *testing.T) {
 		assert.Equal(t, "Pseudonym deactivated successfully", response.Body.Message)
 
 		// Verify mock was called
-		
+
 	})
 }

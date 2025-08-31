@@ -11,8 +11,8 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// TestResumableMigrationService_Gomock tests the resumable migration service with gomock
-func TestResumableMigrationService_Gomock(t *testing.T) {
+// TestResumableMigrationService tests the resumable migration service with gomock
+func TestResumableMigrationService(t *testing.T) {
 	t.Run("StartNewMigration", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -122,8 +122,8 @@ func TestResumableMigrationService_Gomock(t *testing.T) {
 	})
 }
 
-// TestMigrationState_Gomock tests the migration state struct
-func TestMigrationState_Gomock(t *testing.T) {
+// TestMigrationState tests the migration state struct
+func TestMigrationState(t *testing.T) {
 	state := &dao.MigrationState{
 		MigrationID:      "test-migration",
 		Domain:           "user_correlation",

@@ -11,8 +11,8 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// TestUserCreationPermissionWorkflow_Gomock tests that new users get proper role keys and capabilities using gomock
-func TestUserCreationPermissionWorkflow_Gomock(t *testing.T) {
+// TestUserCreationPermissionWorkflow tests that new users get proper role keys and capabilities using gomock
+func TestUserCreationPermissionWorkflow(t *testing.T) {
 	t.Run("NewUser_GetsUserRoleWithAuthAndSelfCorrelationScopes", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -157,8 +157,8 @@ func TestUserCreationPermissionWorkflow_Gomock(t *testing.T) {
 	})
 }
 
-// TestSubforumCreationPermissionWorkflow_Gomock tests that subforum creators get proper moderation capabilities using gomock
-func TestSubforumCreationPermissionWorkflow_Gomock(t *testing.T) {
+// TestSubforumCreationPermissionWorkflow tests that subforum creators get proper moderation capabilities using gomock
+func TestSubforumCreationPermissionWorkflow(t *testing.T) {
 	t.Run("SubforumCreator_GetsSubforumOwnerRoleWithModerationCapabilities", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -357,8 +357,8 @@ func TestSubforumCreationPermissionWorkflow_Gomock(t *testing.T) {
 	})
 }
 
-// TestPermissionWorkflowIntegration_Gomock tests complete permission scenarios using gomock
-func TestPermissionWorkflowIntegration_Gomock(t *testing.T) {
+// TestPermissionWorkflowIntegration tests complete permission scenarios using gomock
+func TestPermissionWorkflowIntegration(t *testing.T) {
 	t.Run("UserLifecycle_FromRegistrationToSubforumOwner", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()

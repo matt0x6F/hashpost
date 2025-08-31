@@ -18,8 +18,8 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// TestAuthHandler_CurrentUserSession_Gomock tests the current user session functionality using gomock
-func TestAuthHandler_CurrentUserSession_Gomock(t *testing.T) {
+// TestAuthHandler_CurrentUserSession tests the current user session functionality using gomock
+func TestAuthHandler_CurrentUserSession(t *testing.T) {
 	t.Run("GetCurrentUserSession", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -170,8 +170,8 @@ func TestAuthHandler_CurrentUserSession_Gomock(t *testing.T) {
 	})
 }
 
-// TestAuthHandler_RefreshToken_Gomock tests the token refresh functionality using gomock
-func TestAuthHandler_RefreshToken_Gomock(t *testing.T) {
+// TestAuthHandler_RefreshToken tests the token refresh functionality using gomock
+func TestAuthHandler_RefreshToken(t *testing.T) {
 	t.Run("RefreshTokenWithValidToken", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -280,8 +280,8 @@ func TestAuthHandler_RefreshToken_Gomock(t *testing.T) {
 	})
 }
 
-// TestAuthHandler_Logout_Gomock tests the logout functionality using gomock
-func TestAuthHandler_Logout_Gomock(t *testing.T) {
+// TestAuthHandler_Logout tests the logout functionality using gomock
+func TestAuthHandler_Logout(t *testing.T) {
 	t.Run("LogoutUser", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()

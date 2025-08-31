@@ -10,8 +10,8 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// TestNewUserHandler_Gomock tests the user handler constructor using gomock
-func TestNewUserHandler_Gomock(t *testing.T) {
+// TestNewUserHandler tests the user handler constructor using gomock
+func TestNewUserHandler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -33,8 +33,8 @@ func TestNewUserHandler_Gomock(t *testing.T) {
 	// The constructor test verifies the handler was created successfully
 }
 
-// TestUserHandler_BasicFunctionality_Gomock tests basic user handler functionality
-func TestUserHandler_BasicFunctionality_Gomock(t *testing.T) {
+// TestUserHandler_BasicFunctionality tests basic user handler functionality
+func TestUserHandler_BasicFunctionality(t *testing.T) {
 	t.Run("HandlerCreation", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -81,8 +81,8 @@ func TestUserHandler_BasicFunctionality_Gomock(t *testing.T) {
 	})
 }
 
-// TestUserBlockingModels_Gomock tests the user blocking models
-func TestUserBlockingModels_Gomock(t *testing.T) {
+// TestUserBlockingModels tests the user blocking models
+func TestUserBlockingModels(t *testing.T) {
 	t.Run("ModelCreation", func(t *testing.T) {
 		// Test that we can create basic model structures
 		// This verifies the models are properly imported and accessible

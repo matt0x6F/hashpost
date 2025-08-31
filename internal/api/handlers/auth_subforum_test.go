@@ -20,8 +20,8 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// TestAuthHandler_GetCurrentUserSessionForSubforum_Gomock tests the subforum-specific session functionality using gomock
-func TestAuthHandler_GetCurrentUserSessionForSubforum_Gomock(t *testing.T) {
+// TestAuthHandler_GetCurrentUserSessionForSubforum tests the subforum-specific session functionality using gomock
+func TestAuthHandler_GetCurrentUserSessionForSubforum(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, &config.JWTConfig{
 		Secret:      "test-secret",

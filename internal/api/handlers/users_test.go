@@ -42,7 +42,7 @@ func NewUserHandlerWithGomocks(ctrl *gomock.Controller) (*handlers.UserHandler, 
 	return handler, mockUserDAO, mockPseudonymDAO, mockUserPreferencesDAO, mockUserBlocksDAO, mockPostDAO, mockCommentDAO
 }
 
-func TestUserHandler_GetPseudonymProfile_Gomock(t *testing.T) {
+func TestUserHandler_GetPseudonymProfile(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -127,8 +127,8 @@ func TestUserHandler_GetPseudonymProfile_Gomock(t *testing.T) {
 	})
 }
 
-// TestUserHandler_CreatePseudonym_Gomock tests the CreatePseudonym functionality using gomock
-func TestUserHandler_CreatePseudonym_Gomock(t *testing.T) {
+// TestUserHandler_CreatePseudonym tests the CreatePseudonym functionality using gomock
+func TestUserHandler_CreatePseudonym(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -262,8 +262,8 @@ func TestUserHandler_CreatePseudonym_Gomock(t *testing.T) {
 	})
 }
 
-// TestUserHandler_GetUserProfile_Gomock tests the GetUserProfile functionality using gomock
-func TestUserHandler_GetUserProfile_Gomock(t *testing.T) {
+// TestUserHandler_GetUserProfile tests the GetUserProfile functionality using gomock
+func TestUserHandler_GetUserProfile(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)

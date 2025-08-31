@@ -9,8 +9,8 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// TestNewPermissionMiddleware_Gomock tests the permission middleware constructor using gomock
-func TestNewPermissionMiddleware_Gomock(t *testing.T) {
+// TestNewPermissionMiddleware tests the permission middleware constructor using gomock
+func TestNewPermissionMiddleware(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -26,8 +26,8 @@ func TestNewPermissionMiddleware_Gomock(t *testing.T) {
 	// The constructor test verifies the middleware was created successfully
 }
 
-// TestPermissionMiddleware_BasicFunctionality_Gomock tests basic permission middleware functionality
-func TestPermissionMiddleware_BasicFunctionality_Gomock(t *testing.T) {
+// TestPermissionMiddleware_BasicFunctionality tests basic permission middleware functionality
+func TestPermissionMiddleware_BasicFunctionality(t *testing.T) {
 	t.Run("MiddlewareCreation", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -59,8 +59,8 @@ func TestPermissionMiddleware_BasicFunctionality_Gomock(t *testing.T) {
 	})
 }
 
-// TestPermissionMiddleware_Dependencies_Gomock tests the permission middleware dependency handling
-func TestPermissionMiddleware_Dependencies_Gomock(t *testing.T) {
+// TestPermissionMiddleware_Dependencies tests the permission middleware dependency handling
+func TestPermissionMiddleware_Dependencies(t *testing.T) {
 	t.Run("MockDAODependency", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -78,8 +78,8 @@ func TestPermissionMiddleware_Dependencies_Gomock(t *testing.T) {
 	})
 }
 
-// TestPermissionModels_Gomock tests the permission models
-func TestPermissionModels_Gomock(t *testing.T) {
+// TestPermissionModels tests the permission models
+func TestPermissionModels(t *testing.T) {
 	t.Run("ModelCreation", func(t *testing.T) {
 		// Test that we can create basic model structures
 		// This verifies the models are properly imported and accessible

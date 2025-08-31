@@ -63,8 +63,8 @@ func NewAuthHandlerWithGomocks(ctrl *gomock.Controller) (*handlers.AuthHandler, 
 	return handler, mockUserDAO, mockPseudonymDAO, mockIdentityMappingDAO, mockRoleKeyDAO, mockSubforumDAO, mockPermissionDAO
 }
 
-// TestRoleKeySecurity_Gomock tests the role key security functionality using gomock
-func TestRoleKeySecurity_Gomock(t *testing.T) {
+// TestRoleKeySecurity tests the role key security functionality using gomock
+func TestRoleKeySecurity(t *testing.T) {
 	t.Run("AuthenticationKeyScope", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()

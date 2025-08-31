@@ -18,8 +18,8 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// TestPseudonymSwitchingScopeValidation_Gomock tests the scope validation logic for pseudonym switching using gomock
-func TestPseudonymSwitchingScopeValidation_Gomock(t *testing.T) {
+// TestPseudonymSwitchingScopeValidation tests the scope validation logic for pseudonym switching using gomock
+func TestPseudonymSwitchingScopeValidation(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -297,8 +297,8 @@ func TestPseudonymSwitchingScopeValidation_Gomock(t *testing.T) {
 	})
 }
 
-// TestScopeAndCapabilityDefinitions_Gomock tests that the scope and capability definitions are correct using gomock
-func TestScopeAndCapabilityDefinitions_Gomock(t *testing.T) {
+// TestScopeAndCapabilityDefinitions tests that the scope and capability definitions are correct using gomock
+func TestScopeAndCapabilityDefinitions(t *testing.T) {
 	t.Run("AuthenticationScopeCapabilities", func(t *testing.T) {
 		// Verify that authentication scope has the correct capabilities
 		capabilities := constants.GetCapabilitiesByScope(constants.ScopeAuthentication)

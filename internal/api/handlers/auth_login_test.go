@@ -25,8 +25,8 @@ func hashPasswordSHA256(password string) string {
 	return hex.EncodeToString(hash[:])
 }
 
-// TestAuthHandler_Login_Gomock tests the login functionality using gomock
-func TestAuthHandler_Login_Gomock(t *testing.T) {
+// TestAuthHandler_Login tests the login functionality using gomock
+func TestAuthHandler_Login(t *testing.T) {
 	t.Run("LoginWithValidCredentials", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()

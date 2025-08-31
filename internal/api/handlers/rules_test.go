@@ -21,8 +21,8 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// TestNewRulesHandler_Gomock tests the rules handler constructor using gomock
-func TestNewRulesHandler_Gomock(t *testing.T) {
+// TestNewRulesHandler tests the rules handler constructor using gomock
+func TestNewRulesHandler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -42,8 +42,8 @@ func TestNewRulesHandler_Gomock(t *testing.T) {
 	// The constructor test verifies the handler was created successfully
 }
 
-// TestRulesHandler_GetPlatformRules_Gomock tests the platform rules retrieval using gomock
-func TestRulesHandler_GetPlatformRules_Gomock(t *testing.T) {
+// TestRulesHandler_GetPlatformRules tests the platform rules retrieval using gomock
+func TestRulesHandler_GetPlatformRules(t *testing.T) {
 	t.Run("GetPlatformRulesSuccess", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -145,8 +145,8 @@ func TestRulesHandler_GetPlatformRules_Gomock(t *testing.T) {
 	})
 }
 
-// TestRulesHandler_GetSubforumRules_Gomock tests the subforum rules retrieval using gomock
-func TestRulesHandler_GetSubforumRules_Gomock(t *testing.T) {
+// TestRulesHandler_GetSubforumRules tests the subforum rules retrieval using gomock
+func TestRulesHandler_GetSubforumRules(t *testing.T) {
 	t.Run("GetSubforumRulesSuccess", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -261,8 +261,8 @@ func TestRulesHandler_GetSubforumRules_Gomock(t *testing.T) {
 	})
 }
 
-// TestRulesHandler_CreateSubforumRule_Gomock tests the subforum rule creation using gomock
-func TestRulesHandler_CreateSubforumRule_Gomock(t *testing.T) {
+// TestRulesHandler_CreateSubforumRule tests the subforum rule creation using gomock
+func TestRulesHandler_CreateSubforumRule(t *testing.T) {
 	t.Run("CreateSubforumRuleSuccess", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -414,8 +414,8 @@ func TestRulesHandler_CreateSubforumRule_Gomock(t *testing.T) {
 	})
 }
 
-// TestRulesHandler_UpdateSubforumRule_Gomock tests the subforum rule update using gomock
-func TestRulesHandler_UpdateSubforumRule_Gomock(t *testing.T) {
+// TestRulesHandler_UpdateSubforumRule tests the subforum rule update using gomock
+func TestRulesHandler_UpdateSubforumRule(t *testing.T) {
 	t.Run("UpdateSubforumRuleSuccess", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -561,8 +561,8 @@ func TestRulesHandler_UpdateSubforumRule_Gomock(t *testing.T) {
 	})
 }
 
-// TestRulesHandler_DeleteSubforumRule_Gomock tests the subforum rule deletion using gomock
-func TestRulesHandler_DeleteSubforumRule_Gomock(t *testing.T) {
+// TestRulesHandler_DeleteSubforumRule tests the subforum rule deletion using gomock
+func TestRulesHandler_DeleteSubforumRule(t *testing.T) {
 	t.Run("DeleteSubforumRuleSuccess", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()

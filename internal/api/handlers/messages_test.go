@@ -11,8 +11,8 @@ import (
 	"github.com/matt0x6f/hashpost/internal/api/models"
 )
 
-// TestMessagesHandler_NewMessagesHandler_Gomock tests the messages handler constructor
-func TestMessagesHandler_NewMessagesHandler_Gomock(t *testing.T) {
+// TestMessagesHandler_NewMessagesHandler tests the messages handler constructor
+func TestMessagesHandler_NewMessagesHandler(t *testing.T) {
 	// Create handler with nil dependencies for constructor test
 	handler := handlers.NewMessagesHandler(
 		nil, // directMessageDAO
@@ -33,8 +33,8 @@ func TestMessagesHandler_NewMessagesHandler_Gomock(t *testing.T) {
 	// The constructor test verifies the handler was created successfully
 }
 
-// TestMessagesHandler_BasicFunctionality_Gomock tests basic message handler functionality
-func TestMessagesHandler_BasicFunctionality_Gomock(t *testing.T) {
+// TestMessagesHandler_BasicFunctionality tests basic message handler functionality
+func TestMessagesHandler_BasicFunctionality(t *testing.T) {
 	t.Run("HandlerCreation", func(t *testing.T) {
 		// Create handler with nil dependencies
 		handler := handlers.NewMessagesHandler(

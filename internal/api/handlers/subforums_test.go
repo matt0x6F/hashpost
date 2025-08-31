@@ -9,8 +9,8 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// TestNewSubforumHandler_Gomock tests the subforum handler constructor using gomock
-func TestNewSubforumHandler_Gomock(t *testing.T) {
+// TestNewSubforumHandler tests the subforum handler constructor using gomock
+func TestNewSubforumHandler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -33,8 +33,8 @@ func TestNewSubforumHandler_Gomock(t *testing.T) {
 	// The constructor test verifies the handler was created successfully
 }
 
-// TestSubforumHandler_BasicFunctionality_Gomock tests basic subforum handler functionality
-func TestSubforumHandler_BasicFunctionality_Gomock(t *testing.T) {
+// TestSubforumHandler_BasicFunctionality tests basic subforum handler functionality
+func TestSubforumHandler_BasicFunctionality(t *testing.T) {
 	t.Run("HandlerCreation", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -80,8 +80,8 @@ func TestSubforumHandler_BasicFunctionality_Gomock(t *testing.T) {
 	})
 }
 
-// TestSubforumHandler_Dependencies_Gomock tests the subforum handler dependency handling
-func TestSubforumHandler_Dependencies_Gomock(t *testing.T) {
+// TestSubforumHandler_Dependencies tests the subforum handler dependency handling
+func TestSubforumHandler_Dependencies(t *testing.T) {
 	t.Run("NilDependencies", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -130,8 +130,8 @@ func TestSubforumHandler_Dependencies_Gomock(t *testing.T) {
 	})
 }
 
-// TestSubforumModels_Gomock tests the subforum models
-func TestSubforumModels_Gomock(t *testing.T) {
+// TestSubforumModels tests the subforum models
+func TestSubforumModels(t *testing.T) {
 	t.Run("ModelCreation", func(t *testing.T) {
 		// Test that we can create basic model structures
 		// This verifies the models are properly imported and accessible

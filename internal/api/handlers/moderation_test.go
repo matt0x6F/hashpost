@@ -9,8 +9,8 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// TestNewModerationHandler_Gomock tests the moderation handler constructor using gomock
-func TestNewModerationHandler_Gomock(t *testing.T) {
+// TestNewModerationHandler tests the moderation handler constructor using gomock
+func TestNewModerationHandler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -33,8 +33,8 @@ func TestNewModerationHandler_Gomock(t *testing.T) {
 	// The constructor test verifies the handler was created successfully
 }
 
-// TestModerationHandler_BasicFunctionality_Gomock tests basic moderation handler functionality
-func TestModerationHandler_BasicFunctionality_Gomock(t *testing.T) {
+// TestModerationHandler_BasicFunctionality tests basic moderation handler functionality
+func TestModerationHandler_BasicFunctionality(t *testing.T) {
 	t.Run("HandlerCreation", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -80,8 +80,8 @@ func TestModerationHandler_BasicFunctionality_Gomock(t *testing.T) {
 	})
 }
 
-// TestModerationModels_Gomock tests the moderation models
-func TestModerationModels_Gomock(t *testing.T) {
+// TestModerationModels tests the moderation models
+func TestModerationModels(t *testing.T) {
 	t.Run("ModelCreation", func(t *testing.T) {
 		// Test that we can create basic model structures
 		// This verifies the models are properly imported and accessible

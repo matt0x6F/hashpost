@@ -13,8 +13,8 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// TestContentHandler_VoteOnPost_Success_Gomock tests successful post voting
-func TestContentHandler_VoteOnPost_Success_Gomock(t *testing.T) {
+// TestContentHandler_VoteOnPost_Success tests successful post voting
+func TestContentHandler_VoteOnPost_Success(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -77,8 +77,8 @@ func TestContentHandler_VoteOnPost_Success_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_VoteOnPost_PreventsVotingOnDeletedPost_Gomock tests that voting on deleted posts is prevented
-func TestContentHandler_VoteOnPost_PreventsVotingOnDeletedPost_Gomock(t *testing.T) {
+// TestContentHandler_VoteOnPost_PreventsVotingOnDeletedPost tests that voting on deleted posts is prevented
+func TestContentHandler_VoteOnPost_PreventsVotingOnDeletedPost(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -118,8 +118,8 @@ func TestContentHandler_VoteOnPost_PreventsVotingOnDeletedPost_Gomock(t *testing
 	})
 }
 
-// TestContentHandler_VoteOnComment_PreventsVotingOnDeletedComment_Gomock tests that voting on deleted comments is prevented
-func TestContentHandler_VoteOnComment_PreventsVotingOnDeletedComment_Gomock(t *testing.T) {
+// TestContentHandler_VoteOnComment_PreventsVotingOnDeletedComment tests that voting on deleted comments is prevented
+func TestContentHandler_VoteOnComment_PreventsVotingOnDeletedComment(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -167,8 +167,8 @@ func TestContentHandler_VoteOnComment_PreventsVotingOnDeletedComment_Gomock(t *t
 	})
 }
 
-// TestContentHandler_VoteOnPost_InsufficientPermissions_Gomock tests post voting without required permissions
-func TestContentHandler_VoteOnPost_InsufficientPermissions_Gomock(t *testing.T) {
+// TestContentHandler_VoteOnPost_InsufficientPermissions tests post voting without required permissions
+func TestContentHandler_VoteOnPost_InsufficientPermissions(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -227,8 +227,8 @@ func TestContentHandler_VoteOnPost_InsufficientPermissions_Gomock(t *testing.T) 
 	})
 }
 
-// TestContentHandler_VoteOnComment_RemoveVote_Gomock tests removing a vote on a comment
-func TestContentHandler_VoteOnComment_RemoveVote_Gomock(t *testing.T) {
+// TestContentHandler_VoteOnComment_RemoveVote tests removing a vote on a comment
+func TestContentHandler_VoteOnComment_RemoveVote(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -304,8 +304,8 @@ func TestContentHandler_VoteOnComment_RemoveVote_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_VoteOnComment_InvalidVoteValue_Gomock tests comment voting with invalid vote values
-func TestContentHandler_VoteOnComment_InvalidVoteValue_Gomock(t *testing.T) {
+// TestContentHandler_VoteOnComment_InvalidVoteValue tests comment voting with invalid vote values
+func TestContentHandler_VoteOnComment_InvalidVoteValue(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -343,8 +343,8 @@ func TestContentHandler_VoteOnComment_InvalidVoteValue_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_VoteOnComment_NotFound_Gomock tests voting on non-existent comment
-func TestContentHandler_VoteOnComment_NotFound_Gomock(t *testing.T) {
+// TestContentHandler_VoteOnComment_NotFound tests voting on non-existent comment
+func TestContentHandler_VoteOnComment_NotFound(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -388,8 +388,8 @@ func TestContentHandler_VoteOnComment_NotFound_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_VoteOnPost_NotFound_Gomock tests voting on non-existent post
-func TestContentHandler_VoteOnPost_NotFound_Gomock(t *testing.T) {
+// TestContentHandler_VoteOnPost_NotFound tests voting on non-existent post
+func TestContentHandler_VoteOnPost_NotFound(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -425,8 +425,8 @@ func TestContentHandler_VoteOnPost_NotFound_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_VoteOnComment_Success_Gomock tests successful comment voting
-func TestContentHandler_VoteOnComment_Success_Gomock(t *testing.T) {
+// TestContentHandler_VoteOnComment_Success tests successful comment voting
+func TestContentHandler_VoteOnComment_Success(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)

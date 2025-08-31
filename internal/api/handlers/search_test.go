@@ -95,8 +95,8 @@ func createAuthenticatedSearchUsersInput(userID int64, activePseudonymID string,
 	}
 }
 
-// TestSearchHandler_SearchPosts_Gomock tests the search posts functionality using gomock
-func TestSearchHandler_SearchPosts_Gomock(t *testing.T) {
+// TestSearchHandler_SearchPosts tests the search posts functionality using gomock
+func TestSearchHandler_SearchPosts(t *testing.T) {
 	t.Run("SearchPostsSuccess", func(t *testing.T) {
 		handler, mockPostDAO, _, mockSubforumDAO, mockPseudonymDAO, _ := NewSearchHandlerWithGomocks(t)
 
@@ -232,8 +232,8 @@ func TestSearchHandler_SearchPosts_Gomock(t *testing.T) {
 	})
 }
 
-// TestSearchHandler_SearchUsers_Gomock tests the search users functionality using gomock
-func TestSearchHandler_SearchUsers_Gomock(t *testing.T) {
+// TestSearchHandler_SearchUsers tests the search users functionality using gomock
+func TestSearchHandler_SearchUsers(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -373,8 +373,8 @@ func TestSearchHandler_SearchUsers_Gomock(t *testing.T) {
 	})
 }
 
-// TestSearchHandler_NewSearchHandler_Gomock tests the search handler constructor using gomock
-func TestSearchHandler_NewSearchHandler_Gomock(t *testing.T) {
+// TestSearchHandler_NewSearchHandler tests the search handler constructor using gomock
+func TestSearchHandler_NewSearchHandler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 

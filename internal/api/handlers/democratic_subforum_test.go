@@ -18,8 +18,8 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// TestSubforumHandler_CreateSubforum_DemocraticValidation_Gomock tests the democratic subforum validation logic using gomock
-func TestSubforumHandler_CreateSubforum_DemocraticValidation_Gomock(t *testing.T) {
+// TestSubforumHandler_CreateSubforum_DemocraticValidation tests the democratic subforum validation logic using gomock
+func TestSubforumHandler_CreateSubforum_DemocraticValidation(t *testing.T) {
 	// Initialize global auth middleware for testing
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)

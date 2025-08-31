@@ -11,8 +11,8 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// TestNewAuthHandler_Gomock tests the auth handler constructor using gomock
-func TestNewAuthHandler_Gomock(t *testing.T) {
+// TestNewAuthHandler tests the auth handler constructor using gomock
+func TestNewAuthHandler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -52,8 +52,8 @@ func TestNewAuthHandler_Gomock(t *testing.T) {
 	// The constructor test verifies the handler was created successfully
 }
 
-// TestAuthHandler_BasicFunctionality_Gomock tests basic auth handler functionality
-func TestAuthHandler_BasicFunctionality_Gomock(t *testing.T) {
+// TestAuthHandler_BasicFunctionality tests basic auth handler functionality
+func TestAuthHandler_BasicFunctionality(t *testing.T) {
 	t.Run("HandlerCreation", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -180,8 +180,8 @@ func TestAuthHandler_BasicFunctionality_Gomock(t *testing.T) {
 	})
 }
 
-// TestAuthHandler_Dependencies_Gomock tests the auth handler dependency handling
-func TestAuthHandler_Dependencies_Gomock(t *testing.T) {
+// TestAuthHandler_Dependencies tests the auth handler dependency handling
+func TestAuthHandler_Dependencies(t *testing.T) {
 	t.Run("NilDependencies", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -218,8 +218,8 @@ func TestAuthHandler_Dependencies_Gomock(t *testing.T) {
 	})
 }
 
-// TestAuthModels_Gomock tests the auth models
-func TestAuthModels_Gomock(t *testing.T) {
+// TestAuthModels tests the auth models
+func TestAuthModels(t *testing.T) {
 	t.Run("ModelCreation", func(t *testing.T) {
 		// Test that we can create basic model structures
 		// This verifies the models are properly imported and accessible

@@ -2,4 +2,4 @@
 
 package dao
 
-//go:generate mockgen -source=interfaces.go -destination=dao_gomocks.go -package=dao
+//go:generate mockgen -source=interfaces.go -destination=daos.go -package=dao

@@ -14,8 +14,8 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// TestContentHandler_DeleteComment_HandlesDeletedCommentResponse_Gomock tests that deleting an already deleted comment returns appropriate response
-func TestContentHandler_DeleteComment_HandlesDeletedCommentResponse_Gomock(t *testing.T) {
+// TestContentHandler_DeleteComment_HandlesDeletedCommentResponse tests that deleting an already deleted comment returns appropriate response
+func TestContentHandler_DeleteComment_HandlesDeletedCommentResponse(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -77,8 +77,8 @@ func TestContentHandler_DeleteComment_HandlesDeletedCommentResponse_Gomock(t *te
 	})
 }
 
-// TestContentHandler_DeleteComment_Success_Gomock tests successful comment deletion
-func TestContentHandler_DeleteComment_Success_Gomock(t *testing.T) {
+// TestContentHandler_DeleteComment_Success tests successful comment deletion
+func TestContentHandler_DeleteComment_Success(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -140,8 +140,8 @@ func TestContentHandler_DeleteComment_Success_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_DeleteComment_NotOwner_Gomock tests that non-owners cannot delete comments
-func TestContentHandler_DeleteComment_NotOwner_Gomock(t *testing.T) {
+// TestContentHandler_DeleteComment_NotOwner tests that non-owners cannot delete comments
+func TestContentHandler_DeleteComment_NotOwner(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -194,8 +194,8 @@ func TestContentHandler_DeleteComment_NotOwner_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_CreateComment_Success_Gomock tests successful comment creation
-func TestContentHandler_CreateComment_Success_Gomock(t *testing.T) {
+// TestContentHandler_CreateComment_Success tests successful comment creation
+func TestContentHandler_CreateComment_Success(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -260,8 +260,8 @@ func TestContentHandler_CreateComment_Success_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_CreateComment_PostNotFound_Gomock tests comment creation on non-existent post
-func TestContentHandler_CreateComment_PostNotFound_Gomock(t *testing.T) {
+// TestContentHandler_CreateComment_PostNotFound tests comment creation on non-existent post
+func TestContentHandler_CreateComment_PostNotFound(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -302,8 +302,8 @@ func TestContentHandler_CreateComment_PostNotFound_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_CreateComment_ValidationErrors_Gomock tests comment creation with validation errors
-func TestContentHandler_CreateComment_ValidationErrors_Gomock(t *testing.T) {
+// TestContentHandler_CreateComment_ValidationErrors tests comment creation with validation errors
+func TestContentHandler_CreateComment_ValidationErrors(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -350,8 +350,8 @@ func TestContentHandler_CreateComment_ValidationErrors_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_DeleteComment_CommentNotFound_Gomock tests comment deletion with non-existent comment
-func TestContentHandler_DeleteComment_CommentNotFound_Gomock(t *testing.T) {
+// TestContentHandler_DeleteComment_CommentNotFound tests comment deletion with non-existent comment
+func TestContentHandler_DeleteComment_CommentNotFound(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -397,8 +397,8 @@ func TestContentHandler_DeleteComment_CommentNotFound_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_EditComment_Success_Gomock tests successful comment editing
-func TestContentHandler_EditComment_Success_Gomock(t *testing.T) {
+// TestContentHandler_EditComment_Success tests successful comment editing
+func TestContentHandler_EditComment_Success(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -454,8 +454,8 @@ func TestContentHandler_EditComment_Success_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_EditComment_NotOwner_Gomock tests that non-owners cannot edit comments
-func TestContentHandler_EditComment_NotOwner_Gomock(t *testing.T) {
+// TestContentHandler_EditComment_NotOwner tests that non-owners cannot edit comments
+func TestContentHandler_EditComment_NotOwner(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -503,8 +503,8 @@ func TestContentHandler_EditComment_NotOwner_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_EditComment_NotFound_Gomock tests comment editing with non-existent comment
-func TestContentHandler_EditComment_NotFound_Gomock(t *testing.T) {
+// TestContentHandler_EditComment_NotFound tests comment editing with non-existent comment
+func TestContentHandler_EditComment_NotFound(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -545,8 +545,8 @@ func TestContentHandler_EditComment_NotFound_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_RemoveComment_NotFound_Gomock tests comment removal with non-existent comment
-func TestContentHandler_RemoveComment_NotFound_Gomock(t *testing.T) {
+// TestContentHandler_RemoveComment_NotFound tests comment removal with non-existent comment
+func TestContentHandler_RemoveComment_NotFound(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -591,8 +591,8 @@ func TestContentHandler_RemoveComment_NotFound_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_RemoveComment_NotOwner_Gomock tests that non-owners cannot remove comments
-func TestContentHandler_RemoveComment_NotOwner_Gomock(t *testing.T) {
+// TestContentHandler_RemoveComment_NotOwner tests that non-owners cannot remove comments
+func TestContentHandler_RemoveComment_NotOwner(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -658,8 +658,8 @@ func TestContentHandler_RemoveComment_NotOwner_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_EditComment_ValidationErrors_Gomock tests comment editing with validation errors
-func TestContentHandler_EditComment_ValidationErrors_Gomock(t *testing.T) {
+// TestContentHandler_EditComment_ValidationErrors tests comment editing with validation errors
+func TestContentHandler_EditComment_ValidationErrors(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -707,8 +707,8 @@ func TestContentHandler_EditComment_ValidationErrors_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_CreateComment_NotFound_Gomock tests comment creation on non-existent post
-func TestContentHandler_CreateComment_NotFound_Gomock(t *testing.T) {
+// TestContentHandler_CreateComment_NotFound tests comment creation on non-existent post
+func TestContentHandler_CreateComment_NotFound(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -749,8 +749,8 @@ func TestContentHandler_CreateComment_NotFound_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_RemoveComment_Success_Gomock tests successful comment removal
-func TestContentHandler_RemoveComment_Success_Gomock(t *testing.T) {
+// TestContentHandler_RemoveComment_Success tests successful comment removal
+func TestContentHandler_RemoveComment_Success(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
@@ -824,8 +824,8 @@ func TestContentHandler_RemoveComment_Success_Gomock(t *testing.T) {
 	})
 }
 
-// TestContentHandler_ReportComment_Success_Gomock tests successful comment reporting
-func TestContentHandler_ReportComment_Success_Gomock(t *testing.T) {
+// TestContentHandler_ReportComment_Success tests successful comment reporting
+func TestContentHandler_ReportComment_Success(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
