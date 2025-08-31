@@ -4,13 +4,15 @@ import (
 	"database/sql"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	gomock "go.uber.org/mock/gomock"
+
 	"github.com/matt0x6f/hashpost/internal/api/constants"
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	"github.com/matt0x6f/hashpost/internal/api/models"
 	dbmodels "github.com/matt0x6f/hashpost/internal/database/models"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	gomock "go.uber.org/mock/gomock"
+	"github.com/matt0x6f/hashpost/internal/fixtures"
 )
 
 // TestContentHandler_VoteOnPost_Success tests successful post voting
@@ -65,7 +67,7 @@ func TestContentHandler_VoteOnPost_Success(t *testing.T) {
 		mockPseudonymDAO.EXPECT().UpdateKarmaForPseudonym(gomock.Any(), "other-user").Return(nil).Times(1)
 
 		// Create authenticated input
-		input := createAuthenticatedVoteInput(userID, activePseudonymID, displayName, postID, 1)
+		input := fixtures.CreateAuthenticatedVoteInput(userID, activePseudonymID, displayName, postID, 1)
 
 		// Call handler
 		response, err := handler.VoteOnPost(ctx, input)
@@ -106,7 +108,7 @@ func TestContentHandler_VoteOnPost_PreventsVotingOnDeletedPost(t *testing.T) {
 		mockPostDAO.EXPECT().GetPostByID(gomock.Any(), postID).Return(mockPost, nil).Times(1)
 
 		// Create authenticated input
-		input := createAuthenticatedVoteInput(userID, activePseudonymID, displayName, postID, 1)
+		input := fixtures.CreateAuthenticatedVoteInput(userID, activePseudonymID, displayName, postID, 1)
 
 		// Call handler - should fail because post is deleted
 		response, err := handler.VoteOnPost(ctx, input)
@@ -215,7 +217,7 @@ func TestContentHandler_VoteOnPost_InsufficientPermissions(t *testing.T) {
 		mockPostDAO.EXPECT().UpdatePostScore(gomock.Any(), postID, int32(1), int32(1), int32(0)).Return(nil).Times(1)
 
 		// Create authenticated input
-		input := createAuthenticatedVoteInput(userID, activePseudonymID, displayName, postID, 1)
+		input := fixtures.CreateAuthenticatedVoteInput(userID, activePseudonymID, displayName, postID, 1)
 
 		// Call handler - should succeed since there's no permission check for voting
 		response, err := handler.VoteOnPost(ctx, input)
@@ -413,7 +415,7 @@ func TestContentHandler_VoteOnPost_NotFound(t *testing.T) {
 		mockPostDAO.EXPECT().GetPostByID(gomock.Any(), postID).Return(nil, sql.ErrNoRows).Times(1)
 
 		// Create authenticated input
-		input := createAuthenticatedVoteInput(userID, activePseudonymID, displayName, postID, 1)
+		input := fixtures.CreateAuthenticatedVoteInput(userID, activePseudonymID, displayName, postID, 1)
 
 		// Call handler - should fail because post doesn't exist
 		response, err := handler.VoteOnPost(ctx, input)

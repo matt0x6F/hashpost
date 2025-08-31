@@ -10,6 +10,7 @@ import (
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	"github.com/matt0x6f/hashpost/internal/api/models"
 	dbmodels "github.com/matt0x6f/hashpost/internal/database/models"
+	"github.com/matt0x6f/hashpost/internal/fixtures"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	gomock "go.uber.org/mock/gomock"
@@ -207,7 +208,7 @@ func TestContentHandler_CreatePost_Success(t *testing.T) {
 		mockPseudonymDAO.EXPECT().UpdateLastActive(gomock.Any(), activePseudonymID).Return(nil).Times(1)
 
 		// Create authenticated input
-		input := createAuthenticatedContentInput(userID, activePseudonymID, displayName, "General", "New Test Post", "This is a new test post")
+		input := fixtures.CreateAuthenticatedContentInput(userID, activePseudonymID, displayName, "General", "New Test Post", "This is a new test post")
 
 		// Call handler
 		response, err := handler.CreatePost(ctx, input)
@@ -260,7 +261,7 @@ func TestContentHandler_DeletePost_Success(t *testing.T) {
 		}, nil).Times(1)
 
 		// Create authenticated input
-		input := createAuthenticatedDeleteInput(userID, activePseudonymID, displayName, postID, "User requested deletion")
+		input := fixtures.CreateAuthenticatedDeleteInput(userID, activePseudonymID, displayName, postID, "User requested deletion")
 
 		// Call handler
 		response, err := handler.DeletePost(ctx, input)
@@ -313,7 +314,7 @@ func TestContentHandler_DeletePost_HandlesDeletedPostResponse(t *testing.T) {
 		}, nil).Times(1)
 
 		// Create authenticated input
-		input := createAuthenticatedDeleteInput(userID, activePseudonymID, displayName, postID, "Already deleted")
+		input := fixtures.CreateAuthenticatedDeleteInput(userID, activePseudonymID, displayName, postID, "Already deleted")
 
 		// Call handler - should succeed even if post is already deleted
 		response, err := handler.DeletePost(ctx, input)
@@ -430,7 +431,7 @@ func TestContentHandler_CreatePost_SubforumNotFound(t *testing.T) {
 		mockSubforumDAO.EXPECT().GetSubforumByCommunityTypeAndName(gomock.Any(), "h", subforumName).Return(nil, sql.ErrNoRows).Times(1)
 
 		// Create authenticated input
-		input := createAuthenticatedContentInput(userID, activePseudonymID, displayName, subforumName, "Test Post", "Test content")
+		input := fixtures.CreateAuthenticatedContentInput(userID, activePseudonymID, displayName, subforumName, "Test Post", "Test content")
 
 		// Call handler - should fail because subforum doesn't exist
 		response, err := handler.CreatePost(ctx, input)
@@ -483,7 +484,7 @@ func TestContentHandler_CreatePost_InsufficientPermissions(t *testing.T) {
 		mockPseudonymDAO.EXPECT().UpdateLastActive(gomock.Any(), activePseudonymID).Return(nil).Times(1)
 
 		// Create authenticated input
-		input := createAuthenticatedContentInput(userID, activePseudonymID, displayName, subforumName, "Test Post", "Test content")
+		input := fixtures.CreateAuthenticatedContentInput(userID, activePseudonymID, displayName, subforumName, "Test Post", "Test content")
 
 		// Call handler - should succeed since there's no permission check for basic post creation
 		response, err := handler.CreatePost(ctx, input)
@@ -524,7 +525,7 @@ func TestContentHandler_DeletePost_InsufficientPermissions(t *testing.T) {
 		mockPostDAO.EXPECT().GetPostByID(gomock.Any(), postID).Return(mockPost, nil).Times(1)
 
 		// Create authenticated input
-		input := createAuthenticatedDeleteInput(userID, activePseudonymID, displayName, postID, "User requested deletion")
+		input := fixtures.CreateAuthenticatedDeleteInput(userID, activePseudonymID, displayName, postID, "User requested deletion")
 
 		// Mock the DAO method call (it will be called but should fail)
 		mockPostDAO.EXPECT().MarkPostAsDeletedByPseudonym(gomock.Any(), postID, activePseudonymID, "User requested deletion").Return(sql.ErrNoRows).Times(1)
@@ -907,7 +908,7 @@ func TestContentHandler_DeletePost_PostNotFound(t *testing.T) {
 		mockPostDAO.EXPECT().MarkPostAsDeletedByPseudonym(gomock.Any(), postID, activePseudonymID, "User requested deletion").Return(sql.ErrNoRows).Times(1)
 
 		// Create authenticated input
-		input := createAuthenticatedDeleteInput(userID, activePseudonymID, displayName, postID, "User requested deletion")
+		input := fixtures.CreateAuthenticatedDeleteInput(userID, activePseudonymID, displayName, postID, "User requested deletion")
 
 		// Call handler - should fail because post doesn't exist
 		response, err := handler.DeletePost(ctx, input)
@@ -997,7 +998,7 @@ func TestContentHandler_CreatePost_ValidationErrors(t *testing.T) {
 		ctx := createTestContentContext(t, userID, activePseudonymID, displayName)
 
 		// Create authenticated input with empty title (validation error)
-		input := createAuthenticatedContentInput(userID, activePseudonymID, displayName, "General", "", "Test content")
+		input := fixtures.CreateAuthenticatedContentInput(userID, activePseudonymID, displayName, "General", "", "Test content")
 
 		// Call handler - should fail due to validation
 		response, err := handler.CreatePost(ctx, input)

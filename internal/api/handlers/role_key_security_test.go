@@ -12,6 +12,7 @@ import (
 	"github.com/matt0x6f/hashpost/internal/fixtures"
 	"github.com/matt0x6f/hashpost/internal/ibe"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -61,6 +62,121 @@ func NewAuthHandlerWithGomocks(ctrl *gomock.Controller) (*handlers.AuthHandler, 
 	)
 
 	return handler, mockUserDAO, mockPseudonymDAO, mockIdentityMappingDAO, mockRoleKeyDAO, mockSubforumDAO, mockPermissionDAO
+}
+
+// NewAuthHandlerWithTokenDAOs creates a new auth handler with token DAOs for testing email verification and password reset
+func NewAuthHandlerWithTokenDAOs(ctrl *gomock.Controller) (*handlers.AuthHandler, *dao.MockUserDAOInterface, *dao.MockPseudonymDAOInterface, *dao.MockIdentityMappingDAOInterface, *dao.MockRoleKeyDAOInterface, *dao.MockSubforumDAOInterface, *dao.MockPermissionDAOInterface, *MockEmailVerificationTokenDAO, *MockPasswordResetTokenDAO) {
+	mockUserDAO := dao.NewMockUserDAOInterface(ctrl)
+	mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+	mockIdentityMappingDAO := dao.NewMockIdentityMappingDAOInterface(ctrl)
+	mockRoleKeyDAO := dao.NewMockRoleKeyDAOInterface(ctrl)
+	mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+	mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+	mockEmailVerificationTokenDAO := &MockEmailVerificationTokenDAO{}
+	mockPasswordResetTokenDAO := &MockPasswordResetTokenDAO{}
+
+	ibeSystem := ibe.NewIBESystemWithOptions(ibe.IBEOptions{})
+
+	cfg := &config.Config{
+		JWT: config.JWTConfig{
+			Secret:      "test_secret_key_for_jwt_signing",
+			Expiration:  time.Hour,
+			Development: true,
+		},
+		Security: config.SecurityConfig{
+			PasswordValidation: config.PasswordValidationConfig{
+				MinLength:          8,
+				RequireUppercase:   true,
+				RequireLowercase:   true,
+				RequireDigit:       true,
+				RequireSpecialChar: true,
+				DisallowCommon:     true,
+			},
+		},
+	}
+
+	handler := handlers.NewAuthHandler(
+		cfg,
+		nil, // nil db for testing
+		mockUserDAO,
+		mockPseudonymDAO,
+		mockIdentityMappingDAO,
+		mockRoleKeyDAO,
+		ibeSystem,
+		mockSubforumDAO,
+		mockPermissionDAO,
+		nil,                           // Email service
+		mockEmailVerificationTokenDAO, // Email verification token DAO
+		mockPasswordResetTokenDAO,     // Password reset token DAO
+	)
+
+	return handler, mockUserDAO, mockPseudonymDAO, mockIdentityMappingDAO, mockRoleKeyDAO, mockSubforumDAO, mockPermissionDAO, mockEmailVerificationTokenDAO, mockPasswordResetTokenDAO
+}
+
+// MockEmailVerificationTokenDAO is a mock for testing
+type MockEmailVerificationTokenDAO struct {
+	mock.Mock
+}
+
+func (m *MockEmailVerificationTokenDAO) GetToken(ctx context.Context, token string) (*dbmodels.EmailVerificationToken, error) {
+	args := m.Called(ctx, token)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*dbmodels.EmailVerificationToken), args.Error(1)
+}
+
+func (m *MockEmailVerificationTokenDAO) MarkTokenAsUsed(ctx context.Context, token string) error {
+	args := m.Called(ctx, token)
+	return args.Error(0)
+}
+
+func (m *MockEmailVerificationTokenDAO) CreateToken(ctx context.Context, userID int64, token string, expiresAt time.Time) error {
+	args := m.Called(ctx, userID, token, expiresAt)
+	return args.Error(0)
+}
+
+func (m *MockEmailVerificationTokenDAO) DeleteExpiredTokens(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+func (m *MockEmailVerificationTokenDAO) DeleteTokensByUserID(ctx context.Context, userID int64) error {
+	args := m.Called(ctx, userID)
+	return args.Error(0)
+}
+
+// MockPasswordResetTokenDAO is a mock for testing
+type MockPasswordResetTokenDAO struct {
+	mock.Mock
+}
+
+func (m *MockPasswordResetTokenDAO) GetToken(ctx context.Context, token string) (*dbmodels.PasswordResetToken, error) {
+	args := m.Called(ctx, token)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*dbmodels.PasswordResetToken), args.Error(1)
+}
+
+func (m *MockPasswordResetTokenDAO) CreateToken(ctx context.Context, userID int64, token string, expiresAt time.Time) error {
+	args := m.Called(ctx, userID, token, expiresAt)
+	return args.Error(0)
+}
+
+func (m *MockPasswordResetTokenDAO) MarkTokenAsUsed(ctx context.Context, token string) error {
+	args := m.Called(ctx, token)
+	return args.Error(0)
+}
+
+func (m *MockPasswordResetTokenDAO) DeleteExpiredTokens(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+func (m *MockPasswordResetTokenDAO) DeleteTokensByUserID(ctx context.Context, userID int64) error {
+	args := m.Called(ctx, userID)
+	return args.Error(0)
 }
 
 // TestRoleKeySecurity tests the role key security functionality using gomock
