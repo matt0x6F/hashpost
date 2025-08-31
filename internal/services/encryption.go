@@ -162,7 +162,7 @@ func (s *EncryptionService) generateKeyID(key []byte) string {
 }
 
 // EncryptMessageKey encrypts a message key with a master key
-func (s *EncryptionService) EncryptMessageKey(masterKey, messageKey []byte) ([]byte, error) {
+func (s *EncryptionService) EncryptMessageKey(messageKey, masterKey []byte) ([]byte, error) {
 	// For message key encryption, we need to handle the IV properly
 	// The IV should be prepended to the encrypted data for storage
 	block, err := aes.NewCipher(masterKey)
@@ -187,7 +187,7 @@ func (s *EncryptionService) EncryptMessageKey(masterKey, messageKey []byte) ([]b
 }
 
 // DecryptMessageKey decrypts a message key with a master key
-func (s *EncryptionService) DecryptMessageKey(masterKey, encryptedKey []byte) ([]byte, error) {
+func (s *EncryptionService) DecryptMessageKey(encryptedKey, masterKey []byte) ([]byte, error) {
 	// For now, assume the encrypted key is just AES encrypted
 	// In a real implementation, this would handle the specific encryption format
 	block, err := aes.NewCipher(masterKey)
@@ -197,7 +197,7 @@ func (s *EncryptionService) DecryptMessageKey(masterKey, encryptedKey []byte) ([
 
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create AES cipher: %w", err)
+		return nil, fmt.Errorf("failed to create GCM: %w", err)
 	}
 
 	// Extract nonce from encrypted data
@@ -238,8 +238,8 @@ func (s *EncryptionService) EncryptWithPublicKey(publicKeyPEM []byte, data []byt
 		return nil, fmt.Errorf("public key is not RSA")
 	}
 
-	// Encrypt data with RSA-OAEP
-	encryptedData, err := rsa.EncryptPKCS1v15(rand.Reader, rsaPubKey, data)
+	// Encrypt data with RSA-OAEP (more secure than PKCS1v15)
+	encryptedData, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, rsaPubKey, data, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encrypt with RSA: %w", err)
 	}
@@ -267,8 +267,8 @@ func (s *EncryptionService) DecryptWithPrivateKey(privateKeyPEM []byte, encrypte
 		return nil, fmt.Errorf("private key is not RSA")
 	}
 
-	// Decrypt data with RSA-OAEP
-	decryptedData, err := rsa.DecryptPKCS1v15(rand.Reader, rsaPrivKey, encryptedData)
+	// Decrypt data with RSA-OAEP (more secure than PKCS1v15)
+	decryptedData, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, rsaPrivKey, encryptedData, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt with RSA: %w", err)
 	}

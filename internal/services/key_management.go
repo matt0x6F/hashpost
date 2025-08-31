@@ -128,7 +128,7 @@ func (s *KeyManagementService) GenerateSignatureKeyPair() (*SignatureKeyPair, er
 }
 
 // EncryptMessageKey encrypts a message key with a master key
-func (s *KeyManagementService) EncryptMessageKey(masterKey []byte, messageKey *MessageKey) ([]byte, error) {
+func (s *KeyManagementService) EncryptMessageKey(messageKey *MessageKey, masterKey []byte) ([]byte, error) {
 	// Serialize the message key
 	keyData, err := s.encryptionService.SerializeMessageKeys([]*MessageKey{messageKey})
 	if err != nil {
@@ -136,13 +136,13 @@ func (s *KeyManagementService) EncryptMessageKey(masterKey []byte, messageKey *M
 	}
 
 	// Encrypt with master key
-	return s.encryptionService.EncryptMessageKey(masterKey, keyData)
+	return s.encryptionService.EncryptMessageKey(keyData, masterKey)
 }
 
 // DecryptMessageKey decrypts a message key with a master key
-func (s *KeyManagementService) DecryptMessageKey(masterKey, encryptedKey []byte) (*MessageKey, error) {
+func (s *KeyManagementService) DecryptMessageKey(encryptedKey, masterKey []byte) (*MessageKey, error) {
 	// Decrypt with master key
-	keyData, err := s.encryptionService.DecryptMessageKey(masterKey, encryptedKey)
+	keyData, err := s.encryptionService.DecryptMessageKey(encryptedKey, masterKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt message key: %w", err)
 	}

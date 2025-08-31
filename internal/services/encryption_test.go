@@ -93,15 +93,26 @@ func TestEncryptionService_MessageKey(t *testing.T) {
 		KeyVersion: 1,
 	}
 
-	// Encrypt message key
-	encrypted, err := service.EncryptMessageKey(masterKey, messageKey.KeyData)
+	// Serialize the message key first
+	serializedKey, err := service.SerializeMessageKeys([]*MessageKey{messageKey})
 	require.NoError(t, err)
-	assert.NotEqual(t, messageKey.KeyData, encrypted)
+
+	// Encrypt message key
+	encrypted, err := service.EncryptMessageKey(serializedKey, masterKey)
+	require.NoError(t, err)
+	assert.NotEqual(t, serializedKey, encrypted)
 
 	// Decrypt message key
-	decrypted, err := service.DecryptMessageKey(masterKey, encrypted)
+	decrypted, err := service.DecryptMessageKey(encrypted, masterKey)
 	require.NoError(t, err)
-	assert.Equal(t, messageKey.KeyData, decrypted)
+	assert.Equal(t, serializedKey, decrypted)
+
+	// Verify we can deserialize the decrypted data back to a MessageKey
+	decryptedKeys, err := service.DeserializeMessageKeys(decrypted)
+	require.NoError(t, err)
+	require.Len(t, decryptedKeys, 1)
+	assert.Equal(t, messageKey.KeyID, decryptedKeys[0].KeyID)
+	assert.Equal(t, messageKey.KeyData, decryptedKeys[0].KeyData)
 }
 
 func TestEncryptionService_SerializeDeserializeMessageKeys(t *testing.T) {

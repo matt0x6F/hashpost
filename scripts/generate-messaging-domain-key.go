@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -45,5 +44,4 @@ func main() {
 
 	fmt.Printf("Successfully generated domain key for %s\n", domain)
 	fmt.Printf("Key file: %s\n", keyPath)
-	fmt.Printf("Key fingerprint: %s\n", hex.EncodeToString(key))
 }
