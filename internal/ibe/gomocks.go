@@ -52,6 +52,22 @@ func (mr *MockIBESystemInterfaceMockRecorder) AddKeyVersion(version, domainKeys,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddKeyVersion", reflect.TypeOf((*MockIBESystemInterface)(nil).AddKeyVersion), version, domainKeys, salt)
 }
 
+// DecryptIdentity mocks base method.
+func (m *MockIBESystemInterface) DecryptIdentity(encryptedMapping, adminKey []byte) (string, string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DecryptIdentity", encryptedMapping, adminKey)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(string)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// DecryptIdentity indicates an expected call of DecryptIdentity.
+func (mr *MockIBESystemInterfaceMockRecorder) DecryptIdentity(encryptedMapping, adminKey any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DecryptIdentity", reflect.TypeOf((*MockIBESystemInterface)(nil).DecryptIdentity), encryptedMapping, adminKey)
+}
+
 // DecryptIdentityWithVersion mocks base method.
 func (m *MockIBESystemInterface) DecryptIdentityWithVersion(encryptedData []byte, domain string, keyVersion int32) (string, string, error) {
 	m.ctrl.T.Helper()
@@ -123,6 +139,20 @@ func (m *MockIBESystemInterface) GeneratePseudonym(userID int64, context string,
 func (mr *MockIBESystemInterfaceMockRecorder) GeneratePseudonym(userID, context, version any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GeneratePseudonym", reflect.TypeOf((*MockIBESystemInterface)(nil).GeneratePseudonym), userID, context, version)
+}
+
+// GenerateRoleKey mocks base method.
+func (m *MockIBESystemInterface) GenerateRoleKey(role, scope string, expiration time.Time) []byte {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GenerateRoleKey", role, scope, expiration)
+	ret0, _ := ret[0].([]byte)
+	return ret0
+}
+
+// GenerateRoleKey indicates an expected call of GenerateRoleKey.
+func (mr *MockIBESystemInterfaceMockRecorder) GenerateRoleKey(role, scope, expiration any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateRoleKey", reflect.TypeOf((*MockIBESystemInterface)(nil).GenerateRoleKey), role, scope, expiration)
 }
 
 // GetDomainMasters mocks base method.

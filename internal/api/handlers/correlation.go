@@ -25,7 +25,7 @@ import (
 // CorrelationHandler handles administrative correlation requests
 type CorrelationHandler struct {
 	db                  bob.Executor
-	ibeSystem           *ibe.IBESystem
+	ibeSystem           ibe.IBESystemInterface
 	pseudonymDAO        dao.PseudonymDAOInterface
 	identityMappingDAO  dao.IdentityMappingDAOInterface
 	postDAO             dao.PostDAOInterface
@@ -36,7 +36,7 @@ type CorrelationHandler struct {
 }
 
 // NewCorrelationHandler creates a new correlation handler
-func NewCorrelationHandler(db bob.Executor, ibeSystem *ibe.IBESystem, pseudonymDAO dao.PseudonymDAOInterface, identityMappingDAO dao.IdentityMappingDAOInterface, postDAO dao.PostDAOInterface, commentDAO dao.CommentDAOInterface, subforumDAO dao.SubforumDAOInterface, correlationAuditDAO dao.CorrelationAuditDAOInterface, permissionDAO dao.PermissionDAOInterface) *CorrelationHandler {
+func NewCorrelationHandler(db bob.Executor, ibeSystem ibe.IBESystemInterface, pseudonymDAO dao.PseudonymDAOInterface, identityMappingDAO dao.IdentityMappingDAOInterface, postDAO dao.PostDAOInterface, commentDAO dao.CommentDAOInterface, subforumDAO dao.SubforumDAOInterface, correlationAuditDAO dao.CorrelationAuditDAOInterface, permissionDAO dao.PermissionDAOInterface) *CorrelationHandler {
 	return &CorrelationHandler{
 		db:                  db,
 		ibeSystem:           ibeSystem,

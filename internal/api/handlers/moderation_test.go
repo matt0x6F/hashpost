@@ -4,87 +4,78 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	gomock "go.uber.org/mock/gomock"
 
 	"github.com/matt0x6f/hashpost/internal/api/handlers"
-	gomock "go.uber.org/mock/gomock"
+	"github.com/matt0x6f/hashpost/internal/database/dao"
 )
 
-// TestNewModerationHandler tests the moderation handler constructor using gomock
+// TestNewModerationHandler tests the moderation handler constructor
 func TestNewModerationHandler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	// Create handler with nil dependencies for constructor test
+	mockReportDAO := dao.NewMockReportDAOInterface(ctrl)
+	mockModerationActionDAO := dao.NewMockModerationActionDAOInterface(ctrl)
+	mockUserBanDAO := dao.NewMockUserBanDAOInterface(ctrl)
+	mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+	mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+	mockPostDAO := dao.NewMockPostDAOInterface(ctrl)
+	mockCommentDAO := dao.NewMockCommentDAOInterface(ctrl)
+	mockVoteDAO := dao.NewMockVoteDAOInterface(ctrl)
+	mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+
 	handler := handlers.NewModerationHandler(
-		nil, // reportDAO
-		nil, // moderationActionDAO
-		nil, // userBanDAO
-		nil, // pseudonymDAO
-		nil, // subforumDAO
-		nil, // postDAO
-		nil, // commentDAO
-		nil, // voteDAO
-		nil, // permissionDAO
+		mockReportDAO,
+		mockModerationActionDAO,
+		mockUserBanDAO,
+		mockPseudonymDAO,
+		mockSubforumDAO,
+		mockPostDAO,
+		mockCommentDAO,
+		mockVoteDAO,
+		mockPermissionDAO,
 	)
 
-	// Assertions
 	assert.NotNil(t, handler)
-	// Note: Fields are unexported, so we can't access them directly in tests
-	// The constructor test verifies the handler was created successfully
 }
 
-// TestModerationHandler_BasicFunctionality tests basic moderation handler functionality
+// TestModerationHandler_BasicFunctionality tests basic handler functionality
 func TestModerationHandler_BasicFunctionality(t *testing.T) {
-	t.Run("HandlerCreation", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-		// Create handler with nil dependencies
-		handler := handlers.NewModerationHandler(
-			nil, // reportDAO
-			nil, // moderationActionDAO
-			nil, // userBanDAO
-			nil, // pseudonymDAO
-			nil, // subforumDAO
-			nil, // postDAO
-			nil, // commentDAO
-			nil, // voteDAO
-			nil, // permissionDAO
-		)
+	mockReportDAO := dao.NewMockReportDAOInterface(ctrl)
+	mockModerationActionDAO := dao.NewMockModerationActionDAOInterface(ctrl)
+	mockUserBanDAO := dao.NewMockUserBanDAOInterface(ctrl)
+	mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+	mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+	mockPostDAO := dao.NewMockPostDAOInterface(ctrl)
+	mockCommentDAO := dao.NewMockCommentDAOInterface(ctrl)
+	mockVoteDAO := dao.NewMockVoteDAOInterface(ctrl)
+	mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
 
-		// Assertions
-		assert.NotNil(t, handler)
-	})
+	handler := handlers.NewModerationHandler(
+		mockReportDAO,
+		mockModerationActionDAO,
+		mockUserBanDAO,
+		mockPseudonymDAO,
+		mockSubforumDAO,
+		mockPostDAO,
+		mockCommentDAO,
+		mockVoteDAO,
+		mockPermissionDAO,
+	)
 
-	t.Run("HandlerStructure", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		// Create handler with nil dependencies
-		handler := handlers.NewModerationHandler(
-			nil, // reportDAO
-			nil, // moderationActionDAO
-			nil, // userBanDAO
-			nil, // pseudonymDAO
-			nil, // subforumDAO
-			nil, // postDAO
-			nil, // commentDAO
-			nil, // voteDAO
-			nil, // permissionDAO
-		)
-
-		// Assertions
-		assert.NotNil(t, handler)
-		// Verify handler was created successfully
-		// Note: We can't access the private fields directly, but the constructor test verifies it was created
-	})
-}
-
-// TestModerationModels tests the moderation models
-func TestModerationModels(t *testing.T) {
-	t.Run("ModelCreation", func(t *testing.T) {
-		// Test that we can create basic model structures
-		// This verifies the models are properly imported and accessible
-		assert.True(t, true, "Models are accessible")
-	})
+	// Test that the handler was created with all dependencies
+	assert.NotNil(t, handler)
+	assert.NotNil(t, mockReportDAO)
+	assert.NotNil(t, mockModerationActionDAO)
+	assert.NotNil(t, mockUserBanDAO)
+	assert.NotNil(t, mockPseudonymDAO)
+	assert.NotNil(t, mockSubforumDAO)
+	assert.NotNil(t, mockPostDAO)
+	assert.NotNil(t, mockCommentDAO)
+	assert.NotNil(t, mockVoteDAO)
+	assert.NotNil(t, mockPermissionDAO)
 }
