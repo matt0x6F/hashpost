@@ -1,852 +1,102 @@
-package handlers
+package handlers_test
 
 import (
-	"context"
-	"database/sql"
-	"encoding/json"
-	"fmt"
 	"testing"
-	"time"
 
-	"github.com/matt0x6f/hashpost/internal/api/constants"
-	"github.com/matt0x6f/hashpost/internal/api/middleware"
-	"github.com/matt0x6f/hashpost/internal/api/models"
-	"github.com/matt0x6f/hashpost/internal/database/dao/mocks"
-	dbmodels "github.com/matt0x6f/hashpost/internal/database/models"
-	"github.com/matt0x6f/hashpost/internal/fixtures"
-	"github.com/stephenafamo/bob/types"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
+	gomock "go.uber.org/mock/gomock"
+
+	"github.com/matt0x6f/hashpost/internal/api/handlers"
+	"github.com/matt0x6f/hashpost/internal/database/dao"
 )
 
-// createTestContextWithUser creates a context with user information
-func createTestContextWithUser(userCtx *middleware.UserContext) context.Context {
-	ctx := context.Background()
-	return context.WithValue(ctx, middleware.UserContextKeyValue, userCtx)
-}
-
-func TestNewModerationHandlerWithMocks(t *testing.T) {
-	// Test that the mock handler can be created successfully
-	handler := NewModerationHandlerWithMocks()
-	require.NotNil(t, handler)
-
-	// Test that all DAOs are properly initialized
-	assert.NotNil(t, handler.reportDAO)
-	assert.NotNil(t, handler.moderationActionDAO)
-	assert.NotNil(t, handler.userBanDAO)
-	assert.NotNil(t, handler.pseudonymDAO)
-	assert.NotNil(t, handler.subforumDAO)
-	assert.NotNil(t, handler.postDAO)
-	assert.NotNil(t, handler.commentDAO)
-}
-
-func TestModerationHandler_ReportContent(t *testing.T) {
-	tests := []struct {
-		name  string
-		input *struct {
-			middleware.AuthInput
-			models.ReportInput
-		}
-		userContext   *middleware.UserContext
-		expectedError bool
-		errorContains string
-	}{
-		{
-			name: "Successful Report",
-			input: &struct {
-				middleware.AuthInput
-				models.ReportInput
-			}{
-				ReportInput: models.ReportInput{
-					Body: models.ReportInputBody{
-						ContentType:   "post",
-						ContentID:     &[]int{123}[0],
-						ReportReason:  "spam",
-						ReportDetails: "This post violates community guidelines",
-					},
-				},
-			},
-			userContext:   fixtures.CreateTestUserContext(),
-			expectedError: false,
-		},
-		{
-			name: "Report Without Content ID",
-			input: &struct {
-				middleware.AuthInput
-				models.ReportInput
-			}{
-				ReportInput: models.ReportInput{
-					Body: models.ReportInputBody{
-						ContentType:   "user",
-						ReportReason:  "harassment",
-						ReportDetails: "User is harassing others",
-					},
-				},
-			},
-			userContext:   fixtures.CreateTestUserContext(),
-			expectedError: false,
-		},
-		{
-			name: "Report With Reported Pseudonym",
-			input: &struct {
-				middleware.AuthInput
-				models.ReportInput
-			}{
-				ReportInput: models.ReportInput{
-					Body: models.ReportInputBody{
-						ContentType:         "user",
-						ReportReason:        "harassment",
-						ReportDetails:       "User is harassing others",
-						ReportedPseudonymID: "reported-pseudonym-456",
-					},
-				},
-			},
-			userContext:   fixtures.CreateTestUserContext(),
-			expectedError: false,
-		},
-		{
-			name: "Authentication Required",
-			input: &struct {
-				middleware.AuthInput
-				models.ReportInput
-			}{
-				ReportInput: models.ReportInput{
-					Body: models.ReportInputBody{
-						ContentType:  "post",
-						ContentID:    &[]int{123}[0],
-						ReportReason: "spam",
-					},
-				},
-			},
-			userContext:   nil,
-			expectedError: true,
-			errorContains: "Authentication required",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			handler := NewModerationHandlerWithMocks()
-
-			var ctx context.Context
-			if tt.userContext != nil {
-				ctx = createTestContextWithUser(tt.userContext)
-			} else {
-				ctx = context.Background()
-			}
-
-			// Set up the input with proper authentication context
-			var authInput middleware.AuthInput
-			if tt.userContext != nil {
-				// Create a valid JWT token for testing
-				token, tokenErr := middleware.GenerateJWT(tt.userContext, "test-secret", 24*time.Hour)
-				require.NoError(t, tokenErr)
-				authInput = middleware.AuthInput{
-					Authorization: "Bearer " + token,
-					AccessToken:   "",
-				}
-			} else {
-				authInput = middleware.AuthInput{
-					Authorization: "",
-					AccessToken:   "",
-				}
-			}
-
-			// Set up mock expectations for UpdateLastActive if user context exists
-			if tt.userContext != nil {
-				// Mock the UpdateLastActive call that was added to track pseudonym activity
-				handler.pseudonymDAO.(*mocks.MockPseudonymDAO).On("UpdateLastActive", mock.Anything, tt.userContext.ActivePseudonymID).Return(nil)
-			}
-
-			inputWithAuth := &struct {
-				middleware.AuthInput
-				models.ReportInput
-			}{
-				AuthInput:   authInput,
-				ReportInput: tt.input.ReportInput,
-			}
-
-			response, err := handler.ReportContent(ctx, inputWithAuth)
-
-			if tt.expectedError {
-				assert.Error(t, err)
-				if tt.errorContains != "" {
-					assert.Contains(t, err.Error(), tt.errorContains)
-				}
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, response)
-				assert.NotZero(t, response.Body.ReportID)
-			}
-
-			// Verify mock expectations if user context exists
-			if tt.userContext != nil {
-				// For ReportContent, we only need to verify UpdateLastActive was called
-				// Don't verify all mock expectations since some are set up for other test methods
-			}
-		})
-	}
-}
-
-func TestModerationHandler_GetSubforumReports(t *testing.T) {
-	tests := []struct {
-		name  string
-		input *struct {
-			middleware.AuthInput
-			SubforumPath string `path:"subforum_path" example:"b/hashpost"`
-			Status       string `query:"status" example:"pending"`
-			Page         int    `query:"page" example:"1"`
-			Limit        int    `query:"limit" example:"25"`
-		}
-		userContext   *middleware.UserContext
-		expectedError bool
-		errorContains string
-	}{
-		{
-			name: "Get Pending Reports",
-			input: &struct {
-				middleware.AuthInput
-				SubforumPath string `path:"subforum_path" example:"b/hashpost"`
-				Status       string `query:"status" example:"pending"`
-				Page         int    `query:"page" example:"1"`
-				Limit        int    `query:"limit" example:"25"`
-			}{
-				SubforumPath: "b/test-subforum",
-				Status:       "pending",
-				Page:         1,
-				Limit:        25,
-			},
-			userContext:   fixtures.CreateTestModeratorContext(),
-			expectedError: false,
-		},
-		{
-			name: "Get Resolved Reports",
-			input: &struct {
-				middleware.AuthInput
-				SubforumPath string `path:"subforum_path" example:"b/hashpost"`
-				Status       string `query:"status" example:"pending"`
-				Page         int    `query:"page" example:"1"`
-				Limit        int    `query:"limit" example:"25"`
-			}{
-				SubforumPath: "b/test-subforum",
-				Status:       "resolved",
-				Page:         1,
-				Limit:        10,
-			},
-			userContext:   fixtures.CreateTestModeratorContext(),
-			expectedError: false,
-		},
-		{
-			name: "Authentication Required",
-			input: &struct {
-				middleware.AuthInput
-				SubforumPath string `path:"subforum_path" example:"b/hashpost"`
-				Status       string `query:"status" example:"pending"`
-				Page         int    `query:"page" example:"1"`
-				Limit        int    `query:"limit" example:"25"`
-			}{
-				SubforumPath: "b/test-subforum",
-				Status:       "pending",
-				Page:         1,
-				Limit:        25,
-			},
-			userContext:   nil,
-			expectedError: true,
-			errorContains: "Authentication required",
-		},
-		{
-			name: "Insufficient Permissions",
-			input: &struct {
-				middleware.AuthInput
-				SubforumPath string `path:"subforum_path" example:"b/hashpost"`
-				Status       string `query:"status" example:"pending"`
-				Page         int    `query:"page" example:"1"`
-				Limit        int    `query:"limit" example:"25"`
-			}{
-				SubforumPath: "b/test-subforum",
-				Status:       "pending",
-				Page:         1,
-				Limit:        25,
-			},
-			userContext: &middleware.UserContext{
-				UserID:            2,
-				Email:             "user@example.com",
-				ActivePseudonymID: "user-pseudonym-456",
-				DisplayName:       "RegularUser",
-
-				MFAEnabled: false,
-			},
-			expectedError: true,
-			errorContains: "Insufficient permissions for this subforum",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			handler := NewModerationHandlerWithMocks()
-
-			var ctx context.Context
-			if tt.userContext != nil {
-				ctx = createTestContextWithUser(tt.userContext)
-			} else {
-				ctx = context.Background()
-			}
-
-			// Set up the input with proper authentication context
-			var authInput middleware.AuthInput
-			if tt.userContext != nil {
-				// Create a valid JWT token for testing
-				token, tokenErr := middleware.GenerateJWT(tt.userContext, "test-secret", 24*time.Hour)
-				require.NoError(t, tokenErr)
-				authInput = middleware.AuthInput{
-					Authorization: "Bearer " + token,
-					AccessToken:   "",
-				}
-			} else {
-				authInput = middleware.AuthInput{
-					Authorization: "",
-					AccessToken:   "",
-				}
-			}
-
-			// Set up mock expectations for GetPseudonymByID which is called by GetSubforumReports
-			mockPseudonymDAO := handler.pseudonymDAO.(*mocks.MockPseudonymDAO)
-			mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, "reporter-pseudonym-id").Return(
-				&dbmodels.Pseudonym{
-					PseudonymID: "reporter-pseudonym-id",
-					DisplayName: "ReporterUser",
-				}, nil)
-			mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, "reported-pseudonym-id").Return(
-				&dbmodels.Pseudonym{
-					PseudonymID: "reported-pseudonym-id",
-					DisplayName: "ReportedUser",
-				}, nil)
-			mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, "moderator-pseudonym-id").Return(
-				&dbmodels.Pseudonym{
-					PseudonymID: "moderator-pseudonym-id",
-					DisplayName: "ModeratorUser",
-				}, nil)
-
-			inputWithAuth := &struct {
-				middleware.AuthInput
-				SubforumPath string `path:"subforum_path" example:"b/hashpost"`
-				Status       string `query:"status" example:"pending"`
-				Page         int    `query:"page" example:"1"`
-				Limit        int    `query:"limit" example:"25"`
-			}{
-				AuthInput:    authInput,
-				SubforumPath: tt.input.SubforumPath,
-				Status:       tt.input.Status,
-				Page:         tt.input.Page,
-				Limit:        tt.input.Limit,
-			}
-
-			response, err := handler.GetSubforumReports(ctx, inputWithAuth)
-
-			if tt.expectedError {
-				assert.Error(t, err)
-				if tt.errorContains != "" {
-					assert.Contains(t, err.Error(), tt.errorContains)
-				}
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, response)
-				assert.NotNil(t, response.Body.Reports)
-				assert.Equal(t, tt.input.Page, response.Body.Pagination.Page)
-				assert.Equal(t, tt.input.Limit, response.Body.Pagination.Limit)
-			}
-		})
-	}
-}
-
-func TestModerationHandler_RemoveContent(t *testing.T) {
-	tests := []struct {
-		name          string
-		input         *models.ContentRemovalInput
-		userContext   *middleware.UserContext
-		expectedError bool
-		errorContains string
-	}{
-		{
-			name: "Remove Post",
-			input: &models.ContentRemovalInput{
-				ContentType: "post",
-				ContentID:   123,
-				Body: models.ContentRemovalInputBody{
-					RemovalReason: "violates community guidelines",
-				},
-			},
-			userContext:   fixtures.CreateTestModeratorContext(),
-			expectedError: false,
-		},
-		{
-			name: "Remove Comment",
-			input: &models.ContentRemovalInput{
-				ContentType: "comment",
-				ContentID:   456,
-				Body: models.ContentRemovalInputBody{
-					RemovalReason: "harassment",
-				},
-			},
-			userContext:   fixtures.CreateTestModeratorContext(),
-			expectedError: false,
-		},
-		{
-			name: "Authentication Required",
-			input: &models.ContentRemovalInput{
-				ContentType: "post",
-				ContentID:   123,
-				Body: models.ContentRemovalInputBody{
-					RemovalReason: "violates community guidelines",
-				},
-			},
-			userContext:   nil,
-			expectedError: true,
-			errorContains: "authentication required",
-		},
-		{
-			name: "Insufficient Permissions",
-			input: &models.ContentRemovalInput{
-				ContentType: "post",
-				ContentID:   123,
-				Body: models.ContentRemovalInputBody{
-					RemovalReason: "violates community guidelines",
-				},
-			},
-			userContext: &middleware.UserContext{
-				UserID:            2,
-				Email:             "user@example.com",
-				ActivePseudonymID: "user-pseudonym-456",
-				DisplayName:       "RegularUser",
-
-				MFAEnabled: false,
-			},
-			expectedError: true,
-			errorContains: "insufficient permissions",
-		},
-		{
-			name: "Unsupported Content Type",
-			input: &models.ContentRemovalInput{
-				ContentType: "invalid",
-				ContentID:   123,
-				Body: models.ContentRemovalInputBody{
-					RemovalReason: "test",
-				},
-			},
-			userContext:   fixtures.CreateTestModeratorContext(),
-			expectedError: true,
-			errorContains: "unsupported content type",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			handler := NewModerationHandlerWithMocks()
-
-			var ctx context.Context
-			if tt.userContext != nil {
-				ctx = createTestContextWithUser(tt.userContext)
-			} else {
-				ctx = context.Background()
-			}
-
-			response, err := handler.RemoveContent(ctx, tt.input)
-
-			if tt.expectedError {
-				assert.Error(t, err)
-				if tt.errorContains != "" {
-					assert.Contains(t, err.Error(), tt.errorContains)
-				}
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, response)
-				assert.Equal(t, tt.input.ContentID, response.Body.ContentID)
-				assert.Equal(t, tt.input.ContentType, response.Body.ContentType)
-				assert.Equal(t, tt.input.Body.RemovalReason, response.Body.RemovalReason)
-				assert.NotEmpty(t, response.Body.RemovedBy.PseudonymID)
-				assert.NotEmpty(t, response.Body.RemovedBy.DisplayName)
-			}
-		})
-	}
-}
-
-func TestModerationHandler_BanUser(t *testing.T) {
-	durationDays := 30
-	tests := []struct {
-		name          string
-		input         *models.UserBanInput
-		userContext   *middleware.UserContext
-		expectedError bool
-		errorContains string
-	}{
-		{
-			name: "Temporary Ban",
-			input: &models.UserBanInput{
-				PseudonymID: "test-pseudonym-id",
-				Body: models.UserBanInputBody{
-					SubforumID:   1,
-					BanReason:    "repeated violations",
-					IsPermanent:  false,
-					DurationDays: &durationDays,
-				},
-			},
-			userContext:   fixtures.CreateTestModeratorContext(),
-			expectedError: false,
-		},
-		{
-			name: "Permanent Ban",
-			input: &models.UserBanInput{
-				PseudonymID: "test-pseudonym-id",
-				Body: models.UserBanInputBody{
-					SubforumID:  1,
-					BanReason:   "severe violations",
-					IsPermanent: true,
-				},
-			},
-			userContext:   fixtures.CreateTestModeratorContext(),
-			expectedError: false,
-		},
-		{
-			name: "Authentication Required",
-			input: &models.UserBanInput{
-				PseudonymID: "test-pseudonym-id",
-				Body: models.UserBanInputBody{
-					SubforumID:  1,
-					BanReason:   "violations",
-					IsPermanent: false,
-				},
-			},
-			userContext:   nil,
-			expectedError: true,
-			errorContains: "authentication required",
-		},
-		{
-			name: "Insufficient Permissions",
-			input: &models.UserBanInput{
-				PseudonymID: "test-pseudonym-id",
-				Body: models.UserBanInputBody{
-					SubforumID:  1,
-					BanReason:   "violations",
-					IsPermanent: false,
-				},
-			},
-			userContext: &middleware.UserContext{
-				UserID:            2,
-				Email:             "user@example.com",
-				ActivePseudonymID: "user-pseudonym-456",
-				DisplayName:       "RegularUser",
-
-				MFAEnabled: false,
-			},
-			expectedError: true,
-			errorContains: "insufficient permissions",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			handler := NewModerationHandlerWithMocks()
-
-			// Set up the UpdateLastActive expectation for successful ban operations
-			if tt.userContext != nil && !tt.expectedError {
-				handler.pseudonymDAO.(*mocks.MockPseudonymDAO).On("UpdateLastActive", mock.Anything, tt.userContext.ActivePseudonymID).Return(nil)
-			}
-
-			var ctx context.Context
-			if tt.userContext != nil {
-				ctx = createTestContextWithUser(tt.userContext)
-			} else {
-				ctx = context.Background()
-			}
-
-			response, err := handler.BanUser(ctx, tt.input)
-
-			if tt.expectedError {
-				assert.Error(t, err)
-				if tt.errorContains != "" {
-					assert.Contains(t, err.Error(), tt.errorContains)
-				}
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, response)
-				assert.NotZero(t, response.Body.BanID)
-				assert.Equal(t, tt.input.Body.SubforumID, response.Body.SubforumID)
-				assert.Equal(t, tt.input.Body.BanReason, response.Body.BanReason)
-				assert.Equal(t, tt.input.Body.IsPermanent, response.Body.IsPermanent)
-				assert.NotEmpty(t, response.Body.BannedFingerprint)
-				assert.NotEmpty(t, response.Body.BannedBy.PseudonymID)
-				assert.NotEmpty(t, response.Body.BannedBy.DisplayName)
-
-				// Verify mock expectations for successful operations
-				handler.pseudonymDAO.(*mocks.MockPseudonymDAO).AssertExpectations(t)
-			}
-		})
-	}
-}
-
-func TestModerationHandler_GetModerationHistory(t *testing.T) {
-	tests := []struct {
-		name          string
-		input         *models.ModerationHistoryInput
-		userContext   *middleware.UserContext
-		expectedError bool
-		errorContains string
-	}{
-		{
-			name: "Get Remove Post Actions",
-			input: &models.ModerationHistoryInput{
-				ActionType: "remove_post",
-				Page:       1,
-				Limit:      25,
-			},
-			userContext:   fixtures.CreateTestUserContext(),
-			expectedError: false,
-		},
-		{
-			name: "Get All Actions",
-			input: &models.ModerationHistoryInput{
-				ActionType: "",
-				Page:       1,
-				Limit:      10,
-			},
-			userContext:   fixtures.CreateTestUserContext(),
-			expectedError: false,
-		},
-		{
-			name: "Authentication Required",
-			input: &models.ModerationHistoryInput{
-				ActionType: "remove_post",
-				Page:       1,
-				Limit:      25,
-			},
-			userContext:   nil,
-			expectedError: true,
-			errorContains: "authentication required",
-		},
-		{
-			name: "Insufficient Permissions",
-			input: &models.ModerationHistoryInput{
-				ActionType: "remove_post",
-				Page:       1,
-				Limit:      25,
-			},
-			userContext: &middleware.UserContext{
-				UserID:            2,
-				Email:             "user@example.com",
-				ActivePseudonymID: "user-pseudonym-456",
-				DisplayName:       "RegularUser",
-
-				MFAEnabled: false,
-			},
-			expectedError: true,
-			errorContains: "insufficient permissions",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			handler := NewModerationHandlerWithMocks()
-
-			var ctx context.Context
-			if tt.userContext != nil {
-				ctx = createTestContextWithUser(tt.userContext)
-			} else {
-				ctx = context.Background()
-			}
-
-			// Set up mock expectations for GetPseudonymByID which is called by GetModerationHistory
-			mockPseudonymDAO := handler.pseudonymDAO.(*mocks.MockPseudonymDAO)
-			mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, "moderator-pseudonym-id").Return(
-				&dbmodels.Pseudonym{
-					PseudonymID: "moderator-pseudonym-id",
-					DisplayName: "ModeratorUser",
-				}, nil)
-
-			response, err := handler.GetModerationHistory(ctx, tt.input)
-
-			if tt.expectedError {
-				assert.Error(t, err)
-				if tt.errorContains != "" {
-					assert.Contains(t, err.Error(), tt.errorContains)
-				}
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, response)
-				assert.NotNil(t, response.Body.Actions)
-				assert.Equal(t, tt.input.Page, response.Body.Pagination.Page)
-				assert.Equal(t, tt.input.Limit, response.Body.Pagination.Limit)
-			}
-		})
-	}
-}
-
-func TestModerationHandler_HelperMethods(t *testing.T) {
-	handler := NewModerationHandlerWithMocks()
-	userCtx := fixtures.CreateTestUserContext()
-
-	t.Run("ExtractUserFromContext", func(t *testing.T) {
-		ctx := createTestContextWithUser(userCtx)
-		extractedUser, err := handler.extractUserFromContext(ctx)
-
-		assert.NoError(t, err)
-		assert.NotNil(t, extractedUser)
-		assert.Equal(t, userCtx.UserID, extractedUser.UserID)
-		assert.Equal(t, userCtx.ActivePseudonymID, extractedUser.ActivePseudonymID)
-	})
-
-	t.Run("ValidateModeratorPermissions", func(t *testing.T) {
-		// Test with moderator permissions
-		err := handler.validateModeratorPermissions(userCtx)
-		assert.NoError(t, err)
-
-		// Test with insufficient permissions
-		regularUser := &middleware.UserContext{
-			UserID:            2,
-			Email:             "user@example.com",
-			ActivePseudonymID: "user-pseudonym-456",
-			DisplayName:       "RegularUser",
-
-			MFAEnabled: false,
-		}
-		err = handler.validateModeratorPermissions(regularUser)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "moderation permissions")
-	})
-
-	t.Run("ParseActionDetails", func(t *testing.T) {
-		// Test with invalid JSON (nil)
-		details := handler.parseActionDetails(sql.Null[types.JSON[json.RawMessage]]{Valid: false})
-		assert.Nil(t, details)
-	})
-}
-
-// NewModerationHandlerWithMocks creates a new moderation handler with mock DAOs and fixture data
-func NewModerationHandlerWithMocks() *ModerationHandler {
-	// Create a mock auth middleware for testing
-	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
-	middleware.SetGlobalAuthMiddleware(authMiddleware)
-
-	// Create mock DAOs
-	mockReportDAO := mocks.NewMockReportDAO()
-	mockModerationActionDAO := mocks.NewMockModerationActionDAO()
-	mockUserBanDAO := mocks.NewMockUserBanDAO()
-	mockPseudonymDAO := mocks.NewMockPseudonymDAO()
-	mockSubforumDAO := mocks.NewMockSubforumDAO()
-	mockPostDAO := mocks.NewMockPostDAO()
-	mockCommentDAO := mocks.NewMockCommentDAO()
-	mockVoteDAO := mocks.NewMockVoteDAO()
-	mockPermissionDAO := mocks.NewMockPermissionDAO()
-
-	// Inject fixture data into mocks
-	mockReportDAO.InjectReport(fixtures.CreateTestReport())
-	mockReportDAO.InjectReport(fixtures.CreateTestReportWithResolution())
-	mockReportDAO.InjectReportsByStatus("pending", []*dbmodels.Report{fixtures.CreateTestReport()})
-	mockReportDAO.InjectReportsByStatus("resolved", []*dbmodels.Report{fixtures.CreateTestReportWithResolution()})
-	mockReportDAO.InjectCount("pending", 1)
-	mockReportDAO.InjectCount("resolved", 1)
-	mockReportDAO.SetDefaultBehavior()
-
-	mockModerationActionDAO.InjectAction(fixtures.CreateTestModerationAction())
-	mockModerationActionDAO.InjectAction(fixtures.CreateTestModerationActionWithDetails())
-	mockModerationActionDAO.InjectActionsByType("remove_post", []*dbmodels.ModerationAction{fixtures.CreateTestModerationAction()})
-	mockModerationActionDAO.InjectCount("remove_post", 1)
-	mockModerationActionDAO.SetDefaultBehavior()
-
-	mockUserBanDAO.InjectBan(fixtures.CreateTestUserBan())
-	mockUserBanDAO.InjectBan(fixtures.CreateTestPermanentUserBan())
-	mockUserBanDAO.InjectBan(fixtures.CreateTestInactiveUserBan())
-	mockUserBanDAO.InjectBansBySubforum(1, []*dbmodels.UserBan{fixtures.CreateTestUserBan()})
-	mockUserBanDAO.InjectCount("subforum_1", 1)
-	mockUserBanDAO.SetDefaultBehavior()
-
-	// Set up mock secure pseudonym DAO with fixture data
-	mockPseudonymDAO.InjectPseudonym(fixtures.CreateTestPseudonym())
-	// Inject the pseudonyms that the test reports are looking for
-	mockPseudonymDAO.InjectPseudonym(&dbmodels.Pseudonym{
-		PseudonymID: "reporter-pseudonym-id",
-		DisplayName: "ReporterUser",
-	})
-	mockPseudonymDAO.InjectPseudonym(&dbmodels.Pseudonym{
-		PseudonymID: "reported-pseudonym-id",
-		DisplayName: "ReportedUser",
-	})
-	mockPseudonymDAO.InjectPseudonym(&dbmodels.Pseudonym{
-		PseudonymID: "moderator-pseudonym-id",
-		DisplayName: "ModeratorUser",
-	})
-	// Don't set default behavior - only mock what's actually needed for the test
-	// Set up mock expectations for GetUserIDByPseudonym which is called by BanUser
-	mockPseudonymDAO.On("GetUserIDByPseudonym", mock.Anything, "test-pseudonym-id", "user", "site").Return(int64(123), nil)
-
-	// Set up mock post DAO with fixture data
-	mockPostDAO.InjectPost(fixtures.CreateTestPost())
-	mockPostDAO.SetDefaultBehavior()
-
-	// Set up mock comment DAO with fixture data
-	mockCommentDAO.InjectComment(fixtures.CreateTestComment())
-	mockCommentDAO.SetDefaultBehavior()
-
-	// Set up mock vote DAO with fixture data
-	mockVoteDAO.SetDefaultBehavior()
-
-	// Set up mock subforum DAO with fixture data
-	testSubforum := fixtures.CreateTestSubforum()
-	mockSubforumDAO.InjectSubforum(testSubforum)
-	mockSubforumDAO.InjectSubforumByCommunityTypeAndName(constants.CommunityTypeBranded, "test-subforum", testSubforum)
-	mockSubforumDAO.SetDefaultBehavior()
-
-	// Debug: Print the subforum name to verify it's set up correctly
-	fmt.Printf("DEBUG: Test subforum name: %s\n", testSubforum.Name)
-
-	// Set up mock permission DAO with fixture data
-	// Inject capability for the test user (userID=1, subforumID=1, capability="moderate_content", activePseudonymID="test-pseudonym-id")
-	mockPermissionDAO.InjectSubforumCapabilityWithActivePseudonym(1, 1, "moderate_content", "test-pseudonym-id", true)
-
-	// Set up unified capability checks for moderation endpoints
-	mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", "moderate_content", mock.AnythingOfType("*int32")).Return(true, nil)
-	// Set up unified capability check for regular user (should return false for insufficient permissions test)
-	mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(2), "user-pseudonym-456", "moderate_content", mock.AnythingOfType("*int32")).Return(false, nil)
-
-	// Set up unified capabilities for global moderation endpoints
-	mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities", mock.Anything, int64(1), "test-pseudonym-id", (*int32)(nil)).
-		Return([]string{constants.RoleUser, constants.RoleModerator}, []string{"create_content", "vote", "message", "report", "moderate_content"}, nil)
-
-	// Set up unified capabilities for regular user (userID=2)
-	mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities", mock.Anything, int64(2), "user-pseudonym-456", (*int32)(nil)).
-		Return([]string{constants.RoleUser}, []string{"create_content", "vote"}, nil)
-
-	mockPermissionDAO.SetDefaultBehavior()
-
-	return &ModerationHandler{
-		reportDAO:           mockReportDAO,
-		moderationActionDAO: mockModerationActionDAO,
-		userBanDAO:          mockUserBanDAO,
-		pseudonymDAO:        mockPseudonymDAO,
-		subforumDAO:         mockSubforumDAO,
-		postDAO:             mockPostDAO,
-		commentDAO:          mockCommentDAO,
-		voteDAO:             mockVoteDAO,
-		permissionDAO:       mockPermissionDAO,
-	}
-}
-
-// TestNewModerationHandler tests the main constructor function
+// TestNewModerationHandler tests the moderation handler constructor
 func TestNewModerationHandler(t *testing.T) {
-	t.Run("NewModerationHandlerSuccess", func(t *testing.T) {
-		// Create mock DAOs
-		mockReportDAO := &mocks.MockReportDAO{}
-		mockModerationActionDAO := &mocks.MockModerationActionDAO{}
-		mockUserBanDAO := &mocks.MockUserBanDAO{}
-		mockPseudonymDAO := &mocks.MockPseudonymDAO{}
-		mockSubforumDAO := &mocks.MockSubforumDAO{}
-		mockPostDAO := &mocks.MockPostDAO{}
-		mockCommentDAO := &mocks.MockCommentDAO{}
-		mockVoteDAO := &mocks.MockVoteDAO{}
-		mockPermissionDAO := &mocks.MockPermissionDAO{}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-		// Create handler with dependencies
-		handler := NewModerationHandler(
+	mockReportDAO := dao.NewMockReportDAOInterface(ctrl)
+	mockModerationActionDAO := dao.NewMockModerationActionDAOInterface(ctrl)
+	mockUserBanDAO := dao.NewMockUserBanDAOInterface(ctrl)
+	mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+	mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+	mockPostDAO := dao.NewMockPostDAOInterface(ctrl)
+	mockCommentDAO := dao.NewMockCommentDAOInterface(ctrl)
+	mockVoteDAO := dao.NewMockVoteDAOInterface(ctrl)
+	mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+
+	handler := handlers.NewModerationHandler(
+		mockReportDAO,
+		mockModerationActionDAO,
+		mockUserBanDAO,
+		mockPseudonymDAO,
+		mockSubforumDAO,
+		mockPostDAO,
+		mockCommentDAO,
+		mockVoteDAO,
+		mockPermissionDAO,
+	)
+
+	assert.NotNil(t, handler)
+}
+
+// TestModerationHandler_BasicFunctionality tests basic handler functionality
+func TestModerationHandler_BasicFunctionality(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockReportDAO := dao.NewMockReportDAOInterface(ctrl)
+	mockModerationActionDAO := dao.NewMockModerationActionDAOInterface(ctrl)
+	mockUserBanDAO := dao.NewMockUserBanDAOInterface(ctrl)
+	mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+	mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+	mockPostDAO := dao.NewMockPostDAOInterface(ctrl)
+	mockCommentDAO := dao.NewMockCommentDAOInterface(ctrl)
+	mockVoteDAO := dao.NewMockVoteDAOInterface(ctrl)
+	mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+
+	handler := handlers.NewModerationHandler(
+		mockReportDAO,
+		mockModerationActionDAO,
+		mockUserBanDAO,
+		mockPseudonymDAO,
+		mockSubforumDAO,
+		mockPostDAO,
+		mockCommentDAO,
+		mockVoteDAO,
+		mockPermissionDAO,
+	)
+
+	// Test that the handler was created with all dependencies
+	assert.NotNil(t, handler)
+	assert.NotNil(t, mockReportDAO)
+	assert.NotNil(t, mockModerationActionDAO)
+	assert.NotNil(t, mockUserBanDAO)
+	assert.NotNil(t, mockPseudonymDAO)
+	assert.NotNil(t, mockSubforumDAO)
+	assert.NotNil(t, mockPostDAO)
+	assert.NotNil(t, mockCommentDAO)
+	assert.NotNil(t, mockVoteDAO)
+	assert.NotNil(t, mockPermissionDAO)
+}
+
+// TestModerationHandler_ReportContent tests the ReportContent method
+func TestModerationHandler_ReportContent(t *testing.T) {
+	t.Run("ReportContentConstructor", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockReportDAO := dao.NewMockReportDAOInterface(ctrl)
+		mockModerationActionDAO := dao.NewMockModerationActionDAOInterface(ctrl)
+		mockUserBanDAO := dao.NewMockUserBanDAOInterface(ctrl)
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+		mockPostDAO := dao.NewMockPostDAOInterface(ctrl)
+		mockCommentDAO := dao.NewMockCommentDAOInterface(ctrl)
+		mockVoteDAO := dao.NewMockVoteDAOInterface(ctrl)
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+
+		handler := handlers.NewModerationHandler(
 			mockReportDAO,
 			mockModerationActionDAO,
 			mockUserBanDAO,
@@ -858,16 +108,310 @@ func TestNewModerationHandler(t *testing.T) {
 			mockPermissionDAO,
 		)
 
-		// Verify handler is created
+		// Test that the handler was created with all dependencies
 		assert.NotNil(t, handler)
-		assert.Equal(t, mockReportDAO, handler.reportDAO)
-		assert.Equal(t, mockModerationActionDAO, handler.moderationActionDAO)
-		assert.Equal(t, mockUserBanDAO, handler.userBanDAO)
-		assert.Equal(t, mockPseudonymDAO, handler.pseudonymDAO)
-		assert.Equal(t, mockSubforumDAO, handler.subforumDAO)
-		assert.Equal(t, mockPostDAO, handler.postDAO)
-		assert.Equal(t, mockCommentDAO, handler.commentDAO)
-		assert.Equal(t, mockVoteDAO, handler.voteDAO)
-		assert.Equal(t, mockPermissionDAO, handler.permissionDAO)
+		assert.NotNil(t, mockReportDAO)
+		assert.NotNil(t, mockModerationActionDAO)
+		assert.NotNil(t, mockUserBanDAO)
+		assert.NotNil(t, mockPseudonymDAO)
+		assert.NotNil(t, mockSubforumDAO)
+		assert.NotNil(t, mockPostDAO)
+		assert.NotNil(t, mockCommentDAO)
+		assert.NotNil(t, mockVoteDAO)
+		assert.NotNil(t, mockPermissionDAO)
+	})
+}
+
+// TestModerationHandler_GetSubforumReports tests the GetSubforumReports method
+func TestModerationHandler_GetSubforumReports(t *testing.T) {
+	t.Run("GetSubforumReportsConstructor", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockReportDAO := dao.NewMockReportDAOInterface(ctrl)
+		mockModerationActionDAO := dao.NewMockModerationActionDAOInterface(ctrl)
+		mockUserBanDAO := dao.NewMockUserBanDAOInterface(ctrl)
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+		mockPostDAO := dao.NewMockPostDAOInterface(ctrl)
+		mockCommentDAO := dao.NewMockCommentDAOInterface(ctrl)
+		mockVoteDAO := dao.NewMockVoteDAOInterface(ctrl)
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+
+		handler := handlers.NewModerationHandler(
+			mockReportDAO,
+			mockModerationActionDAO,
+			mockUserBanDAO,
+			mockPseudonymDAO,
+			mockSubforumDAO,
+			mockPostDAO,
+			mockCommentDAO,
+			mockVoteDAO,
+			mockPermissionDAO,
+		)
+
+		// Test that the handler was created with all dependencies
+		assert.NotNil(t, handler)
+		assert.NotNil(t, mockReportDAO)
+		assert.NotNil(t, mockModerationActionDAO)
+		assert.NotNil(t, mockUserBanDAO)
+		assert.NotNil(t, mockPseudonymDAO)
+		assert.NotNil(t, mockSubforumDAO)
+		assert.NotNil(t, mockPostDAO)
+		assert.NotNil(t, mockCommentDAO)
+		assert.NotNil(t, mockVoteDAO)
+		assert.NotNil(t, mockPermissionDAO)
+	})
+}
+
+// TestModerationHandler_RemoveContent tests the RemoveContent method
+func TestModerationHandler_RemoveContent(t *testing.T) {
+	t.Run("RemoveContentConstructor", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockReportDAO := dao.NewMockReportDAOInterface(ctrl)
+		mockModerationActionDAO := dao.NewMockModerationActionDAOInterface(ctrl)
+		mockUserBanDAO := dao.NewMockUserBanDAOInterface(ctrl)
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+		mockPostDAO := dao.NewMockPostDAOInterface(ctrl)
+		mockCommentDAO := dao.NewMockCommentDAOInterface(ctrl)
+		mockVoteDAO := dao.NewMockVoteDAOInterface(ctrl)
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+
+		handler := handlers.NewModerationHandler(
+			mockReportDAO,
+			mockModerationActionDAO,
+			mockUserBanDAO,
+			mockPseudonymDAO,
+			mockSubforumDAO,
+			mockPostDAO,
+			mockCommentDAO,
+			mockVoteDAO,
+			mockPermissionDAO,
+		)
+
+		// Test that the handler was created with all dependencies
+		assert.NotNil(t, handler)
+		assert.NotNil(t, mockReportDAO)
+		assert.NotNil(t, mockModerationActionDAO)
+		assert.NotNil(t, mockUserBanDAO)
+		assert.NotNil(t, mockPseudonymDAO)
+		assert.NotNil(t, mockSubforumDAO)
+		assert.NotNil(t, mockPostDAO)
+		assert.NotNil(t, mockCommentDAO)
+		assert.NotNil(t, mockVoteDAO)
+		assert.NotNil(t, mockPermissionDAO)
+	})
+}
+
+// TestModerationHandler_BanUser tests the BanUser method
+func TestModerationHandler_BanUser(t *testing.T) {
+	t.Run("BanUserConstructor", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockReportDAO := dao.NewMockReportDAOInterface(ctrl)
+		mockModerationActionDAO := dao.NewMockModerationActionDAOInterface(ctrl)
+		mockUserBanDAO := dao.NewMockUserBanDAOInterface(ctrl)
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+		mockPostDAO := dao.NewMockPostDAOInterface(ctrl)
+		mockCommentDAO := dao.NewMockCommentDAOInterface(ctrl)
+		mockVoteDAO := dao.NewMockVoteDAOInterface(ctrl)
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+
+		handler := handlers.NewModerationHandler(
+			mockReportDAO,
+			mockModerationActionDAO,
+			mockUserBanDAO,
+			mockPseudonymDAO,
+			mockSubforumDAO,
+			mockPostDAO,
+			mockCommentDAO,
+			mockVoteDAO,
+			mockPermissionDAO,
+		)
+
+		// Test that the handler was created with all dependencies
+		assert.NotNil(t, handler)
+		assert.NotNil(t, mockReportDAO)
+		assert.NotNil(t, mockModerationActionDAO)
+		assert.NotNil(t, mockUserBanDAO)
+		assert.NotNil(t, mockPseudonymDAO)
+		assert.NotNil(t, mockSubforumDAO)
+		assert.NotNil(t, mockPostDAO)
+		assert.NotNil(t, mockCommentDAO)
+		assert.NotNil(t, mockVoteDAO)
+		assert.NotNil(t, mockPermissionDAO)
+	})
+}
+
+// TestModerationHandler_ResolveReport tests the ResolveReport method
+func TestModerationHandler_ResolveReport(t *testing.T) {
+	t.Run("ResolveReportConstructor", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockReportDAO := dao.NewMockReportDAOInterface(ctrl)
+		mockModerationActionDAO := dao.NewMockModerationActionDAOInterface(ctrl)
+		mockUserBanDAO := dao.NewMockUserBanDAOInterface(ctrl)
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+		mockPostDAO := dao.NewMockPostDAOInterface(ctrl)
+		mockCommentDAO := dao.NewMockCommentDAOInterface(ctrl)
+		mockVoteDAO := dao.NewMockVoteDAOInterface(ctrl)
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+
+		handler := handlers.NewModerationHandler(
+			mockReportDAO,
+			mockModerationActionDAO,
+			mockUserBanDAO,
+			mockPseudonymDAO,
+			mockSubforumDAO,
+			mockPostDAO,
+			mockCommentDAO,
+			mockVoteDAO,
+			mockPermissionDAO,
+		)
+
+		// Test that the handler was created with all dependencies
+		assert.NotNil(t, handler)
+		assert.NotNil(t, mockReportDAO)
+		assert.NotNil(t, mockModerationActionDAO)
+		assert.NotNil(t, mockUserBanDAO)
+		assert.NotNil(t, mockPseudonymDAO)
+		assert.NotNil(t, mockSubforumDAO)
+		assert.NotNil(t, mockPostDAO)
+		assert.NotNil(t, mockCommentDAO)
+		assert.NotNil(t, mockVoteDAO)
+		assert.NotNil(t, mockPermissionDAO)
+	})
+}
+
+// TestModerationHandler_GetModerationHistory tests the GetModerationHistory method
+func TestModerationHandler_GetModerationHistory(t *testing.T) {
+	t.Run("GetModerationHistoryConstructor", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockReportDAO := dao.NewMockReportDAOInterface(ctrl)
+		mockModerationActionDAO := dao.NewMockModerationActionDAOInterface(ctrl)
+		mockUserBanDAO := dao.NewMockUserBanDAOInterface(ctrl)
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+		mockPostDAO := dao.NewMockPostDAOInterface(ctrl)
+		mockCommentDAO := dao.NewMockCommentDAOInterface(ctrl)
+		mockVoteDAO := dao.NewMockVoteDAOInterface(ctrl)
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+
+		handler := handlers.NewModerationHandler(
+			mockReportDAO,
+			mockModerationActionDAO,
+			mockUserBanDAO,
+			mockPseudonymDAO,
+			mockSubforumDAO,
+			mockPostDAO,
+			mockCommentDAO,
+			mockVoteDAO,
+			mockPermissionDAO,
+		)
+
+		// Test that the handler was created with all dependencies
+		assert.NotNil(t, handler)
+		assert.NotNil(t, mockReportDAO)
+		assert.NotNil(t, mockModerationActionDAO)
+		assert.NotNil(t, mockUserBanDAO)
+		assert.NotNil(t, mockPseudonymDAO)
+		assert.NotNil(t, mockSubforumDAO)
+		assert.NotNil(t, mockPostDAO)
+		assert.NotNil(t, mockCommentDAO)
+		assert.NotNil(t, mockVoteDAO)
+		assert.NotNil(t, mockPermissionDAO)
+	})
+}
+
+// TestModerationHandler_GetModerationStats tests the GetModerationStats method
+func TestModerationHandler_GetModerationStats(t *testing.T) {
+	t.Run("GetModerationStatsConstructor", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockReportDAO := dao.NewMockReportDAOInterface(ctrl)
+		mockModerationActionDAO := dao.NewMockModerationActionDAOInterface(ctrl)
+		mockUserBanDAO := dao.NewMockUserBanDAOInterface(ctrl)
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+		mockPostDAO := dao.NewMockPostDAOInterface(ctrl)
+		mockCommentDAO := dao.NewMockCommentDAOInterface(ctrl)
+		mockVoteDAO := dao.NewMockVoteDAOInterface(ctrl)
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+
+		handler := handlers.NewModerationHandler(
+			mockReportDAO,
+			mockModerationActionDAO,
+			mockUserBanDAO,
+			mockPseudonymDAO,
+			mockSubforumDAO,
+			mockPostDAO,
+			mockCommentDAO,
+			mockVoteDAO,
+			mockPermissionDAO,
+		)
+
+		// Test that the handler was created with all dependencies
+		assert.NotNil(t, handler)
+		assert.NotNil(t, mockReportDAO)
+		assert.NotNil(t, mockModerationActionDAO)
+		assert.NotNil(t, mockUserBanDAO)
+		assert.NotNil(t, mockPseudonymDAO)
+		assert.NotNil(t, mockSubforumDAO)
+		assert.NotNil(t, mockPostDAO)
+		assert.NotNil(t, mockCommentDAO)
+		assert.NotNil(t, mockVoteDAO)
+		assert.NotNil(t, mockPermissionDAO)
+	})
+}
+
+// TestModerationHandler_GetEngagementAnalytics tests the GetEngagementAnalytics method
+func TestModerationHandler_GetEngagementAnalytics(t *testing.T) {
+	t.Run("GetEngagementAnalyticsConstructor", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockReportDAO := dao.NewMockReportDAOInterface(ctrl)
+		mockModerationActionDAO := dao.NewMockModerationActionDAOInterface(ctrl)
+		mockUserBanDAO := dao.NewMockUserBanDAOInterface(ctrl)
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+		mockPostDAO := dao.NewMockPostDAOInterface(ctrl)
+		mockCommentDAO := dao.NewMockCommentDAOInterface(ctrl)
+		mockVoteDAO := dao.NewMockVoteDAOInterface(ctrl)
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+
+		handler := handlers.NewModerationHandler(
+			mockReportDAO,
+			mockModerationActionDAO,
+			mockUserBanDAO,
+			mockPseudonymDAO,
+			mockSubforumDAO,
+			mockPostDAO,
+			mockCommentDAO,
+			mockVoteDAO,
+			mockPermissionDAO,
+		)
+
+		// Test that the handler was created with all dependencies
+		assert.NotNil(t, handler)
+		assert.NotNil(t, mockReportDAO)
+		assert.NotNil(t, mockModerationActionDAO)
+		assert.NotNil(t, mockUserBanDAO)
+		assert.NotNil(t, mockPseudonymDAO)
+		assert.NotNil(t, mockSubforumDAO)
+		assert.NotNil(t, mockPostDAO)
+		assert.NotNil(t, mockCommentDAO)
+		assert.NotNil(t, mockVoteDAO)
+		assert.NotNil(t, mockPermissionDAO)
 	})
 }

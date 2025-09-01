@@ -1,21 +1,24 @@
-package handlers
+package handlers_test
 
 import (
 	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 
 	"github.com/matt0x6f/hashpost/internal/api/constants"
-	"github.com/matt0x6f/hashpost/internal/database/dao/mocks"
+	"github.com/matt0x6f/hashpost/internal/database/dao"
+	gomock "go.uber.org/mock/gomock"
 )
 
-// TestUserCreationPermissionWorkflow tests that new users get proper role keys and capabilities
+// TestUserCreationPermissionWorkflow tests that new users get proper role keys and capabilities using gomock
 func TestUserCreationPermissionWorkflow(t *testing.T) {
 	t.Run("NewUser_GetsUserRoleWithAuthAndSelfCorrelationScopes", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
 		// Arrange
-		mockPermissionDAO := mocks.NewMockPermissionDAO()
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
 
 		userID := int64(1)
 		pseudonymID := "new-user-pseudo-1"
@@ -39,23 +42,31 @@ func TestUserCreationPermissionWorkflow(t *testing.T) {
 		}
 
 		// Mock: New user should have user role with expected capabilities
-		mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities",
-			mock.Anything, userID, pseudonymID, (*int32)(nil)).
-			Return([]string{constants.RoleUser}, expectedCapabilities, nil)
+		mockPermissionDAO.EXPECT().
+			GetUnifiedActivePseudonymRolesAndCapabilities(
+				gomock.Any(), userID, pseudonymID, (*int32)(nil)).
+			Return([]string{constants.RoleUser}, expectedCapabilities, nil).
+			Times(1)
 
 		// Mock: Specific capability checks for key features
-		mockPermissionDAO.On("HasUnifiedCapability",
-			mock.Anything, userID, pseudonymID, constants.CapabilityCreateSubforum, (*int32)(nil)).
-			Return(true, nil)
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(
+				gomock.Any(), userID, pseudonymID, constants.CapabilityCreateSubforum, (*int32)(nil)).
+			Return(true, nil).
+			Times(1)
 
-		mockPermissionDAO.On("HasUnifiedCapability",
-			mock.Anything, userID, pseudonymID, constants.CapabilityManageOwnProfile, (*int32)(nil)).
-			Return(true, nil)
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(
+				gomock.Any(), userID, pseudonymID, constants.CapabilityManageOwnProfile, (*int32)(nil)).
+			Return(true, nil).
+			Times(1)
 
 		// Mock: User should NOT have admin capabilities
-		mockPermissionDAO.On("HasUnifiedCapability",
-			mock.Anything, userID, pseudonymID, constants.CapabilitySystemAdmin, (*int32)(nil)).
-			Return(false, nil)
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(
+				gomock.Any(), userID, pseudonymID, constants.CapabilitySystemAdmin, (*int32)(nil)).
+			Return(false, nil).
+			Times(1)
 
 		// Act & Assert
 		ctx := context.Background()
@@ -90,12 +101,13 @@ func TestUserCreationPermissionWorkflow(t *testing.T) {
 			ctx, userID, pseudonymID, constants.CapabilitySystemAdmin, nil)
 		assert.NoError(t, err)
 		assert.False(t, hasSystemAdmin, "New user should NOT have system admin capabilities")
-
-		mockPermissionDAO.AssertExpectations(t)
 	})
 
 	t.Run("NewUser_HasExpectedAuthenticationAndSelfCorrelationCapabilities", func(t *testing.T) {
-		mockPermissionDAO := mocks.NewMockPermissionDAO()
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
 
 		userID := int64(2)
 		pseudonymID := "new-user-pseudo-2"
@@ -118,9 +130,11 @@ func TestUserCreationPermissionWorkflow(t *testing.T) {
 
 		// Mock that user has both sets of capabilities
 		for _, capability := range allExpectedCapabilities {
-			mockPermissionDAO.On("HasUnifiedCapability",
-				mock.Anything, userID, pseudonymID, capability, (*int32)(nil)).
-				Return(true, nil)
+			mockPermissionDAO.EXPECT().
+				HasUnifiedCapability(
+					gomock.Any(), userID, pseudonymID, capability, (*int32)(nil)).
+				Return(true, nil).
+				Times(1)
 		}
 
 		ctx := context.Background()
@@ -140,16 +154,17 @@ func TestUserCreationPermissionWorkflow(t *testing.T) {
 			assert.NoError(t, err)
 			assert.True(t, hasCapability, "New user should have self-correlation capability: %s", capability)
 		}
-
-		mockPermissionDAO.AssertExpectations(t)
 	})
 }
 
-// TestSubforumCreationPermissionWorkflow tests that subforum creators get proper moderation capabilities
+// TestSubforumCreationPermissionWorkflow tests that subforum creators get proper moderation capabilities using gomock
 func TestSubforumCreationPermissionWorkflow(t *testing.T) {
 	t.Run("SubforumCreator_GetsSubforumOwnerRoleWithModerationCapabilities", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
 		// Arrange
-		mockPermissionDAO := mocks.NewMockPermissionDAO()
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
 
 		userID := int64(1)
 		pseudonymID := "creator-pseudo-1"
@@ -183,9 +198,11 @@ func TestSubforumCreationPermissionWorkflow(t *testing.T) {
 		}
 
 		// Mock: Creator should have subforum owner role and all capabilities in their subforum
-		mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities",
-			mock.Anything, userID, pseudonymID, &subforumID).
-			Return(expectedRoles, expectedCapabilities, nil)
+		mockPermissionDAO.EXPECT().
+			GetUnifiedActivePseudonymRolesAndCapabilities(
+				gomock.Any(), userID, pseudonymID, &subforumID).
+			Return(expectedRoles, expectedCapabilities, nil).
+			Times(1)
 
 		// Mock: Key moderator capabilities
 		keyModerationCapabilities := []string{
@@ -196,9 +213,11 @@ func TestSubforumCreationPermissionWorkflow(t *testing.T) {
 		}
 
 		for _, capability := range keyModerationCapabilities {
-			mockPermissionDAO.On("HasUnifiedCapability",
-				mock.Anything, userID, pseudonymID, capability, &subforumID).
-				Return(true, nil)
+			mockPermissionDAO.EXPECT().
+				HasUnifiedCapability(
+					gomock.Any(), userID, pseudonymID, capability, &subforumID).
+				Return(true, nil).
+				Times(1)
 		}
 
 		// Act & Assert
@@ -232,13 +251,14 @@ func TestSubforumCreationPermissionWorkflow(t *testing.T) {
 			assert.True(t, hasCapability,
 				"Subforum creator should have capability: %s", capability)
 		}
-
-		mockPermissionDAO.AssertExpectations(t)
 	})
 
 	t.Run("SubforumCreator_CannotModerateOtherSubforums", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
 		// Test permission isolation: creators only get moderation rights for their subforum
-		mockPermissionDAO := mocks.NewMockPermissionDAO()
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
 
 		userID := int64(1)
 		pseudonymID := "creator-pseudo-1"
@@ -246,14 +266,18 @@ func TestSubforumCreationPermissionWorkflow(t *testing.T) {
 		otherSubforumID := int32(2)
 
 		// Mock: Has moderation capabilities in own subforum
-		mockPermissionDAO.On("HasUnifiedCapability",
-			mock.Anything, userID, pseudonymID, constants.CapabilityModerateContent, &ownSubforumID).
-			Return(true, nil)
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(
+				gomock.Any(), userID, pseudonymID, constants.CapabilityModerateContent, &ownSubforumID).
+			Return(true, nil).
+			Times(1)
 
 		// Mock: Does NOT have moderation capabilities in other subforum
-		mockPermissionDAO.On("HasUnifiedCapability",
-			mock.Anything, userID, pseudonymID, constants.CapabilityModerateContent, &otherSubforumID).
-			Return(false, nil)
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(
+				gomock.Any(), userID, pseudonymID, constants.CapabilityModerateContent, &otherSubforumID).
+			Return(false, nil).
+			Times(1)
 
 		ctx := context.Background()
 
@@ -270,13 +294,14 @@ func TestSubforumCreationPermissionWorkflow(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, canModerateOther,
 			"Creator should NOT be able to moderate other subforums")
-
-		mockPermissionDAO.AssertExpectations(t)
 	})
 
 	t.Run("SubforumCreator_HasBothModerationAndCorrelationCapabilities", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
 		// Test that subforum creators get capabilities from both moderation and correlation scopes
-		mockPermissionDAO := mocks.NewMockPermissionDAO()
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
 
 		userID := int64(1)
 		pseudonymID := "creator-pseudo-1"
@@ -303,9 +328,11 @@ func TestSubforumCreationPermissionWorkflow(t *testing.T) {
 
 		// Mock all capabilities as available
 		for _, capability := range allSubforumCapabilities {
-			mockPermissionDAO.On("HasUnifiedCapability",
-				mock.Anything, userID, pseudonymID, capability, &subforumID).
-				Return(true, nil)
+			mockPermissionDAO.EXPECT().
+				HasUnifiedCapability(
+					gomock.Any(), userID, pseudonymID, capability, &subforumID).
+				Return(true, nil).
+				Times(1)
 		}
 
 		ctx := context.Background()
@@ -327,16 +354,17 @@ func TestSubforumCreationPermissionWorkflow(t *testing.T) {
 			assert.True(t, hasCapability,
 				"Subforum creator should have correlation capability: %s", capability)
 		}
-
-		mockPermissionDAO.AssertExpectations(t)
 	})
 }
 
-// TestPermissionWorkflowIntegration tests complete permission scenarios
+// TestPermissionWorkflowIntegration tests complete permission scenarios using gomock
 func TestPermissionWorkflowIntegration(t *testing.T) {
 	t.Run("UserLifecycle_FromRegistrationToSubforumOwner", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
 		// Test the complete user journey: registration -> create subforum -> moderate
-		mockPermissionDAO := mocks.NewMockPermissionDAO()
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
 
 		userID := int64(1)
 		pseudonymID := "user-pseudo-1"
@@ -350,13 +378,17 @@ func TestPermissionWorkflowIntegration(t *testing.T) {
 			constants.CapabilityManageOwnProfile,
 		}
 
-		mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities",
-			mock.Anything, userID, pseudonymID, (*int32)(nil)).
-			Return([]string{constants.RoleUser}, newUserCapabilities, nil)
+		mockPermissionDAO.EXPECT().
+			GetUnifiedActivePseudonymRolesAndCapabilities(
+				gomock.Any(), userID, pseudonymID, (*int32)(nil)).
+			Return([]string{constants.RoleUser}, newUserCapabilities, nil).
+			Times(1)
 
-		mockPermissionDAO.On("HasUnifiedCapability",
-			mock.Anything, userID, pseudonymID, constants.CapabilityCreateSubforum, (*int32)(nil)).
-			Return(true, nil)
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(
+				gomock.Any(), userID, pseudonymID, constants.CapabilityCreateSubforum, (*int32)(nil)).
+			Return(true, nil).
+			Times(1)
 
 		// Step 2: After creating subforum (subforum-specific scope)
 		subforumOwnerCapabilities := append(newUserCapabilities,
@@ -366,13 +398,17 @@ func TestPermissionWorkflowIntegration(t *testing.T) {
 			constants.CapabilityManageSubforumSettings,
 		)
 
-		mockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities",
-			mock.Anything, userID, pseudonymID, &subforumID).
-			Return([]string{constants.RoleUser, constants.RoleSubforumOwner}, subforumOwnerCapabilities, nil)
+		mockPermissionDAO.EXPECT().
+			GetUnifiedActivePseudonymRolesAndCapabilities(
+				gomock.Any(), userID, pseudonymID, &subforumID).
+			Return([]string{constants.RoleUser, constants.RoleSubforumOwner}, subforumOwnerCapabilities, nil).
+			Times(1)
 
-		mockPermissionDAO.On("HasUnifiedCapability",
-			mock.Anything, userID, pseudonymID, constants.CapabilityModerateContent, &subforumID).
-			Return(true, nil)
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(
+				gomock.Any(), userID, pseudonymID, constants.CapabilityModerateContent, &subforumID).
+			Return(true, nil).
+			Times(1)
 
 		ctx := context.Background()
 
@@ -401,8 +437,5 @@ func TestPermissionWorkflowIntegration(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Contains(t, subforumRoles, constants.RoleUser)
 		assert.Contains(t, subforumRoles, constants.RoleSubforumOwner)
-
-		mockPermissionDAO.AssertExpectations(t)
 	})
 }
-

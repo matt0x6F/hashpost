@@ -44,6 +44,11 @@ type PseudonymDAOInterface interface {
 	CalculateKarmaForPseudonym(ctx context.Context, pseudonymID string) (int32, error)
 	UpdateKarmaForPseudonym(ctx context.Context, pseudonymID string) error
 	DeleteByUserID(ctx context.Context, userID int64) error
+	// Search methods
+	SearchPseudonyms(ctx context.Context, query string, page, limit int) ([]*models.Pseudonym, error)
+	SearchPseudonymsPublic(ctx context.Context, query string, page, limit int) ([]*models.Pseudonym, error)
+	CountSearchPseudonyms(ctx context.Context, query string) (int64, error)
+	CountSearchPseudonymsPublic(ctx context.Context, query string) (int64, error)
 	// Debug methods for troubleshooting IBE system issues
 	GetIBESystemSalt() string
 	GenerateFingerprintForEmail(email string) string

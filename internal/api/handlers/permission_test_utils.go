@@ -2,14 +2,15 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	"go.uber.org/mock/gomock"
 
 	"github.com/matt0x6f/hashpost/internal/api/constants"
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
-	"github.com/matt0x6f/hashpost/internal/database/dao/mocks"
+	"github.com/matt0x6f/hashpost/internal/database/dao"
 )
 
 // PermissionTestScenario defines a complete permission testing scenario
@@ -28,14 +29,14 @@ type PermissionTestScenario struct {
 
 // PermissionTestSuite provides comprehensive permission testing utilities
 type PermissionTestSuite struct {
-	MockPermissionDAO *mocks.MockPermissionDAO
+	MockPermissionDAO dao.PermissionDAOInterface
 	scenarios         []PermissionTestScenario
 }
 
 // NewPermissionTestSuite creates a new permission test suite
-func NewPermissionTestSuite() *PermissionTestSuite {
+func NewPermissionTestSuite(ctrl *gomock.Controller) *PermissionTestSuite {
 	return &PermissionTestSuite{
-		MockPermissionDAO: mocks.NewMockPermissionDAO(),
+		MockPermissionDAO: dao.NewMockPermissionDAOInterface(ctrl),
 		scenarios:         GetStandardPermissionScenarios(),
 	}
 }
@@ -43,13 +44,9 @@ func NewPermissionTestSuite() *PermissionTestSuite {
 // SetupMockExpectations configures all mock expectations for the scenarios
 func (pts *PermissionTestSuite) SetupMockExpectations() {
 	// Set up expectations for HasUnifiedCapability
-	pts.MockPermissionDAO.On("HasUnifiedCapability",
-		mock.Anything,
-		mock.AnythingOfType("int64"),
-		mock.AnythingOfType("string"),
-		mock.AnythingOfType("string"),
-		mock.AnythingOfType("*int32")).Return(
-		func(ctx context.Context, userID int64, activePseudonymID string, capability string, subforumID *int32) (bool, error) {
+	pts.MockPermissionDAO.(*dao.MockPermissionDAOInterface).EXPECT().
+		HasUnifiedCapability(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, userID int64, activePseudonymID string, capability string, subforumID *int32) (bool, error) {
 			// Find matching scenario
 			for _, scenario := range pts.scenarios {
 				if scenario.UserID == userID &&
@@ -59,23 +56,19 @@ func (pts *PermissionTestSuite) SetupMockExpectations() {
 						(scenario.SubforumID != nil && subforumID != nil && *scenario.SubforumID == *subforumID)) {
 
 					if scenario.ErrorExpected {
-						return false, assert.AnError
+						return false, errors.New("test error")
 					}
 					return scenario.ShouldHaveAccess, nil
 				}
 			}
 			// Default: no access
 			return false, nil
-		},
-	)
+		}).AnyTimes()
 
 	// Set up expectations for GetUnifiedActivePseudonymRolesAndCapabilities
-	pts.MockPermissionDAO.On("GetUnifiedActivePseudonymRolesAndCapabilities",
-		mock.Anything,
-		mock.AnythingOfType("int64"),
-		mock.AnythingOfType("string"),
-		mock.AnythingOfType("*int32")).Return(
-		func(ctx context.Context, userID int64, activePseudonymID string, subforumID *int32) ([]string, []string, error) {
+	pts.MockPermissionDAO.(*dao.MockPermissionDAOInterface).EXPECT().
+		GetUnifiedActivePseudonymRolesAndCapabilities(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, userID int64, activePseudonymID string, subforumID *int32) ([]string, []string, error) {
 			// Find matching scenario
 			for _, scenario := range pts.scenarios {
 				if scenario.UserID == userID &&
@@ -84,15 +77,14 @@ func (pts *PermissionTestSuite) SetupMockExpectations() {
 						(scenario.SubforumID != nil && subforumID != nil && *scenario.SubforumID == *subforumID)) {
 
 					if scenario.ErrorExpected {
-						return nil, nil, assert.AnError
+						return nil, nil, errors.New("test error")
 					}
 					return scenario.Roles, scenario.Capabilities, nil
 				}
 			}
 			// Default: basic user
 			return []string{constants.RoleUser}, []string{constants.CapabilityCreateContent, constants.CapabilityVote}, nil
-		},
-	)
+		}).AnyTimes()
 }
 
 // AddScenario adds a custom scenario to the test suite
@@ -236,4 +228,3 @@ func CreateTestUserContextFromScenario(scenario PermissionTestScenario) *middlew
 		MFAEnabled:        false,
 	}
 }
-

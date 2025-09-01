@@ -147,6 +147,7 @@ spec:
         - name: legal-team-role-keys
           mountPath: /app/keys/roles/legal_team
           readOnly: true
+
         - name: test-keys
           mountPath: /app/keys/test
           readOnly: true
@@ -175,6 +176,7 @@ spec:
       - name: legal-team-role-keys
         secret:
           secretName: hashpost-legal-team-role-keys
+
       - name: test-keys
         secret:
           secretName: hashpost-test-keys

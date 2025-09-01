@@ -7,31 +7,35 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/matt0x6f/hashpost/internal/api/constants"
 	"github.com/matt0x6f/hashpost/internal/api/handlers"
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	"github.com/matt0x6f/hashpost/internal/api/models"
-	"github.com/matt0x6f/hashpost/internal/database/dao/mocks"
+	"github.com/matt0x6f/hashpost/internal/database/dao"
 	dbmodels "github.com/matt0x6f/hashpost/internal/database/models"
+	gomock "go.uber.org/mock/gomock"
 )
 
-// TestSubforumHandler_CreateSubforum_DemocraticValidation tests the democratic subforum validation logic
+// TestSubforumHandler_CreateSubforum_DemocraticValidation tests the democratic subforum validation logic using gomock
 func TestSubforumHandler_CreateSubforum_DemocraticValidation(t *testing.T) {
 	// Initialize global auth middleware for testing
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
+
 	t.Run("missing_co-moderators_validation", func(t *testing.T) {
-		// Setup mocks
-		mockSubforumDAO := &mocks.MockSubforumDAO{}
-		mockSubforumSubscriptionDAO := &mocks.MockSubforumSubscriptionDAO{}
-		mockPermissionDAO := &mocks.MockPermissionDAO{}
-		mockRoleKeyDAO := &mocks.MockRoleKeyDAO{}
-		mockPseudonymDAO := &mocks.MockPseudonymDAO{}
-		mockPostDAO := &mocks.MockPostDAO{}
-		mockUserDAO := &mocks.MockUserDAO{}
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		// Setup gomocks
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+		mockSubforumSubscriptionDAO := dao.NewMockSubforumSubscriptionDAOInterface(ctrl)
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+		mockRoleKeyDAO := dao.NewMockRoleKeyDAOInterface(ctrl)
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+		mockPostDAO := dao.NewMockPostDAOInterface(ctrl)
+		mockUserDAO := dao.NewMockUserDAOInterface(ctrl)
 
 		// Create handler using constructor
 		handler := handlers.NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, nil, mockPseudonymDAO, mockPostDAO, mockRoleKeyDAO, mockUserDAO)
@@ -57,9 +61,20 @@ func TestSubforumHandler_CreateSubforum_DemocraticValidation(t *testing.T) {
 		}
 
 		// Mock authentication
-		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", constants.CapabilityCreateSubforum, (*int32)(nil)).Return(true, nil)
-		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", constants.CapabilitySystemAdmin, (*int32)(nil)).Return(false, nil)
-		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", constants.CapabilityUserManagement, (*int32)(nil)).Return(false, nil)
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(gomock.Any(), int64(1), "test-pseudonym-id", constants.CapabilityCreateSubforum, (*int32)(nil)).
+			Return(true, nil).
+			Times(1)
+
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(gomock.Any(), int64(1), "test-pseudonym-id", constants.CapabilitySystemAdmin, (*int32)(nil)).
+			Return(false, nil).
+			Times(1)
+
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(gomock.Any(), int64(1), "test-pseudonym-id", constants.CapabilityUserManagement, (*int32)(nil)).
+			Return(false, nil).
+			Times(1)
 
 		// Mock subforum creation
 		expectedSubforum := &dbmodels.Subforum{
@@ -73,19 +88,34 @@ func TestSubforumHandler_CreateSubforum_DemocraticValidation(t *testing.T) {
 			IsPrivate:       sql.Null[bool]{V: false, Valid: true},
 			IsRestricted:    sql.Null[bool]{V: false, Valid: true},
 		}
-		mockSubforumDAO.On("CreateSubforum", mock.Anything, "test-subforum", "Test Subforum", "A test subforum", "", constants.CommunityTypeTopical, constants.GovernanceStyleDemocratic, false, false, false, "").Return(expectedSubforum, nil)
+		mockSubforumDAO.EXPECT().
+			CreateSubforum(gomock.Any(), "test-subforum", "Test Subforum", "A test subforum", "", constants.CommunityTypeTopical, constants.GovernanceStyleDemocratic, false, false, false, "").
+			Return(expectedSubforum, nil).
+			Times(1)
 
 		// Mock subscription count for convertSubforumToAPIModel
-		mockSubforumSubscriptionDAO.On("CountSubscriptionsBySubforum", mock.Anything, int32(1)).Return(int64(0), nil)
+		mockSubforumSubscriptionDAO.EXPECT().
+			CountSubscriptionsBySubforum(gomock.Any(), int32(1)).
+			Return(int64(0), nil).
+			Times(1)
 
 		// Mock post count for convertSubforumToAPIModel
-		mockPostDAO.On("CountPostsBySubforum", mock.Anything, int32(1)).Return(int64(0), nil)
+		mockPostDAO.EXPECT().
+			CountPostsBySubforum(gomock.Any(), int32(1)).
+			Return(int64(0), nil).
+			Times(1)
 
 		// Mock role key creation for single moderator
-		mockRoleKeyDAO.On("CreateRoleKeyWithIBE", mock.Anything, constants.RoleElectedModerator, constants.ScopeModeration, mock.Anything, mock.Anything, "test-pseudonym-id", "test-pseudonym-id", mock.Anything).Return(&dbmodels.RoleKey{}, nil)
+		mockRoleKeyDAO.EXPECT().
+			CreateRoleKeyWithIBE(gomock.Any(), constants.RoleElectedModerator, constants.ScopeModeration, gomock.Any(), gomock.Any(), "test-pseudonym-id", "test-pseudonym-id", gomock.Any()).
+			Return(&dbmodels.RoleKey{}, nil).
+			Times(1)
 
 		// Mock pseudonym last active update
-		mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "test-pseudonym-id").Return(nil)
+		mockPseudonymDAO.EXPECT().
+			UpdateLastActive(gomock.Any(), "test-pseudonym-id").
+			Return(nil).
+			Times(1)
 
 		// Create context with user
 		ctx := context.WithValue(context.Background(), middleware.UserContextKeyValue, userCtx)
@@ -97,21 +127,18 @@ func TestSubforumHandler_CreateSubforum_DemocraticValidation(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, "test-subforum", result.Body.Subforum.Name)
-
-		// Verify mocks
-		mockPermissionDAO.AssertExpectations(t)
-		mockSubforumDAO.AssertExpectations(t)
-		mockRoleKeyDAO.AssertExpectations(t)
-		mockPseudonymDAO.AssertExpectations(t)
 	})
 
 	t.Run("co-moderators_validation", func(t *testing.T) {
-		// Setup mocks
-		mockSubforumDAO := &mocks.MockSubforumDAO{}
-		mockPermissionDAO := &mocks.MockPermissionDAO{}
-		mockRoleKeyDAO := &mocks.MockRoleKeyDAO{}
-		mockPseudonymDAO := &mocks.MockPseudonymDAO{}
-		mockUserDAO := &mocks.MockUserDAO{}
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		// Setup gomocks
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+		mockRoleKeyDAO := dao.NewMockRoleKeyDAOInterface(ctrl)
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+		mockUserDAO := dao.NewMockUserDAOInterface(ctrl)
 
 		// Create handler using constructor
 		handler := handlers.NewSubforumHandler(nil, mockSubforumDAO, nil, mockPermissionDAO, nil, mockPseudonymDAO, nil, mockRoleKeyDAO, mockUserDAO)
@@ -137,9 +164,20 @@ func TestSubforumHandler_CreateSubforum_DemocraticValidation(t *testing.T) {
 		}
 
 		// Mock authentication
-		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", constants.CapabilityCreateSubforum, (*int32)(nil)).Return(true, nil)
-		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", constants.CapabilitySystemAdmin, (*int32)(nil)).Return(false, nil)
-		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "test-pseudonym-id", constants.CapabilityUserManagement, (*int32)(nil)).Return(false, nil)
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(gomock.Any(), int64(1), "test-pseudonym-id", constants.CapabilityCreateSubforum, (*int32)(nil)).
+			Return(true, nil).
+			Times(1)
+
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(gomock.Any(), int64(1), "test-pseudonym-id", constants.CapabilitySystemAdmin, (*int32)(nil)).
+			Return(false, nil).
+			Times(1)
+
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(gomock.Any(), int64(1), "test-pseudonym-id", constants.CapabilityUserManagement, (*int32)(nil)).
+			Return(false, nil).
+			Times(1)
 
 		// Create context with user
 		ctx := context.WithValue(context.Background(), middleware.UserContextKeyValue, userCtx)
@@ -151,18 +189,18 @@ func TestSubforumHandler_CreateSubforum_DemocraticValidation(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "democratic subforums can have at most 4 co-moderators")
-
-		// Verify mocks
-		mockPermissionDAO.AssertExpectations(t)
 	})
 
 	t.Run("co-moderators_owned_by_same_user_validation", func(t *testing.T) {
-		// Setup mocks
-		mockSubforumDAO := &mocks.MockSubforumDAO{}
-		mockPermissionDAO := &mocks.MockPermissionDAO{}
-		mockRoleKeyDAO := &mocks.MockRoleKeyDAO{}
-		mockPseudonymDAO := &mocks.MockPseudonymDAO{}
-		mockUserDAO := &mocks.MockUserDAO{}
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		// Setup gomocks
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+		mockRoleKeyDAO := dao.NewMockRoleKeyDAOInterface(ctrl)
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+		mockUserDAO := dao.NewMockUserDAOInterface(ctrl)
 
 		// Create handler using constructor
 		handler := handlers.NewSubforumHandler(nil, mockSubforumDAO, nil, mockPermissionDAO, nil, mockPseudonymDAO, nil, mockRoleKeyDAO, mockUserDAO)
@@ -188,14 +226,36 @@ func TestSubforumHandler_CreateSubforum_DemocraticValidation(t *testing.T) {
 		}
 
 		// Mock authentication
-		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "creator-pseudonym", constants.CapabilityCreateSubforum, (*int32)(nil)).Return(true, nil)
-		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "creator-pseudonym", constants.CapabilitySystemAdmin, (*int32)(nil)).Return(false, nil)
-		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "creator-pseudonym", constants.CapabilityUserManagement, (*int32)(nil)).Return(false, nil)
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(gomock.Any(), int64(1), "creator-pseudonym", constants.CapabilityCreateSubforum, (*int32)(nil)).
+			Return(true, nil).
+			Times(1)
+
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(gomock.Any(), int64(1), "creator-pseudonym", constants.CapabilitySystemAdmin, (*int32)(nil)).
+			Return(false, nil).
+			Times(1)
+
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(gomock.Any(), int64(1), "creator-pseudonym", constants.CapabilityUserManagement, (*int32)(nil)).
+			Return(false, nil).
+			Times(1)
 
 		// Mock pseudonym correlation - creator owned by user 1, co-moderators by user 2
-		mockPseudonymDAO.On("GetUserIDByPseudonym", mock.Anything, "creator-pseudonym", constants.RolePlatformAdmin, constants.ScopeCorrelation).Return(int64(1), nil)
-		mockPseudonymDAO.On("GetUserIDByPseudonym", mock.Anything, "pseudonym1", constants.RolePlatformAdmin, constants.ScopeCorrelation).Return(int64(2), nil)
-		mockPseudonymDAO.On("GetUserIDByPseudonym", mock.Anything, "pseudonym2", constants.RolePlatformAdmin, constants.ScopeCorrelation).Return(int64(2), nil) // Same user!
+		mockPseudonymDAO.EXPECT().
+			GetUserIDByPseudonym(gomock.Any(), "creator-pseudonym", constants.RolePlatformAdmin, constants.ScopeCorrelation).
+			Return(int64(1), nil).
+			Times(1)
+
+		mockPseudonymDAO.EXPECT().
+			GetUserIDByPseudonym(gomock.Any(), "pseudonym1", constants.RolePlatformAdmin, constants.ScopeCorrelation).
+			Return(int64(2), nil).
+			Times(1)
+
+		mockPseudonymDAO.EXPECT().
+			GetUserIDByPseudonym(gomock.Any(), "pseudonym2", constants.RolePlatformAdmin, constants.ScopeCorrelation).
+			Return(int64(2), nil). // Same user!
+			Times(1)
 
 		// Note: GetPseudonymByID and GetUserByID should NOT be called because validation fails early
 		// when detecting same-user ownership in the first pass
@@ -210,21 +270,20 @@ func TestSubforumHandler_CreateSubforum_DemocraticValidation(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "are owned by the same user - all moderators must be different users")
-
-		// Verify mocks
-		mockPermissionDAO.AssertExpectations(t)
-		mockPseudonymDAO.AssertExpectations(t)
 	})
 
 	t.Run("successful_democratic_subforum_creation_single_moderator", func(t *testing.T) {
-		// Setup mocks
-		mockSubforumDAO := &mocks.MockSubforumDAO{}
-		mockSubforumSubscriptionDAO := &mocks.MockSubforumSubscriptionDAO{}
-		mockPermissionDAO := &mocks.MockPermissionDAO{}
-		mockRoleKeyDAO := &mocks.MockRoleKeyDAO{}
-		mockPseudonymDAO := &mocks.MockPseudonymDAO{}
-		mockPostDAO := &mocks.MockPostDAO{}
-		mockUserDAO := &mocks.MockUserDAO{}
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		// Setup gomocks
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+		mockSubforumSubscriptionDAO := dao.NewMockSubforumSubscriptionDAOInterface(ctrl)
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+		mockRoleKeyDAO := dao.NewMockRoleKeyDAOInterface(ctrl)
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+		mockPostDAO := dao.NewMockPostDAOInterface(ctrl)
+		mockUserDAO := dao.NewMockUserDAOInterface(ctrl)
 
 		// Create handler using constructor
 		handler := handlers.NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, nil, mockPseudonymDAO, mockPostDAO, mockRoleKeyDAO, mockUserDAO)
@@ -250,9 +309,20 @@ func TestSubforumHandler_CreateSubforum_DemocraticValidation(t *testing.T) {
 		}
 
 		// Mock authentication
-		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "creator-pseudonym", constants.CapabilityCreateSubforum, (*int32)(nil)).Return(true, nil)
-		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "creator-pseudonym", constants.CapabilitySystemAdmin, (*int32)(nil)).Return(false, nil)
-		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "creator-pseudonym", constants.CapabilityUserManagement, (*int32)(nil)).Return(false, nil)
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(gomock.Any(), int64(1), "creator-pseudonym", constants.CapabilityCreateSubforum, (*int32)(nil)).
+			Return(true, nil).
+			Times(1)
+
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(gomock.Any(), int64(1), "creator-pseudonym", constants.CapabilitySystemAdmin, (*int32)(nil)).
+			Return(false, nil).
+			Times(1)
+
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(gomock.Any(), int64(1), "creator-pseudonym", constants.CapabilityUserManagement, (*int32)(nil)).
+			Return(false, nil).
+			Times(1)
 
 		// Mock subforum creation
 		expectedSubforum := &dbmodels.Subforum{
@@ -266,19 +336,34 @@ func TestSubforumHandler_CreateSubforum_DemocraticValidation(t *testing.T) {
 			IsPrivate:       sql.Null[bool]{V: false, Valid: true},
 			IsRestricted:    sql.Null[bool]{V: false, Valid: true},
 		}
-		mockSubforumDAO.On("CreateSubforum", mock.Anything, "test-subforum", "Test Subforum", "A test subforum", "", constants.CommunityTypeTopical, constants.GovernanceStyleDemocratic, false, false, false, "").Return(expectedSubforum, nil)
+		mockSubforumDAO.EXPECT().
+			CreateSubforum(gomock.Any(), "test-subforum", "Test Subforum", "A test subforum", "", constants.CommunityTypeTopical, constants.GovernanceStyleDemocratic, false, false, false, "").
+			Return(expectedSubforum, nil).
+			Times(1)
 
 		// Mock subscription count for convertSubforumToAPIModel
-		mockSubforumSubscriptionDAO.On("CountSubscriptionsBySubforum", mock.Anything, int32(1)).Return(int64(0), nil)
+		mockSubforumSubscriptionDAO.EXPECT().
+			CountSubscriptionsBySubforum(gomock.Any(), int32(1)).
+			Return(int64(0), nil).
+			Times(1)
 
 		// Mock post count for convertSubforumToAPIModel
-		mockPostDAO.On("CountPostsBySubforum", mock.Anything, int32(1)).Return(int64(0), nil)
+		mockPostDAO.EXPECT().
+			CountPostsBySubforum(gomock.Any(), int32(1)).
+			Return(int64(0), nil).
+			Times(1)
 
 		// Mock role key creation for single moderator
-		mockRoleKeyDAO.On("CreateRoleKeyWithIBE", mock.Anything, constants.RoleElectedModerator, constants.ScopeModeration, mock.Anything, mock.Anything, "creator-pseudonym", "creator-pseudonym", mock.Anything).Return(&dbmodels.RoleKey{}, nil)
+		mockRoleKeyDAO.EXPECT().
+			CreateRoleKeyWithIBE(gomock.Any(), constants.RoleElectedModerator, constants.ScopeModeration, gomock.Any(), gomock.Any(), "creator-pseudonym", "creator-pseudonym", gomock.Any()).
+			Return(&dbmodels.RoleKey{}, nil).
+			Times(1)
 
 		// Mock pseudonym last active update
-		mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "creator-pseudonym").Return(nil)
+		mockPseudonymDAO.EXPECT().
+			UpdateLastActive(gomock.Any(), "creator-pseudonym").
+			Return(nil).
+			Times(1)
 
 		// Create context with user
 		ctx := context.WithValue(context.Background(), middleware.UserContextKeyValue, userCtx)
@@ -290,23 +375,20 @@ func TestSubforumHandler_CreateSubforum_DemocraticValidation(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, "test-subforum", result.Body.Subforum.Name)
-
-		// Verify mocks
-		mockPermissionDAO.AssertExpectations(t)
-		mockSubforumDAO.AssertExpectations(t)
-		mockRoleKeyDAO.AssertExpectations(t)
-		mockPseudonymDAO.AssertExpectations(t)
 	})
 
 	t.Run("successful_democratic_subforum_creation_with_co_moderators", func(t *testing.T) {
-		// Setup mocks
-		mockSubforumDAO := &mocks.MockSubforumDAO{}
-		mockSubforumSubscriptionDAO := &mocks.MockSubforumSubscriptionDAO{}
-		mockPermissionDAO := &mocks.MockPermissionDAO{}
-		mockRoleKeyDAO := &mocks.MockRoleKeyDAO{}
-		mockPseudonymDAO := &mocks.MockPseudonymDAO{}
-		mockPostDAO := &mocks.MockPostDAO{}
-		mockUserDAO := &mocks.MockUserDAO{}
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		// Setup gomocks
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+		mockSubforumSubscriptionDAO := dao.NewMockSubforumSubscriptionDAOInterface(ctrl)
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+		mockRoleKeyDAO := dao.NewMockRoleKeyDAOInterface(ctrl)
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+		mockPostDAO := dao.NewMockPostDAOInterface(ctrl)
+		mockUserDAO := dao.NewMockUserDAOInterface(ctrl)
 
 		// Create handler using constructor
 		handler := handlers.NewSubforumHandler(nil, mockSubforumDAO, mockSubforumSubscriptionDAO, mockPermissionDAO, nil, mockPseudonymDAO, mockPostDAO, mockRoleKeyDAO, mockUserDAO)
@@ -332,22 +414,58 @@ func TestSubforumHandler_CreateSubforum_DemocraticValidation(t *testing.T) {
 		}
 
 		// Mock authentication
-		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "creator-pseudonym", constants.CapabilityCreateSubforum, (*int32)(nil)).Return(true, nil)
-		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "creator-pseudonym", constants.CapabilitySystemAdmin, (*int32)(nil)).Return(false, nil)
-		mockPermissionDAO.On("HasUnifiedCapability", mock.Anything, int64(1), "creator-pseudonym", constants.CapabilityUserManagement, (*int32)(nil)).Return(false, nil)
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(gomock.Any(), int64(1), "creator-pseudonym", constants.CapabilityCreateSubforum, (*int32)(nil)).
+			Return(true, nil).
+			Times(1)
+
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(gomock.Any(), int64(1), "creator-pseudonym", constants.CapabilitySystemAdmin, (*int32)(nil)).
+			Return(false, nil).
+			Times(1)
+
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(gomock.Any(), int64(1), "creator-pseudonym", constants.CapabilityUserManagement, (*int32)(nil)).
+			Return(false, nil).
+			Times(1)
 
 		// Mock pseudonym correlation - all owned by different users
-		mockPseudonymDAO.On("GetUserIDByPseudonym", mock.Anything, "creator-pseudonym", constants.RolePlatformAdmin, constants.ScopeCorrelation).Return(int64(1), nil)
-		mockPseudonymDAO.On("GetUserIDByPseudonym", mock.Anything, "moderator1", constants.RolePlatformAdmin, constants.ScopeCorrelation).Return(int64(2), nil)
-		mockPseudonymDAO.On("GetUserIDByPseudonym", mock.Anything, "moderator2", constants.RolePlatformAdmin, constants.ScopeCorrelation).Return(int64(3), nil)
+		mockPseudonymDAO.EXPECT().
+			GetUserIDByPseudonym(gomock.Any(), "creator-pseudonym", constants.RolePlatformAdmin, constants.ScopeCorrelation).
+			Return(int64(1), nil).
+			Times(1)
+
+		mockPseudonymDAO.EXPECT().
+			GetUserIDByPseudonym(gomock.Any(), "moderator1", constants.RolePlatformAdmin, constants.ScopeCorrelation).
+			Return(int64(2), nil).
+			Times(1)
+
+		mockPseudonymDAO.EXPECT().
+			GetUserIDByPseudonym(gomock.Any(), "moderator2", constants.RolePlatformAdmin, constants.ScopeCorrelation).
+			Return(int64(3), nil).
+			Times(1)
 
 		// Mock pseudonym existence checks for co-moderators
-		mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, "moderator1").Return(&dbmodels.Pseudonym{PseudonymID: "moderator1", DisplayName: "Moderator 1"}, nil)
-		mockPseudonymDAO.On("GetPseudonymByID", mock.Anything, "moderator2").Return(&dbmodels.Pseudonym{PseudonymID: "moderator2", DisplayName: "Moderator 2"}, nil)
+		mockPseudonymDAO.EXPECT().
+			GetPseudonymByID(gomock.Any(), "moderator1").
+			Return(&dbmodels.Pseudonym{PseudonymID: "moderator1", DisplayName: "Moderator 1"}, nil).
+			Times(1)
+
+		mockPseudonymDAO.EXPECT().
+			GetPseudonymByID(gomock.Any(), "moderator2").
+			Return(&dbmodels.Pseudonym{PseudonymID: "moderator2", DisplayName: "Moderator 2"}, nil).
+			Times(1)
 
 		// Mock user existence and validation checks for co-moderators
-		mockUserDAO.On("GetUserByID", mock.Anything, int64(2)).Return(&dbmodels.User{UserID: 2, IsActive: sql.Null[bool]{V: true, Valid: true}, EmailVerified: sql.Null[bool]{V: true, Valid: true}}, nil)
-		mockUserDAO.On("GetUserByID", mock.Anything, int64(3)).Return(&dbmodels.User{UserID: 3, IsActive: sql.Null[bool]{V: true, Valid: true}, EmailVerified: sql.Null[bool]{V: true, Valid: true}}, nil)
+		mockUserDAO.EXPECT().
+			GetUserByID(gomock.Any(), int64(2)).
+			Return(&dbmodels.User{UserID: 2, IsActive: sql.Null[bool]{V: true, Valid: true}, EmailVerified: sql.Null[bool]{V: true, Valid: true}}, nil).
+			Times(1)
+
+		mockUserDAO.EXPECT().
+			GetUserByID(gomock.Any(), int64(3)).
+			Return(&dbmodels.User{UserID: 3, IsActive: sql.Null[bool]{V: true, Valid: true}, EmailVerified: sql.Null[bool]{V: true, Valid: true}}, nil).
+			Times(1)
 
 		// Mock subforum creation
 		createdSubforum := &dbmodels.Subforum{
@@ -358,25 +476,44 @@ func TestSubforumHandler_CreateSubforum_DemocraticValidation(t *testing.T) {
 			CommunityType:   constants.CommunityTypeTopical,
 			GovernanceStyle: constants.GovernanceStyleDemocratic,
 		}
-		mockSubforumDAO.On("CreateSubforum", mock.Anything, "test-democratic-subforum", "Test Democratic Subforum", "A test democratic subforum", "", constants.CommunityTypeTopical, constants.GovernanceStyleDemocratic, false, false, false, "").Return(createdSubforum, nil)
+		mockSubforumDAO.EXPECT().
+			CreateSubforum(gomock.Any(), "test-democratic-subforum", "Test Democratic Subforum", "A test democratic subforum", "", constants.CommunityTypeTopical, constants.GovernanceStyleDemocratic, false, false, false, "").
+			Return(createdSubforum, nil).
+			Times(1)
 
 		// Mock subscription count for convertSubforumToAPIModel
-		mockSubforumSubscriptionDAO.On("CountSubscriptionsBySubforum", mock.Anything, int32(1)).Return(int64(0), nil)
+		mockSubforumSubscriptionDAO.EXPECT().
+			CountSubscriptionsBySubforum(gomock.Any(), int32(1)).
+			Return(int64(0), nil).
+			Times(1)
 
 		// Mock post count for convertSubforumToAPIModel
-		mockPostDAO.On("CountPostsBySubforum", mock.Anything, int32(1)).Return(int64(0), nil)
+		mockPostDAO.EXPECT().
+			CountPostsBySubforum(gomock.Any(), int32(1)).
+			Return(int64(0), nil).
+			Times(1)
 
 		// Mock role key creation for all 3 moderators (creator + 2 co-moderators)
-		mockRoleKeyDAO.On("CreateRoleKeyWithIBE", mock.Anything, constants.RoleElectedModerator, constants.ScopeModeration, mock.Anything, mock.Anything, "creator-pseudonym", "creator-pseudonym", mock.Anything).Return(&dbmodels.RoleKey{KeyID: [16]byte{1}}, nil)
-		mockRoleKeyDAO.On("CreateRoleKeyWithIBE", mock.Anything, constants.RoleElectedModerator, constants.ScopeModeration, mock.Anything, mock.Anything, "creator-pseudonym", "moderator1", mock.Anything).Return(&dbmodels.RoleKey{KeyID: [16]byte{2}}, nil)
-		mockRoleKeyDAO.On("CreateRoleKeyWithIBE", mock.Anything, constants.RoleElectedModerator, constants.ScopeModeration, mock.Anything, mock.Anything, "creator-pseudonym", "moderator2", mock.Anything).Return(&dbmodels.RoleKey{KeyID: [16]byte{3}}, nil)
+		mockRoleKeyDAO.EXPECT().
+			CreateRoleKeyWithIBE(gomock.Any(), constants.RoleElectedModerator, constants.ScopeModeration, gomock.Any(), gomock.Any(), "creator-pseudonym", "creator-pseudonym", gomock.Any()).
+			Return(&dbmodels.RoleKey{KeyID: [16]byte{1}}, nil).
+			Times(1)
+
+		mockRoleKeyDAO.EXPECT().
+			CreateRoleKeyWithIBE(gomock.Any(), constants.RoleElectedModerator, constants.ScopeModeration, gomock.Any(), gomock.Any(), "creator-pseudonym", "moderator1", gomock.Any()).
+			Return(&dbmodels.RoleKey{KeyID: [16]byte{2}}, nil).
+			Times(1)
+
+		mockRoleKeyDAO.EXPECT().
+			CreateRoleKeyWithIBE(gomock.Any(), constants.RoleElectedModerator, constants.ScopeModeration, gomock.Any(), gomock.Any(), "creator-pseudonym", "moderator2", gomock.Any()).
+			Return(&dbmodels.RoleKey{KeyID: [16]byte{3}}, nil).
+			Times(1)
 
 		// Mock pseudonym last active update
-		mockPseudonymDAO.On("UpdateLastActive", mock.Anything, "creator-pseudonym").Return(nil)
-
-		// Mock methods called during convertSubforumToAPIModel
-		mockSubforumSubscriptionDAO.On("CountSubscriptionsBySubforum", mock.Anything, int32(1)).Return(int64(0), nil)
-		mockPostDAO.On("CountPostsBySubforum", mock.Anything, int32(1)).Return(int64(0), nil)
+		mockPseudonymDAO.EXPECT().
+			UpdateLastActive(gomock.Any(), "creator-pseudonym").
+			Return(nil).
+			Times(1)
 
 		// Create context with user
 		ctx := context.WithValue(context.Background(), middleware.UserContextKeyValue, userCtx)
@@ -389,14 +526,5 @@ func TestSubforumHandler_CreateSubforum_DemocraticValidation(t *testing.T) {
 		assert.NotNil(t, result)
 		assert.Equal(t, "test-democratic-subforum", result.Body.Subforum.Name)
 		assert.Equal(t, "Test Democratic Subforum", result.Body.Subforum.DisplayName)
-
-		// Verify mocks
-		mockPermissionDAO.AssertExpectations(t)
-		mockPseudonymDAO.AssertExpectations(t)
-		mockUserDAO.AssertExpectations(t)
-		mockSubforumDAO.AssertExpectations(t)
-		mockRoleKeyDAO.AssertExpectations(t)
-		mockSubforumSubscriptionDAO.AssertExpectations(t)
-		mockPostDAO.AssertExpectations(t)
 	})
 }

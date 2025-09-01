@@ -10,20 +10,24 @@ import (
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	"github.com/matt0x6f/hashpost/internal/api/models"
 	"github.com/matt0x6f/hashpost/internal/config"
-	"github.com/matt0x6f/hashpost/internal/database/dao/mocks"
+	"github.com/matt0x6f/hashpost/internal/database/dao"
 	"github.com/matt0x6f/hashpost/internal/fixtures"
 	"github.com/matt0x6f/hashpost/internal/ibe"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	gomock "go.uber.org/mock/gomock"
 )
 
-// TestPseudonymSwitchingScopeValidation tests the scope validation logic for pseudonym switching
+// TestPseudonymSwitchingScopeValidation tests the scope validation logic for pseudonym switching using gomock
 func TestPseudonymSwitchingScopeValidation(t *testing.T) {
 	// Set up global auth middleware for tests
 	authMiddleware := middleware.NewAuthMiddleware("test-secret", nil, nil, nil)
 	middleware.SetGlobalAuthMiddleware(authMiddleware)
 
 	t.Run("ScopeHierarchyValidation", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
 		// Test that scopes are tried in the correct order
 		cfg := &config.Config{
 			JWT: config.JWTConfig{
@@ -32,7 +36,7 @@ func TestPseudonymSwitchingScopeValidation(t *testing.T) {
 			},
 		}
 
-		mockPseudonymDAO := mocks.NewMockPseudonymDAO()
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
 		handler := handlers.NewAuthHandler(cfg, nil, nil, mockPseudonymDAO, nil, nil, ibe.NewIBESystemWithOptions(ibe.IBEOptions{}), nil, nil, nil, nil, nil)
 
 		ctx := context.Background()
@@ -44,11 +48,21 @@ func TestPseudonymSwitchingScopeValidation(t *testing.T) {
 		targetPseudonym.PseudonymID = "test-pseudonym-123"
 
 		// Set up expectations for scope hierarchy
-		mockPseudonymDAO.On("GetPseudonymByID", ctx, "test-pseudonym-123").Return(targetPseudonym, nil)
+		mockPseudonymDAO.EXPECT().
+			GetPseudonymByID(ctx, "test-pseudonym-123").
+			Return(targetPseudonym, nil).
+			Times(1)
 
 		// Set up expectations for authentication scope
-		mockPseudonymDAO.On("VerifyPseudonymOwnership", ctx, "test-pseudonym-123", int64(1), "test-pseudonym-id", "user", constants.ScopeAuthentication).Return(true, nil)
-		mockPseudonymDAO.On("UpdateLastActive", ctx, "test-pseudonym-123").Return(nil)
+		mockPseudonymDAO.EXPECT().
+			VerifyPseudonymOwnership(ctx, "test-pseudonym-123", int64(1), "test-pseudonym-id", "user", constants.ScopeAuthentication).
+			Return(true, nil).
+			Times(1)
+
+		mockPseudonymDAO.EXPECT().
+			UpdateLastActive(ctx, "test-pseudonym-123").
+			Return(nil).
+			Times(1)
 
 		// Generate JWT token
 		token, err := middleware.GenerateJWT(userCtx, "test-secret", 24*time.Hour)
@@ -76,12 +90,12 @@ func TestPseudonymSwitchingScopeValidation(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Equal(t, 200, result.Status)
-
-		// Verify that authentication scope was used (not self-correlation)
-		mockPseudonymDAO.AssertExpectations(t)
 	})
 
 	t.Run("CapabilityValidation", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
 		// Test that the correct capability is being validated
 		cfg := &config.Config{
 			JWT: config.JWTConfig{
@@ -90,7 +104,7 @@ func TestPseudonymSwitchingScopeValidation(t *testing.T) {
 			},
 		}
 
-		mockPseudonymDAO := mocks.NewMockPseudonymDAO()
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
 		handler := handlers.NewAuthHandler(cfg, nil, nil, mockPseudonymDAO, nil, nil, ibe.NewTestIBESystem(), nil, nil, nil, nil, nil)
 
 		ctx := context.Background()
@@ -102,11 +116,21 @@ func TestPseudonymSwitchingScopeValidation(t *testing.T) {
 		targetPseudonym.PseudonymID = "test-pseudonym-123"
 
 		// Set up expectations
-		mockPseudonymDAO.On("GetPseudonymByID", ctx, "test-pseudonym-123").Return(targetPseudonym, nil)
+		mockPseudonymDAO.EXPECT().
+			GetPseudonymByID(ctx, "test-pseudonym-123").
+			Return(targetPseudonym, nil).
+			Times(1)
 
 		// The VerifyPseudonymOwnership method should validate CapabilityVerifyOwnPseudonymOwnership
-		mockPseudonymDAO.On("VerifyPseudonymOwnership", ctx, "test-pseudonym-123", int64(1), "test-pseudonym-id", "user", constants.ScopeAuthentication).Return(true, nil)
-		mockPseudonymDAO.On("UpdateLastActive", ctx, "test-pseudonym-123").Return(nil)
+		mockPseudonymDAO.EXPECT().
+			VerifyPseudonymOwnership(ctx, "test-pseudonym-123", int64(1), "test-pseudonym-id", "user", constants.ScopeAuthentication).
+			Return(true, nil).
+			Times(1)
+
+		mockPseudonymDAO.EXPECT().
+			UpdateLastActive(ctx, "test-pseudonym-123").
+			Return(nil).
+			Times(1)
 
 		// Generate JWT token
 		token, err := middleware.GenerateJWT(userCtx, "test-secret", 24*time.Hour)
@@ -134,12 +158,12 @@ func TestPseudonymSwitchingScopeValidation(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Equal(t, 200, result.Status)
-
-		// Verify mock expectations
-		mockPseudonymDAO.AssertExpectations(t)
 	})
 
 	t.Run("MultiRoleFallback", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
 		// Test that multiple roles are tried when available
 		cfg := &config.Config{
 			JWT: config.JWTConfig{
@@ -148,7 +172,7 @@ func TestPseudonymSwitchingScopeValidation(t *testing.T) {
 			},
 		}
 
-		mockPseudonymDAO := mocks.NewMockPseudonymDAO()
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
 		handler := handlers.NewAuthHandler(cfg, nil, nil, mockPseudonymDAO, nil, nil, ibe.NewTestIBESystem(), nil, nil, nil, nil, nil)
 
 		ctx := context.Background()
@@ -160,11 +184,21 @@ func TestPseudonymSwitchingScopeValidation(t *testing.T) {
 		targetPseudonym.PseudonymID = "test-pseudonym-123"
 
 		// Set up expectations for multi-role fallback
-		mockPseudonymDAO.On("GetPseudonymByID", ctx, "test-pseudonym-123").Return(targetPseudonym, nil)
+		mockPseudonymDAO.EXPECT().
+			GetPseudonymByID(ctx, "test-pseudonym-123").
+			Return(targetPseudonym, nil).
+			Times(1)
 
 		// First role succeeds with authentication scope
-		mockPseudonymDAO.On("VerifyPseudonymOwnership", ctx, "test-pseudonym-123", int64(1), "test-pseudonym-id", "user", constants.ScopeAuthentication).Return(true, nil)
-		mockPseudonymDAO.On("UpdateLastActive", ctx, "test-pseudonym-123").Return(nil)
+		mockPseudonymDAO.EXPECT().
+			VerifyPseudonymOwnership(ctx, "test-pseudonym-123", int64(1), "test-pseudonym-id", "user", constants.ScopeAuthentication).
+			Return(true, nil).
+			Times(1)
+
+		mockPseudonymDAO.EXPECT().
+			UpdateLastActive(ctx, "test-pseudonym-123").
+			Return(nil).
+			Times(1)
 
 		// Generate JWT token
 		token, err := middleware.GenerateJWT(userCtx, "test-secret", 24*time.Hour)
@@ -192,12 +226,12 @@ func TestPseudonymSwitchingScopeValidation(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Equal(t, 200, result.Status)
-
-		// Verify that platform_admin role was used
-		mockPseudonymDAO.AssertExpectations(t)
 	})
 
 	t.Run("SecurityBoundaries", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
 		// Test that users cannot access pseudonyms they don't own
 		cfg := &config.Config{
 			JWT: config.JWTConfig{
@@ -206,7 +240,7 @@ func TestPseudonymSwitchingScopeValidation(t *testing.T) {
 			},
 		}
 
-		mockPseudonymDAO := mocks.NewMockPseudonymDAO()
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
 		handler := handlers.NewAuthHandler(cfg, nil, nil, mockPseudonymDAO, nil, nil, ibe.NewTestIBESystem(), nil, nil, nil, nil, nil)
 
 		ctx := context.Background()
@@ -218,11 +252,21 @@ func TestPseudonymSwitchingScopeValidation(t *testing.T) {
 		targetPseudonym.PseudonymID = "other-user-pseudonym-123"
 
 		// Set up expectations for security boundary test
-		mockPseudonymDAO.On("GetPseudonymByID", ctx, "other-user-pseudonym-123").Return(targetPseudonym, nil)
+		mockPseudonymDAO.EXPECT().
+			GetPseudonymByID(ctx, "other-user-pseudonym-123").
+			Return(targetPseudonym, nil).
+			Times(1)
 
 		// All scope attempts fail (user doesn't own this pseudonym)
-		mockPseudonymDAO.On("VerifyPseudonymOwnership", ctx, "other-user-pseudonym-123", int64(1), "test-pseudonym-id", "user", constants.ScopeAuthentication).Return(false, nil)
-		mockPseudonymDAO.On("VerifyPseudonymOwnership", ctx, "other-user-pseudonym-123", int64(1), "test-pseudonym-id", "user", constants.ScopeSelfCorrelation).Return(false, nil)
+		mockPseudonymDAO.EXPECT().
+			VerifyPseudonymOwnership(ctx, "other-user-pseudonym-123", int64(1), "test-pseudonym-id", "user", constants.ScopeAuthentication).
+			Return(false, nil).
+			Times(1)
+
+		mockPseudonymDAO.EXPECT().
+			VerifyPseudonymOwnership(ctx, "other-user-pseudonym-123", int64(1), "test-pseudonym-id", "user", constants.ScopeSelfCorrelation).
+			Return(false, nil).
+			Times(1)
 
 		// Generate JWT token
 		token, err := middleware.GenerateJWT(userCtx, "test-secret", 24*time.Hour)
@@ -250,13 +294,10 @@ func TestPseudonymSwitchingScopeValidation(t *testing.T) {
 		require.Error(t, err)
 		require.Nil(t, result)
 		assert.Contains(t, err.Error(), "You do not own this pseudonym")
-
-		// Verify mock expectations
-		mockPseudonymDAO.AssertExpectations(t)
 	})
 }
 
-// TestScopeAndCapabilityDefinitions tests that the scope and capability definitions are correct
+// TestScopeAndCapabilityDefinitions tests that the scope and capability definitions are correct using gomock
 func TestScopeAndCapabilityDefinitions(t *testing.T) {
 	t.Run("AuthenticationScopeCapabilities", func(t *testing.T) {
 		// Verify that authentication scope has the correct capabilities

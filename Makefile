@@ -35,6 +35,7 @@ help:
 	@echo "  test-coverage-ci Run tests with coverage for CI (fails if < 70%)"
 	@echo "  test-coverage-report Generate detailed coverage report"
 	@echo "  test-integration-local Run integration tests with clean DB (includes model tests)"
+	@echo "  generate-mocks      Generate gomock mocks for all interfaces"
 	@echo "                         Usage: make test-integration-local TEST_PATH=./internal/api/integration/auth_integration_test.go"
 	@echo "  test-dao        Run DAO integration tests with test database"
 	@echo "  test-dao-ci     Run DAO integration tests for CI environment"
@@ -389,6 +390,13 @@ benchmark-all:
 
 generate:
 	cd internal/database && go run github.com/stephenafamo/bob/gen/bobgen-psql@v0.38.0 -c ../../bobgen.yaml
+
+generate-mocks:
+	@echo "Generating gomock mocks..."
+	go generate ./internal/database/dao/
+	go generate ./internal/services/
+	go generate ./internal/ibe/
+	@echo "✅ Mocks generated successfully!"
 
 # UI Development commands
 ui-install:

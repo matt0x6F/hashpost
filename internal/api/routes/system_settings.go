@@ -15,7 +15,7 @@ func RegisterSystemSettingsRoutes(api huma.API, db bob.Executor, pseudonymDAO da
 	// Initialize DAOs for system settings handler
 	systemSettingsDAO := dao.NewSystemSettingsDAO(db)
 	permissionDAO := dao.NewPermissionDAO(db)
-	ibeSystem := ibe.NewMockIBESystem() // TODO: Replace with real IBE system
+	ibeSystem := ibe.NewIBESystemWithOptions(ibe.IBEOptions{})
 
 	systemSettingsHandler := handlers.NewSystemSettingsHandler(systemSettingsDAO, permissionDAO, pseudonymDAO, ibeSystem)
 
