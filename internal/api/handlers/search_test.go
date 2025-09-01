@@ -12,6 +12,7 @@ import (
 	"github.com/matt0x6f/hashpost/internal/api/models"
 	"github.com/matt0x6f/hashpost/internal/database/dao"
 	dbmodels "github.com/matt0x6f/hashpost/internal/database/models"
+	"github.com/matt0x6f/hashpost/internal/fixtures"
 	"github.com/matt0x6f/hashpost/internal/ibe"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -403,4 +404,219 @@ func TestSearchHandler_NewSearchHandler(t *testing.T) {
 	assert.NotNil(t, handler)
 	// Note: Fields are unexported, so we can't access them directly in tests
 	// The constructor test verifies the handler was created successfully
+}
+
+// TestSearchHandler_SearchPseudonyms tests the SearchPseudonyms functionality
+func TestSearchHandler_SearchPseudonyms(t *testing.T) {
+	t.Run("SearchPseudonymsSuccess", func(t *testing.T) {
+		handler, _, _, _, mockPseudonymDAO, mockPermissionDAO := NewSearchHandlerWithGomocks(t)
+
+		// Mock permission check for platform admin
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(gomock.Any(), int64(1), "admin-pseudonym", "system_admin", (*int32)(nil)).
+			Return(true, nil)
+
+		// Test data
+		query := "test_user"
+		page := 1
+		limit := 25
+
+		// Mock pseudonym search results
+		mockPseudonyms := dbmodels.PseudonymSlice{
+			&dbmodels.Pseudonym{
+				PseudonymID: "pseudonym-1",
+				DisplayName: "test_user_1",
+				CreatedAt:   sql.Null[time.Time]{Valid: true, V: time.Now()},
+			},
+			&dbmodels.Pseudonym{
+				PseudonymID: "pseudonym-2",
+				DisplayName: "test_user_2",
+				CreatedAt:   sql.Null[time.Time]{Valid: true, V: time.Now()},
+			},
+		}
+
+		// Mock DAO calls
+		mockPseudonymDAO.EXPECT().
+			SearchPseudonyms(gomock.Any(), query, page, limit).
+			Return(mockPseudonyms, nil)
+
+		mockPseudonymDAO.EXPECT().
+			CountSearchPseudonyms(gomock.Any(), query).
+			Return(int64(2), nil)
+
+		// Create input
+		input := &models.SearchPseudonymsInput{
+			AuthInput: middleware.AuthInput{
+				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "admin-pseudonym"),
+			},
+			Query: query,
+			Page:  page,
+			Limit: limit,
+		}
+
+		// Call handler
+		response, err := handler.SearchPseudonyms(context.Background(), input)
+
+		// Assertions
+		require.NoError(t, err)
+		require.NotNil(t, response)
+		assert.Equal(t, query, response.Body.Query)
+		assert.Equal(t, 2, len(response.Body.Pseudonyms))
+		assert.Equal(t, 2, response.Body.Pagination.Total)
+		assert.Equal(t, page, response.Body.Pagination.Page)
+		assert.Equal(t, limit, response.Body.Pagination.Limit)
+	})
+
+	t.Run("SearchPseudonymsEmptyQuery", func(t *testing.T) {
+		handler, _, _, _, _, mockPermissionDAO := NewSearchHandlerWithGomocks(t)
+
+		// Mock permission check for platform admin
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(gomock.Any(), int64(1), "admin-pseudonym", "system_admin", (*int32)(nil)).
+			Return(true, nil)
+
+		// Create input with empty query
+		input := &models.SearchPseudonymsInput{
+			AuthInput: middleware.AuthInput{
+				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "admin-pseudonym"),
+			},
+			Query: "",
+			Page:  1,
+			Limit: 25,
+		}
+
+		// Call handler
+		response, err := handler.SearchPseudonyms(context.Background(), input)
+
+		// Assertions - empty query should return error
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "search query is required")
+		assert.Nil(t, response)
+	})
+
+	t.Run("SearchPseudonymsInsufficientPermissions", func(t *testing.T) {
+		handler, _, _, _, _, mockPermissionDAO := NewSearchHandlerWithGomocks(t)
+
+		// Mock permission check failure
+		mockPermissionDAO.EXPECT().
+			HasUnifiedCapability(gomock.Any(), int64(1), "user-pseudonym", "system_admin", (*int32)(nil)).
+			Return(false, nil)
+
+		// Create input
+		input := &models.SearchPseudonymsInput{
+			AuthInput: middleware.AuthInput{
+				Authorization: "Bearer " + fixtures.MustGenerateTestJWTToken(1, "user-pseudonym"),
+			},
+			Query: "test",
+			Page:  1,
+			Limit: 25,
+		}
+
+		// Call handler
+		response, err := handler.SearchPseudonyms(context.Background(), input)
+
+		// Assertions - should fail due to insufficient permissions
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "insufficient permissions")
+		assert.Nil(t, response)
+	})
+}
+
+// TestSearchHandler_PublicSearchPseudonyms tests the PublicSearchPseudonyms functionality
+func TestSearchHandler_PublicSearchPseudonyms(t *testing.T) {
+	t.Run("PublicSearchPseudonymsSuccess", func(t *testing.T) {
+		handler, _, _, _, mockPseudonymDAO, _ := NewSearchHandlerWithGomocks(t)
+
+		// Test data
+		query := "test_user"
+		page := 1
+		limit := 25
+
+		// Mock pseudonym search results
+		mockPseudonyms := dbmodels.PseudonymSlice{
+			&dbmodels.Pseudonym{
+				PseudonymID: "pseudonym-1",
+				DisplayName: "test_user_1",
+				CreatedAt:   sql.Null[time.Time]{Valid: true, V: time.Now()},
+				IsActive:    sql.Null[bool]{Valid: true, V: true},
+			},
+			&dbmodels.Pseudonym{
+				PseudonymID: "pseudonym-2",
+				DisplayName: "test_user_2",
+				CreatedAt:   sql.Null[time.Time]{Valid: true, V: time.Now()},
+				IsActive:    sql.Null[bool]{Valid: true, V: true},
+			},
+		}
+
+		// Mock DAO calls
+		mockPseudonymDAO.EXPECT().
+			SearchPseudonymsPublic(gomock.Any(), query, page, limit).
+			Return(mockPseudonyms, nil)
+
+		mockPseudonymDAO.EXPECT().
+			CountSearchPseudonymsPublic(gomock.Any(), query).
+			Return(int64(2), nil)
+
+		// Create input
+		input := &models.PublicSearchPseudonymsInput{
+			Query: query,
+			Page:  page,
+			Limit: limit,
+		}
+
+		// Call handler
+		response, err := handler.PublicSearchPseudonyms(context.Background(), input)
+
+		// Assertions
+		require.NoError(t, err)
+		require.NotNil(t, response)
+		assert.Equal(t, query, response.Body.Query)
+		assert.Equal(t, 2, len(response.Body.Pseudonyms))
+		assert.Equal(t, 2, response.Body.Pagination.Total)
+		assert.Equal(t, page, response.Body.Pagination.Page)
+		assert.Equal(t, limit, response.Body.Pagination.Limit)
+	})
+
+	t.Run("PublicSearchPseudonymsEmptyQuery", func(t *testing.T) {
+		handler, _, _, _, _, _ := NewSearchHandlerWithGomocks(t)
+
+		// Create input with empty query
+		input := &models.PublicSearchPseudonymsInput{
+			Query: "",
+			Page:  1,
+			Limit: 25,
+		}
+
+		// Call handler
+		response, err := handler.PublicSearchPseudonyms(context.Background(), input)
+
+		// Assertions - empty query should return error
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "search query is required")
+		assert.Nil(t, response)
+	})
+
+	t.Run("PublicSearchPseudonymsDatabaseError", func(t *testing.T) {
+		handler, _, _, _, mockPseudonymDAO, _ := NewSearchHandlerWithGomocks(t)
+
+		// Mock DAO error
+		mockPseudonymDAO.EXPECT().
+			SearchPseudonymsPublic(gomock.Any(), "test", 1, 25).
+			Return(nil, assert.AnError)
+
+		// Create input
+		input := &models.PublicSearchPseudonymsInput{
+			Query: "test",
+			Page:  1,
+			Limit: 25,
+		}
+
+		// Call handler
+		response, err := handler.PublicSearchPseudonyms(context.Background(), input)
+
+		// Assertions - should fail due to database error
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to search pseudonyms")
+		assert.Nil(t, response)
+	})
 }

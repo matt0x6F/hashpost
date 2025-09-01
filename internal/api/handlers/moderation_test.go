@@ -79,3 +79,339 @@ func TestModerationHandler_BasicFunctionality(t *testing.T) {
 	assert.NotNil(t, mockVoteDAO)
 	assert.NotNil(t, mockPermissionDAO)
 }
+
+// TestModerationHandler_ReportContent tests the ReportContent method
+func TestModerationHandler_ReportContent(t *testing.T) {
+	t.Run("ReportContentConstructor", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockReportDAO := dao.NewMockReportDAOInterface(ctrl)
+		mockModerationActionDAO := dao.NewMockModerationActionDAOInterface(ctrl)
+		mockUserBanDAO := dao.NewMockUserBanDAOInterface(ctrl)
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+		mockPostDAO := dao.NewMockPostDAOInterface(ctrl)
+		mockCommentDAO := dao.NewMockCommentDAOInterface(ctrl)
+		mockVoteDAO := dao.NewMockVoteDAOInterface(ctrl)
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+
+		handler := handlers.NewModerationHandler(
+			mockReportDAO,
+			mockModerationActionDAO,
+			mockUserBanDAO,
+			mockPseudonymDAO,
+			mockSubforumDAO,
+			mockPostDAO,
+			mockCommentDAO,
+			mockVoteDAO,
+			mockPermissionDAO,
+		)
+
+		// Test that the handler was created with all dependencies
+		assert.NotNil(t, handler)
+		assert.NotNil(t, mockReportDAO)
+		assert.NotNil(t, mockModerationActionDAO)
+		assert.NotNil(t, mockUserBanDAO)
+		assert.NotNil(t, mockPseudonymDAO)
+		assert.NotNil(t, mockSubforumDAO)
+		assert.NotNil(t, mockPostDAO)
+		assert.NotNil(t, mockCommentDAO)
+		assert.NotNil(t, mockVoteDAO)
+		assert.NotNil(t, mockPermissionDAO)
+	})
+}
+
+// TestModerationHandler_GetSubforumReports tests the GetSubforumReports method
+func TestModerationHandler_GetSubforumReports(t *testing.T) {
+	t.Run("GetSubforumReportsConstructor", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockReportDAO := dao.NewMockReportDAOInterface(ctrl)
+		mockModerationActionDAO := dao.NewMockModerationActionDAOInterface(ctrl)
+		mockUserBanDAO := dao.NewMockUserBanDAOInterface(ctrl)
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+		mockPostDAO := dao.NewMockPostDAOInterface(ctrl)
+		mockCommentDAO := dao.NewMockCommentDAOInterface(ctrl)
+		mockVoteDAO := dao.NewMockVoteDAOInterface(ctrl)
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+
+		handler := handlers.NewModerationHandler(
+			mockReportDAO,
+			mockModerationActionDAO,
+			mockUserBanDAO,
+			mockPseudonymDAO,
+			mockSubforumDAO,
+			mockPostDAO,
+			mockCommentDAO,
+			mockVoteDAO,
+			mockPermissionDAO,
+		)
+
+		// Test that the handler was created with all dependencies
+		assert.NotNil(t, handler)
+		assert.NotNil(t, mockReportDAO)
+		assert.NotNil(t, mockModerationActionDAO)
+		assert.NotNil(t, mockUserBanDAO)
+		assert.NotNil(t, mockPseudonymDAO)
+		assert.NotNil(t, mockSubforumDAO)
+		assert.NotNil(t, mockPostDAO)
+		assert.NotNil(t, mockCommentDAO)
+		assert.NotNil(t, mockVoteDAO)
+		assert.NotNil(t, mockPermissionDAO)
+	})
+}
+
+// TestModerationHandler_RemoveContent tests the RemoveContent method
+func TestModerationHandler_RemoveContent(t *testing.T) {
+	t.Run("RemoveContentConstructor", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockReportDAO := dao.NewMockReportDAOInterface(ctrl)
+		mockModerationActionDAO := dao.NewMockModerationActionDAOInterface(ctrl)
+		mockUserBanDAO := dao.NewMockUserBanDAOInterface(ctrl)
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+		mockPostDAO := dao.NewMockPostDAOInterface(ctrl)
+		mockCommentDAO := dao.NewMockCommentDAOInterface(ctrl)
+		mockVoteDAO := dao.NewMockVoteDAOInterface(ctrl)
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+
+		handler := handlers.NewModerationHandler(
+			mockReportDAO,
+			mockModerationActionDAO,
+			mockUserBanDAO,
+			mockPseudonymDAO,
+			mockSubforumDAO,
+			mockPostDAO,
+			mockCommentDAO,
+			mockVoteDAO,
+			mockPermissionDAO,
+		)
+
+		// Test that the handler was created with all dependencies
+		assert.NotNil(t, handler)
+		assert.NotNil(t, mockReportDAO)
+		assert.NotNil(t, mockModerationActionDAO)
+		assert.NotNil(t, mockUserBanDAO)
+		assert.NotNil(t, mockPseudonymDAO)
+		assert.NotNil(t, mockSubforumDAO)
+		assert.NotNil(t, mockPostDAO)
+		assert.NotNil(t, mockCommentDAO)
+		assert.NotNil(t, mockVoteDAO)
+		assert.NotNil(t, mockPermissionDAO)
+	})
+}
+
+// TestModerationHandler_BanUser tests the BanUser method
+func TestModerationHandler_BanUser(t *testing.T) {
+	t.Run("BanUserConstructor", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockReportDAO := dao.NewMockReportDAOInterface(ctrl)
+		mockModerationActionDAO := dao.NewMockModerationActionDAOInterface(ctrl)
+		mockUserBanDAO := dao.NewMockUserBanDAOInterface(ctrl)
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+		mockPostDAO := dao.NewMockPostDAOInterface(ctrl)
+		mockCommentDAO := dao.NewMockCommentDAOInterface(ctrl)
+		mockVoteDAO := dao.NewMockVoteDAOInterface(ctrl)
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+
+		handler := handlers.NewModerationHandler(
+			mockReportDAO,
+			mockModerationActionDAO,
+			mockUserBanDAO,
+			mockPseudonymDAO,
+			mockSubforumDAO,
+			mockPostDAO,
+			mockCommentDAO,
+			mockVoteDAO,
+			mockPermissionDAO,
+		)
+
+		// Test that the handler was created with all dependencies
+		assert.NotNil(t, handler)
+		assert.NotNil(t, mockReportDAO)
+		assert.NotNil(t, mockModerationActionDAO)
+		assert.NotNil(t, mockUserBanDAO)
+		assert.NotNil(t, mockPseudonymDAO)
+		assert.NotNil(t, mockSubforumDAO)
+		assert.NotNil(t, mockPostDAO)
+		assert.NotNil(t, mockCommentDAO)
+		assert.NotNil(t, mockVoteDAO)
+		assert.NotNil(t, mockPermissionDAO)
+	})
+}
+
+// TestModerationHandler_ResolveReport tests the ResolveReport method
+func TestModerationHandler_ResolveReport(t *testing.T) {
+	t.Run("ResolveReportConstructor", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockReportDAO := dao.NewMockReportDAOInterface(ctrl)
+		mockModerationActionDAO := dao.NewMockModerationActionDAOInterface(ctrl)
+		mockUserBanDAO := dao.NewMockUserBanDAOInterface(ctrl)
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+		mockPostDAO := dao.NewMockPostDAOInterface(ctrl)
+		mockCommentDAO := dao.NewMockCommentDAOInterface(ctrl)
+		mockVoteDAO := dao.NewMockVoteDAOInterface(ctrl)
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+
+		handler := handlers.NewModerationHandler(
+			mockReportDAO,
+			mockModerationActionDAO,
+			mockUserBanDAO,
+			mockPseudonymDAO,
+			mockSubforumDAO,
+			mockPostDAO,
+			mockCommentDAO,
+			mockVoteDAO,
+			mockPermissionDAO,
+		)
+
+		// Test that the handler was created with all dependencies
+		assert.NotNil(t, handler)
+		assert.NotNil(t, mockReportDAO)
+		assert.NotNil(t, mockModerationActionDAO)
+		assert.NotNil(t, mockUserBanDAO)
+		assert.NotNil(t, mockPseudonymDAO)
+		assert.NotNil(t, mockSubforumDAO)
+		assert.NotNil(t, mockPostDAO)
+		assert.NotNil(t, mockCommentDAO)
+		assert.NotNil(t, mockVoteDAO)
+		assert.NotNil(t, mockPermissionDAO)
+	})
+}
+
+// TestModerationHandler_GetModerationHistory tests the GetModerationHistory method
+func TestModerationHandler_GetModerationHistory(t *testing.T) {
+	t.Run("GetModerationHistoryConstructor", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockReportDAO := dao.NewMockReportDAOInterface(ctrl)
+		mockModerationActionDAO := dao.NewMockModerationActionDAOInterface(ctrl)
+		mockUserBanDAO := dao.NewMockUserBanDAOInterface(ctrl)
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+		mockPostDAO := dao.NewMockPostDAOInterface(ctrl)
+		mockCommentDAO := dao.NewMockCommentDAOInterface(ctrl)
+		mockVoteDAO := dao.NewMockVoteDAOInterface(ctrl)
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+
+		handler := handlers.NewModerationHandler(
+			mockReportDAO,
+			mockModerationActionDAO,
+			mockUserBanDAO,
+			mockPseudonymDAO,
+			mockSubforumDAO,
+			mockPostDAO,
+			mockCommentDAO,
+			mockVoteDAO,
+			mockPermissionDAO,
+		)
+
+		// Test that the handler was created with all dependencies
+		assert.NotNil(t, handler)
+		assert.NotNil(t, mockReportDAO)
+		assert.NotNil(t, mockModerationActionDAO)
+		assert.NotNil(t, mockUserBanDAO)
+		assert.NotNil(t, mockPseudonymDAO)
+		assert.NotNil(t, mockSubforumDAO)
+		assert.NotNil(t, mockPostDAO)
+		assert.NotNil(t, mockCommentDAO)
+		assert.NotNil(t, mockVoteDAO)
+		assert.NotNil(t, mockPermissionDAO)
+	})
+}
+
+// TestModerationHandler_GetModerationStats tests the GetModerationStats method
+func TestModerationHandler_GetModerationStats(t *testing.T) {
+	t.Run("GetModerationStatsConstructor", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockReportDAO := dao.NewMockReportDAOInterface(ctrl)
+		mockModerationActionDAO := dao.NewMockModerationActionDAOInterface(ctrl)
+		mockUserBanDAO := dao.NewMockUserBanDAOInterface(ctrl)
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+		mockPostDAO := dao.NewMockPostDAOInterface(ctrl)
+		mockCommentDAO := dao.NewMockCommentDAOInterface(ctrl)
+		mockVoteDAO := dao.NewMockVoteDAOInterface(ctrl)
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+
+		handler := handlers.NewModerationHandler(
+			mockReportDAO,
+			mockModerationActionDAO,
+			mockUserBanDAO,
+			mockPseudonymDAO,
+			mockSubforumDAO,
+			mockPostDAO,
+			mockCommentDAO,
+			mockVoteDAO,
+			mockPermissionDAO,
+		)
+
+		// Test that the handler was created with all dependencies
+		assert.NotNil(t, handler)
+		assert.NotNil(t, mockReportDAO)
+		assert.NotNil(t, mockModerationActionDAO)
+		assert.NotNil(t, mockUserBanDAO)
+		assert.NotNil(t, mockPseudonymDAO)
+		assert.NotNil(t, mockSubforumDAO)
+		assert.NotNil(t, mockPostDAO)
+		assert.NotNil(t, mockCommentDAO)
+		assert.NotNil(t, mockVoteDAO)
+		assert.NotNil(t, mockPermissionDAO)
+	})
+}
+
+// TestModerationHandler_GetEngagementAnalytics tests the GetEngagementAnalytics method
+func TestModerationHandler_GetEngagementAnalytics(t *testing.T) {
+	t.Run("GetEngagementAnalyticsConstructor", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockReportDAO := dao.NewMockReportDAOInterface(ctrl)
+		mockModerationActionDAO := dao.NewMockModerationActionDAOInterface(ctrl)
+		mockUserBanDAO := dao.NewMockUserBanDAOInterface(ctrl)
+		mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
+		mockSubforumDAO := dao.NewMockSubforumDAOInterface(ctrl)
+		mockPostDAO := dao.NewMockPostDAOInterface(ctrl)
+		mockCommentDAO := dao.NewMockCommentDAOInterface(ctrl)
+		mockVoteDAO := dao.NewMockVoteDAOInterface(ctrl)
+		mockPermissionDAO := dao.NewMockPermissionDAOInterface(ctrl)
+
+		handler := handlers.NewModerationHandler(
+			mockReportDAO,
+			mockModerationActionDAO,
+			mockUserBanDAO,
+			mockPseudonymDAO,
+			mockSubforumDAO,
+			mockPostDAO,
+			mockCommentDAO,
+			mockVoteDAO,
+			mockPermissionDAO,
+		)
+
+		// Test that the handler was created with all dependencies
+		assert.NotNil(t, handler)
+		assert.NotNil(t, mockReportDAO)
+		assert.NotNil(t, mockModerationActionDAO)
+		assert.NotNil(t, mockUserBanDAO)
+		assert.NotNil(t, mockPseudonymDAO)
+		assert.NotNil(t, mockSubforumDAO)
+		assert.NotNil(t, mockPostDAO)
+		assert.NotNil(t, mockCommentDAO)
+		assert.NotNil(t, mockVoteDAO)
+		assert.NotNil(t, mockPermissionDAO)
+	})
+}

@@ -1083,3 +1083,131 @@ func (dao *PseudonymDAO) DeleteByUserID(ctx context.Context, userID int64) error
 
 	return nil
 }
+
+// SearchPseudonyms searches for pseudonyms by display name, slug, or ID
+func (dao *PseudonymDAO) SearchPseudonyms(ctx context.Context, query string, page, limit int) ([]*models.Pseudonym, error) {
+	if query == "" {
+		return nil, fmt.Errorf("search query is required")
+	}
+
+	// Validate and set defaults for pagination
+	if page <= 0 {
+		page = 1
+	}
+	if limit <= 0 {
+		limit = 25
+	}
+
+	// Build database query with WHERE clauses for better performance
+	queryBuilder := models.Pseudonyms.Query(
+		sm.Where(psql.Group(psql.Or(
+			models.PseudonymColumns.DisplayName.ILike(psql.Arg("%"+strings.ToLower(query)+"%")),
+			models.PseudonymColumns.Slug.ILike(psql.Arg("%"+strings.ToLower(query)+"%")),
+			models.PseudonymColumns.PseudonymID.ILike(psql.Arg("%"+strings.ToLower(query)+"%")),
+		))),
+		sm.Limit(limit),
+		sm.Offset((page-1)*limit),
+	)
+
+	// Execute query with pagination
+	pseudonyms, err := queryBuilder.All(ctx, dao.db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search pseudonyms: %w", err)
+	}
+
+	log.Info().Int("result_count", len(pseudonyms)).Str("query", query).Int("page", page).Int("limit", limit).Msg("Search: Returning paginated results")
+
+	return pseudonyms, nil
+}
+
+// SearchPseudonymsPublic searches for active pseudonyms by display name, slug, or ID (public endpoint)
+func (dao *PseudonymDAO) SearchPseudonymsPublic(ctx context.Context, query string, page, limit int) ([]*models.Pseudonym, error) {
+	if query == "" {
+		return nil, fmt.Errorf("search query is required")
+	}
+
+	// Validate and set defaults for pagination
+	if page <= 0 {
+		page = 1
+	}
+	if limit <= 0 {
+		limit = 25
+	}
+
+	// Build database query with WHERE clauses for better performance
+	queryBuilder := models.Pseudonyms.Query(
+		sm.Where(models.PseudonymColumns.IsActive.EQ(psql.Arg(true))),
+		sm.Where(psql.Group(psql.Or(
+			models.PseudonymColumns.DisplayName.ILike(psql.Arg("%"+strings.ToLower(query)+"%")),
+			models.PseudonymColumns.Slug.ILike(psql.Arg("%"+strings.ToLower(query)+"%")),
+			models.PseudonymColumns.PseudonymID.ILike(psql.Arg("%"+strings.ToLower(query)+"%")),
+		))),
+		sm.Limit(limit),
+		sm.Offset((page-1)*limit),
+	)
+
+	// Execute query with pagination
+	pseudonyms, err := queryBuilder.All(ctx, dao.db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search pseudonyms: %w", err)
+	}
+
+	log.Info().Int("result_count", len(pseudonyms)).Str("query", query).Int("page", page).Int("limit", limit).Msg("Public Search: Returning paginated results")
+
+	return pseudonyms, nil
+}
+
+// CountSearchPseudonyms counts the total number of pseudonyms matching the search criteria
+func (dao *PseudonymDAO) CountSearchPseudonyms(ctx context.Context, query string) (int64, error) {
+	if query == "" {
+		return 0, fmt.Errorf("search query is required")
+	}
+
+	// Build database query with WHERE clauses for better performance
+	queryBuilder := models.Pseudonyms.Query(
+		sm.Where(psql.Group(psql.Or(
+			models.PseudonymColumns.DisplayName.ILike(psql.Arg("%"+strings.ToLower(query)+"%")),
+			models.PseudonymColumns.Slug.ILike(psql.Arg("%"+strings.ToLower(query)+"%")),
+			models.PseudonymColumns.PseudonymID.ILike(psql.Arg("%"+strings.ToLower(query)+"%")),
+		))),
+	)
+
+	// Execute count query
+	pseudonyms, err := queryBuilder.All(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count pseudonyms: %w", err)
+	}
+
+	total := int64(len(pseudonyms))
+	log.Info().Int64("total_matching_pseudonyms", total).Str("query", query).Msg("Search: Count completed")
+
+	return total, nil
+}
+
+// CountSearchPseudonymsPublic counts the total number of active pseudonyms matching the search criteria for public search
+func (dao *PseudonymDAO) CountSearchPseudonymsPublic(ctx context.Context, query string) (int64, error) {
+	if query == "" {
+		return 0, fmt.Errorf("search query is required")
+	}
+
+	// Build database query with WHERE clauses for better performance
+	queryBuilder := models.Pseudonyms.Query(
+		sm.Where(models.PseudonymColumns.IsActive.EQ(psql.Arg(true))),
+		sm.Where(psql.Group(psql.Or(
+			models.PseudonymColumns.DisplayName.ILike(psql.Arg("%"+strings.ToLower(query)+"%")),
+			models.PseudonymColumns.Slug.ILike(psql.Arg("%"+strings.ToLower(query)+"%")),
+			models.PseudonymColumns.PseudonymID.ILike(psql.Arg("%"+strings.ToLower(query)+"%")),
+		))),
+	)
+
+	// Execute count query
+	pseudonyms, err := queryBuilder.All(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count pseudonyms: %w", err)
+	}
+
+	total := int64(len(pseudonyms))
+	log.Info().Int64("total_matching_pseudonyms", total).Str("query", query).Msg("Public Search: Count completed")
+
+	return total, nil
+}

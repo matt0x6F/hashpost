@@ -242,6 +242,36 @@ func (mr *MockPseudonymDAOInterfaceMockRecorder) CalculateKarmaForPseudonym(ctx,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CalculateKarmaForPseudonym", reflect.TypeOf((*MockPseudonymDAOInterface)(nil).CalculateKarmaForPseudonym), ctx, pseudonymID)
 }
 
+// CountSearchPseudonyms mocks base method.
+func (m *MockPseudonymDAOInterface) CountSearchPseudonyms(ctx context.Context, query string) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountSearchPseudonyms", ctx, query)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountSearchPseudonyms indicates an expected call of CountSearchPseudonyms.
+func (mr *MockPseudonymDAOInterfaceMockRecorder) CountSearchPseudonyms(ctx, query any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountSearchPseudonyms", reflect.TypeOf((*MockPseudonymDAOInterface)(nil).CountSearchPseudonyms), ctx, query)
+}
+
+// CountSearchPseudonymsPublic mocks base method.
+func (m *MockPseudonymDAOInterface) CountSearchPseudonymsPublic(ctx context.Context, query string) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountSearchPseudonymsPublic", ctx, query)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountSearchPseudonymsPublic indicates an expected call of CountSearchPseudonymsPublic.
+func (mr *MockPseudonymDAOInterfaceMockRecorder) CountSearchPseudonymsPublic(ctx, query any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountSearchPseudonymsPublic", reflect.TypeOf((*MockPseudonymDAOInterface)(nil).CountSearchPseudonymsPublic), ctx, query)
+}
+
 // CreatePseudonymWithIdentityMapping mocks base method.
 func (m *MockPseudonymDAOInterface) CreatePseudonymWithIdentityMapping(ctx context.Context, userID int64, displayName string) (*models.Pseudonym, error) {
 	m.ctrl.T.Helper()
@@ -475,6 +505,36 @@ func (m *MockPseudonymDAOInterface) GetUserIDByPseudonym(ctx context.Context, ps
 func (mr *MockPseudonymDAOInterfaceMockRecorder) GetUserIDByPseudonym(ctx, pseudonymID, roleName, scope any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserIDByPseudonym", reflect.TypeOf((*MockPseudonymDAOInterface)(nil).GetUserIDByPseudonym), ctx, pseudonymID, roleName, scope)
+}
+
+// SearchPseudonyms mocks base method.
+func (m *MockPseudonymDAOInterface) SearchPseudonyms(ctx context.Context, query string, page, limit int) ([]*models.Pseudonym, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SearchPseudonyms", ctx, query, page, limit)
+	ret0, _ := ret[0].([]*models.Pseudonym)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SearchPseudonyms indicates an expected call of SearchPseudonyms.
+func (mr *MockPseudonymDAOInterfaceMockRecorder) SearchPseudonyms(ctx, query, page, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchPseudonyms", reflect.TypeOf((*MockPseudonymDAOInterface)(nil).SearchPseudonyms), ctx, query, page, limit)
+}
+
+// SearchPseudonymsPublic mocks base method.
+func (m *MockPseudonymDAOInterface) SearchPseudonymsPublic(ctx context.Context, query string, page, limit int) ([]*models.Pseudonym, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SearchPseudonymsPublic", ctx, query, page, limit)
+	ret0, _ := ret[0].([]*models.Pseudonym)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SearchPseudonymsPublic indicates an expected call of SearchPseudonymsPublic.
+func (mr *MockPseudonymDAOInterfaceMockRecorder) SearchPseudonymsPublic(ctx, query, page, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchPseudonymsPublic", reflect.TypeOf((*MockPseudonymDAOInterface)(nil).SearchPseudonymsPublic), ctx, query, page, limit)
 }
 
 // UpdateKarmaForPseudonym mocks base method.

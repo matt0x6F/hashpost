@@ -14,8 +14,6 @@ import (
 	"github.com/matt0x6f/hashpost/internal/ibe"
 	"github.com/rs/zerolog/log"
 	"github.com/stephenafamo/bob"
-	"github.com/stephenafamo/bob/dialect/psql"
-	"github.com/stephenafamo/bob/dialect/psql/sm"
 )
 
 // SearchHandler handles search requests
@@ -907,127 +905,26 @@ func (h *SearchHandler) PublicSearchPseudonyms(ctx context.Context, input *model
 
 // searchPseudonyms implements the actual search logic for pseudonyms
 func (h *SearchHandler) searchPseudonyms(ctx context.Context, input *models.SearchPseudonymsInput) ([]*dbmodels.Pseudonym, error) {
-	query := strings.ToLower(input.Query)
-
-	// Validate and set defaults for pagination
-	page := input.Page
-	if page <= 0 {
-		page = 1
-	}
-	limit := input.Limit
-	if limit <= 0 {
-		limit = 25
-	}
-
-	// Build database query with WHERE clauses for better performance
-	queryBuilder := dbmodels.Pseudonyms.Query(
-		sm.Where(psql.Group(psql.Or(
-			dbmodels.PseudonymColumns.DisplayName.ILike(psql.Arg("%"+query+"%")),
-			dbmodels.PseudonymColumns.Slug.ILike(psql.Arg("%"+query+"%")),
-			dbmodels.PseudonymColumns.PseudonymID.ILike(psql.Arg("%"+query+"%")),
-		))),
-		sm.Limit(limit),
-		sm.Offset((page-1)*limit),
-	)
-
-	// Execute query with pagination
-	pseudonyms, err := queryBuilder.All(ctx, h.db)
-	if err != nil {
-		return nil, fmt.Errorf("failed to search pseudonyms: %w", err)
-	}
-
-	log.Info().Int("result_count", len(pseudonyms)).Str("query", query).Int("page", page).Int("limit", limit).Msg("Search: Returning paginated results")
-
-	return pseudonyms, nil
+	// Use DAO method instead of direct database access
+	return h.pseudonymDAO.SearchPseudonyms(ctx, input.Query, input.Page, input.Limit)
 }
 
 // searchPseudonymsPublic implements the actual search logic for public pseudonym search
 func (h *SearchHandler) searchPseudonymsPublic(ctx context.Context, input *models.PublicSearchPseudonymsInput) ([]*dbmodels.Pseudonym, error) {
-	query := strings.ToLower(input.Query)
-
-	// Validate and set defaults for pagination
-	page := input.Page
-	if page <= 0 {
-		page = 1
-	}
-	limit := input.Limit
-	if limit <= 0 {
-		limit = 25
-	}
-
-	// Build database query with WHERE clauses for better performance
-	queryBuilder := dbmodels.Pseudonyms.Query(
-		sm.Where(dbmodels.PseudonymColumns.IsActive.EQ(psql.Arg(true))),
-		sm.Where(psql.Group(psql.Or(
-			dbmodels.PseudonymColumns.DisplayName.ILike(psql.Arg("%"+query+"%")),
-			dbmodels.PseudonymColumns.Slug.ILike(psql.Arg("%"+query+"%")),
-			dbmodels.PseudonymColumns.PseudonymID.ILike(psql.Arg("%"+query+"%")),
-		))),
-		sm.Limit(limit),
-		sm.Offset((page-1)*limit),
-	)
-
-	// Execute query with pagination
-	pseudonyms, err := queryBuilder.All(ctx, h.db)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to search pseudonyms: %w", err)
-	}
-
-	log.Info().Int("result_count", len(pseudonyms)).Str("query", query).Int("page", page).Int("limit", limit).Msg("Public Search: Returning paginated results")
-
-	return pseudonyms, nil
+	// Use DAO method instead of direct database access
+	return h.pseudonymDAO.SearchPseudonymsPublic(ctx, input.Query, input.Page, input.Limit)
 }
 
 // countSearchPseudonyms counts the total number of pseudonyms matching the search criteria
 func (h *SearchHandler) countSearchPseudonyms(ctx context.Context, input *models.SearchPseudonymsInput) (int64, error) {
-	query := strings.ToLower(input.Query)
-
-	// Build database query with WHERE clauses for better performance
-	queryBuilder := dbmodels.Pseudonyms.Query(
-		sm.Where(psql.Group(psql.Or(
-			dbmodels.PseudonymColumns.DisplayName.ILike(psql.Arg("%"+query+"%")),
-			dbmodels.PseudonymColumns.Slug.ILike(psql.Arg("%"+query+"%")),
-			dbmodels.PseudonymColumns.PseudonymID.ILike(psql.Arg("%"+query+"%")),
-		))),
-	)
-
-	// Execute count query
-	pseudonyms, err := queryBuilder.All(ctx, h.db)
-	if err != nil {
-		return 0, fmt.Errorf("failed to count pseudonyms: %w", err)
-	}
-
-	total := int64(len(pseudonyms))
-	log.Info().Int64("total_matching_pseudonyms", total).Str("query", query).Msg("Search: Count completed")
-
-	return total, nil
+	// Use DAO method instead of direct database access
+	return h.pseudonymDAO.CountSearchPseudonyms(ctx, input.Query)
 }
 
 // countSearchPseudonymsPublic counts the total number of pseudonyms matching the search criteria for public search
 func (h *SearchHandler) countSearchPseudonymsPublic(ctx context.Context, input *models.PublicSearchPseudonymsInput) (int64, error) {
-	query := strings.ToLower(input.Query)
-
-	// Build database query with WHERE clauses for better performance
-	queryBuilder := dbmodels.Pseudonyms.Query(
-		sm.Where(dbmodels.PseudonymColumns.IsActive.EQ(psql.Arg(true))),
-		sm.Where(psql.Group(psql.Or(
-			dbmodels.PseudonymColumns.DisplayName.ILike(psql.Arg("%"+query+"%")),
-			dbmodels.PseudonymColumns.Slug.ILike(psql.Arg("%"+query+"%")),
-			dbmodels.PseudonymColumns.PseudonymID.ILike(psql.Arg("%"+query+"%")),
-		))),
-	)
-
-	// Execute count query
-	pseudonyms, err := queryBuilder.All(ctx, h.db)
-	if err != nil {
-		return 0, fmt.Errorf("failed to count pseudonyms: %w", err)
-	}
-
-	total := int64(len(pseudonyms))
-	log.Info().Int64("total_matching_pseudonyms", total).Str("query", query).Msg("Public Search: Count completed")
-
-	return total, nil
+	// Use DAO method instead of direct database access
+	return h.pseudonymDAO.CountSearchPseudonymsPublic(ctx, input.Query)
 }
 
 // calculateKarmaScore calculates the karma score for a user
