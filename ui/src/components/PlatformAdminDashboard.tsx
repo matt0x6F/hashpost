@@ -17,7 +17,8 @@ import {
   Key,
   Activity
 } from "lucide-react";
-import { UserManagementTab } from "./admin/UserManagementTab";
+import { UserListTab } from "./admin/UserListTab";
+import { PseudonymListTab } from "./admin/PseudonymListTab";
 import { ContentModerationTab } from "./admin/ContentModerationTab";
 import { SystemSettingsTab } from "./admin/SystemSettingsTab";
 import { AnalyticsTab } from "./admin/AnalyticsTab";
@@ -123,10 +124,14 @@ export function PlatformAdminDashboard() {
 
       {/* Main Admin Interface */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="users" disabled={!hasUserManagement}>
             <Users className="h-4 w-4 mr-2" />
             Users
+          </TabsTrigger>
+          <TabsTrigger value="pseudonyms" disabled={!hasUserManagement}>
+            <Users className="h-4 w-4 mr-2" />
+            Pseudonyms
           </TabsTrigger>
           <TabsTrigger value="moderation" disabled={!hasModeration}>
             <Shield className="h-4 w-4 mr-2" />
@@ -151,7 +156,11 @@ export function PlatformAdminDashboard() {
         </TabsList>
 
         <TabsContent value="users" className="space-y-4">
-          <UserManagementTab />
+          <UserListTab />
+        </TabsContent>
+
+        <TabsContent value="pseudonyms" className="space-y-4">
+          <PseudonymListTab />
         </TabsContent>
 
         <TabsContent value="moderation" className="space-y-4">

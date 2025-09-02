@@ -1184,6 +1184,24 @@ func (dao *PseudonymDAO) CountSearchPseudonyms(ctx context.Context, query string
 	return total, nil
 }
 
+// GetAllPseudonyms retrieves all pseudonyms from the database (admin only)
+func (dao *PseudonymDAO) GetAllPseudonyms(ctx context.Context) ([]*models.Pseudonym, error) {
+	// Build database query to get all pseudonyms
+	queryBuilder := models.Pseudonyms.Query(
+		sm.OrderBy("created_at DESC"), // Most recent first
+	)
+
+	// Execute query
+	pseudonyms, err := queryBuilder.All(ctx, dao.db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all pseudonyms: %w", err)
+	}
+
+	log.Info().Int("total_pseudonyms", len(pseudonyms)).Msg("Admin: Retrieved all pseudonyms")
+
+	return pseudonyms, nil
+}
+
 // CountSearchPseudonymsPublic counts the total number of active pseudonyms matching the search criteria for public search
 func (dao *PseudonymDAO) CountSearchPseudonymsPublic(ctx context.Context, query string) (int64, error) {
 	if query == "" {
@@ -1210,4 +1228,20 @@ func (dao *PseudonymDAO) CountSearchPseudonymsPublic(ctx context.Context, query 
 	log.Info().Int64("total_matching_pseudonyms", total).Str("query", query).Msg("Public Search: Count completed")
 
 	return total, nil
+}
+
+// CountAllPseudonyms counts the total number of pseudonyms in the database (admin only)
+func (dao *PseudonymDAO) CountAllPseudonyms(ctx context.Context) (int64, error) {
+	// Build database query to count all pseudonyms
+	queryBuilder := models.Pseudonyms.Query()
+
+	// Execute count query
+	count, err := queryBuilder.Count(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count pseudonyms: %w", err)
+	}
+
+	log.Info().Int64("total_pseudonyms", count).Msg("Admin: Counted all pseudonyms")
+
+	return count, nil
 }

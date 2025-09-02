@@ -42,6 +42,90 @@ components:
         - role
         - capabilities
       type: object
+    AdminPseudonymInfo:
+      additionalProperties: false
+      properties:
+        created_at:
+          examples:
+            - "2024-01-01T12:00:00Z"
+          type: string
+        display_name:
+          examples:
+            - JohnDoe
+          type: string
+        is_active:
+          examples:
+            - true
+          type: boolean
+        karma_score:
+          examples:
+            - 150
+          format: int64
+          type: integer
+        pseudonym_id:
+          examples:
+            - 354f5361a2af036b97f195e77bcaec8a
+          type: string
+        real_identity:
+          examples:
+            - user@example.com
+          type: string
+        slug:
+          examples:
+            - john-doe
+          type: string
+      required:
+        - pseudonym_id
+        - display_name
+        - karma_score
+        - is_active
+        - created_at
+        - real_identity
+      type: object
+    AdminUserInfo:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/AdminUserInfo.json
+          format: uri
+          readOnly: true
+          type: string
+        created_at:
+          examples:
+            - "2024-01-01T12:00:00Z"
+          type: string
+        email:
+          examples:
+            - user@example.com
+          type: string
+        is_active:
+          examples:
+            - true
+          type: boolean
+        is_suspended:
+          examples:
+            - false
+          type: boolean
+        pseudonym_count:
+          examples:
+            - 2
+          format: int64
+          type: integer
+        user_id:
+          examples:
+            - 123
+          format: int64
+          type: integer
+      required:
+        - user_id
+        - email
+        - created_at
+        - is_active
+        - is_suspended
+        - pseudonym_count
+      type: object
     Author:
       additionalProperties: false
       properties:
@@ -1736,6 +1820,50 @@ components:
         - display_name
         - is_default
         - created_at
+      type: object
+    ListPseudonymsResponseBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/ListPseudonymsResponseBody.json
+          format: uri
+          readOnly: true
+          type: string
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+        pseudonyms:
+          items:
+            $ref: "#/components/schemas/AdminPseudonymInfo"
+          type:
+            - array
+            - "null"
+      required:
+        - pseudonyms
+        - pagination
+      type: object
+    ListUsersResponseBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/ListUsersResponseBody.json
+          format: uri
+          readOnly: true
+          type: string
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+        users:
+          items:
+            $ref: "#/components/schemas/AdminUserInfo"
+          type:
+            - array
+            - "null"
+      required:
+        - users
+        - pagination
       type: object
     MessageSummary:
       additionalProperties: false
@@ -5106,6 +5234,164 @@ info:
   version: 1.0.0
 openapi: 3.1.0
 paths:
+  /admin/pseudonyms:
+    get:
+      description: Retrieves a paginated list of all pseudonyms. Requires platform admin capability.
+      operationId: admin-list-pseudonyms
+      parameters:
+        - description: Bearer token for API authentication
+          in: header
+          name: Authorization
+          schema:
+            description: Bearer token for API authentication
+            type: string
+        - description: JWT access token from cookie
+          in: cookie
+          name: access_token
+          schema:
+            description: JWT access token from cookie
+            type: string
+        - example: 1
+          explode: false
+          in: query
+          name: page
+          schema:
+            examples:
+              - 1
+            format: int64
+            type: integer
+        - example: 25
+          explode: false
+          in: query
+          name: limit
+          schema:
+            examples:
+              - 25
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListPseudonymsResponseBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - jwt: []
+      summary: List all pseudonyms for admin purposes
+      tags:
+        - Admin
+  /admin/users:
+    get:
+      description: Retrieves a paginated list of all users. Requires platform admin capability. Pseudonym details are not included for privacy.
+      operationId: admin-list-users
+      parameters:
+        - description: Bearer token for API authentication
+          in: header
+          name: Authorization
+          schema:
+            description: Bearer token for API authentication
+            type: string
+        - description: JWT access token from cookie
+          in: cookie
+          name: access_token
+          schema:
+            description: JWT access token from cookie
+            type: string
+        - example: 1
+          explode: false
+          in: query
+          name: page
+          schema:
+            examples:
+              - 1
+            format: int64
+            type: integer
+        - example: 25
+          explode: false
+          in: query
+          name: limit
+          schema:
+            examples:
+              - 25
+            format: int64
+            type: integer
+        - example: user@example.com
+          explode: false
+          in: query
+          name: q
+          schema:
+            examples:
+              - user@example.com
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListUsersResponseBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - jwt: []
+      summary: List all users for admin purposes
+      tags:
+        - Admin
+  /admin/users/{user_id}:
+    get:
+      description: Retrieves detailed information about a specific user. Requires platform admin capability. Pseudonym details are not included for privacy.
+      operationId: admin-get-user
+      parameters:
+        - description: Bearer token for API authentication
+          in: header
+          name: Authorization
+          schema:
+            description: Bearer token for API authentication
+            type: string
+        - description: JWT access token from cookie
+          in: cookie
+          name: access_token
+          schema:
+            description: JWT access token from cookie
+            type: string
+        - example: 123
+          in: path
+          name: user_id
+          required: true
+          schema:
+            examples:
+              - 123
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserInfo"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - jwt: []
+      summary: Get specific user for admin purposes
+      tags:
+        - Admin
   /api/v1/messages/conversations:
     get:
       description: Retrieve a list of all encrypted conversations for the current user
