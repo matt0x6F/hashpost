@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -12,9 +11,7 @@ import (
 	"github.com/matt0x6f/hashpost/internal/api/middleware"
 	apimodels "github.com/matt0x6f/hashpost/internal/api/models"
 	"github.com/matt0x6f/hashpost/internal/database/dao"
-	dbmodels "github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/rs/zerolog/log"
-	"github.com/stephenafamo/bob"
 )
 
 // RulesHandler handles rule-related requests
@@ -24,7 +21,6 @@ type RulesHandler struct {
 	systemSettingsDAO dao.SystemSettingsDAOInterface
 	permissionDAO     dao.PermissionDAOInterface
 	pseudonymDAO      dao.PseudonymDAOInterface
-	db                bob.Executor
 }
 
 // NewRulesHandler creates a new rules handler
@@ -34,7 +30,6 @@ func NewRulesHandler(
 	systemSettingsDAO dao.SystemSettingsDAOInterface,
 	permissionDAO dao.PermissionDAOInterface,
 	pseudonymDAO dao.PseudonymDAOInterface,
-	db bob.Executor,
 ) *RulesHandler {
 	return &RulesHandler{
 		reportDAO:         reportDAO,
@@ -42,7 +37,6 @@ func NewRulesHandler(
 		systemSettingsDAO: systemSettingsDAO,
 		permissionDAO:     permissionDAO,
 		pseudonymDAO:      pseudonymDAO,
-		db:                db,
 	}
 }
 
@@ -519,38 +513,23 @@ func (h *RulesHandler) ReportRuleViolation(ctx context.Context, input *apimodels
 		return nil, huma.Error400BadRequest("invalid rule type")
 	}
 
-	// Create report in database
-	status := sql.Null[string]{V: "pending", Valid: true}
-	ruleCode := sql.Null[string]{V: input.Body.RuleCode, Valid: true}
-	ruleType := sql.Null[string]{V: input.Body.RuleType, Valid: true}
-
-	reportSetter := &dbmodels.ReportSetter{
-		ReporterPseudonymID: &userCtx.ActivePseudonymID,
-		ContentType:         &input.Body.ContentType,
-		ReportReason:        &input.Body.RuleCode, // Use rule code as reason
-		Status:              &status,
-		RuleCode:            &ruleCode,
-		RuleType:            &ruleType,
-		CreatedAt:           &sql.Null[time.Time]{V: time.Now(), Valid: true},
-	}
-
-	// Set content ID if provided
+	// Create report using the DAO method
+	var contentID *int64
 	if input.Body.ContentID != nil {
-		contentID := int64(*input.Body.ContentID)
-		reportSetter.ContentID = &sql.Null[int64]{V: contentID, Valid: true}
+		contentIDVal := int64(*input.Body.ContentID)
+		contentID = &contentIDVal
 	}
 
-	// Set reported pseudonym ID if provided
-	if input.Body.ReportedPseudonymID != "" {
-		reportSetter.ReportedPseudonymID = &sql.Null[string]{V: input.Body.ReportedPseudonymID, Valid: true}
-	}
-
-	// Set report details if provided
-	if input.Body.ReportDetails != "" {
-		reportSetter.ReportDetails = &sql.Null[string]{V: input.Body.ReportDetails, Valid: true}
-	}
-
-	report, err := h.reportDAO.CreateReport(ctx, reportSetter)
+	report, err := h.reportDAO.CreateRuleViolationReport(
+		ctx,
+		userCtx.ActivePseudonymID,
+		input.Body.ContentType,
+		input.Body.RuleCode,
+		input.Body.RuleType,
+		contentID,
+		input.Body.ReportedPseudonymID,
+		input.Body.ReportDetails,
+	)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to create rule violation report")
 		return nil, err
@@ -624,20 +603,8 @@ func (h *RulesHandler) ForwardReportToPlatform(ctx context.Context, input *apimo
 		return nil, huma.Error400BadRequest("report already forwarded to platform")
 	}
 
-	// Update report to mark as forwarded
-	forwardedToPlatform := sql.Null[bool]{V: true, Valid: true}
-	forwardingNotes := sql.Null[string]{V: input.Body.ForwardingNotes, Valid: true}
-	forwardedByUserID := sql.Null[int64]{V: userCtx.UserID, Valid: true}
-	forwardedAt := sql.Null[time.Time]{V: time.Now(), Valid: true}
-
-	updateSetter := &dbmodels.ReportSetter{
-		ForwardedToPlatform: &forwardedToPlatform,
-		ForwardingNotes:     &forwardingNotes,
-		ForwardedByUserID:   &forwardedByUserID,
-		ForwardedAt:         &forwardedAt,
-	}
-
-	if err := h.reportDAO.UpdateReport(ctx, int64(input.ReportID), updateSetter); err != nil {
+	// Update report to mark as forwarded using the DAO method
+	if err := h.reportDAO.UpdateReportWithForwarding(ctx, int64(input.ReportID), input.Body.ForwardingNotes, userCtx.UserID); err != nil {
 		log.Error().Err(err).Int("report_id", input.ReportID).Msg("Failed to update report")
 		return nil, fmt.Errorf("failed to forward report: %w", err)
 	}

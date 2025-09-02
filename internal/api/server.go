@@ -105,6 +105,7 @@ func NewServer(cfg *config.Config) *Server {
 	routes.RegisterRulesRoutes(api, db, pseudonymDAO)
 	routes.RegisterSystemSettingsRoutes(api, db, pseudonymDAO)
 	routes.RegisterContentRoutes(api, db, rawDB, ibeSystem, identityMappingDAO, userDAO)
+	routes.RegisterAdminRoutes(api, userDAO, pseudonymDAO, permissionDAO)
 	routes.RegisterCorrelationRoutes(api, db, ibeSystem, pseudonymDAO, identityMappingDAO, postDAO, commentDAO, subforumDAO)
 
 	return &Server{

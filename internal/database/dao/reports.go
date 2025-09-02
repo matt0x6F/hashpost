@@ -247,3 +247,62 @@ func (dao *ReportDAO) GetPendingReportsCount(ctx context.Context, subforumPath s
 
 	return int(postReportsCount + commentReportsCount), nil
 }
+
+// UpdateReportWithForwarding updates a report with forwarding information
+func (dao *ReportDAO) UpdateReportWithForwarding(ctx context.Context, reportID int64, forwardingNotes string, forwardedByUserID int64) error {
+	log.Debug().
+		Int64("report_id", reportID).
+		Str("forwarding_notes", forwardingNotes).
+		Int64("forwarded_by_user_id", forwardedByUserID).
+		Msg("Updating report with forwarding information")
+
+	// Create update setter with forwarding fields
+	updateSetter := &models.ReportSetter{
+		ForwardedToPlatform: &sql.Null[bool]{V: true, Valid: true},
+		ForwardingNotes:     &sql.Null[string]{V: forwardingNotes, Valid: true},
+		ForwardedByUserID:   &sql.Null[int64]{V: forwardedByUserID, Valid: true},
+		ForwardedAt:         &sql.Null[time.Time]{V: time.Now(), Valid: true},
+	}
+
+	// Use the existing UpdateReport method
+	return dao.UpdateReport(ctx, reportID, updateSetter)
+}
+
+// CreateRuleViolationReport creates a report for a rule violation
+func (dao *ReportDAO) CreateRuleViolationReport(ctx context.Context, reporterPseudonymID, contentType, ruleCode, ruleType string, contentID *int64, reportedPseudonymID, reportDetails string) (*models.Report, error) {
+	log.Debug().
+		Str("reporter_pseudonymID", reporterPseudonymID).
+		Str("content_type", contentType).
+		Str("rule_code", ruleCode).
+		Str("rule_type", ruleType).
+		Msg("Creating rule violation report")
+
+	// Create report setter with rule violation information
+	reportSetter := &models.ReportSetter{
+		ReporterPseudonymID: &reporterPseudonymID,
+		ContentType:         &contentType,
+		ReportReason:        &ruleCode, // Use rule code as reason
+		Status:              &sql.Null[string]{V: "pending", Valid: true},
+		RuleCode:            &sql.Null[string]{V: ruleCode, Valid: true},
+		RuleType:            &sql.Null[string]{V: ruleType, Valid: true},
+		CreatedAt:           &sql.Null[time.Time]{V: time.Now(), Valid: true},
+	}
+
+	// Set content ID if provided
+	if contentID != nil {
+		reportSetter.ContentID = &sql.Null[int64]{V: *contentID, Valid: true}
+	}
+
+	// Set reported pseudonym ID if provided
+	if reportedPseudonymID != "" {
+		reportSetter.ReportedPseudonymID = &sql.Null[string]{V: reportedPseudonymID, Valid: true}
+	}
+
+	// Set report details if provided
+	if reportDetails != "" {
+		reportSetter.ReportDetails = &sql.Null[string]{V: reportDetails, Valid: true}
+	}
+
+	// Use the existing CreateReport method
+	return dao.CreateReport(ctx, reportSetter)
+}

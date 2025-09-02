@@ -34,7 +34,7 @@ func TestNewRulesHandler(t *testing.T) {
 	mockPseudonymDAO := dao.NewMockPseudonymDAOInterface(ctrl)
 
 	// Create handler
-	handler := handlers.NewRulesHandler(mockReportDAO, mockSubforumDAO, mockSystemSettingsDAO, mockPermissionDAO, mockPseudonymDAO, nil)
+	handler := handlers.NewRulesHandler(mockReportDAO, mockSubforumDAO, mockSystemSettingsDAO, mockPermissionDAO, mockPseudonymDAO)
 
 	// Assertions
 	assert.NotNil(t, handler)
@@ -64,7 +64,7 @@ func TestRulesHandler_GetPlatformRules(t *testing.T) {
 			Times(1)
 
 		// Create handler
-		handler := handlers.NewRulesHandler(nil, nil, mockSystemSettingsDAO, nil, nil, nil)
+		handler := handlers.NewRulesHandler(nil, nil, mockSystemSettingsDAO, nil, nil)
 
 		// Test input
 		input := &apimodels.PlatformRulesInput{
@@ -94,7 +94,7 @@ func TestRulesHandler_GetPlatformRules(t *testing.T) {
 			Times(1)
 
 		// Create handler
-		handler := handlers.NewRulesHandler(nil, nil, mockSystemSettingsDAO, nil, nil, nil)
+		handler := handlers.NewRulesHandler(nil, nil, mockSystemSettingsDAO, nil, nil)
 
 		// Test input
 		input := &apimodels.PlatformRulesInput{}
@@ -128,7 +128,7 @@ func TestRulesHandler_GetPlatformRules(t *testing.T) {
 			Times(1)
 
 		// Create handler
-		handler := handlers.NewRulesHandler(nil, nil, mockSystemSettingsDAO, nil, nil, nil)
+		handler := handlers.NewRulesHandler(nil, nil, mockSystemSettingsDAO, nil, nil)
 
 		// Test input
 		input := &apimodels.PlatformRulesInput{
@@ -170,7 +170,7 @@ func TestRulesHandler_GetSubforumRules(t *testing.T) {
 			Times(1)
 
 		// Create handler
-		handler := handlers.NewRulesHandler(nil, mockSubforumDAO, nil, nil, nil, nil)
+		handler := handlers.NewRulesHandler(nil, mockSubforumDAO, nil, nil, nil)
 
 		// Test input
 		input := &apimodels.SubforumRulesInput{
@@ -202,7 +202,7 @@ func TestRulesHandler_GetSubforumRules(t *testing.T) {
 			Times(1)
 
 		// Create handler
-		handler := handlers.NewRulesHandler(nil, mockSubforumDAO, nil, nil, nil, nil)
+		handler := handlers.NewRulesHandler(nil, mockSubforumDAO, nil, nil, nil)
 
 		// Test input
 		input := &apimodels.SubforumRulesInput{
@@ -242,7 +242,7 @@ func TestRulesHandler_GetSubforumRules(t *testing.T) {
 			Times(1)
 
 		// Create handler
-		handler := handlers.NewRulesHandler(nil, mockSubforumDAO, nil, nil, nil, nil)
+		handler := handlers.NewRulesHandler(nil, mockSubforumDAO, nil, nil, nil)
 
 		// Test input
 		input := &apimodels.SubforumRulesInput{
@@ -310,7 +310,7 @@ func TestRulesHandler_CreateSubforumRule(t *testing.T) {
 			Times(1)
 
 		// Create handler
-		handler := handlers.NewRulesHandler(nil, mockSubforumDAO, nil, mockPermissionDAO, mockPseudonymDAO, nil)
+		handler := handlers.NewRulesHandler(nil, mockSubforumDAO, nil, mockPermissionDAO, mockPseudonymDAO)
 
 		// Set up proper authentication
 		userCtx := fixtures.CreateTestUserContext()
@@ -380,7 +380,7 @@ func TestRulesHandler_CreateSubforumRule(t *testing.T) {
 			Times(1)
 
 		// Create handler
-		handler := handlers.NewRulesHandler(nil, mockSubforumDAO, nil, mockPermissionDAO, mockPseudonymDAO, nil)
+		handler := handlers.NewRulesHandler(nil, mockSubforumDAO, nil, mockPermissionDAO, mockPseudonymDAO)
 
 		// Set up proper authentication
 		userCtx := fixtures.CreateTestUserContext()
@@ -463,7 +463,7 @@ func TestRulesHandler_UpdateSubforumRule(t *testing.T) {
 			Times(1)
 
 		// Create handler
-		handler := handlers.NewRulesHandler(nil, mockSubforumDAO, nil, mockPermissionDAO, mockPseudonymDAO, nil)
+		handler := handlers.NewRulesHandler(nil, mockSubforumDAO, nil, mockPermissionDAO, mockPseudonymDAO)
 
 		// Set up proper authentication
 		userCtx := fixtures.CreateTestUserContext()
@@ -531,7 +531,7 @@ func TestRulesHandler_UpdateSubforumRule(t *testing.T) {
 			Times(1)
 
 		// Create handler
-		handler := handlers.NewRulesHandler(nil, mockSubforumDAO, nil, mockPermissionDAO, mockPseudonymDAO, nil)
+		handler := handlers.NewRulesHandler(nil, mockSubforumDAO, nil, mockPermissionDAO, mockPseudonymDAO)
 
 		// Set up proper authentication
 		userCtx := fixtures.CreateTestUserContext()
@@ -610,7 +610,7 @@ func TestRulesHandler_DeleteSubforumRule(t *testing.T) {
 			Times(1)
 
 		// Create handler
-		handler := handlers.NewRulesHandler(nil, mockSubforumDAO, nil, mockPermissionDAO, mockPseudonymDAO, nil)
+		handler := handlers.NewRulesHandler(nil, mockSubforumDAO, nil, mockPermissionDAO, mockPseudonymDAO)
 
 		// Set up proper authentication
 		userCtx := fixtures.CreateTestUserContext()
@@ -673,7 +673,7 @@ func TestRulesHandler_DeleteSubforumRule(t *testing.T) {
 			Times(1)
 
 		// Create handler
-		handler := handlers.NewRulesHandler(nil, mockSubforumDAO, nil, mockPermissionDAO, mockPseudonymDAO, nil)
+		handler := handlers.NewRulesHandler(nil, mockSubforumDAO, nil, mockPermissionDAO, mockPseudonymDAO)
 
 		// Set up proper authentication
 		userCtx := fixtures.CreateTestUserContext()

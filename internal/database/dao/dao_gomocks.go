@@ -358,6 +358,21 @@ func (mr *MockPseudonymDAOInterfaceMockRecorder) GenerateSlugFromDisplayName(ctx
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateSlugFromDisplayName", reflect.TypeOf((*MockPseudonymDAOInterface)(nil).GenerateSlugFromDisplayName), ctx, displayName)
 }
 
+// GetAllPseudonyms mocks base method.
+func (m *MockPseudonymDAOInterface) GetAllPseudonyms(ctx context.Context) ([]*models.Pseudonym, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllPseudonyms", ctx)
+	ret0, _ := ret[0].([]*models.Pseudonym)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAllPseudonyms indicates an expected call of GetAllPseudonyms.
+func (mr *MockPseudonymDAOInterfaceMockRecorder) GetAllPseudonyms(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllPseudonyms", reflect.TypeOf((*MockPseudonymDAOInterface)(nil).GetAllPseudonyms), ctx)
+}
+
 // GetDefaultPseudonymByUserID mocks base method.
 func (m *MockPseudonymDAOInterface) GetDefaultPseudonymByUserID(ctx context.Context, userID int64, roleName, scope string) (*models.Pseudonym, error) {
 	m.ctrl.T.Helper()
@@ -2570,6 +2585,21 @@ func (mr *MockReportDAOInterfaceMockRecorder) CreateReport(ctx, report any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateReport", reflect.TypeOf((*MockReportDAOInterface)(nil).CreateReport), ctx, report)
 }
 
+// CreateRuleViolationReport mocks base method.
+func (m *MockReportDAOInterface) CreateRuleViolationReport(ctx context.Context, reporterPseudonymID, contentType, ruleCode, ruleType string, contentID *int64, reportedPseudonymID, reportDetails string) (*models.Report, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateRuleViolationReport", ctx, reporterPseudonymID, contentType, ruleCode, ruleType, contentID, reportedPseudonymID, reportDetails)
+	ret0, _ := ret[0].(*models.Report)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateRuleViolationReport indicates an expected call of CreateRuleViolationReport.
+func (mr *MockReportDAOInterfaceMockRecorder) CreateRuleViolationReport(ctx, reporterPseudonymID, contentType, ruleCode, ruleType, contentID, reportedPseudonymID, reportDetails any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateRuleViolationReport", reflect.TypeOf((*MockReportDAOInterface)(nil).CreateRuleViolationReport), ctx, reporterPseudonymID, contentType, ruleCode, ruleType, contentID, reportedPseudonymID, reportDetails)
+}
+
 // GetPendingReportsCount mocks base method.
 func (m *MockReportDAOInterface) GetPendingReportsCount(ctx context.Context, subforumPath string) (int, error) {
 	m.ctrl.T.Helper()
@@ -2641,6 +2671,20 @@ func (m *MockReportDAOInterface) UpdateReport(ctx context.Context, reportID int6
 func (mr *MockReportDAOInterfaceMockRecorder) UpdateReport(ctx, reportID, updates any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateReport", reflect.TypeOf((*MockReportDAOInterface)(nil).UpdateReport), ctx, reportID, updates)
+}
+
+// UpdateReportWithForwarding mocks base method.
+func (m *MockReportDAOInterface) UpdateReportWithForwarding(ctx context.Context, reportID int64, forwardingNotes string, forwardedByUserID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateReportWithForwarding", ctx, reportID, forwardingNotes, forwardedByUserID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateReportWithForwarding indicates an expected call of UpdateReportWithForwarding.
+func (mr *MockReportDAOInterfaceMockRecorder) UpdateReportWithForwarding(ctx, reportID, forwardingNotes, forwardedByUserID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateReportWithForwarding", reflect.TypeOf((*MockReportDAOInterface)(nil).UpdateReportWithForwarding), ctx, reportID, forwardingNotes, forwardedByUserID)
 }
 
 // MockSystemSettingsDAOInterface is a mock of SystemSettingsDAOInterface interface.

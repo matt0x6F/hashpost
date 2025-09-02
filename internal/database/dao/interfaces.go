@@ -49,6 +49,8 @@ type PseudonymDAOInterface interface {
 	SearchPseudonymsPublic(ctx context.Context, query string, page, limit int) ([]*models.Pseudonym, error)
 	CountSearchPseudonyms(ctx context.Context, query string) (int64, error)
 	CountSearchPseudonymsPublic(ctx context.Context, query string) (int64, error)
+	// Admin methods
+	GetAllPseudonyms(ctx context.Context) ([]*models.Pseudonym, error)
 	// Debug methods for troubleshooting IBE system issues
 	GetIBESystemSalt() string
 	GenerateFingerprintForEmail(email string) string
@@ -216,11 +218,13 @@ type CorrelationAuditDAOInterface interface {
 // ReportDAOInterface defines the interface for report data access operations
 type ReportDAOInterface interface {
 	CreateReport(ctx context.Context, report *models.ReportSetter) (*models.Report, error)
+	CreateRuleViolationReport(ctx context.Context, reporterPseudonymID, contentType, ruleCode, ruleType string, contentID *int64, reportedPseudonymID, reportDetails string) (*models.Report, error)
 	GetReportByID(ctx context.Context, reportID int64) (*models.Report, error)
 	GetReports(ctx context.Context, status string, page, limit int) ([]*models.Report, error)
 	CountReports(ctx context.Context, status string) (int64, error)
 	UpdateReport(ctx context.Context, reportID int64, updates *models.ReportSetter) error
 	ResolveReport(ctx context.Context, reportID int64, resolverUserID int64, resolverPseudonymID string, resolutionNotes string, action string) error
+	UpdateReportWithForwarding(ctx context.Context, reportID int64, forwardingNotes string, forwardedByUserID int64) error
 	// Moderation dashboard methods
 	GetPendingReportsCount(ctx context.Context, subforumPath string) (int, error)
 }
