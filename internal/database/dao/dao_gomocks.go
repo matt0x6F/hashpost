@@ -507,6 +507,21 @@ func (mr *MockPseudonymDAOInterfaceMockRecorder) GetPseudonymsByUserID(ctx, user
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPseudonymsByUserID", reflect.TypeOf((*MockPseudonymDAOInterface)(nil).GetPseudonymsByUserID), ctx, userID, activePseudonymID, roleName, scope)
 }
 
+// GetPseudonymsByUserIDDirect mocks base method.
+func (m *MockPseudonymDAOInterface) GetPseudonymsByUserIDDirect(ctx context.Context, userID int64) ([]*models.Pseudonym, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPseudonymsByUserIDDirect", ctx, userID)
+	ret0, _ := ret[0].([]*models.Pseudonym)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPseudonymsByUserIDDirect indicates an expected call of GetPseudonymsByUserIDDirect.
+func (mr *MockPseudonymDAOInterfaceMockRecorder) GetPseudonymsByUserIDDirect(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPseudonymsByUserIDDirect", reflect.TypeOf((*MockPseudonymDAOInterface)(nil).GetPseudonymsByUserIDDirect), ctx, userID)
+}
+
 // GetRealIdentityByPseudonym mocks base method.
 func (m *MockPseudonymDAOInterface) GetRealIdentityByPseudonym(ctx context.Context, pseudonymID, roleName, scope string) (string, error) {
 	m.ctrl.T.Helper()

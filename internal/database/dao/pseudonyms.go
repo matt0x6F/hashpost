@@ -253,6 +253,12 @@ func (dao *PseudonymDAO) GetPseudonymsByRealIdentityDirect(ctx context.Context, 
 	return dao.getPseudonymsByRealIdentity(ctx, realIdentity)
 }
 
+// GetPseudonymsByUserIDDirect retrieves all pseudonyms for a user ID without role-based access control
+// This method is intended for administrative operations where role verification is not necessary
+func (dao *PseudonymDAO) GetPseudonymsByUserIDDirect(ctx context.Context, userID int64) ([]*models.Pseudonym, error) {
+	return dao.getPseudonymsByUserID(ctx, userID)
+}
+
 // GetIBESystemSalt returns the current salt used by the IBE system for debugging purposes
 func (dao *PseudonymDAO) GetIBESystemSalt() string {
 	return dao.ibeSystem.GetSalt()
@@ -902,16 +908,40 @@ func (dao *PseudonymDAO) GetUserIDByPseudonym(ctx context.Context, pseudonymID, 
 	// Find the user by matching the fingerprint
 	// We need to iterate through users and generate fingerprints to find a match
 	// This is not ideal for performance, but it's the only way to maintain privacy
-	users, err := dao.userDAO.ListUsers(ctx, 1000, 0) // Get up to 1000 users, starting from 0
-	if err != nil {
-		return 0, fmt.Errorf("failed to list users: %w", err)
-	}
-
-	for _, user := range users {
-		userFingerprint := dao.GenerateFingerprintForEmail(user.Email)
-		if userFingerprint == fingerprint {
-			return user.UserID, nil
+	// Use pagination to handle large user bases
+	// 
+	// PERFORMANCE NOTE: This is O(n) where n is the number of users, which will not scale
+	// for large user bases. Consider implementing one of these alternatives:
+	// 1. Cache fingerprint-to-userID mappings (with appropriate security measures)
+	// 2. Use a different correlation approach that doesn't require reverse lookup
+	// 3. Implement a more efficient search mechanism
+	const pageSize = 1000
+	offset := 0
+	
+	for {
+		users, err := dao.userDAO.ListUsers(ctx, pageSize, offset)
+		if err != nil {
+			return 0, fmt.Errorf("failed to list users: %w", err)
 		}
+		
+		// If no users returned, we've reached the end
+		if len(users) == 0 {
+			break
+		}
+		
+		for _, user := range users {
+			userFingerprint := dao.GenerateFingerprintForEmail(user.Email)
+			if userFingerprint == fingerprint {
+				return user.UserID, nil
+			}
+		}
+		
+		// If we got fewer users than requested, we've reached the end
+		if len(users) < pageSize {
+			break
+		}
+		
+		offset += pageSize
 	}
 
 	return 0, fmt.Errorf("user not found for fingerprint")

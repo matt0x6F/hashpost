@@ -16,6 +16,9 @@ import { getApi } from '@/lib/api-client';
 import { AdminApi } from '@/generated/api/src/apis/AdminApi';
 import { AdminPseudonymDetail } from '@/generated/api/src/models/AdminPseudonymDetail';
 
+// Constants
+const ONE_YEAR_IN_MS = 365 * 24 * 60 * 60 * 1000;
+
 interface RoleKey {
   keyId: string;
   roleName: string;
@@ -60,7 +63,7 @@ export function PseudonymEditDialog({
     scope: '',
     capabilities: [] as string[],
     subforumId: undefined as number | undefined,
-    expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 1 year from now
+    expiresAt: new Date(Date.now() + ONE_YEAR_IN_MS).toISOString().split('T')[0], // 1 year from now
   });
 
   const adminApi = getApi(AdminApi);
@@ -218,7 +221,7 @@ export function PseudonymEditDialog({
       scope: '',
       capabilities: [],
       subforumId: undefined,
-      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      expiresAt: new Date(Date.now() + ONE_YEAR_IN_MS).toISOString().split('T')[0],
     });
 
     toast.success('Role key added (changes will be saved when you click Save)');

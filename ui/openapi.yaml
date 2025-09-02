@@ -1992,6 +1992,25 @@ components:
         - pseudonyms
         - pagination
       type: object
+    ListUserPseudonymsResponseBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/ListUserPseudonymsResponseBody.json
+          format: uri
+          readOnly: true
+          type: string
+        pseudonyms:
+          items:
+            $ref: "#/components/schemas/AdminPseudonymInfo"
+          type:
+            - array
+            - "null"
+      required:
+        - pseudonyms
+      type: object
     ListUsersResponseBody:
       additionalProperties: false
       properties:
@@ -5806,6 +5825,50 @@ paths:
       security:
         - jwt: []
       summary: Update specific user for admin purposes
+      tags:
+        - Admin
+  /admin/users/{user_id}/pseudonyms:
+    get:
+      description: Retrieves all pseudonyms for a specific user. Requires platform admin capability.
+      operationId: admin-list-user-pseudonyms
+      parameters:
+        - description: Bearer token for API authentication
+          in: header
+          name: Authorization
+          schema:
+            description: Bearer token for API authentication
+            type: string
+        - description: JWT access token from cookie
+          in: cookie
+          name: access_token
+          schema:
+            description: JWT access token from cookie
+            type: string
+        - example: 123
+          in: path
+          name: user_id
+          required: true
+          schema:
+            examples:
+              - 123
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListUserPseudonymsResponseBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - jwt: []
+      summary: List pseudonyms for specific user
       tags:
         - Admin
   /admin/users/{user_id}/trigger-password-reset:
