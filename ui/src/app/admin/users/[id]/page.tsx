@@ -28,7 +28,6 @@ import { getApi } from '@/lib/api-client';
 import { AdminApi } from '@/generated/api/src/apis/AdminApi';
 import { AdminUserInfo } from '@/generated/api/src/models/AdminUserInfo';
 import { UserEditDialog } from '@/components/admin/UserEditDialog';
-import PseudonymsList from '@/components/admin/PseudonymsList';
 
 export default function UserDetailPage() {
   const router = useRouter();
@@ -265,18 +264,7 @@ export default function UserDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Pseudonyms List */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Pseudonyms</CardTitle>
-            <CardDescription>
-              List of pseudonyms associated with this user
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <PseudonymsList userId={parseInt(userId)} />
-          </CardContent>
-        </Card>
+
 
         {/* User Edit Dialog */}
         <UserEditDialog
