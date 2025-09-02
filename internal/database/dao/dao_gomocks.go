@@ -242,6 +242,21 @@ func (mr *MockPseudonymDAOInterfaceMockRecorder) CalculateKarmaForPseudonym(ctx,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CalculateKarmaForPseudonym", reflect.TypeOf((*MockPseudonymDAOInterface)(nil).CalculateKarmaForPseudonym), ctx, pseudonymID)
 }
 
+// CountAllPseudonyms mocks base method.
+func (m *MockPseudonymDAOInterface) CountAllPseudonyms(ctx context.Context) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountAllPseudonyms", ctx)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountAllPseudonyms indicates an expected call of CountAllPseudonyms.
+func (mr *MockPseudonymDAOInterfaceMockRecorder) CountAllPseudonyms(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountAllPseudonyms", reflect.TypeOf((*MockPseudonymDAOInterface)(nil).CountAllPseudonyms), ctx)
+}
+
 // CountSearchPseudonyms mocks base method.
 func (m *MockPseudonymDAOInterface) CountSearchPseudonyms(ctx context.Context, query string) (int64, error) {
 	m.ctrl.T.Helper()

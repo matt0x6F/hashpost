@@ -51,6 +51,7 @@ type PseudonymDAOInterface interface {
 	CountSearchPseudonymsPublic(ctx context.Context, query string) (int64, error)
 	// Admin methods
 	GetAllPseudonyms(ctx context.Context) ([]*models.Pseudonym, error)
+	CountAllPseudonyms(ctx context.Context) (int64, error)
 	// Debug methods for troubleshooting IBE system issues
 	GetIBESystemSalt() string
 	GenerateFingerprintForEmail(email string) string

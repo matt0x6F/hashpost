@@ -131,18 +131,26 @@ func (h *AdminHandler) ListUsers(ctx context.Context, input *ListUsersInput) (*L
 		limit = 25
 	}
 
-	// Get all users from database (we'll filter in memory for search)
-	allUsers, err := h.userDAO.ListUsers(ctx, 10000, 0) // Get a large number to handle search
+	// Get total count of users for pagination
+	total, err := h.userDAO.CountUsers(ctx)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to count users from database")
+		return nil, fmt.Errorf("failed to count users: %w", err)
+	}
+
+	// Get users with proper pagination
+	users, err := h.userDAO.ListUsers(ctx, limit, (page-1)*limit)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to get users from database")
 		return nil, fmt.Errorf("failed to get users: %w", err)
 	}
 
-	// Filter users by search query if provided
-	var filteredUsers []*dbmodels.User
+	// If search query is provided, filter the results in memory
+	// This is a temporary solution - ideally we'd implement database-level search
 	if input.Query != "" {
+		var filteredUsers []*dbmodels.User
 		query := input.Query
-		for _, user := range allUsers {
+		for _, user := range users {
 			// Search by user ID (convert to string for comparison)
 			if fmt.Sprintf("%d", user.UserID) == query {
 				filteredUsers = append(filteredUsers, user)
@@ -153,24 +161,9 @@ func (h *AdminHandler) ListUsers(ctx context.Context, input *ListUsersInput) (*L
 				filteredUsers = append(filteredUsers, user)
 			}
 		}
-	} else {
-		filteredUsers = allUsers
-	}
-
-	// Handle pagination
-	total := int64(len(filteredUsers))
-	start := (page - 1) * limit
-	end := start + limit
-	if end > len(filteredUsers) {
-		end = len(filteredUsers)
-	}
-	if start >= len(filteredUsers) {
-		start = len(filteredUsers)
-	}
-
-	var users []*dbmodels.User
-	if start < len(filteredUsers) {
-		users = filteredUsers[start:end]
+		users = filteredUsers
+		// Update total count for filtered results
+		total = int64(len(users))
 	}
 
 	// Convert database users to API users
@@ -441,9 +434,16 @@ func (h *AdminHandler) ListPseudonyms(ctx context.Context, input *ListPseudonyms
 		limit = 25
 	}
 
-	// Get pseudonyms from database using direct query
-	// We'll use a simple approach: get all pseudonyms and handle pagination in memory
-	// In production, you might want to add a dedicated ListAllPseudonyms method to the DAO
+	// Get total count of pseudonyms for pagination
+	total, err := h.pseudonymDAO.CountAllPseudonyms(ctx)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to count pseudonyms from database")
+		return nil, fmt.Errorf("failed to count pseudonyms: %w", err)
+	}
+
+	// Get pseudonyms with proper pagination
+	// For now, we'll get all and paginate in memory, but this should be improved
+	// with a dedicated paginated method in the DAO
 	allPseudonyms, err := h.pseudonymDAO.GetAllPseudonyms(ctx)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to get pseudonyms from database")
@@ -451,7 +451,6 @@ func (h *AdminHandler) ListPseudonyms(ctx context.Context, input *ListPseudonyms
 	}
 
 	// Handle pagination in memory
-	total := int64(len(allPseudonyms))
 	start := (page - 1) * limit
 	end := start + limit
 	if end > len(allPseudonyms) {
@@ -519,4 +518,9 @@ func (h *AdminHandler) ListPseudonyms(ctx context.Context, input *ListPseudonyms
 	completionLog.Msg("Admin pseudonym list completed")
 
 	return response, nil
+}
+
+// containsIgnoreCase performs case-insensitive string containment check
+func containsIgnoreCase(s, substr string) bool {
+	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 }

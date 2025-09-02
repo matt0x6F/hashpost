@@ -13,6 +13,7 @@ import { getApi } from "@/lib/api-client";
 import { AdminApi } from "@/generated/api/src/apis/AdminApi";
 import { AdminUserInfo } from "@/generated/api/src/models/AdminUserInfo";
 import { toast } from "sonner";
+import { DEFAULT_PAGE_SIZE } from "@/lib/constants";
 
 export function UserListTab() {
   const router = useRouter();
@@ -64,7 +65,7 @@ export function UserListTab() {
     setIsUserListLoading(true);
     try {
       const api = getApi(AdminApi);
-      const response = await api.adminListUsers(undefined, undefined, currentPage, 25, userSearchQuery || undefined);
+      const response = await api.adminListUsers(undefined, undefined, currentPage, DEFAULT_PAGE_SIZE, userSearchQuery || undefined);
       
       if (response.users) {
         setUsers(response.users);

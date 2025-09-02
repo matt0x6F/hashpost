@@ -15,6 +15,7 @@ import { SearchApi } from "@/generated/api/src/apis/SearchApi";
 import { AdminPseudonymInfo } from "@/generated/api/src/models/AdminPseudonymInfo";
 import { SearchPseudonym } from "@/generated/api/src/models/SearchPseudonym";
 import { toast } from "sonner";
+import { DEFAULT_PAGE_SIZE } from "@/lib/constants";
 
 export function PseudonymListTab() {
   const router = useRouter();
@@ -80,7 +81,7 @@ export function PseudonymListTab() {
     setIsPseudonymsLoading(true);
     try {
       const api = getApi(AdminApi);
-      const response = await api.adminListPseudonyms(undefined, undefined, pseudonymsPage, 25);
+      const response = await api.adminListPseudonyms(undefined, undefined, pseudonymsPage, DEFAULT_PAGE_SIZE);
       
       if (response.pseudonyms) {
         setAllPseudonyms(response.pseudonyms);
@@ -276,7 +277,7 @@ export function PseudonymListTab() {
                   {displayPseudonyms.map((pseudonym) => {
                     // Handle both SearchPseudonym and AdminPseudonymInfo types
                     const isSearchResult = 'pseudonymId' in pseudonym && typeof pseudonym.pseudonymId === 'string';
-                    const isAdminResult = 'pseudonymId' in pseudonym && typeof pseudonym.pseudonymId === 'string';
+                    const isAdminResult = 'pseudonymId' in pseudonym && typeof pseudonym.pseudonymId === 'string' && 'displayName' in pseudonym;
                     
                     if (isSearchResult || isAdminResult) {
                       const adminPseudonym = pseudonym as AdminPseudonymInfo;

@@ -1229,3 +1229,19 @@ func (dao *PseudonymDAO) CountSearchPseudonymsPublic(ctx context.Context, query 
 
 	return total, nil
 }
+
+// CountAllPseudonyms counts the total number of pseudonyms in the database (admin only)
+func (dao *PseudonymDAO) CountAllPseudonyms(ctx context.Context) (int64, error) {
+	// Build database query to count all pseudonyms
+	queryBuilder := models.Pseudonyms.Query()
+
+	// Execute count query
+	count, err := queryBuilder.Count(ctx, dao.db)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count pseudonyms: %w", err)
+	}
+
+	log.Info().Int64("total_pseudonyms", count).Msg("Admin: Counted all pseudonyms")
+
+	return count, nil
+}
