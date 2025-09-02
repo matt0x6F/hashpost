@@ -136,7 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       capabilities: userData.capabilities || [],
       activePseudonymId: isLoginResponse ? userData.activePseudonymId : userData.pseudonymId,
       displayName: userData.displayName,
-      pseudonyms: isLoginResponse ? userData.pseudonyms : [{
+      pseudonyms: isLoginResponse ? (userData.pseudonyms || []) : [{
         pseudonymId: userData.pseudonymId,
         displayName: userData.displayName,
         karmaScore: userData.karmaScore || 0,
@@ -169,7 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             ...normalizedUser,
             roles: fullUserData.roles || normalizedUser.roles,
             capabilities: fullUserData.capabilities || normalizedUser.capabilities,
-            activePseudonymId: fullUserData.activePseudonymID || normalizedUser.activePseudonymId,
+            activePseudonymId: fullUserData.activePseudonymId || normalizedUser.activePseudonymId,
             displayName: fullUserData.displayName || normalizedUser.displayName,
             pseudonyms: fullUserData.pseudonyms || normalizedUser.pseudonyms,
           };
@@ -215,7 +215,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             ...user,
             roles: authResult.roles || user.roles,
             capabilities: authResult.capabilities || user.capabilities,
-            activePseudonymId: authResult.activePseudonymID || user.activePseudonymId,
+            activePseudonymId: authResult.activePseudonymId || user.activePseudonymId,
             displayName: authResult.displayName || user.displayName,
             pseudonyms: authResult.pseudonyms || user.pseudonyms,
             accessToken: user.accessToken, // Keep existing tokens

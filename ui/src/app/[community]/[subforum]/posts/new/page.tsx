@@ -47,7 +47,7 @@ export default function NewPostPage() {
     try {
       const userData = await authenticateUserForSubforum(fullSubforumPath);
       if (userData) {
-        const hasModerateContentCapability = userData.capabilities?.includes('moderate_content');
+        const hasModerateContentCapability = userData.capabilities?.includes('moderate_content') ?? false;
         setIsModerator(hasModerateContentCapability);
       }
     } catch (error) {

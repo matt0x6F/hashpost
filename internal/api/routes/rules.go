@@ -17,7 +17,7 @@ func RegisterRulesRoutes(api huma.API, db bob.Executor, pseudonymDAO dao.Pseudon
 	systemSettingsDAO := dao.NewSystemSettingsDAO(db)
 	permissionDAO := dao.NewPermissionDAO(db)
 
-	rulesHandler := handlers.NewRulesHandler(reportsDAO, subforumDAO, systemSettingsDAO, permissionDAO, pseudonymDAO, db)
+	rulesHandler := handlers.NewRulesHandler(reportsDAO, subforumDAO, systemSettingsDAO, permissionDAO, pseudonymDAO)
 
 	// Platform rules routes
 	huma.Register(api, huma.Operation{
