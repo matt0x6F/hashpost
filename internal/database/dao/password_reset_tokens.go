@@ -10,15 +10,6 @@ import (
 	"github.com/stephenafamo/bob"
 )
 
-// PasswordResetTokenDAOInterface defines the interface for password reset token operations
-type PasswordResetTokenDAOInterface interface {
-	CreateToken(ctx context.Context, userID int64, token string, expiresAt time.Time) error
-	GetToken(ctx context.Context, token string) (*models.PasswordResetToken, error)
-	MarkTokenAsUsed(ctx context.Context, token string) error
-	DeleteExpiredTokens(ctx context.Context) error
-	DeleteTokensByUserID(ctx context.Context, userID int64) error
-}
-
 // PasswordResetTokenDAO implements PasswordResetTokenDAOInterface
 type PasswordResetTokenDAO struct {
 	db bob.Executor

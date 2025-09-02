@@ -4,11 +4,9 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/shadcn/card";
 import { Button } from "@/components/shadcn/button";
-import { Input } from "@/components/shadcn/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/shadcn/table";
 import { Badge } from "@/components/shadcn/badge";
-import { Label } from "@/components/shadcn/label";
-import { Users, Search, Eye } from "lucide-react";
+import { Users, Eye } from "lucide-react";
 import { getApi } from "@/lib/api-client";
 import { AdminApi } from "@/generated/api/src/apis/AdminApi";
 import { AdminUserInfo } from "@/generated/api/src/models/AdminUserInfo";
@@ -25,20 +23,9 @@ export function UserListTab() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalUsers, setTotalUsers] = useState(0);
-  const [userSearchQuery, setUserSearchQuery] = useState("");
   
   // Restore state from URL params
   useEffect(() => {
-    const userQueryFromUrl = searchParams.get('userQuery');
-    if (userQueryFromUrl && userQueryFromUrl !== userSearchQuery) {
-      setUserSearchQuery(userQueryFromUrl);
-    }
-
-    const returnUserQueryFromUrl = searchParams.get('returnUserQuery');
-    if (returnUserQueryFromUrl && returnUserQueryFromUrl !== userSearchQuery) {
-      setUserSearchQuery(returnUserQueryFromUrl);
-    }
-
     const pageFromUrl = searchParams.get('page');
     if (pageFromUrl) {
       const page = parseInt(pageFromUrl);
@@ -54,7 +41,7 @@ export function UserListTab() {
         setCurrentPage(page);
       }
     }
-  }, [searchParams, userSearchQuery]);
+  }, [searchParams]);
 
   // Load users on component mount and when page changes
   useEffect(() => {
@@ -65,7 +52,7 @@ export function UserListTab() {
     setIsUserListLoading(true);
     try {
       const api = getApi(AdminApi);
-      const response = await api.adminListUsers(undefined, undefined, currentPage, DEFAULT_PAGE_SIZE, userSearchQuery || undefined);
+      const response = await api.adminListUsers(undefined, undefined, currentPage, DEFAULT_PAGE_SIZE);
       
       if (response.users) {
         setUsers(response.users);
@@ -101,33 +88,15 @@ export function UserListTab() {
     }
   };
 
-  const handleUserSearch = async () => {
-    setCurrentPage(1); // Reset to first page when searching
-    updateUserSearchURL(userSearchQuery, 1);
-    await loadUsers();
-  };
-
-  const handleUserSearchClear = () => {
-    setUserSearchQuery("");
-    setCurrentPage(1);
-    updateUserSearchURL("", 1);
-    loadUsers();
-  };
-
-  const updateUserSearchURL = (query: string, page: number = 1) => {
+  const updateUserPageURL = (page: number = 1) => {
     const newSearchParams = new URLSearchParams(searchParams);
-    if (query.trim()) {
-      newSearchParams.set('userQuery', query);
-    } else {
-      newSearchParams.delete('userQuery');
-    }
     newSearchParams.set('page', page.toString());
     router.replace(`/admin?tab=users&${newSearchParams.toString()}`);
   };
 
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
-    updateUserSearchURL(userSearchQuery, newPage);
+    updateUserPageURL(newPage);
   };
 
   const formatDate = (dateString: string) => {
@@ -136,49 +105,6 @@ export function UserListTab() {
 
   return (
     <div className="space-y-6">
-      {/* Search Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Search className="h-5 w-5" />
-            Search Users
-          </CardTitle>
-          <CardDescription>
-            Search for users by ID or email address
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={(e) => { e.preventDefault(); handleUserSearch(); }} className="flex gap-2">
-            <div className="space-y-4 w-full">
-              <div>
-                <Label htmlFor="user-search" className="text-sm font-medium">
-                  Search for users by ID or email address
-                </Label>
-                <div className="mt-2 flex gap-2">
-                  <Input
-                    id="user-search"
-                    placeholder="Search by ID or email..."
-                    value={userSearchQuery}
-                    onChange={(e) => setUserSearchQuery(e.target.value)}
-                    className="flex-1"
-                  />
-                  <Button type="submit" disabled={isUserListLoading || !userSearchQuery.trim()}>
-                    {isUserListLoading ? "Searching..." : "Search"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleUserSearchClear}
-                  >
-                    Show All
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-
       {/* User List */}
       <Card>
         <CardHeader>
@@ -187,7 +113,7 @@ export function UserListTab() {
             User Management
           </CardTitle>
           <CardDescription>
-            {userSearchQuery.trim() ? `Search results for "${userSearchQuery}"` : 'Manage platform users and view account details'}
+            Manage platform users and view account details
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -199,7 +125,7 @@ export function UserListTab() {
             <>
               <div className="mb-4 flex items-center justify-between">
                 <div className="text-sm text-muted-foreground">
-                  {userSearchQuery.trim() ? `Found ${users.length} users` : `Total Users: ${totalUsers}`}
+                  Total Users: {totalUsers}
                 </div>
                 <div className="text-sm text-muted-foreground">
                   Page {currentPage} of {totalPages}
@@ -212,6 +138,7 @@ export function UserListTab() {
                     <TableHead>User ID</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Email Verified</TableHead>
                     <TableHead>Pseudonyms</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead>Actions</TableHead>
@@ -232,6 +159,11 @@ export function UserListTab() {
                         )}
                       </TableCell>
                       <TableCell>
+                        <Badge variant={user.emailVerified ? "default" : "destructive"}>
+                          {user.emailVerified ? "Verified" : "Not Verified"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
                         <Badge variant="outline">{user.pseudonymCount}</Badge>
                       </TableCell>
                       <TableCell>{formatDate(user.createdAt)}</TableCell>
@@ -240,7 +172,7 @@ export function UserListTab() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => router.push(`/admin/users/${user.userId}?returnTab=users&returnUserQuery=${encodeURIComponent(userSearchQuery)}&returnUserPage=${currentPage}`)}
+                            onClick={() => router.push(`/admin/users/${user.userId}?returnTab=users&returnUserPage=${currentPage}`)}
                             title="View user details"
                           >
                             <Eye className="h-4 w-4" />

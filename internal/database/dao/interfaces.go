@@ -79,6 +79,7 @@ type RoleKeyDAOInterface interface {
 	ListRoleKeysByPseudonym(ctx context.Context, pseudonymID string) ([]*models.RoleKey, error)
 	GetModeratorsForSubforum(ctx context.Context, subforumID int32) ([]*models.RoleKey, error)
 	DeactivateRoleKey(ctx context.Context, keyID string) error
+	ActivateRoleKey(ctx context.Context, keyID string) error
 	ValidateKeyCapability(ctx context.Context, pseudonymID string, scope, requiredCapability string, subforumID *int32) (bool, error)
 	GetKeyData(ctx context.Context, pseudonymID string, scope string, subforumID *int32) ([]byte, error)
 	// Platform-level operations that work with roles instead of pseudonyms
@@ -305,4 +306,13 @@ type KeyRotationMigrationDAOInterface interface {
 	GetStuckRecords(ctx context.Context, migrationID string, timeoutMinutes int) ([]*models.MigrationProgress, error)
 	ResetRecordStatus(ctx context.Context, migrationID, mappingID, status string) error
 	GetMigrationProgress(ctx context.Context, migrationID string) (*MigrationProgress, error)
+}
+
+// PasswordResetTokenDAOInterface defines the interface for password reset token operations
+type PasswordResetTokenDAOInterface interface {
+	CreateToken(ctx context.Context, userID int64, token string, expiresAt time.Time) error
+	GetToken(ctx context.Context, token string) (*models.PasswordResetToken, error)
+	MarkTokenAsUsed(ctx context.Context, token string) error
+	DeleteExpiredTokens(ctx context.Context) error
+	DeleteTokensByUserID(ctx context.Context, userID int64) error
 }

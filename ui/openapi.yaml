@@ -42,6 +42,101 @@ components:
         - role
         - capabilities
       type: object
+    AdminPseudonymDetail:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/AdminPseudonymDetail.json
+          format: uri
+          readOnly: true
+          type: string
+        allow_direct_messages:
+          examples:
+            - true
+          type: boolean
+        bio:
+          examples:
+            - A brief description of the user.
+          type: string
+        capabilities:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        comment_count:
+          examples:
+            - 5
+          format: int64
+          type: integer
+        created_at:
+          examples:
+            - "2024-01-01T12:00:00Z"
+          type: string
+        display_name:
+          examples:
+            - JohnDoe
+          type: string
+        is_active:
+          examples:
+            - true
+          type: boolean
+        karma_score:
+          examples:
+            - 150
+          format: int64
+          type: integer
+        post_count:
+          examples:
+            - 10
+          format: int64
+          type: integer
+        pseudonym_id:
+          examples:
+            - 354f5361a2af036b97f195e77bcaec8a
+          type: string
+        real_identity:
+          examples:
+            - user@example.com
+          type: string
+        role_keys:
+          items:
+            $ref: "#/components/schemas/AdminRoleKeyDetail"
+          type:
+            - array
+            - "null"
+        roles:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        show_karma:
+          examples:
+            - true
+          type: boolean
+        slug:
+          examples:
+            - john-doe
+          type: string
+        website_url:
+          examples:
+            - https://example.com
+          type: string
+      required:
+        - pseudonym_id
+        - display_name
+        - karma_score
+        - is_active
+        - created_at
+        - real_identity
+        - show_karma
+        - allow_direct_messages
+        - post_count
+        - comment_count
+      type: object
     AdminPseudonymInfo:
       additionalProperties: false
       properties:
@@ -82,6 +177,55 @@ components:
         - created_at
         - real_identity
       type: object
+    AdminRoleKeyDetail:
+      additionalProperties: false
+      properties:
+        capabilities:
+          examples:
+            - - moderate_content
+              - ban_users
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        expires_at:
+          examples:
+            - "2025-12-31T23:59:59Z"
+          type: string
+        is_active:
+          examples:
+            - true
+          type: boolean
+        key_id:
+          examples:
+            - 550e8400-e29b-41d4-a716-446655440000
+          type: string
+        role_name:
+          examples:
+            - moderator
+          type: string
+        scope:
+          examples:
+            - moderation
+          type: string
+        subforum_id:
+          examples:
+            - 123
+          format: int32
+          type: integer
+        subforum_name:
+          examples:
+            - General Discussion
+          type: string
+      required:
+        - key_id
+        - role_name
+        - scope
+        - capabilities
+        - expires_at
+        - is_active
+      type: object
     AdminUserInfo:
       additionalProperties: false
       properties:
@@ -100,6 +244,10 @@ components:
           examples:
             - user@example.com
           type: string
+        email_verified:
+          examples:
+            - true
+          type: boolean
         is_active:
           examples:
             - true
@@ -125,6 +273,7 @@ components:
         - is_active
         - is_suspended
         - pseudonym_count
+        - email_verified
       type: object
     Author:
       additionalProperties: false
@@ -3583,6 +3732,46 @@ components:
         - pseudonym_id
         - display_name
       type: object
+    RoleKeyUpdate:
+      additionalProperties: false
+      properties:
+        capabilities:
+          examples:
+            - - moderate_content
+              - ban_users
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        expires_at:
+          examples:
+            - "2025-12-31T23:59:59Z"
+          type: string
+        is_active:
+          examples:
+            - true
+          type: boolean
+        role_name:
+          examples:
+            - moderator
+          type: string
+        scope:
+          examples:
+            - moderation
+          type: string
+        subforum_id:
+          examples:
+            - 123
+          format: int32
+          type: integer
+      required:
+        - role_name
+        - scope
+        - capabilities
+        - expires_at
+        - is_active
+      type: object
     Rule:
       additionalProperties: false
       properties:
@@ -4564,6 +4753,23 @@ components:
         - access_token
         - expires_in
       type: object
+    TriggerPasswordResetResponseBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/TriggerPasswordResetResponseBody.json
+          format: uri
+          readOnly: true
+          type: string
+        message:
+          examples:
+            - Password reset email sent
+          type: string
+      required:
+        - message
+      type: object
     UnblockUserResponseBody:
       additionalProperties: false
       properties:
@@ -4623,6 +4829,76 @@ components:
         - role
         - capabilities
         - is_active
+      type: object
+    UpdatePseudonymInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/UpdatePseudonymInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        allow_direct_messages:
+          examples:
+            - true
+          type: boolean
+        bio:
+          examples:
+            - A brief description of the user.
+          type: string
+        display_name:
+          examples:
+            - JohnDoe
+          type: string
+        is_active:
+          examples:
+            - true
+          type: boolean
+        role_keys:
+          items:
+            $ref: "#/components/schemas/RoleKeyUpdate"
+          type: array
+        show_karma:
+          examples:
+            - true
+          type: boolean
+        slug:
+          examples:
+            - john-doe
+          type: string
+        website_url:
+          examples:
+            - https://example.com
+          type: string
+      type: object
+    UpdateUserInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/UpdateUserInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        email:
+          examples:
+            - newemail@example.com
+          type: string
+        email_verified:
+          examples:
+            - true
+          type: boolean
+        is_active:
+          examples:
+            - true
+          type: boolean
+        is_suspended:
+          examples:
+            - false
+          type: boolean
       type: object
     UserBanInputBody:
       additionalProperties: false
@@ -5287,6 +5563,97 @@ paths:
       summary: List all pseudonyms for admin purposes
       tags:
         - Admin
+  /admin/pseudonyms/{pseudonym_id}:
+    get:
+      description: Retrieves detailed information about a specific pseudonym. Requires platform admin capability.
+      operationId: admin-get-pseudonym
+      parameters:
+        - description: Bearer token for API authentication
+          in: header
+          name: Authorization
+          schema:
+            description: Bearer token for API authentication
+            type: string
+        - description: JWT access token from cookie
+          in: cookie
+          name: access_token
+          schema:
+            description: JWT access token from cookie
+            type: string
+        - example: 354f5361a2af036b97f195e77bcaec8a
+          in: path
+          name: pseudonym_id
+          required: true
+          schema:
+            examples:
+              - 354f5361a2af036b97f195e77bcaec8a
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminPseudonymDetail"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - jwt: []
+      summary: Get specific pseudonym for admin purposes
+      tags:
+        - Admin
+    patch:
+      description: Updates a specific pseudonym including roles and capabilities. Requires platform admin capability.
+      operationId: admin-update-pseudonym
+      parameters:
+        - description: Bearer token for API authentication
+          in: header
+          name: Authorization
+          schema:
+            description: Bearer token for API authentication
+            type: string
+        - description: JWT access token from cookie
+          in: cookie
+          name: access_token
+          schema:
+            description: JWT access token from cookie
+            type: string
+        - example: 354f5361a2af036b97f195e77bcaec8a
+          in: path
+          name: pseudonym_id
+          required: true
+          schema:
+            examples:
+              - 354f5361a2af036b97f195e77bcaec8a
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePseudonymInputBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminPseudonymDetail"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - jwt: []
+      summary: Update specific pseudonym for admin purposes
+      tags:
+        - Admin
   /admin/users:
     get:
       description: Retrieves a paginated list of all users. Requires platform admin capability. Pseudonym details are not included for privacy.
@@ -5390,6 +5757,99 @@ paths:
       security:
         - jwt: []
       summary: Get specific user for admin purposes
+      tags:
+        - Admin
+    put:
+      description: Updates user details. Requires platform admin capability. Password changes are not allowed through this endpoint.
+      operationId: admin-update-user
+      parameters:
+        - description: Bearer token for API authentication
+          in: header
+          name: Authorization
+          schema:
+            description: Bearer token for API authentication
+            type: string
+        - description: JWT access token from cookie
+          in: cookie
+          name: access_token
+          schema:
+            description: JWT access token from cookie
+            type: string
+        - example: 123
+          in: path
+          name: user_id
+          required: true
+          schema:
+            examples:
+              - 123
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserInputBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserInfo"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - jwt: []
+      summary: Update specific user for admin purposes
+      tags:
+        - Admin
+  /admin/users/{user_id}/trigger-password-reset:
+    post:
+      description: Triggers a password reset workflow for a user. Requires platform admin capability.
+      operationId: admin-trigger-password-reset
+      parameters:
+        - description: Bearer token for API authentication
+          in: header
+          name: Authorization
+          schema:
+            description: Bearer token for API authentication
+            type: string
+        - description: JWT access token from cookie
+          in: cookie
+          name: access_token
+          schema:
+            description: JWT access token from cookie
+            type: string
+        - example: 123
+          in: path
+          name: user_id
+          required: true
+          schema:
+            examples:
+              - 123
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TriggerPasswordResetResponseBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - jwt: []
+      summary: Trigger password reset for specific user
       tags:
         - Admin
   /api/v1/messages/conversations:

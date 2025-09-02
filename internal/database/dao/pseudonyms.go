@@ -893,22 +893,28 @@ func (dao *PseudonymDAO) GetUserIDByPseudonym(ctx context.Context, pseudonymID, 
 		return 0, fmt.Errorf("failed to get role key: %w", err)
 	}
 
-	// Use IBE decryption to get the real identity (email)
-	realIdentity, err := dao.getRealIdentityByPseudonymWithKey(ctx, pseudonymID, keyData)
+	// Use IBE decryption to get the fingerprint
+	fingerprint, err := dao.getRealIdentityByPseudonymWithKey(ctx, pseudonymID, keyData)
 	if err != nil {
-		return 0, fmt.Errorf("failed to get real identity by pseudonym: %w", err)
+		return 0, fmt.Errorf("failed to get fingerprint by pseudonym: %w", err)
 	}
 
-	// Get the user by email (real identity)
-	user, err := dao.userDAO.GetUserByEmail(ctx, realIdentity)
+	// Find the user by matching the fingerprint
+	// We need to iterate through users and generate fingerprints to find a match
+	// This is not ideal for performance, but it's the only way to maintain privacy
+	users, err := dao.userDAO.ListUsers(ctx, 1000, 0) // Get up to 1000 users, starting from 0
 	if err != nil {
-		return 0, fmt.Errorf("failed to get user by email: %w", err)
-	}
-	if user == nil {
-		return 0, fmt.Errorf("user not found for real identity")
+		return 0, fmt.Errorf("failed to list users: %w", err)
 	}
 
-	return user.UserID, nil
+	for _, user := range users {
+		userFingerprint := dao.GenerateFingerprintForEmail(user.Email)
+		if userFingerprint == fingerprint {
+			return user.UserID, nil
+		}
+	}
+
+	return 0, fmt.Errorf("user not found for fingerprint")
 }
 
 // ArePseudonymsOwnedBySameUser checks if two pseudonyms belong to the same user using IBE correlation
