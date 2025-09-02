@@ -805,6 +805,20 @@ func (m *MockRoleKeyDAOInterface) EXPECT() *MockRoleKeyDAOInterfaceMockRecorder 
 	return m.recorder
 }
 
+// ActivateRoleKey mocks base method.
+func (m *MockRoleKeyDAOInterface) ActivateRoleKey(ctx context.Context, keyID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ActivateRoleKey", ctx, keyID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ActivateRoleKey indicates an expected call of ActivateRoleKey.
+func (mr *MockRoleKeyDAOInterfaceMockRecorder) ActivateRoleKey(ctx, keyID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ActivateRoleKey", reflect.TypeOf((*MockRoleKeyDAOInterface)(nil).ActivateRoleKey), ctx, keyID)
+}
+
 // CreateRoleKey mocks base method.
 func (m *MockRoleKeyDAOInterface) CreateRoleKey(ctx context.Context, roleName, scope string, keyData []byte, capabilities []string, expiresAt time.Time, createdByPseudonymID, pseudonymID string, subforumID *int32) (*models.RoleKey, error) {
 	m.ctrl.T.Helper()
@@ -3585,4 +3599,99 @@ func (m *MockKeyRotationMigrationDAOInterface) UpdateMigrationStatus(ctx context
 func (mr *MockKeyRotationMigrationDAOInterfaceMockRecorder) UpdateMigrationStatus(ctx, migrationID, status any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMigrationStatus", reflect.TypeOf((*MockKeyRotationMigrationDAOInterface)(nil).UpdateMigrationStatus), ctx, migrationID, status)
+}
+
+// MockPasswordResetTokenDAOInterface is a mock of PasswordResetTokenDAOInterface interface.
+type MockPasswordResetTokenDAOInterface struct {
+	ctrl     *gomock.Controller
+	recorder *MockPasswordResetTokenDAOInterfaceMockRecorder
+	isgomock struct{}
+}
+
+// MockPasswordResetTokenDAOInterfaceMockRecorder is the mock recorder for MockPasswordResetTokenDAOInterface.
+type MockPasswordResetTokenDAOInterfaceMockRecorder struct {
+	mock *MockPasswordResetTokenDAOInterface
+}
+
+// NewMockPasswordResetTokenDAOInterface creates a new mock instance.
+func NewMockPasswordResetTokenDAOInterface(ctrl *gomock.Controller) *MockPasswordResetTokenDAOInterface {
+	mock := &MockPasswordResetTokenDAOInterface{ctrl: ctrl}
+	mock.recorder = &MockPasswordResetTokenDAOInterfaceMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockPasswordResetTokenDAOInterface) EXPECT() *MockPasswordResetTokenDAOInterfaceMockRecorder {
+	return m.recorder
+}
+
+// CreateToken mocks base method.
+func (m *MockPasswordResetTokenDAOInterface) CreateToken(ctx context.Context, userID int64, token string, expiresAt time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateToken", ctx, userID, token, expiresAt)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateToken indicates an expected call of CreateToken.
+func (mr *MockPasswordResetTokenDAOInterfaceMockRecorder) CreateToken(ctx, userID, token, expiresAt any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateToken", reflect.TypeOf((*MockPasswordResetTokenDAOInterface)(nil).CreateToken), ctx, userID, token, expiresAt)
+}
+
+// DeleteExpiredTokens mocks base method.
+func (m *MockPasswordResetTokenDAOInterface) DeleteExpiredTokens(ctx context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteExpiredTokens", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteExpiredTokens indicates an expected call of DeleteExpiredTokens.
+func (mr *MockPasswordResetTokenDAOInterfaceMockRecorder) DeleteExpiredTokens(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExpiredTokens", reflect.TypeOf((*MockPasswordResetTokenDAOInterface)(nil).DeleteExpiredTokens), ctx)
+}
+
+// DeleteTokensByUserID mocks base method.
+func (m *MockPasswordResetTokenDAOInterface) DeleteTokensByUserID(ctx context.Context, userID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteTokensByUserID", ctx, userID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteTokensByUserID indicates an expected call of DeleteTokensByUserID.
+func (mr *MockPasswordResetTokenDAOInterfaceMockRecorder) DeleteTokensByUserID(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTokensByUserID", reflect.TypeOf((*MockPasswordResetTokenDAOInterface)(nil).DeleteTokensByUserID), ctx, userID)
+}
+
+// GetToken mocks base method.
+func (m *MockPasswordResetTokenDAOInterface) GetToken(ctx context.Context, token string) (*models.PasswordResetToken, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetToken", ctx, token)
+	ret0, _ := ret[0].(*models.PasswordResetToken)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetToken indicates an expected call of GetToken.
+func (mr *MockPasswordResetTokenDAOInterfaceMockRecorder) GetToken(ctx, token any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetToken", reflect.TypeOf((*MockPasswordResetTokenDAOInterface)(nil).GetToken), ctx, token)
+}
+
+// MarkTokenAsUsed mocks base method.
+func (m *MockPasswordResetTokenDAOInterface) MarkTokenAsUsed(ctx context.Context, token string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkTokenAsUsed", ctx, token)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// MarkTokenAsUsed indicates an expected call of MarkTokenAsUsed.
+func (mr *MockPasswordResetTokenDAOInterfaceMockRecorder) MarkTokenAsUsed(ctx, token any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkTokenAsUsed", reflect.TypeOf((*MockPasswordResetTokenDAOInterface)(nil).MarkTokenAsUsed), ctx, token)
 }

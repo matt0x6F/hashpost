@@ -12,6 +12,7 @@ import (
 	"github.com/matt0x6f/hashpost/internal/database"
 	"github.com/matt0x6f/hashpost/internal/database/dao"
 	"github.com/matt0x6f/hashpost/internal/ibe"
+	"github.com/matt0x6f/hashpost/internal/services"
 	"github.com/rs/zerolog/log"
 )
 
@@ -105,7 +106,19 @@ func NewServer(cfg *config.Config) *Server {
 	routes.RegisterRulesRoutes(api, db, pseudonymDAO)
 	routes.RegisterSystemSettingsRoutes(api, db, pseudonymDAO)
 	routes.RegisterContentRoutes(api, db, rawDB, ibeSystem, identityMappingDAO, userDAO)
-	routes.RegisterAdminRoutes(api, userDAO, pseudonymDAO, permissionDAO)
+	// Create password reset token DAO and email service for admin routes
+	passwordResetTokenDAO := dao.NewPasswordResetTokenDAO(db)
+	var emailService *services.EmailService
+	if cfg.Email.Provider != "" {
+		var err error
+		emailService, err = services.NewEmailService(cfg)
+		if err != nil {
+			// Log error but continue without email service
+			log.Warn().Err(err).Msg("Failed to create email service for admin routes")
+		}
+	}
+
+	routes.RegisterAdminRoutes(api, userDAO, pseudonymDAO, permissionDAO, passwordResetTokenDAO, emailService, cfg, postDAO, commentDAO, roleKeyDAO, subforumDAO)
 	routes.RegisterCorrelationRoutes(api, db, ibeSystem, pseudonymDAO, identityMappingDAO, postDAO, commentDAO, subforumDAO)
 
 	return &Server{

@@ -27,6 +27,8 @@ import { toast } from 'sonner';
 import { getApi } from '@/lib/api-client';
 import { AdminApi } from '@/generated/api/src/apis/AdminApi';
 import { AdminUserInfo } from '@/generated/api/src/models/AdminUserInfo';
+import { UserEditDialog } from '@/components/admin/UserEditDialog';
+import PseudonymsList from '@/components/admin/PseudonymsList';
 
 export default function UserDetailPage() {
   const router = useRouter();
@@ -36,6 +38,10 @@ export default function UserDetailPage() {
   const [user, setUser] = useState<AdminUserInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [isPasswordResetLoading, setIsPasswordResetLoading] = useState(false);
+  
+
 
   useEffect(() => {
     if (userId) {
@@ -78,6 +84,26 @@ export default function UserDetailPage() {
 
   const handleBack = () => {
     router.push('/admin?tab=users');
+  };
+
+  const handleTriggerPasswordReset = async () => {
+    if (!user) return;
+    
+    setIsPasswordResetLoading(true);
+    try {
+      const api = getApi(AdminApi);
+      await api.adminTriggerPasswordReset(parseInt(userId));
+      toast.success("Password reset email sent successfully");
+    } catch (error: unknown) {
+      console.error('Failed to trigger password reset:', error);
+      toast.error("Failed to trigger password reset. Please try again.");
+    } finally {
+      setIsPasswordResetLoading(false);
+    }
+  };
+
+  const handleUserUpdated = (updatedUser: AdminUserInfo) => {
+    setUser(updatedUser);
   };
 
   const formatDate = (dateString: string) => {
@@ -139,6 +165,8 @@ export default function UserDetailPage() {
     );
   }
 
+
+
   return (
     <div className="container mx-auto py-6 max-w-7xl">
       {/* Header */}
@@ -190,6 +218,13 @@ export default function UserDetailPage() {
                   <span className="font-medium">Pseudonyms:</span>
                   <Badge variant="outline">{user.pseudonymCount}</Badge>
                 </div>
+                <div className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">Email Verified:</span>
+                  <Badge variant={user.emailVerified ? "default" : "destructive"}>
+                    {user.emailVerified ? "Verified" : "Not Verified"}
+                  </Badge>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -205,24 +240,51 @@ export default function UserDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowEditDialog(true)}
+              >
                 <Edit className="h-4 w-4 mr-2" />
                 Edit User
+              </Button>
+
+              <Button 
+                variant="outline" 
+                onClick={handleTriggerPasswordReset}
+                disabled={isPasswordResetLoading}
+              >
+                <Shield className="h-4 w-4 mr-2" />
+                {isPasswordResetLoading ? "Sending..." : "Trigger Password Reset"}
               </Button>
 
               <Button variant="outline">
                 <Eye className="h-4 w-4 mr-2" />
                 View Activity
               </Button>
-              <Button variant="outline">
-                <MoreHorizontal className="h-4 w-4 mr-2" />
-                More Actions
-              </Button>
             </div>
           </CardContent>
         </Card>
 
+        {/* Pseudonyms List */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Pseudonyms</CardTitle>
+            <CardDescription>
+              List of pseudonyms associated with this user
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <PseudonymsList userId={parseInt(userId)} />
+          </CardContent>
+        </Card>
 
+        {/* User Edit Dialog */}
+        <UserEditDialog
+          user={user}
+          open={showEditDialog}
+          onOpenChange={setShowEditDialog}
+          onUserUpdated={handleUserUpdated}
+        />
       </div>
     </div>
   );

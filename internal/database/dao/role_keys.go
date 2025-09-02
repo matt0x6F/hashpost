@@ -27,7 +27,7 @@ type RoleKeyDAO struct {
 // NewRoleKeyDAO creates a new RoleKeyDAO
 func NewRoleKeyDAO(db bob.Executor, ibeSystem *ibe.IBESystem) *RoleKeyDAO {
 	var system *ibe.IBESystem
-	
+
 	// If IBE system is provided, use it; otherwise create from environment
 	if ibeSystem != nil {
 		system = ibeSystem
@@ -198,6 +198,33 @@ func (dao *RoleKeyDAO) DeactivateRoleKey(ctx context.Context, keyID string) erro
 	return nil
 }
 
+// ActivateRoleKey activates a role key
+func (dao *RoleKeyDAO) ActivateRoleKey(ctx context.Context, keyID string) error {
+	// Convert string to UUID
+	uuid, err := uuid.FromString(keyID)
+	if err != nil {
+		return fmt.Errorf("invalid key ID format: %w", err)
+	}
+
+	roleKey, err := models.FindRoleKey(ctx, dao.db, uuid)
+	if err != nil {
+		return fmt.Errorf("failed to find role key %s: %w", keyID, err)
+	}
+
+	isActive := sql.Null[bool]{}
+	isActive.Scan(true)
+	setter := &models.RoleKeySetter{
+		IsActive: &isActive,
+	}
+
+	err = roleKey.Update(ctx, dao.db, setter)
+	if err != nil {
+		return fmt.Errorf("failed to activate role key %s: %w", keyID, err)
+	}
+
+	return nil
+}
+
 // ValidateKeyCapability checks if a role key has a specific capability
 func (dao *RoleKeyDAO) ValidateKeyCapability(ctx context.Context, pseudonymID string, scope, requiredCapability string, subforumID *int32) (bool, error) {
 	roleKey, err := dao.GetRoleKey(ctx, pseudonymID, scope, subforumID)
@@ -238,23 +265,46 @@ func (dao *RoleKeyDAO) GetKeyData(ctx context.Context, pseudonymID string, scope
 
 // GetPlatformKeyData retrieves the key data for a platform-level role key
 func (dao *RoleKeyDAO) GetPlatformKeyData(ctx context.Context, roleName, scope string) ([]byte, error) {
-	// For platform-level operations, we use the role name as the pseudonym ID
-	// This is a special case where the role itself acts as the key identifier
-	roleKey, err := dao.GetRoleKey(ctx, roleName, scope, nil)
+	// Find role keys by role name and scope (not by pseudonym ID)
+	roleKeys, err := models.RoleKeys.Query(
+		models.SelectWhere.RoleKeys.RoleName.EQ(roleName),
+		models.SelectWhere.RoleKeys.Scope.EQ(scope),
+		models.SelectWhere.RoleKeys.IsActive.EQ(true),
+		models.SelectWhere.RoleKeys.ExpiresAt.GT(time.Now()),
+	).All(ctx, dao.db)
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to get platform role key for role=%s scope=%s: %w", roleName, scope, err)
+		return nil, fmt.Errorf("failed to get platform role keys for role=%s scope=%s: %w", roleName, scope, err)
 	}
 
-	return roleKey.KeyData, nil
+	if len(roleKeys) == 0 {
+		return nil, fmt.Errorf("no active role keys found for role=%s scope=%s", roleName, scope)
+	}
+
+	// Return key data from any of the role keys (they should all have the same key data for the same role/scope)
+	return roleKeys[0].KeyData, nil
 }
 
 // ValidatePlatformKeyCapability validates if a platform-level role key has the required capability
 func (dao *RoleKeyDAO) ValidatePlatformKeyCapability(ctx context.Context, roleName, scope, requiredCapability string) (bool, error) {
-	// For platform-level operations, we use the role name as the pseudonym ID
-	roleKey, err := dao.GetRoleKey(ctx, roleName, scope, nil)
+	// Find role keys by role name and scope (not by pseudonym ID)
+	roleKeys, err := models.RoleKeys.Query(
+		models.SelectWhere.RoleKeys.RoleName.EQ(roleName),
+		models.SelectWhere.RoleKeys.Scope.EQ(scope),
+		models.SelectWhere.RoleKeys.IsActive.EQ(true),
+		models.SelectWhere.RoleKeys.ExpiresAt.GT(time.Now()),
+	).All(ctx, dao.db)
+
 	if err != nil {
-		return false, fmt.Errorf("failed to get platform role key for role=%s scope=%s: %w", roleName, scope, err)
+		return false, fmt.Errorf("failed to get platform role keys for role=%s scope=%s: %w", roleName, scope, err)
 	}
+
+	if len(roleKeys) == 0 {
+		return false, fmt.Errorf("no active role keys found for role=%s scope=%s", roleName, scope)
+	}
+
+	// Check capabilities from any of the role keys (they should all have the same capabilities for the same role/scope)
+	roleKey := roleKeys[0]
 
 	// Parse capabilities from JSON
 	var capabilities []string
