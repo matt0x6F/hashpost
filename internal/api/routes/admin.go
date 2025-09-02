@@ -58,6 +58,17 @@ func RegisterAdminRoutes(api huma.API, userDAO *dao.UserDAO, pseudonymDAO *dao.P
 		Security:    []map[string][]string{{"jwt": {}}},
 	}, adminHandler.TriggerPasswordReset)
 
+	// List pseudonyms for specific user (admin only)
+	huma.Register(api, huma.Operation{
+		OperationID: "admin-list-user-pseudonyms",
+		Method:      http.MethodGet,
+		Path:        "/admin/users/{user_id}/pseudonyms",
+		Summary:     "List pseudonyms for specific user",
+		Description: "Retrieves all pseudonyms for a specific user. Requires platform admin capability.",
+		Tags:        []string{"Admin"},
+		Security:    []map[string][]string{{"jwt": {}}},
+	}, adminHandler.ListUserPseudonyms)
+
 	// List all pseudonyms (admin only)
 	huma.Register(api, huma.Operation{
 		OperationID: "admin-list-pseudonyms",

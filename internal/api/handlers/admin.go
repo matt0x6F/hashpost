@@ -859,6 +859,120 @@ func (h *AdminHandler) TriggerPasswordReset(ctx context.Context, input *TriggerP
 	return response, nil
 }
 
+// ListUserPseudonymsInput represents the input for listing pseudonyms for a specific user
+type ListUserPseudonymsInput struct {
+	middleware.AuthInput
+	UserID int64 `path:"user_id" example:"123"`
+}
+
+// ListUserPseudonymsResponse represents the response for listing user pseudonyms
+type ListUserPseudonymsResponse struct {
+	Status int                            `json:"-" example:"200"`
+	Body   ListUserPseudonymsResponseBody `json:"body"`
+}
+
+// ListUserPseudonymsResponseBody represents the body of the list user pseudonyms response
+type ListUserPseudonymsResponseBody struct {
+	Pseudonyms []AdminPseudonymInfo `json:"pseudonyms"`
+}
+
+// ListUserPseudonyms handles listing pseudonyms for a specific user
+func (h *AdminHandler) ListUserPseudonyms(ctx context.Context, input *ListUserPseudonymsInput) (*ListUserPseudonymsResponse, error) {
+	// Extract user from Huma input - authentication is required
+	user, err := middleware.ExtractUserFromHumaInput(&input.AuthInput)
+	if err != nil {
+		log.Warn().Err(err).Msg("Authentication required for admin user pseudonym list")
+		return nil, huma.Error401Unauthorized("authentication required")
+	}
+
+	// Check if user has platform admin capability via database
+	hasCapability, err := h.permissionDAO.HasUnifiedCapability(ctx, user.UserID, user.ActivePseudonymID, constants.CapabilitySystemAdmin, nil)
+	if err != nil {
+		log.Error().Err(err).Int64("user_id", user.UserID).Msg("Failed to check platform admin capability")
+		return nil, fmt.Errorf("failed to check permissions: %w", err)
+	}
+	if !hasCapability {
+		log.Warn().
+			Int64("user_id", user.UserID).
+			Msg("Platform admin capability required for admin user pseudonym list")
+		return nil, huma.Error403Forbidden("insufficient permissions: platform admin capability required")
+	}
+
+	userID := input.UserID
+	log.Info().
+		Str("endpoint", "admin/users/{user_id}/pseudonyms").
+		Str("component", "handler").
+		Int64("target_user_id", userID).
+		Int64("user_id", user.UserID).
+		Msg("Admin user pseudonym list requested")
+
+	// Get pseudonyms for the specific user
+	pseudonyms, err := h.pseudonymDAO.GetPseudonymsByUserIDDirect(ctx, userID)
+	if err != nil {
+		log.Error().Err(err).Int64("user_id", userID).Msg("Failed to get user pseudonyms from database")
+		return nil, fmt.Errorf("failed to get user pseudonyms: %w", err)
+	}
+
+	// Convert to API format
+	apiPseudonyms := make([]AdminPseudonymInfo, 0, len(pseudonyms))
+	for _, pseudonym := range pseudonyms {
+		// Get karma score
+		karmaScore, _ := h.pseudonymDAO.CalculateKarmaForPseudonym(ctx, pseudonym.PseudonymID)
+
+		// Handle nullable fields
+		createdAt := ""
+		if pseudonym.CreatedAt.Valid {
+			createdAt = pseudonym.CreatedAt.V.Format("2006-01-02T15:04:05Z")
+		}
+
+		slug := ""
+		if pseudonym.Slug.Valid {
+			slug = pseudonym.Slug.V
+		}
+
+		isActive := true
+		if pseudonym.IsActive.Valid {
+			isActive = pseudonym.IsActive.V
+		}
+
+		// Get user info for real identity
+		userInfo, err := h.userDAO.GetUserByID(ctx, userID)
+		realIdentity := ""
+		if err == nil && userInfo != nil {
+			realIdentity = userInfo.Email
+		}
+
+		apiPseudonym := AdminPseudonymInfo{
+			PseudonymID:  pseudonym.PseudonymID,
+			DisplayName:  pseudonym.DisplayName,
+			Slug:         slug,
+			KarmaScore:   int(karmaScore),
+			IsActive:     isActive,
+			CreatedAt:    createdAt,
+			RealIdentity: realIdentity,
+		}
+
+		apiPseudonyms = append(apiPseudonyms, apiPseudonym)
+	}
+
+	response := &ListUserPseudonymsResponse{
+		Status: 200,
+		Body: ListUserPseudonymsResponseBody{
+			Pseudonyms: apiPseudonyms,
+		},
+	}
+
+	log.Info().
+		Str("endpoint", "admin/users/{user_id}/pseudonyms").
+		Str("component", "handler").
+		Int64("target_user_id", userID).
+		Int64("user_id", user.UserID).
+		Int("pseudonym_count", len(apiPseudonyms)).
+		Msg("Admin user pseudonym list completed")
+
+	return response, nil
+}
+
 // GetPseudonymInput represents the input for getting a specific pseudonym
 type GetPseudonymInput struct {
 	middleware.AuthInput

@@ -35,8 +35,6 @@ export default function PseudonymsList({ userId }: PseudonymsListProps) {
   const loadPseudonyms = async () => {
     setLoading(true);
     try {
-      // For now, we'll use the general pseudonyms list and filter by user
-      // In the future, we should have a specific endpoint for user pseudonyms
       const response = await adminApi.adminListPseudonyms();
       setPseudonyms(response.pseudonyms || []);
     } catch (error) {

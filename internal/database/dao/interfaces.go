@@ -36,6 +36,7 @@ type PseudonymDAOInterface interface {
 	VerifyPseudonymOwnership(ctx context.Context, pseudonymID string, userID int64, activePseudonymID, roleName, scope string) (bool, error)
 	GetPseudonymsByRealIdentity(ctx context.Context, realIdentity string, roleName, scope string) ([]*models.Pseudonym, error)
 	GetPseudonymsByRealIdentityDirect(ctx context.Context, realIdentity string) ([]*models.Pseudonym, error)
+	GetPseudonymsByUserIDDirect(ctx context.Context, userID int64) ([]*models.Pseudonym, error)
 	GetRealIdentityByPseudonym(ctx context.Context, pseudonymID, roleName, scope string) (string, error)
 	GetUserIDByPseudonym(ctx context.Context, pseudonymID, roleName, scope string) (int64, error)
 	ArePseudonymsOwnedBySameUser(ctx context.Context, pseudonymID1, pseudonymID2 string) (bool, error)
