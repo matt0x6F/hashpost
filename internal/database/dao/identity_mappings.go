@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/matt0x6f/hashpost/internal/database/models"
 	"github.com/stephenafamo/bob"
 )
@@ -59,10 +60,16 @@ func (dao *IdentityMappingDAO) CreateIdentityMapping(ctx context.Context, mappin
 
 // UpdateIdentityMapping updates an existing identity mapping
 func (dao *IdentityMappingDAO) UpdateIdentityMapping(ctx context.Context, mappingID string, updates *models.IdentityMappingSetter) error {
+	// Convert string to UUID
+	mappingUUID, err := uuid.FromString(mappingID)
+	if err != nil {
+		return fmt.Errorf("invalid mapping ID format: %w", err)
+	}
+
 	// Use a direct update query approach
-	_, err := models.IdentityMappings.Update(
+	_, err = models.IdentityMappings.Update(
 		updates.UpdateMod(),
-		models.UpdateWhere.IdentityMappings.PseudonymID.EQ(mappingID),
+		models.UpdateWhere.IdentityMappings.MappingID.EQ(mappingUUID),
 	).One(ctx, dao.db)
 	if err != nil {
 		return fmt.Errorf("failed to update identity mapping: %w", err)
