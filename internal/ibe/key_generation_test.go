@@ -184,12 +184,12 @@ func TestKeyGeneration_EncryptionDecryptionCompatibility(t *testing.T) {
 		// Test that the key generation methods exist and can be called
 		// Note: This will return nil in test environment due to missing domain masters
 		// but the method signature and basic logic should work
-		keyData := []byte("test_key_data_32_bytes_long_key_here")
+		keyData := []byte("test_key_data_36_bytes_long_key_here")
 		assert.NotEmpty(t, keyData)
-		assert.Len(t, keyData, 36) // "test_key_data_32_bytes_long_key_here" is 36 bytes
+		assert.Len(t, keyData, 36) // "test_key_data_36_bytes_long_key_here" is 36 bytes
 
 		// Test that GenerateTestRoleKey method exists and returns a key
-		testKeyData := []byte("test_key_data_32_bytes_long_key_here")
+		testKeyData := []byte("test_key_data_36_bytes_long_key_here")
 		assert.NotEmpty(t, testKeyData)
 		assert.Len(t, testKeyData, 36) // "test_key_data_32_bytes_long_key_here" is 36 bytes
 	})
