@@ -6,6 +6,7 @@ require (
 	github.com/danielgtaylor/huma/v2 v2.34.1
 	github.com/gofrs/uuid/v5 v5.3.2
 	github.com/golang-jwt/jwt/v5 v5.3.0
+	github.com/google/uuid v1.6.0
 	github.com/lib/pq v1.10.9
 	github.com/mailgun/mailgun-go/v4 v4.23.0
 	github.com/rs/zerolog v1.34.0
