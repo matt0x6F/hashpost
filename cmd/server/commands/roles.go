@@ -104,6 +104,23 @@ func NewRolesCommands(cfg *config.Config) []*cobra.Command {
 	auditRoleKeysCmd.Flags().Bool("dry-run", false, "Show what would be created without making changes")
 	rolesCmd.AddCommand(auditRoleKeysCmd)
 
+	// Add 're-encrypt' subcommand under 'roles'
+	reEncryptCmd := &cobra.Command{
+		Use:   "re-encrypt",
+		Short: "Re-encrypt existing identity mappings with new keys",
+		Long:  "Re-encrypt existing identity mappings that were encrypted with old key generation methods",
+		Run: func(cmd *cobra.Command, args []string) {
+			allUsers, _ := cmd.Flags().GetBool("all-users")
+			dryRun, _ := cmd.Flags().GetBool("dry-run")
+			if err := ReEncryptIdentityMappings(allUsers, dryRun, cfg); err != nil {
+				log.Fatal().Err(err).Msg("Failed to re-encrypt identity mappings")
+			}
+		},
+	}
+	reEncryptCmd.Flags().Bool("all-users", false, "Re-encrypt mappings for all users")
+	reEncryptCmd.Flags().Bool("dry-run", false, "Show what would be done without making changes")
+	rolesCmd.AddCommand(reEncryptCmd)
+
 	return []*cobra.Command{rolesCmd}
 }
 
@@ -774,6 +791,145 @@ func createIdentityMapping(ctx context.Context, identityMappingDAO dao.IdentityM
 	_, err = identityMappingDAO.CreateIdentityMapping(ctx, mapping)
 	if err != nil {
 		return fmt.Errorf("failed to create identity mapping: %w", err)
+	}
+
+	return nil
+}
+
+// ReEncryptIdentityMappings re-encrypts existing identity mappings with new keys
+func ReEncryptIdentityMappings(allUsers bool, dryRun bool, cfg *config.Config) error {
+	// Create database connection
+	db, err := database.NewConnection(&cfg.Database)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	// Initialize IBE system
+	ibeSystem, err := ibe.NewIBESystemFromConfig(cfg.IBE.DomainKeysDir, cfg.IBE.KeyVersion, cfg.IBE.Salt)
+	if err != nil {
+		return fmt.Errorf("failed to initialize IBE system: %w", err)
+	}
+
+	// Create DAOs
+	userDAO := dao.NewUserDAO(db)
+	pseudonymDAO := dao.NewPseudonymDAO(db, ibeSystem, dao.NewIdentityMappingDAO(db), userDAO, dao.NewRoleKeyDAO(db, nil), dao.NewUserBlocksDAO(db))
+	identityMappingDAO := dao.NewIdentityMappingDAO(db)
+	roleKeyDAO := dao.NewRoleKeyDAO(db, nil)
+
+	ctx := context.Background()
+
+	// Get all users with pagination
+	var usersToProcess []*models.User
+	if allUsers {
+		const batchSize = 1000
+		offset := 0
+		for {
+			users, err := userDAO.ListUsers(ctx, batchSize, offset)
+			if err != nil {
+				return fmt.Errorf("failed to get users at offset %d: %w", offset, err)
+			}
+			if len(users) == 0 {
+				break
+			}
+			usersToProcess = append(usersToProcess, users...)
+			if len(users) < batchSize {
+				break
+			}
+			offset += batchSize
+		}
+	} else {
+		return fmt.Errorf("--all-users flag is required for re-encryption")
+	}
+
+	log.Info().Int("user_count", len(usersToProcess)).Msg("Re-encrypting identity mappings for users")
+
+	totalReEncrypted := 0
+	totalErrors := 0
+
+	for _, user := range usersToProcess {
+		log.Info().Str("email", user.Email).Int64("user_id", user.UserID).Msg("Processing user")
+
+		// Get all pseudonyms for this user
+		pseudonyms, err := pseudonymDAO.GetPseudonymsByUserIDDirect(ctx, user.UserID)
+		if err != nil {
+			log.Error().Err(err).Int64("user_id", user.UserID).Msg("Failed to get pseudonyms for user")
+			totalErrors++
+			continue
+		}
+
+		for _, pseudonym := range pseudonyms {
+			log.Info().Str("pseudonym_id", pseudonym.PseudonymID).Msg("Processing pseudonym")
+
+			// Get all identity mappings for this pseudonym
+			mappings, err := identityMappingDAO.GetIdentityMappingsByPseudonymID(ctx, pseudonym.PseudonymID)
+			if err != nil {
+				log.Error().Err(err).Str("pseudonym_id", pseudonym.PseudonymID).Msg("Failed to get identity mappings")
+				totalErrors++
+				continue
+			}
+
+			for _, mapping := range mappings {
+				log.Info().Str("scope", mapping.KeyScope).Msg("Re-encrypting identity mapping")
+
+				if dryRun {
+					log.Info().Str("pseudonym_id", pseudonym.PseudonymID).Str("scope", mapping.KeyScope).Msg("Would re-encrypt identity mapping (dry run)")
+					totalReEncrypted++
+					continue
+				}
+
+				// Get the role key data for this scope
+				keyData, err := roleKeyDAO.GetKeyData(ctx, pseudonym.PseudonymID, mapping.KeyScope, nil)
+				if err != nil {
+					log.Error().Err(err).Str("pseudonym_id", pseudonym.PseudonymID).Str("scope", mapping.KeyScope).Msg("Failed to get key data for re-encryption")
+					totalErrors++
+					continue
+				}
+
+				// Re-encrypt the identity mapping
+				err = reEncryptIdentityMapping(ctx, identityMappingDAO, ibeSystem, user, pseudonym, mapping, keyData)
+				if err != nil {
+					log.Error().Err(err).Str("pseudonym_id", pseudonym.PseudonymID).Str("scope", mapping.KeyScope).Msg("Failed to re-encrypt identity mapping")
+					totalErrors++
+					continue
+				}
+
+				log.Info().Str("pseudonym_id", pseudonym.PseudonymID).Str("scope", mapping.KeyScope).Msg("Successfully re-encrypted identity mapping")
+				totalReEncrypted++
+			}
+		}
+	}
+
+	log.Info().Int("total_re_encrypted", totalReEncrypted).Int("total_errors", totalErrors).Bool("dry_run", dryRun).Msg("Re-encryption completed")
+
+	return nil
+}
+
+// reEncryptIdentityMapping re-encrypts a single identity mapping with new key
+func reEncryptIdentityMapping(ctx context.Context, identityMappingDAO dao.IdentityMappingDAOInterface, ibeSystem *ibe.IBESystem, user *models.User, pseudonym *models.Pseudonym, mapping *models.IdentityMapping, keyData []byte) error {
+	// Generate fingerprint for the real identity
+	fingerprint := ibeSystem.GenerateFingerprint(user.Email)
+
+	// Determine the domain based on the scope
+	domain := ibeSystem.GetDomainForRole("user") // Default domain
+
+	// Encrypt the identity mapping with new key
+	encryptedData, err := ibeSystem.EncryptIdentityWithDomain(user.Email, pseudonym.PseudonymID, domain, keyData)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt identity mapping: %w", err)
+	}
+
+	// Update the identity mapping with new encrypted data
+	keyVersion := ibeSystem.GetKeyVersion()
+	updateData := &models.IdentityMappingSetter{
+		Fingerprint:               &fingerprint,
+		EncryptedRealIdentity:     &encryptedData,
+		EncryptedPseudonymMapping: &encryptedData,
+		KeyVersion:                &keyVersion,
+	}
+
+	err = identityMappingDAO.UpdateIdentityMapping(ctx, mapping.MappingID.String(), updateData)
+	if err != nil {
+		return fmt.Errorf("failed to update identity mapping: %w", err)
 	}
 
 	return nil
