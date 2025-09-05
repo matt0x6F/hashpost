@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/gofrs/uuid/v5"
@@ -192,8 +193,8 @@ func TestReEncryptIdentityMappings_ErrorHandling(t *testing.T) {
 		assert.Error(t, err)
 		// The error could be database connection or IBE initialization
 		assert.True(t,
-			contains(err.Error(), "failed to connect to database") ||
-				contains(err.Error(), "failed to initialize IBE system"),
+			strings.Contains(err.Error(), "failed to connect to database") ||
+				strings.Contains(err.Error(), "failed to initialize IBE system"),
 			"Error should be related to database or IBE system initialization")
 	})
 }
@@ -316,21 +317,4 @@ func TestReEncryptIdentityMappings_ScopeHandling(t *testing.T) {
 			assert.True(t, len(scope) > 0)
 		}
 	})
-}
-
-// Helper function to check if a string contains a substring
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
-		(len(s) > len(substr) && (s[:len(substr)] == substr ||
-			s[len(s)-len(substr):] == substr ||
-			containsSubstring(s, substr))))
-}
-
-func containsSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

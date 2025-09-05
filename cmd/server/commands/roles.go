@@ -818,14 +818,25 @@ func ReEncryptIdentityMappings(allUsers bool, dryRun bool, cfg *config.Config) e
 
 	ctx := context.Background()
 
-	// Get all users
+	// Get all users with pagination
 	var usersToProcess []*models.User
 	if allUsers {
-		users, err := userDAO.ListUsers(ctx, 1000, 0) // Get up to 1000 users
-		if err != nil {
-			return fmt.Errorf("failed to get all users: %w", err)
+		const batchSize = 1000
+		offset := 0
+		for {
+			users, err := userDAO.ListUsers(ctx, batchSize, offset)
+			if err != nil {
+				return fmt.Errorf("failed to get users at offset %d: %w", offset, err)
+			}
+			if len(users) == 0 {
+				break
+			}
+			usersToProcess = append(usersToProcess, users...)
+			if len(users) < batchSize {
+				break
+			}
+			offset += batchSize
 		}
-		usersToProcess = users
 	} else {
 		return fmt.Errorf("--all-users flag is required for re-encryption")
 	}
