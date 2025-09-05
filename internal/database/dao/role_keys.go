@@ -498,8 +498,8 @@ func (dao *RoleKeyDAO) EnsureDefaultKeys(ctx context.Context, ibeSystem interfac
 			log.Debug().Str("role", keyDef.roleName).Str("scope", keyDef.scope).Msg("Role key doesn't exist, creating it")
 			expiresAt := time.Now().AddDate(1, 0, 0) // Expire in 1 year
 
-			// Generate key data using the actual role name and scope
-			keyData := ibe.GenerateTestRoleKey(keyDef.roleName, keyDef.scope)
+			// Generate key data using the actual role name and scope with proper expiration
+			keyData := ibe.GenerateRoleKey(keyDef.roleName, keyDef.scope, expiresAt)
 			log.Debug().Str("role", keyDef.roleName).Str("scope", keyDef.scope).Int("key_data_length", len(keyData)).Msg("Generated IBE key data")
 
 			createdKey, err := dao.CreateRoleKey(ctx, keyDef.roleName, keyDef.scope, keyData, keyDef.capabilities, expiresAt, pseudonymID, pseudonymID, nil)

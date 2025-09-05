@@ -388,7 +388,7 @@ func RotateRoleKeys(roleName string, force bool, cfg *config.Config) error {
 
 			// Create new role key
 			expiresAt := time.Now().AddDate(1, 0, 0) // Expire in 1 year
-			keyData := ibeSystem.GenerateTestRoleKey(role.RoleName, scope)
+			keyData := ibeSystem.GenerateRoleKey(role.RoleName, scope, expiresAt)
 
 			_, err = roleKeyDAO.CreateRoleKey(ctx, constants.RolePlatformAdmin, scope, keyData, capabilities, expiresAt, constants.RolePlatformAdmin, "", nil)
 			if err != nil {

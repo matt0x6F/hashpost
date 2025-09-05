@@ -348,6 +348,9 @@ func (dao *PseudonymDAO) getRealIdentityByPseudonymWithKey(ctx context.Context, 
 			Str("key_scope", mapping.KeyScope).
 			Msg("Trying to decrypt mapping")
 
+		// Use the role key data that was provided (from the database)
+		// This should now work correctly since we fixed the key generation to use consistent time windows
+
 		decrypted, _, err := dao.ibeSystem.DecryptIdentity(mapping.EncryptedRealIdentity, keyData)
 		if err == nil {
 			decryptedMapping = decrypted
@@ -909,7 +912,7 @@ func (dao *PseudonymDAO) GetUserIDByPseudonym(ctx context.Context, pseudonymID, 
 	// We need to iterate through users and generate fingerprints to find a match
 	// This is not ideal for performance, but it's the only way to maintain privacy
 	// Use pagination to handle large user bases
-	// 
+	//
 	// PERFORMANCE NOTE: This is O(n) where n is the number of users, which will not scale
 	// for large user bases. Consider implementing one of these alternatives:
 	// 1. Cache fingerprint-to-userID mappings (with appropriate security measures)
@@ -917,30 +920,30 @@ func (dao *PseudonymDAO) GetUserIDByPseudonym(ctx context.Context, pseudonymID, 
 	// 3. Implement a more efficient search mechanism
 	const pageSize = 1000
 	offset := 0
-	
+
 	for {
 		users, err := dao.userDAO.ListUsers(ctx, pageSize, offset)
 		if err != nil {
 			return 0, fmt.Errorf("failed to list users: %w", err)
 		}
-		
+
 		// If no users returned, we've reached the end
 		if len(users) == 0 {
 			break
 		}
-		
+
 		for _, user := range users {
 			userFingerprint := dao.GenerateFingerprintForEmail(user.Email)
 			if userFingerprint == fingerprint {
 				return user.UserID, nil
 			}
 		}
-		
+
 		// If we got fewer users than requested, we've reached the end
 		if len(users) < pageSize {
 			break
 		}
-		
+
 		offset += pageSize
 	}
 
