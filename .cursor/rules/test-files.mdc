@@ -1,0 +1,67 @@
+---
+globs: *_test.go
+---
+
+# Test Files Rules
+
+Apply these rules to all `*_test.go` files:
+
+## Test Table Pattern
+Use table-driven tests for multiple test cases:
+
+```go
+func TestFunction(t *testing.T) {
+    tests := []struct {
+        name     string
+        input    InputType
+        expected ExpectedType
+        wantErr  bool
+    }{
+        {
+            name:     "valid input",
+            input:    validInput,
+            expected: expectedOutput,
+            wantErr:  false,
+        },
+        {
+            name:     "invalid input",
+            input:    invalidInput,
+            expected: nil,
+            wantErr:  true,
+        },
+    }
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            result, err := Function(tt.input)
+            if tt.wantErr {
+                require.Error(t, err)
+                return
+            }
+            require.NoError(t, err)
+            assert.Equal(t, tt.expected, result)
+        })
+    }
+}
+```
+
+## Assertion Standards
+- Use `require` for assertions that should stop the test
+- Use `assert` for assertions that can continue the test
+- Test both success and error cases
+- Use descriptive test names that explain the scenario
+- Group related tests in subtests using `t.Run()`
+
+## Test Organization
+- Each test should be independent
+- Use setup/teardown for complex test scenarios
+- Mock external dependencies
+- Test edge cases and error conditions
+- Use meaningful test data
+
+## Coverage Requirements
+- Test all public functions
+- Test error paths
+- Test edge cases
+- Aim for high test coverage
+- Focus on critical business logic

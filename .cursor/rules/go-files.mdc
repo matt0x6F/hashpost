@@ -1,0 +1,205 @@
+---
+globs: *.go
+---
+
+# Go Files Rules
+
+## Code Quality Standards
+
+### Package Organization
+- Group related functionality in packages
+- Use clear, descriptive package names
+- Keep packages focused and cohesive
+- Avoid circular dependencies
+
+### Interface Design
+- Create small, focused interfaces (1-3 methods)
+- Use descriptive interface names ending with "-er" when appropriate
+- Prefer composition over inheritance
+- Design interfaces for testability
+
+### Error Handling
+- Always handle errors explicitly
+- Use `errors.New()` or `fmt.Errorf()` for custom errors
+- Wrap errors with context using `fmt.Errorf("operation failed: %w", err)`
+- Never ignore errors with `_`
+- Return errors as the last return value
+
+### Context Usage
+- Pass `context.Context` as the first parameter to functions that need it
+- Use context for cancellation and timeouts
+- Don't store context in structs
+- Use `context.Background()` only in main functions or tests
+
+### Concurrency
+- Use goroutines for concurrent operations
+- Use channels for communication between goroutines
+- Prefer `sync.WaitGroup` for waiting on goroutines
+- Use `sync.Mutex` or `sync.RWMutex` for shared state protection
+- Avoid data races
+
+### Memory Management
+- Avoid unnecessary allocations in hot paths
+- Use object pools for frequently allocated objects
+- Prefer value types over pointer types when possible
+- Use `strings.Builder` for string concatenation in loops
+
+## Documentation Standards
+
+### Godoc Comments
+- Document all public APIs with godoc comments
+- Start comments with the name of the function/type
+- Use complete sentences ending with periods
+- Provide examples for complex functions
+
+### Example Format
+```go
+// ProcessUser processes a user request and returns the result.
+// It validates the input, applies business logic, and returns
+// the processed data or an error.
+//
+// Example:
+//   result, err := ProcessUser(ctx, userRequest)
+//   if err != nil {
+//       return fmt.Errorf("failed to process user: %w", err)
+//   }
+func ProcessUser(ctx context.Context, req UserRequest) (*UserResponse, error) {
+    // implementation
+}
+```
+
+### Type Documentation
+```go
+// User represents a user in the system.
+// It contains the user's identity information and preferences.
+type User struct {
+    ID       int64  `json:"id"`
+    Email    string `json:"email"`
+    Username string `json:"username"`
+}
+```
+
+## Naming Conventions
+
+### Variables and Functions
+- Use camelCase for variables and functions
+- Use descriptive names that explain intent
+- Avoid abbreviations unless they're widely understood
+- Use verbs for functions, nouns for variables
+
+### Types and Interfaces
+- Use PascalCase for exported types and interfaces
+- Use descriptive names that explain purpose
+- Use "-er" suffix for interfaces when appropriate
+
+### Constants
+- Use UPPER_CASE for constants
+- Use descriptive names that explain the value
+- Group related constants together
+
+## Code Organization
+
+### File Structure
+- Keep files focused on a single responsibility
+- Use meaningful file names
+- Group related functions together
+- Place main function at the top of main packages
+
+### Function Design
+- Keep functions small and focused
+- Use descriptive parameter names
+- Limit the number of parameters (ideally < 5)
+- Return early to reduce nesting
+
+### Struct Design
+- Use meaningful field names
+- Add appropriate tags (json, yaml, etc.)
+- Keep structs focused on a single responsibility
+- Use embedded structs for composition
+
+## Testing Standards
+
+### Test Organization
+- Place tests in the same package as the code being tested
+- Use descriptive test names that explain the scenario
+- Group related tests using subtests with `t.Run()`
+- Use table-driven tests for multiple scenarios
+
+### Test Structure
+```go
+func TestFunction(t *testing.T) {
+    tests := []struct {
+        name     string
+        input    InputType
+        expected ExpectedType
+        wantErr  bool
+    }{
+        {
+            name:     "valid input",
+            input:    validInput,
+            expected: expectedOutput,
+            wantErr:  false,
+        },
+        {
+            name:     "invalid input",
+            input:    invalidInput,
+            expected: nil,
+            wantErr:  true,
+        },
+    }
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            result, err := Function(tt.input)
+            if tt.wantErr {
+                require.Error(t, err)
+                return
+            }
+            require.NoError(t, err)
+            assert.Equal(t, tt.expected, result)
+        })
+    }
+}
+```
+
+## Performance Guidelines
+
+### Optimization
+- Profile before optimizing
+- Focus on hot paths and bottlenecks
+- Use `go test -bench` for performance testing
+- Avoid premature optimization
+
+### Best Practices
+- Use `strings.Builder` for string concatenation
+- Prefer `make()` with capacity when size is known
+- Use `sync.Pool` for frequently allocated objects
+- Avoid unnecessary allocations in loops
+
+## Security Guidelines
+
+### Input Validation
+- Validate all input data
+- Use appropriate validation libraries
+- Sanitize user input before processing
+- Use parameterized queries for database operations
+
+### Error Handling
+- Don't expose internal errors to users
+- Log errors with appropriate levels
+- Use structured logging
+- Avoid logging sensitive information
+
+## Dependencies
+
+### Package Management
+- Use `go mod` for dependency management
+- Pin specific versions for production
+- Regularly update dependencies
+- Avoid unnecessary dependencies
+
+### Import Organization
+- Group imports: standard library, third-party, local
+- Use blank imports for side effects
+- Remove unused imports
+- Use import aliases when necessary
