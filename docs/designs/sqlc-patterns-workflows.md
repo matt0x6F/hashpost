@@ -320,6 +320,45 @@ func TestPostDAO_ComplexWorkflow(t *testing.T) {
 }
 ```
 
+## PDS-Only Database Access
+
+### PDS-Only Database Architecture
+- **Database Layer**: Only PDS component accesses PostgreSQL database
+- **Query Organization**: PDS handles all queries - atproto protocol, business logic, and RBAC
+- **Transaction Boundaries**: PDS manages all transaction boundaries
+- **Data Consistency**: PDS ensures both atproto data integrity and business rule integrity
+- **RBAC**: PDS handles all role-based access control and business logic
+- **AppView**: Stateless aggregator with no database access
+
+### PDS-Only Query Patterns
+- **PDS**: Handles all database access - atproto protocol, business logic, and RBAC
+- **AppView**: No database access, aggregates data from PDS via APIs
+- **Integration**: AppView calls PDS APIs for all data operations
+- **Benefits**: Atproto compliance, simpler architecture, proven pattern
+
+### Component-Specific Query Patterns
+```
+internal/database/queries/
+├── pds/                    # PDS handles all queries
+│   ├── atproto/
+│   │   ├── did_resolution.sql
+│   │   ├── session_validation.sql
+│   │   └── identity_management.sql
+│   ├── protocol/
+│   │   ├── profile_management.sql
+│   │   └── content_management.sql
+│   ├── business/
+│   │   ├── user_management.sql
+│   │   ├── post_management.sql
+│   │   ├── moderation.sql
+│   │   └── rbac_permissions.sql
+│   └── analytics/
+│       ├── engagement_stats.sql
+│       └── content_analytics.sql
+└── appview/                # AppView has no database queries
+    └── (no database access)
+```
+
 ## Implementation Strategy
 
 ### Phase 1: Setup
@@ -327,6 +366,7 @@ func TestPostDAO_ComplexWorkflow(t *testing.T) {
 - [ ] Set up query directory structure
 - [ ] Create initial sqlc.yaml configuration
 - [ ] Set up code generation workflow
+- [ ] Design PDS-only query organization
 
 ### Phase 2: Core Queries
 - [ ] Build user-related queries

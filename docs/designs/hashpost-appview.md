@@ -2,71 +2,29 @@
 
 ## Project Overview
 
-This document tracks the implementation of the **HashPost AppView** for custom application logic and business rules. The HashPost AppView provides custom HashPost features through an OpenAPI spec server, while the HashPost PDS handles atproto protocol compliance.
+This document tracks the implementation of the **HashPost AppView** as a stateless aggregator that presents a unified view of data from the HashPost PDS. The HashPost AppView aggregates and presents data to clients, while the HashPost PDS handles all data storage, business logic, and atproto protocol compliance.
 
 ## Design Goals
 
 ### Primary Objectives
-- **AppView API**: Custom HashPost application logic and business rules
+- **Data Aggregation**: Aggregate data from HashPost PDS for unified presentation
+- **Stateless Design**: No persistent storage, pure aggregation service
 - **Type Safety**: Generate type-safe Go code from OpenAPI specs
 - **Documentation**: Automatic API documentation generation
 - **Client Generation**: Generate frontend clients from the same spec
-- **PDS Integration**: AppView calls HashPost PDS for data operations
+- **PDS Integration**: AppView aggregates from HashPost PDS via APIs
 
 ### Technical Goals
-- Implement HashPost AppView with OpenAPI spec server
-- Integrate AppView with HashPost PDS for data operations
+- Implement HashPost AppView as stateless aggregator
+- Aggregate data from HashPost PDS via APIs
+- Present unified view to clients
 - Improve API consistency and documentation
 - Enable better frontend-backend integration
 - Reduce manual API maintenance
 
-## Research Findings
-
-### Go OpenAPI Tools Comparison
-
-#### 1. **oapi-codegen** (Recommended)
-**Pros:**
-- Modern OpenAPI 3.0 support
-- Excellent type safety
-- Good performance
-- Active development
-- Clean generated code
-
-**Cons:**
-- Requires OpenAPI spec maintenance
-- Learning curve for spec-first development
-
-**Best for:** Type-safe APIs with complex schemas
-
-#### 2. **gin-swagger**
-**Pros:**
-- Integrates well with Gin framework
-- Good documentation generation
-- Familiar to Gin users
-
-**Cons:**
-- Limited to Gin framework
-- Less type safety than oapi-codegen
-- Swagger 2.0 focused
-
-**Best for:** Existing Gin applications
-
-#### 3. **go-swagger**
-**Pros:**
-- Comprehensive toolkit
-- Good documentation
-- Mature project
-
-**Cons:**
-- Primarily Swagger 2.0
-- More complex setup
-- Less modern than oapi-codegen
-
-**Best for:** Legacy Swagger 2.0 projects
-
 ## Architecture Decision
 
-**Recommended Tool: oapi-codegen with net/http server**
+**Chosen Tool: oapi-codegen with net/http server**
 
 **Rationale:**
 - Modern OpenAPI 3.0 support aligns with current standards
@@ -93,8 +51,8 @@ This document tracks the implementation of the **HashPost AppView** for custom a
 - [ ] Set up error handling
 
 ### Phase 3: Integration
-- [ ] Implement business logic in generated net/http handlers
-- [ ] Integrate with database layer (sqlc)
+- [ ] Implement data aggregation in generated net/http handlers
+- [ ] Integrate with PDS APIs for data retrieval
 - [ ] Add comprehensive testing
 - [ ] Set up net/http server for HashPost AppView
 
@@ -117,6 +75,14 @@ This document tracks the implementation of the **HashPost AppView** for custom a
 - **Authorization**: TBD based on requirements
 - **Validation**: Request/response validation
 - **Rate Limiting**: API endpoint protection
+
+### PDS Dependency Management
+- **Data Aggregation**: AppView aggregates data from PDS via APIs
+- **No Business Logic**: AppView does not handle business logic - PDS handles all RBAC, analytics, moderation
+- **No Database Access**: AppView has no persistent storage, only aggregates from PDS
+- **Error Handling**: AppView handles PDS communication errors with appropriate fallbacks
+- **User Context**: AppView retrieves complete user context and permissions from PDS
+- **Stateless Design**: AppView is purely stateless aggregator
 
 ## Success Criteria
 

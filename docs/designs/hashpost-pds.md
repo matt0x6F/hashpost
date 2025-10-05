@@ -23,22 +23,31 @@ This document tracks the implementation of the **HashPost PDS** (Personal Data S
 ## Architecture Decisions
 
 ### HashPost AppView
-- **Purpose**: Custom application logic and business rules
-- **API**: OpenAPI spec server for custom HashPost features
+- **Purpose**: Stateless aggregator for data presentation
+- **API**: OpenAPI spec server for unified data presentation
 - **Authentication**: Integrates with PDS for atproto identity
-- **Data**: Calls PDS for data operations
+- **Data**: Aggregates data from PDS via APIs
 
 ### HashPost PDS
-- **Purpose**: Atproto protocol compliance and data storage
+- **Purpose**: Atproto protocol compliance, data storage, and business logic
 - **Implementation**: Built using Bluesky Indigo Go libraries
-- **API**: Atproto endpoints (`/xrpc/com.atproto.*`)
+- **API**: Atproto endpoints (`/xrpc/com.atproto.*`) + custom HashPost endpoints
 - **Authentication**: DID-based authentication system using Indigo packages
 - **Data Structures**: Custom atproto types for HashPost features
+- **Business Logic**: RBAC, moderation, voting, ownership models
 
 ### Integration
-- **AppView → PDS**: AppView calls PDS for data operations
-- **Data Flow**: Custom logic in AppView, protocol compliance in PDS
-- **Authentication**: PDS handles identity, AppView handles business logic
+- **AppView → PDS**: AppView aggregates data from PDS via APIs
+- **Data Flow**: All business logic in PDS, AppView is stateless aggregator
+- **Authentication**: PDS handles all identity and business logic
+
+### AppView Integration Points
+- **Data Aggregation**: PDS provides APIs for AppView to aggregate data
+- **Atproto Operations**: PDS handles all atproto protocol operations
+- **Business Logic**: PDS handles all RBAC, moderation, and business logic
+- **User Context**: PDS provides complete user context and permissions to AppView
+- **Error Propagation**: PDS returns structured errors for AppView handling
+- **AppView Role**: Stateless aggregator that presents unified view to clients
 
 ## Bluesky Indigo Libraries
 
@@ -83,6 +92,12 @@ This document tracks the implementation of the **HashPost PDS** (Personal Data S
 - **Social Features**: Follow, unfollow, like, repost
 - **Timeline**: Feed generation and management
 - **Search**: Content and user search
+
+### PDS Database Access
+- **Database Layer**: Only PDS component accesses PostgreSQL database
+- **Transaction Boundaries**: PDS handles all transaction boundaries for atproto data and business logic
+- **Query Patterns**: PDS uses sqlc for all queries - atproto protocol, business logic, and RBAC
+- **Data Consistency**: PDS ensures both atproto data consistency and business rule consistency
 
 ## Implementation Plan
 

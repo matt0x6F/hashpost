@@ -21,10 +21,13 @@ This document defines the command structure for the HashPost Go application usin
 
 ## Architecture Decisions
 
-### Command Structure
-- **Root Command**: `hashpost` - Main application entry point
-- **Run Command**: `hashpost run` - Start the server
-- **Future Commands**: `migrate`, `generate`, etc. as needed
+### Command Structure (Separate Binaries)
+- **PDS Binary**: `hashpost-pds` - Personal Data Server for atproto protocol compliance
+- **AppView Binary**: `hashpost-appview` - Stateless aggregator for data presentation
+- **Shared Commands**: `hashpost migrate`, `hashpost generate` - Shared utilities
+- **PDS Focus**: PDS handles all data and business logic
+- **AppView Focus**: AppView is stateless aggregator
+- **Independent Deployment**: Each component can be deployed separately
 
 ### Framework Choice
 - **Cobra**: Industry standard for Go CLI applications
@@ -33,13 +36,13 @@ This document defines the command structure for the HashPost Go application usin
 
 ## Command Implementation
 
-### Root Command Structure
+### Shared Utilities Root Command
 ```go
-// cmd/root.go
+// cmd/shared/root.go
 var rootCmd = &cobra.Command{
     Use:   "hashpost",
-    Short: "HashPost - A modern forum platform",
-    Long:  `HashPost is a modern, scalable forum platform built with Go.`,
+    Short: "HashPost shared utilities",
+    Long:  `HashPost shared utilities for database management and code generation.`,
 }
 
 func Execute() {
@@ -49,39 +52,78 @@ func Execute() {
 }
 ```
 
-### Run Command Implementation
+### PDS Binary Implementation
 ```go
-// cmd/run.go
+// cmd/pds/main.go
+var rootCmd = &cobra.Command{
+    Use:   "hashpost-pds",
+    Short: "HashPost Personal Data Server",
+    Long:  `HashPost PDS handles atproto protocol compliance and business logic.`,
+}
+
 var runCmd = &cobra.Command{
     Use:   "run",
-    Short: "Start the HashPost server",
-    Long:  `Start the HashPost server with the specified configuration.`,
-    RunE:  runServer,
+    Short: "Start the PDS server",
+    Long:  `Start the HashPost PDS server with the specified configuration.`,
+    RunE:  runPDSServer,
 }
 
 func init() {
     rootCmd.AddCommand(runCmd)
     
-    // Server configuration flags
-    runCmd.Flags().String("host", "localhost", "Server host")
-    runCmd.Flags().Int("port", 8080, "Server port")
+    // PDS configuration flags
+    runCmd.Flags().String("host", "localhost", "PDS host")
+    runCmd.Flags().Int("port", 8080, "PDS port")
     runCmd.Flags().String("config", "", "Configuration file path")
     runCmd.Flags().Bool("dev", false, "Enable development mode")
 }
 
-func runServer(cmd *cobra.Command, args []string) error {
-    // Implementation here
+func runPDSServer(cmd *cobra.Command, args []string) error {
+    // Start PDS server with database access
+    return nil
+}
+```
+
+### AppView Binary Implementation
+```go
+// cmd/appview/main.go
+var rootCmd = &cobra.Command{
+    Use:   "hashpost-appview",
+    Short: "HashPost AppView",
+    Long:  `HashPost AppView aggregates data from PDS for presentation.`,
+}
+
+var runCmd = &cobra.Command{
+    Use:   "run",
+    Short: "Start the AppView server",
+    Long:  `Start the HashPost AppView server with the specified configuration.`,
+    RunE:  runAppViewServer,
+}
+
+func init() {
+    rootCmd.AddCommand(runCmd)
+    
+    // AppView configuration flags
+    runCmd.Flags().String("host", "localhost", "AppView host")
+    runCmd.Flags().Int("port", 8081, "AppView port")
+    runCmd.Flags().String("pds-url", "http://localhost:8080", "PDS URL")
+    runCmd.Flags().String("config", "", "Configuration file path")
+    runCmd.Flags().Bool("dev", false, "Enable development mode")
+}
+
+func runAppViewServer(cmd *cobra.Command, args []string) error {
+    // Start AppView server that aggregates from PDS
     return nil
 }
 ```
 
 ### Configuration Management
 ```go
-// internal/config/config.go
-type Config struct {
+// internal/config/pds_config.go
+type PDSConfig struct {
     Server   ServerConfig   `mapstructure:"server"`
     Database DatabaseConfig `mapstructure:"database"`
-    API      APIConfig      `mapstructure:"api"`
+    Atproto  AtprotoConfig  `mapstructure:"atproto"`
 }
 
 type ServerConfig struct {
@@ -90,81 +132,149 @@ type ServerConfig struct {
     Dev  bool   `mapstructure:"dev"`
 }
 
-func LoadConfig() (*Config, error) {
-    // Load from file, environment, and flags
+type DatabaseConfig struct {
+    Host     string `mapstructure:"host"`
+    Port     int    `mapstructure:"port"`
+    Database string `mapstructure:"database"`
+    Username string `mapstructure:"username"`
+    Password string `mapstructure:"password"`
+}
+
+type AtprotoConfig struct {
+    DIDResolver string `mapstructure:"did_resolver"`
+    HandleBase  string `mapstructure:"handle_base"`
+}
+
+// internal/config/appview_config.go
+type AppViewConfig struct {
+    Server ServerConfig `mapstructure:"server"`
+    PDS    PDSConfig    `mapstructure:"pds"`
+}
+
+type ServerConfig struct {
+    Host string `mapstructure:"host"`
+    Port int    `mapstructure:"port"`
+    Dev  bool   `mapstructure:"dev"`
+}
+
+type PDSConfig struct {
+    URL string `mapstructure:"url"`
 }
 ```
 
-## Command Patterns
+## Shared Utilities
 
-### Server Command Pattern
+### Shared Commands Binary
 ```go
-// cmd/server.go
-type ServerCommand struct {
-    config *config.Config
-    server *http.Server
+// cmd/shared/main.go
+var rootCmd = &cobra.Command{
+    Use:   "hashpost",
+    Short: "HashPost shared utilities",
+    Long:  `HashPost shared utilities for database management and code generation.`,
 }
 
-func NewServerCommand() *ServerCommand {
-    return &ServerCommand{}
+var migrateCmd = &cobra.Command{
+    Use:   "migrate",
+    Short: "Database migration commands",
+    Long:  `Manage database migrations for HashPost.`,
 }
 
-func (s *ServerCommand) Execute(cmd *cobra.Command, args []string) error {
-    // Initialize server
-    // Start server
-    // Handle shutdown
-    return nil
+var generateCmd = &cobra.Command{
+    Use:   "generate",
+    Short: "Code generation commands",
+    Long:  `Generate code from OpenAPI specs and database schemas.`,
+}
+
+func init() {
+    rootCmd.AddCommand(migrateCmd)
+    rootCmd.AddCommand(generateCmd)
+}
+```
+
+### Deployment Patterns
+```go
+// cmd/deploy/main.go
+var rootCmd = &cobra.Command{
+    Use:   "hashpost-deploy",
+    Short: "HashPost deployment utilities",
+    Long:  `Deploy HashPost PDS and AppView components.`,
+}
+
+var deployPDS = &cobra.Command{
+    Use:   "pds",
+    Short: "Deploy PDS component",
+    Long:  `Deploy HashPost PDS to target environment.`,
+}
+
+var deployAppView = &cobra.Command{
+    Use:   "appview",
+    Short: "Deploy AppView component",
+    Long:  `Deploy HashPost AppView to target environment.`,
 }
 ```
 
 ### Configuration Pattern
 ```go
-// cmd/config.go
-func bindFlags(cmd *cobra.Command, cfg *config.Config) {
-    cmd.Flags().StringVar(&cfg.Server.Host, "host", "localhost", "Server host")
-    cmd.Flags().IntVar(&cfg.Server.Port, "port", 8080, "Server port")
+// cmd/pds/config.go
+func bindPDSFlags(cmd *cobra.Command, cfg *config.PDSConfig) {
+    cmd.Flags().StringVar(&cfg.Server.Host, "host", "localhost", "PDS host")
+    cmd.Flags().IntVar(&cfg.Server.Port, "port", 8080, "PDS port")
     cmd.Flags().BoolVar(&cfg.Server.Dev, "dev", false, "Development mode")
+}
+
+// cmd/appview/config.go
+func bindAppViewFlags(cmd *cobra.Command, cfg *config.AppViewConfig) {
+    cmd.Flags().StringVar(&cfg.Server.Host, "host", "localhost", "AppView host")
+    cmd.Flags().IntVar(&cfg.Server.Port, "port", 8081, "AppView port")
+    cmd.Flags().StringVar(&cfg.PDS.URL, "pds-url", "http://localhost:8080", "PDS URL")
 }
 ```
 
 ## Implementation Plan
 
-### Phase 1: Basic Structure
-- [ ] Set up cobra CLI framework
-- [ ] Create root command
-- [ ] Implement `run` command
-- [ ] Add basic configuration
+### Phase 1: Separate Binaries
+- [ ] Set up cobra CLI framework for each binary
+- [ ] Create PDS binary (`hashpost-pds`)
+- [ ] Create AppView binary (`hashpost-appview`)
+- [ ] Create shared utilities binary (`hashpost`)
+- [ ] Add basic configuration for each component
 
 ### Phase 2: Server Integration
-- [ ] Integrate with net/http server
-- [ ] Add configuration management
-- [ ] Implement graceful shutdown
-- [ ] Add logging
+- [ ] Integrate PDS with net/http server and database
+- [ ] Integrate AppView with net/http server and PDS APIs
+- [ ] Add configuration management for each component
+- [ ] Implement graceful shutdown for each component
+- [ ] Add logging for each component
 
 ### Phase 3: Advanced Features
-- [ ] Add more commands as needed
+- [ ] Add deployment commands
 - [ ] Implement configuration validation
-- [ ] Add help and documentation
-- [ ] Add testing
+- [ ] Add help and documentation for each binary
+- [ ] Add testing for each component
+- [ ] Add shared utilities (migrate, generate)
 
 ## Key Components
 
-### Commands
-- **Root Command**: Application entry point
-- **Run Command**: Server startup and management
-- **Future Commands**: Migrate, generate, etc.
+### Binaries
+- **hashpost-pds**: Personal Data Server with database access
+- **hashpost-appview**: Stateless aggregator for data presentation
+- **hashpost**: Shared utilities (migrate, generate, etc.)
+- **hashpost-deploy**: Deployment utilities
 
 ### Configuration
+- **PDS Config**: Database, atproto, and server configuration
+- **AppView Config**: Server and PDS connection configuration
 - **File-based**: YAML/JSON configuration files
 - **Environment**: Environment variable support
 - **Flags**: Command-line flag support
 - **Validation**: Configuration validation
 
 ### Server Management
-- **Startup**: Server initialization
-- **Shutdown**: Graceful shutdown handling
-- **Health Checks**: Server health monitoring
-- **Logging**: Structured logging
+- **Independent Deployment**: Each component can be deployed separately
+- **Startup**: Server initialization for each component
+- **Shutdown**: Graceful shutdown handling for each component
+- **Health Checks**: Server health monitoring for each component
+- **Logging**: Structured logging for each component
 
 ## Success Criteria
 
@@ -188,11 +298,11 @@ func bindFlags(cmd *cobra.Command, cfg *config.Config) {
 
 ## Next Steps
 
-1. **Set up cobra framework** - Initialize CLI structure
-2. **Implement run command** - Basic server command
-3. **Add configuration** - File and environment support
-4. **Integrate server** - Connect with net/http server
-5. **Add testing** - Test command functionality
+1. **Set up separate binaries** - Initialize CLI structure for each component
+2. **Implement PDS binary** - Basic PDS server command with database access
+3. **Implement AppView binary** - Basic AppView server command with PDS integration
+4. **Add shared utilities** - Migration and generation commands
+5. **Add testing** - Test each component independently
 
 ## Notes
 

@@ -2,12 +2,12 @@
 
 ## Project Overview
 
-This document tracks the progress of building HashPost from scratch on the atproto protocol. HashPost will consist of two main components: a **HashPost AppView** (custom application logic with OpenAPI API) and a **HashPost PDS** (Personal Data Server for atproto protocol compliance). This is a fresh start with modern architecture, improved performance, and enhanced maintainability.
+This document tracks the progress of building HashPost from scratch on the atproto protocol. HashPost will consist of two main components: a **HashPost AppView** (stateless aggregator with OpenAPI API) and a **HashPost PDS** (Personal Data Server for atproto protocol compliance and business logic). This is a fresh start with modern architecture, improved performance, and enhanced maintainability.
 
 **Related Design Documents:**
 - `hashpost-appview.md` - HashPost AppView implementation details
 - `hashpost-pds.md` - HashPost PDS implementation details
-- `sqlc-patterns-workflows.md` - Database patterns for both components
+- `sqlc-patterns-workflows.md` - Database patterns for PDS component
 - `go-command-structure.md` - CLI structure for both components
 
 ## Design Goals
@@ -30,8 +30,8 @@ This document tracks the progress of building HashPost from scratch on the atpro
 ## Architecture Decisions
 
 ### HashPost AppView
-- **Approach**: Custom application logic with OpenAPI spec server
-- **Rationale**: Provides custom HashPost features with type-safe API and documentation
+- **Approach**: Stateless aggregator with OpenAPI spec server
+- **Rationale**: Provides unified data presentation with type-safe API and documentation
 
 ### HashPost PDS
 - **Approach**: Atproto Personal Data Server for protocol compliance
@@ -42,8 +42,16 @@ This document tracks the progress of building HashPost from scratch on the atpro
 - **Rationale**: sqlc provides zero runtime overhead, compile-time query validation, and excellent performance for complex queries
 
 ### Integration
-- **Approach**: AppView calls PDS for data operations
+- **Approach**: AppView aggregates data from PDS via APIs
 - **Rationale**: Clean separation between custom logic and protocol compliance
+
+### Component Communication Architecture
+- **Authentication Flow**: PDS handles DID-based auth and session management
+- **Data Flow**: PDS handles all data storage and business logic, AppView aggregates from PDS
+- **Session Management**: PDS issues and validates session tokens
+- **Error Handling**: AppView handles PDS communication errors gracefully with fallbacks
+- **RBAC**: PDS handles all role-based access control and business logic
+- **AppView**: Stateless aggregator that presents unified view to clients
 
 ## Progress Tracking
 
@@ -56,11 +64,13 @@ This document tracks the progress of building HashPost from scratch on the atpro
 - [ ] Create implementation plan
 
 ### Phase 2: Core Infrastructure
-- [ ] Set up HashPost AppView with OpenAPI spec server
-- [ ] Set up HashPost PDS for atproto protocol compliance
-- [ ] Set up sqlc configuration and workflows
-- [ ] Create atproto data structures
-- [ ] Build integration between AppView and PDS
+- [ ] Set up HashPost PDS with database and atproto protocol compliance
+- [ ] Set up HashPost AppView as stateless aggregator
+- [ ] Set up sqlc configuration and workflows for PDS
+- [ ] Create atproto data structures in PDS
+- [ ] Implement RBAC and business logic in PDS
+- [ ] Set up AppView aggregation from PDS
+- [ ] Implement atproto-compliant architecture patterns
 
 ### Phase 3: Feature Implementation
 - [ ] Define core features and requirements
@@ -115,6 +125,7 @@ This document tracks the progress of building HashPost from scratch on the atpro
 - All agents should reference this document for context
 - Progress should be tracked in the checkboxes above
 - New decisions and findings should be documented here
+- Architecture inspired by Tangled's atproto implementation patterns
 
 ---
 
