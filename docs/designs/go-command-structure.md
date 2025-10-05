@@ -119,17 +119,18 @@ func runAppViewServer(cmd *cobra.Command, args []string) error {
 
 ### Configuration Management
 ```go
+// internal/config/shared.go
+type ServerConfig struct {
+    Host string `mapstructure:"host"`
+    Port int    `mapstructure:"port"`
+    Dev  bool   `mapstructure:"dev"`
+}
+
 // internal/config/pds_config.go
 type PDSConfig struct {
     Server   ServerConfig   `mapstructure:"server"`
     Database DatabaseConfig `mapstructure:"database"`
     Atproto  AtprotoConfig  `mapstructure:"atproto"`
-}
-
-type ServerConfig struct {
-    Host string `mapstructure:"host"`
-    Port int    `mapstructure:"port"`
-    Dev  bool   `mapstructure:"dev"`
 }
 
 type DatabaseConfig struct {
@@ -148,16 +149,10 @@ type AtprotoConfig struct {
 // internal/config/appview_config.go
 type AppViewConfig struct {
     Server ServerConfig `mapstructure:"server"`
-    PDS    PDSConfig    `mapstructure:"pds"`
+    PDS    PDSConnection `mapstructure:"pds"`
 }
 
-type ServerConfig struct {
-    Host string `mapstructure:"host"`
-    Port int    `mapstructure:"port"`
-    Dev  bool   `mapstructure:"dev"`
-}
-
-type PDSConfig struct {
+type PDSConnection struct {
     URL string `mapstructure:"url"`
 }
 ```

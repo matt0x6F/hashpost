@@ -79,10 +79,11 @@ This document tracks the implementation of the **HashPost AppView** as a statele
 ### PDS Dependency Management
 - **Data Aggregation**: AppView aggregates data from PDS via APIs
 - **No Business Logic**: AppView does not handle business logic - PDS handles all RBAC, analytics, moderation
-- **No Database Access**: AppView has no persistent storage, only aggregates from PDS
+- **No Database Access**: AppView has no persistent storage, no database connections, only aggregates from PDS
+- **No Direct Data Storage**: AppView never writes to database, only reads from PDS APIs
 - **Error Handling**: AppView handles PDS communication errors with appropriate fallbacks
 - **User Context**: AppView retrieves complete user context and permissions from PDS
-- **Stateless Design**: AppView is purely stateless aggregator
+- **Stateless Design**: AppView is purely stateless aggregator with no persistent state
 
 ## Success Criteria
 

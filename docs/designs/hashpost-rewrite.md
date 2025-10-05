@@ -53,34 +53,84 @@ This document tracks the progress of building HashPost from scratch on the atpro
 - **RBAC**: PDS handles all role-based access control and business logic
 - **AppView**: Stateless aggregator that presents unified view to clients
 
+## Implementation Dependencies
+
+### 🚀 START HERE - Independent Tasks (Can be done in parallel)
+- [ ] **Research atproto protocol** - Understand data structures, authentication, API patterns
+- [ ] **Study Bluesky Indigo libraries** - Understand package structure, PDS patterns
+- [ ] **Set up sqlc configuration** - Create sqlc.yaml and query directory structure
+
+### 📋 Foundation Phase (Depends on Research)
+- [ ] **Set up cobra CLI framework** - Initialize CLI structure for separate binaries
+- [ ] **Create custom atproto types** - Define lexicons for posts, profiles, social features
+
+### 🏗️ Core Implementation Phase (Depends on Foundation)
+- [ ] **Implement PDS core** - Set up DID resolution and authentication using Indigo
+- [ ] **Build database layer** - Implement user, post, and permission queries with sqlc
+- [ ] **Implement AppView core** - Set up oapi-codegen configuration for stateless aggregator
+
+### 🔗 Integration Phase (Depends on Core Implementation)
+- [ ] **Integrate AppView with PDS** - Implement data aggregation from PDS APIs
+- [ ] **Implement authentication system** - DID-based auth in PDS, session management
+- [ ] **Create API endpoints** - Atproto endpoints in PDS, custom endpoints in AppView
+
+### 🎯 Features Phase (Depends on Integration)
+- [ ] **Build core HashPost features** - Profiles, posts, social features using atproto types
+- [ ] **Implement comprehensive testing** - Unit tests, integration tests, atproto compliance tests
+- [ ] **Optimize performance** - Query optimization, API response times, memory usage
+
+### 📊 Dependency Flow Diagram
+```
+🚀 START HERE (Parallel)
+├── Research atproto protocol
+├── Study Bluesky Indigo libraries  
+└── Set up sqlc configuration
+    ↓
+📋 Foundation Phase
+├── Set up cobra CLI framework
+└── Create custom atproto types
+    ↓
+🏗️ Core Implementation Phase (Parallel)
+├── Implement PDS core
+├── Build database layer
+└── Implement AppView core
+    ↓
+🔗 Integration Phase
+├── Integrate AppView with PDS
+├── Implement authentication system
+└── Create API endpoints
+    ↓
+🎯 Features Phase
+├── Build core HashPost features
+├── Implement comprehensive testing
+└── Optimize performance
+```
+
 ## Progress Tracking
 
 ### Phase 1: Research and Planning
 - [x] Evaluate database ORM alternatives (chose sqlc)
 - [x] Research Go OpenAPI spec servers
 - [ ] Research atproto protocol and data structures
-- [ ] Design atproto-compatible architecture
-- [ ] Design sqlc patterns and workflows
-- [ ] Create implementation plan
+- [ ] Study Bluesky Indigo Go libraries
+- [ ] Set up sqlc configuration and workflows
 
 ### Phase 2: Core Infrastructure
-- [ ] Set up HashPost PDS with database and atproto protocol compliance
-- [ ] Set up HashPost AppView as stateless aggregator
-- [ ] Set up sqlc configuration and workflows for PDS
-- [ ] Create atproto data structures in PDS
-- [ ] Implement RBAC and business logic in PDS
-- [ ] Set up AppView aggregation from PDS
-- [ ] Implement atproto-compliant architecture patterns
+- [ ] Set up cobra CLI framework for separate binaries
+- [ ] Create custom atproto types for HashPost features
+- [ ] Implement HashPost PDS core using Indigo packages
+- [ ] Build database layer with sqlc for PDS
+- [ ] Implement HashPost AppView core with OpenAPI spec server
 
-### Phase 3: Feature Implementation
-- [ ] Define core features and requirements
-- [ ] Build core functionality
-- [ ] Build authentication (if needed)
-- [ ] Build admin interface (if needed)
+### Phase 3: Integration
+- [ ] Integrate AppView with PDS for data aggregation
+- [ ] Implement authentication system (DID-based auth in PDS)
+- [ ] Create API endpoints (atproto in PDS, custom in AppView)
 
-### Phase 4: Testing and Optimization
-- [ ] Comprehensive testing
-- [ ] Performance optimization
+### Phase 4: Features and Testing
+- [ ] Build core HashPost features (profiles, posts, social features)
+- [ ] Implement comprehensive testing
+- [ ] Optimize performance
 - [ ] Security audit
 - [ ] Documentation updates
 
