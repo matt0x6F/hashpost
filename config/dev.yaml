@@ -1,0 +1,34 @@
+# Development configuration for HashPost
+
+# PDS Configuration
+pds:
+  server:
+    host: "0.0.0.0"
+    port: 8080
+    dev: true
+  database:
+    host: "postgres"
+    port: 5432
+    database: "hashpost_dev"
+    username: "hashpost"
+    password: "password"
+    ssl_mode: "disable"
+  redis:
+    url: "redis://redis:6379"
+  atproto:
+    did_resolver: "https://plc.directory"
+    handle_base: "hashpost.local"
+
+# AppView Configuration  
+appview:
+  server:
+    host: "0.0.0.0"
+    port: 8081
+    dev: true
+  pds:
+    url: "http://hashpost-pds:8080"
+
+# Logging
+logging:
+  level: "debug"
+  format: "json"

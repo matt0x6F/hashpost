@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  hashpost-pds:
+    build: .
+    command: hashpost-pds run --config /app/config/dev.yaml
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgres://hashpost:password@postgres:5432/hashpost_dev
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=debug
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - /app/bin
+    networks:
+      - hashpost-network
+
+  hashpost-appview:
+    build: .
+    command: hashpost-appview run --config /app/config/dev.yaml
+    ports:
+      - "8081:8081"
+    environment:
+      - PDS_URL=http://hashpost-pds:8080
+      - LOG_LEVEL=debug
+    depends_on:
+      - hashpost-pds
+    volumes:
+      - .:/app
+      - /app/bin
+    networks:
+      - hashpost-network
+
+  postgres:
+    image: postgres:15
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=hashpost_dev
+      - POSTGRES_USER=hashpost
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./internal/database/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hashpost -d hashpost_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hashpost-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - hashpost-network
+
+volumes:
+  postgres_dev_data:
+  redis_dev_data:
+
+networks:
+  hashpost-network:
+    driver: bridge

@@ -1,0 +1,95 @@
+version: '3'
+
+tasks:
+  dev:
+    desc: "Start development environment"
+    cmds:
+      - docker-compose up -d
+
+  dev:logs:
+    desc: "View development logs"
+    cmds:
+      - docker-compose logs -f
+
+  dev:down:
+    desc: "Stop development environment"
+    cmds:
+      - docker-compose down
+
+  test:
+    desc: "Run tests with Docker Compose"
+    cmds:
+      - docker-compose -f docker-compose.test.yml up -d
+      - go test ./...
+      - docker-compose -f docker-compose.test.yml down -v
+
+  test:unit:
+    desc: "Run unit tests only"
+    cmds:
+      - go test -short ./...
+
+  migrate:up:
+    desc: "Run database migrations up"
+    cmds:
+      - migrate -path internal/database/migrations -database "$DATABASE_URL" up
+
+  migrate:down:
+    desc: "Run database migrations down"
+    cmds:
+      - migrate -path internal/database/migrations -database "$DATABASE_URL" down
+
+  migrate:create:
+    desc: "Create a new migration"
+    cmds:
+      - migrate create -ext sql -dir internal/database/migrations -seq {{.CLI_ARGS}}
+
+  generate:sqlc:
+    desc: "Generate sqlc code"
+    cmds:
+      - sqlc generate
+
+  generate:openapi:
+    desc: "Generate OpenAPI client"
+    cmds:
+      - oapi-codegen -config openapi-generator-config.json openapi.yaml
+
+  generate:
+    desc: "Generate all code"
+    cmds:
+      - task: generate:sqlc
+      - task: generate:openapi
+
+  build:
+    desc: "Build all binaries"
+    cmds:
+      - go build -o bin/hashpost-pds ./cmd/pds
+      - go build -o bin/hashpost-appview ./cmd/appview
+
+  build:clean:
+    desc: "Clean build artifacts"
+    cmds:
+      - rm -rf bin/
+      - task: build
+
+  lint:
+    desc: "Run linter"
+    cmds:
+      - golangci-lint run
+
+  fmt:
+    desc: "Format code"
+    cmds:
+      - go fmt ./...
+
+  tidy:
+    desc: "Tidy go modules"
+    cmds:
+      - go mod tidy
+
+  clean:
+    desc: "Clean all artifacts"
+    cmds:
+      - rm -rf bin/
+      - rm -rf internal/database/generated/
+      - docker-compose down -v
+      - docker-compose -f docker-compose.test.yml down -v

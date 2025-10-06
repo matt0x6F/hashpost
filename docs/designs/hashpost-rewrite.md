@@ -111,15 +111,19 @@ This document tracks the progress of building HashPost from scratch on the atpro
 ### Phase 1: Research and Planning
 - [x] Evaluate database ORM alternatives (chose sqlc)
 - [x] Research Go OpenAPI spec servers
-- [ ] Research atproto protocol and data structures
-- [ ] Study Bluesky Indigo Go libraries
-- [ ] Set up sqlc configuration and workflows
+- [x] Research atproto protocol and data structures
+- [x] Study Bluesky Indigo Go libraries
+- [x] Set up sqlc configuration and workflows
 
 ### Phase 2: Core Infrastructure
-- [ ] Set up cobra CLI framework for separate binaries
+- [x] Set up cobra CLI framework for PDS and AppView binaries
+- [x] Create Taskfile with development workflow targets
+- [x] Add Bluesky Indigo dependencies to go.mod
+- [x] Create Docker Compose configuration for development and testing
+- [x] Build database layer with sqlc for PDS
+- [x] Create comprehensive database schema for HashPost features
 - [ ] Create custom atproto types for HashPost features
 - [ ] Implement HashPost PDS core using Indigo packages
-- [ ] Build database layer with sqlc for PDS
 - [ ] Implement HashPost AppView core with OpenAPI spec server
 
 ### Phase 3: Integration
@@ -169,6 +173,43 @@ This document tracks the progress of building HashPost from scratch on the atpro
 3. **Design sqlc Patterns**: Define query organization and DAO patterns
 4. **Create Implementation Plan**: Break down work into manageable tasks
 
+## Research Findings
+
+### atproto Protocol Research
+- **Core Components**: atproto consists of PDS (Personal Data Server), BGS (Big Graph Service), and various supporting services
+- **Identity System**: Uses DIDs (Decentralized Identifiers) for user identity and authentication
+- **Data Repositories**: Users maintain personal data repositories for data portability
+- **Lexicon System**: Defines data structures and API endpoints through lexicon schemas
+- **Key Lexicons**: `com.atproto.server`, `com.atproto.identity`, `app.bsky.feed`, `app.bsky.graph`
+
+### Bluesky Indigo Libraries Research
+- **Package Structure**: Indigo provides Go implementations of atproto components
+- **Key Packages**: 
+  - `atproto/identity` - DID and handle resolution
+  - `atproto/crypto` - Cryptographic signing and key serialization
+  - `atproto/syntax` - String types and parsers for identifiers
+  - `atproto/lexicon` - Schema validation of data
+  - `repo` - Account data storage
+  - `mst` - Merkle Search Tree implementation
+  - `xrpc` - HTTP API client
+- **PDS Implementation**: Available in Indigo for building Personal Data Servers
+- **Integration**: Can be used as foundation for HashPost PDS implementation
+
+### sqlc Configuration
+- **Setup Complete**: sqlc.yaml configured with PostgreSQL support
+- **Directory Structure**: Created `internal/database/queries` and `internal/database/generated`
+- **Comprehensive Schema**: Complete HashPost database schema with users, subforums, posts, comments, votes
+- **Code Generation**: Successfully generating Go code from SQL queries
+- **Type Safety**: Using pgx/v5 with proper type overrides for UUID and timestamps
+
+### Phase 2 Implementation Complete
+- **Project Structure**: Complete directory structure with cmd/, internal/, config/ directories
+- **Cobra CLI**: PDS and AppView binaries created with cobra framework
+- **Taskfile**: Comprehensive development workflow with targets for dev, test, migrate, generate, build
+- **Docker Compose**: Development and test environments configured
+- **Database Schema**: Complete HashPost schema supporting atproto records and HashPost-specific features
+- **Dependencies**: All Bluesky Indigo packages added and working
+
 ## Notes
 
 - This is a living document that will be updated as the project progresses
@@ -180,4 +221,4 @@ This document tracks the progress of building HashPost from scratch on the atpro
 ---
 
 *Last Updated: [Current Date]*
-*Status: Planning Phase*
+*Status: Phase 2 Complete - Ready for Phase 3 Implementation*

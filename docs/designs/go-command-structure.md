@@ -21,13 +21,14 @@ This document defines the command structure for the HashPost Go application usin
 
 ## Architecture Decisions
 
-### Command Structure (Separate Binaries)
+### Command Structure
 - **PDS Binary**: `hashpost-pds` - Personal Data Server for atproto protocol compliance
 - **AppView Binary**: `hashpost-appview` - Stateless aggregator for data presentation
-- **Shared Commands**: `hashpost migrate`, `hashpost generate` - Shared utilities
+- **Taskfile Targets**: Shared utilities via Taskfile (migrate, generate, test, dev)
 - **PDS Focus**: PDS handles all data and business logic
 - **AppView Focus**: AppView is stateless aggregator
 - **Independent Deployment**: Each component can be deployed separately
+- **Development Workflow**: Taskfile manages common development tasks
 
 ### Framework Choice
 - **Cobra**: Industry standard for Go CLI applications
@@ -36,21 +37,17 @@ This document defines the command structure for the HashPost Go application usin
 
 ## Command Implementation
 
-### Shared Utilities Root Command
-```go
-// cmd/shared/root.go
-var rootCmd = &cobra.Command{
-    Use:   "hashpost",
-    Short: "HashPost shared utilities",
-    Long:  `HashPost shared utilities for database management and code generation.`,
-}
+### Taskfile Targets
+The Taskfile provides common development tasks including:
+- `task dev` - Start development environment
+- `task test` - Run tests with Docker Compose
+- `task migrate:up/down` - Database migrations
+- `task generate:sqlc` - Generate database code
+- `task generate:openapi` - Generate OpenAPI client
+- `task build` - Build all binaries
+- `task clean` - Clean all artifacts
 
-func Execute() {
-    if err := rootCmd.Execute(); err != nil {
-        os.Exit(1)
-    }
-}
-```
+See `Taskfile.yml` for complete implementation details.
 
 ### PDS Binary Implementation
 ```go
@@ -157,34 +154,15 @@ type PDSConnection struct {
 }
 ```
 
-## Shared Utilities
+## Development Workflow
 
-### Shared Commands Binary
-```go
-// cmd/shared/main.go
-var rootCmd = &cobra.Command{
-    Use:   "hashpost",
-    Short: "HashPost shared utilities",
-    Long:  `HashPost shared utilities for database management and code generation.`,
-}
-
-var migrateCmd = &cobra.Command{
-    Use:   "migrate",
-    Short: "Database migration commands",
-    Long:  `Manage database migrations for HashPost.`,
-}
-
-var generateCmd = &cobra.Command{
-    Use:   "generate",
-    Short: "Code generation commands",
-    Long:  `Generate code from OpenAPI specs and database schemas.`,
-}
-
-func init() {
-    rootCmd.AddCommand(migrateCmd)
-    rootCmd.AddCommand(generateCmd)
-}
-```
+### Taskfile Management
+- **Common Tasks**: All shared utilities managed via Taskfile targets
+- **Development**: `task dev` starts Docker Compose environment
+- **Testing**: `task test` runs full test suite with Docker Compose
+- **Database**: `task migrate:up` and `task migrate:down` for migrations
+- **Code Generation**: `task generate:sqlc` and `task generate:openapi`
+- **Building**: `task build` compiles all binaries
 
 ### Deployment Patterns
 ```go
@@ -227,12 +205,12 @@ func bindAppViewFlags(cmd *cobra.Command, cfg *config.AppViewConfig) {
 
 ## Implementation Plan
 
-### Phase 1: Separate Binaries
-- [ ] Set up cobra CLI framework for each binary
-- [ ] Create PDS binary (`hashpost-pds`)
-- [ ] Create AppView binary (`hashpost-appview`)
-- [ ] Create shared utilities binary (`hashpost`)
-- [ ] Add basic configuration for each component
+### Phase 1: Separate Binaries + Taskfile
+- [x] Set up cobra CLI framework for PDS and AppView binaries
+- [x] Create PDS binary (`hashpost-pds`)
+- [x] Create AppView binary (`hashpost-appview`)
+- [x] Create Taskfile with common development tasks
+- [x] Add basic configuration for each component
 
 ### Phase 2: Server Integration
 - [ ] Integrate PDS with net/http server and database
@@ -299,14 +277,32 @@ func bindAppViewFlags(cmd *cobra.Command, cfg *config.AppViewConfig) {
 4. **Add shared utilities** - Migration and generation commands
 5. **Add testing** - Test each component independently
 
+## Phase 1 Implementation Complete
+
+### Completed Infrastructure
+- **Cobra Binaries**: Both PDS and AppView binaries created with cobra framework
+- **Taskfile**: Comprehensive development workflow with targets for all common tasks
+- **Configuration**: Development and test configuration files created
+- **Docker Integration**: Taskfile targets integrate with Docker Compose for development and testing
+- **Project Structure**: Clean separation between PDS, AppView, and shared utilities
+
+### Available Commands
+- `task dev` - Start development environment
+- `task test` - Run tests with Docker Compose
+- `task migrate:up/down` - Database migrations
+- `task generate:sqlc` - Generate database code
+- `task build` - Build all binaries
+- `task clean` - Clean all artifacts
+
 ## Notes
 
 - Use cobra for consistent CLI experience
 - Follow Go CLI best practices
 - Plan for future command additions
 - Keep commands focused and single-purpose
+- Taskfile provides better developer experience than separate shared binary
 
 ---
 
 *Last Updated: [Current Date]*
-*Status: Design Phase*
+*Status: Phase 1 Complete - Ready for Phase 2*

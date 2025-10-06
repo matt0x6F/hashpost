@@ -1,0 +1,34 @@
+# Test configuration for HashPost
+
+# PDS Configuration
+pds:
+  server:
+    host: "0.0.0.0"
+    port: 8080
+    dev: false
+  database:
+    host: "postgres-test"
+    port: 5432
+    database: "hashpost_test"
+    username: "hashpost"
+    password: "password"
+    ssl_mode: "disable"
+  redis:
+    url: "redis://redis-test:6379"
+  atproto:
+    did_resolver: "https://plc.directory"
+    handle_base: "hashpost.test"
+
+# AppView Configuration
+appview:
+  server:
+    host: "0.0.0.0"
+    port: 8081
+    dev: false
+  pds:
+    url: "http://hashpost-pds-test:8080"
+
+# Logging
+logging:
+  level: "error"
+  format: "json"
