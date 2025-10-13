@@ -33,6 +33,50 @@ HashPost is proprietary software at the moment and there is no immediate plan to
 5. **Make Your Changes**: Implement your feature or fix
 6. **Test Your Changes**: Ensure all tests pass and the application runs correctly
 
+### Development Workflow
+
+1. **Start Services**: Use `task dev` to start the full development environment
+2. **Make Code Changes**: Edit files in your IDE - changes are automatically reloaded
+3. **View Logs**: Use `task dev:logs` to monitor application behavior
+4. **Test Changes**: The applications will automatically restart when you save changes
+5. **Stop Services**: Use `task dev:down` when done
+
+#### Available Services
+
+- **Database**: PostgreSQL running on `localhost:5432`
+- **PDS Server**: HashPost PDS on `localhost:8080` 
+- **AppView Server**: HashPost AppView on `localhost:8081`
+- **Frontend**: Next.js UI on `localhost:3000`
+- **Swagger UI**: API documentation on `localhost:8081/docs`
+
+#### Code Generation
+
+When you modify database schemas or OpenAPI specs:
+
+```bash
+# Regenerate SQLC code
+task generate:sqlc
+
+# Regenerate OpenAPI client
+task generate:openapi
+
+# Generate all code
+task generate
+```
+
+#### Testing
+
+```bash
+# Run unit tests
+task test:unit
+
+# Run integration tests with Docker Compose
+task test
+
+# Run linter
+task lint
+```
+
 **Note**: While you can fork the repository to contribute, you may not use, run, or distribute the code due to the proprietary license. The fork is solely for the purpose of creating pull requests.
 
 ### Code Standards

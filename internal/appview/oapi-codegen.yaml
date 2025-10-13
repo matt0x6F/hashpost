@@ -1,0 +1,5 @@
+package: appview
+generate:
+  std-http-server: true
+  models: true
+output: internal/appview/generated.go

@@ -7,14 +7,16 @@ pds:
     port: 8080
     dev: true
   database:
-    host: "postgres"
+    host: "localhost"
     port: 5432
-    database: "hashpost_dev"
-    username: "hashpost"
+    database: "hashpost_pds_dev"
+    username: "hashpost_pds"
     password: "password"
     ssl_mode: "disable"
   redis:
     url: "redis://redis:6379"
+  nats:
+    url: "nats://nats:4222"
   atproto:
     did_resolver: "https://plc.directory"
     handle_base: "hashpost.local"
@@ -25,8 +27,15 @@ appview:
     host: "0.0.0.0"
     port: 8081
     dev: true
+  database:
+    host: "localhost"
+    port: 5432
+    database: "hashpost_appview_dev"
+    username: "hashpost_appview"
+    password: "password"
+    ssl_mode: "disable"
   pds:
-    url: "http://hashpost-pds:8080"
+    url: "http://localhost:8080"
 
 # Logging
 logging:

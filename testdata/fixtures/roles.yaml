@@ -1,0 +1,21 @@
+roles:
+  - id: "550e8400-e29b-41d4-a716-446655440030"
+    name: "user"
+    description: "Regular user role"
+    permissions: ["post.create", "post.read", "comment.create", "comment.read"]
+    created_at: "2024-01-01T00:00:00Z"
+    updated_at: "2024-01-01T00:00:00Z"
+  
+  - id: "550e8400-e29b-41d4-a716-446655440031"
+    name: "moderator"
+    description: "Moderator role"
+    permissions: ["post.create", "post.read", "post.moderate", "comment.create", "comment.read", "comment.moderate"]
+    created_at: "2024-01-01T00:00:00Z"
+    updated_at: "2024-01-01T00:00:00Z"
+  
+  - id: "550e8400-e29b-41d4-a716-446655440032"
+    name: "platform_admin"
+    description: "Platform administrator role"
+    permissions: ["platform.manage_users", "platform.manage_roles", "platform.manage_settings"]
+    created_at: "2024-01-01T00:00:00Z"
+    updated_at: "2024-01-01T00:00:00Z"

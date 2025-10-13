@@ -1,0 +1,620 @@
+package pds
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"os"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/matt0x6f/hashpost/internal/config"
+	generated "github.com/matt0x6f/hashpost/internal/database/generated/pds"
+	jwtservice "github.com/matt0x6f/hashpost/internal/jwt"
+	"github.com/matt0x6f/hashpost/internal/lexicons"
+	"github.com/matt0x6f/hashpost/internal/middleware"
+)
+
+// Server represents the HashPost PDS server
+type Server struct {
+	config       *config.Config
+	db           *generated.Queries
+	eventStream  *EventStreamer
+	httpServer   *http.Server
+	logger       *slog.Logger
+	authService  *AuthService
+	oauthService *OAuthService
+	dpopService  *DPoPService
+	cidService   *CIDService
+}
+
+// NewServer creates a new PDS server instance
+func NewServer(cfg *config.Config, db *generated.Queries) (*Server, error) {
+	// Create structured logger with text handler for better Docker visibility
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}))
+
+	// Get NATS URL from config
+	natsURL := cfg.GetNATSURL()
+
+	// Create event streamer
+	logger.Info("Creating event streamer", "natsURL", natsURL)
+	eventStream, err := NewEventStreamer(natsURL, logger)
+	if err != nil {
+		logger.Error("Failed to create event streamer", "error", err)
+		return nil, fmt.Errorf("failed to create event streamer: %w", err)
+	}
+	logger.Info("Event streamer created successfully")
+
+	// Create JWT service for production
+	jwtService := jwtservice.NewProductionJWTService(jwtservice.JWTServiceConfig{
+		Algorithm:          "ES256K",
+		Expiration:         time.Hour,
+		ValidateSignatures: true,
+	})
+
+	// Create authentication service
+	authService := NewAuthService(db, logger, jwtService)
+
+	// Create OAuth service
+	oauthService := NewOAuthService(authService, db, logger)
+
+	// Create DPoP service
+	dpopService := NewDPoPService(authService, db, logger, jwtService)
+
+	// Create CID service
+	cidService := NewCIDService(logger)
+
+	server := &Server{
+		config:       cfg,
+		db:           db,
+		eventStream:  eventStream,
+		logger:       logger,
+		authService:  authService,
+		oauthService: oauthService,
+		dpopService:  dpopService,
+		cidService:   cidService,
+	}
+
+	return server, nil
+}
+
+// Start starts the PDS server
+func (s *Server) Start() error {
+	mux := http.NewServeMux()
+
+	// Register atproto endpoints
+	s.registerAtprotoEndpoints(mux)
+
+	// Wrap the mux with logging middleware
+	handler := middleware.LoggingMiddleware(s.logger)(mux)
+
+	s.httpServer = &http.Server{
+		Addr:    s.config.GetPDSServerAddress(),
+		Handler: handler,
+	}
+
+	s.logger.Info("Starting HashPost PDS server", "addr", s.config.GetPDSServerAddress())
+	return s.httpServer.ListenAndServe()
+}
+
+// Stop stops the PDS server
+func (s *Server) Stop(ctx context.Context) error {
+	if s.httpServer != nil {
+		return s.httpServer.Shutdown(ctx)
+	}
+	return nil
+}
+
+// registerAtprotoEndpoints registers standard atproto endpoints
+func (s *Server) registerAtprotoEndpoints(mux *http.ServeMux) {
+	// Identity endpoints
+	mux.HandleFunc("/xrpc/com.atproto.identity.resolveHandle", s.handleResolveHandle)
+
+	// Server endpoints
+	mux.HandleFunc("/xrpc/com.atproto.server.createSession", s.handleCreateSession)
+	mux.HandleFunc("/xrpc/com.atproto.server.createAccount", s.handleCreateAccount)
+	mux.HandleFunc("/xrpc/com.atproto.server.getSession", s.handleGetSession)
+	mux.HandleFunc("/xrpc/com.atproto.server.refreshSession", s.handleRefreshSession)
+	mux.HandleFunc("/xrpc/com.atproto.server.deleteSession", s.handleDeleteSession)
+
+	// Repository endpoints
+	mux.HandleFunc("/xrpc/com.atproto.repo.createRecord", s.handleCreateRecord)
+	mux.HandleFunc("/xrpc/com.atproto.repo.getRecord", s.handleGetRecord)
+	mux.HandleFunc("/xrpc/com.atproto.repo.listRecords", s.handleListRecords)
+	mux.HandleFunc("/xrpc/com.atproto.repo.putRecord", s.handlePutRecord)
+	mux.HandleFunc("/xrpc/com.atproto.repo.deleteRecord", s.handleDeleteRecord)
+
+	// OAuth endpoints
+	mux.HandleFunc("/oauth/client-metadata", s.oauthService.GetClientMetadata)
+	mux.HandleFunc("/oauth/authorize", s.oauthService.HandleAuthorization)
+	mux.HandleFunc("/oauth/token", s.oauthService.HandleToken)
+
+	// DPoP endpoints
+	mux.HandleFunc("/oauth/dpop-nonce", s.dpopService.GenerateNonce)
+}
+
+// Handler functions moved to domain-specific files:
+// - Identity handlers: identity.go
+// - Repository handlers: repo.go
+// - Session handlers: auth.go
+// - Account handlers: accounts.go
+
+// Helper methods for record creation
+
+func (s *Server) createHashPostRecord(ctx context.Context, repo, collection, recordID, uri, cid string, record map[string]interface{}) error {
+	// For HashPost collections, we need to create the appropriate database record
+	switch collection {
+	case lexicons.CollectionFeedPost:
+		return s.createPostRecord(ctx, repo, recordID, uri, cid, record)
+	case lexicons.CollectionFeedSubforum:
+		return s.createSubforumRecord(ctx, repo, recordID, uri, cid, record)
+	default:
+		return fmt.Errorf("unsupported HashPost collection: %s", collection)
+	}
+}
+
+func (s *Server) createPostRecord(ctx context.Context, repo, recordID, uri, cid string, record map[string]interface{}) error {
+	// Extract data from the record
+	text, _ := record[lexicons.FieldText].(string)
+
+	// Look up the user by DID (repo)
+	user, err := s.db.GetUserByDID(ctx, repo)
+	if err != nil {
+		s.logger.Error("Failed to find user by DID", "error", err, "did", repo)
+		return fmt.Errorf("failed to find user: %w", err)
+	}
+
+	// For now, use a default subforum (general)
+	// In a real implementation, we'd resolve this from the record or context
+	subforum, err := s.db.GetSubforumBySlug(ctx, "general")
+	if err != nil {
+		s.logger.Error("Failed to find default subforum", "error", err)
+		return fmt.Errorf("failed to find subforum: %w", err)
+	}
+
+	// Convert UUIDs to pgtype.UUID
+	userIDPg := pgtype.UUID{Bytes: user.ID, Valid: true}
+	subforumIDPg := pgtype.UUID{Bytes: subforum.ID, Valid: true}
+
+	_, err = s.db.CreatePost(ctx, &generated.CreatePostParams{
+		UserID:     userIDPg,
+		SubforumID: subforumIDPg,
+		Title:      text, // Using text as title for now
+		Content:    text,
+		AtprotoUri: &uri,
+	})
+
+	if err != nil {
+		s.logger.Error("Failed to create post in database", "error", err, "uri", uri)
+		return fmt.Errorf("failed to create post: %w", err)
+	}
+
+	s.logger.Info("Created post record", "uri", uri, "text", text)
+	return nil
+}
+
+func (s *Server) createSubforumRecord(ctx context.Context, repo, recordID, uri, cid string, record map[string]interface{}) error {
+	// Extract data from the record
+	name, _ := record[lexicons.FieldName].(string)
+	slug, _ := record[lexicons.FieldSlug].(string)
+	description, _ := record[lexicons.FieldDescription].(string)
+
+	if name == "" || slug == "" {
+		return fmt.Errorf("name and slug are required for subforum")
+	}
+
+	// Look up the user by DID (repo)
+	user, err := s.db.GetUserByDID(ctx, repo)
+	if err != nil {
+		s.logger.Error("Failed to find user by DID", "error", err, "did", repo)
+		return fmt.Errorf("failed to find user: %w", err)
+	}
+
+	createdByPg := pgtype.UUID{Bytes: user.ID, Valid: true}
+
+	_, err = s.db.CreateSubforum(ctx, &generated.CreateSubforumParams{
+		Name:        name,
+		Slug:        slug,
+		Description: &description,
+		CreatedBy:   createdByPg,
+	})
+
+	if err != nil {
+		s.logger.Error("Failed to create subforum in database", "error", err, "uri", uri)
+		return fmt.Errorf("failed to create subforum: %w", err)
+	}
+
+	s.logger.Info("Created subforum record", "uri", uri, "name", name, "slug", slug)
+	return nil
+}
+
+func (s *Server) createGenericRecord(ctx context.Context, repo, collection, recordID, uri, cid string, record map[string]interface{}) error {
+	// For generic collections, we could store in a generic records table
+	// For now, just log that we received the record
+	s.logger.Info("Received generic record", "collection", collection, "uri", uri)
+	return nil
+}
+
+// Helper methods for record retrieval
+
+func (s *Server) getPostRecord(ctx context.Context, uri string) (map[string]interface{}, error) {
+	post, err := s.db.GetPostByAtprotoURI(ctx, &uri)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get post: %w", err)
+	}
+
+	// For now, use a simple CID (in production, this would be computed from the record content)
+	cid := fmt.Sprintf("bafybeigdyrzt5sfpudm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi-%s", post.ID)
+
+	// Format the timestamp properly
+	var createdAtStr string
+	if post.CreatedAt.Valid {
+		createdAtStr = post.CreatedAt.Time.Format("2006-01-02T15:04:05.000Z")
+	} else {
+		createdAtStr = "2025-01-01T00:00:00.000Z" // fallback
+	}
+
+	response := map[string]interface{}{
+		"uri": uri,
+		"cid": cid,
+		"record": map[string]interface{}{
+			"$type":     lexicons.RecordTypePost,
+			"text":      post.Content,
+			"createdAt": createdAtStr,
+		},
+	}
+
+	return response, nil
+}
+
+func (s *Server) getSubforumRecord(ctx context.Context, uri string) (map[string]interface{}, error) {
+	// Extract slug from URI (this is a simplified approach)
+	// In production, we'd need a more robust way to map URIs to database records
+	// For now, we'll need to implement a different approach or store the URI mapping
+
+	// This is a placeholder - we'd need to implement proper URI to record mapping
+	return nil, fmt.Errorf("subforum record retrieval not yet implemented")
+}
+
+// Helper methods for record listing
+
+func (s *Server) listPostRecords(ctx context.Context, repo string, limit int, cursor string) (map[string]interface{}, error) {
+	var posts []*generated.Post
+
+	if cursor != "" {
+		// Parse cursor as timestamp
+		cursorTime, err := time.Parse(time.RFC3339, cursor)
+		if err != nil {
+			return nil, fmt.Errorf("invalid cursor format: %w", err)
+		}
+
+		// Use cursor-based pagination for the specific user
+		posts, err = s.db.ListPostsWithCursorByUser(ctx, &generated.ListPostsWithCursorByUserParams{
+			Did:       repo,
+			CreatedAt: pgtype.Timestamptz{Time: cursorTime, Valid: true},
+			Limit:     int32(limit),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to list posts with cursor: %w", err)
+		}
+	} else {
+		// First page - get most recent posts for the specific user
+		postRows, err := s.db.ListPostsByUser(ctx, &generated.ListPostsByUserParams{
+			Did:    repo,
+			Limit:  int32(limit),
+			Offset: 0,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to list posts: %w", err)
+		}
+
+		// Convert rows to posts
+		posts = make([]*generated.Post, len(postRows))
+		for i, row := range postRows {
+			posts[i] = &generated.Post{
+				ID:         row.ID,
+				UserID:     row.UserID,
+				SubforumID: row.SubforumID,
+				Title:      row.Title,
+				Content:    row.Content,
+				AtprotoUri: row.AtprotoUri,
+				CreatedAt:  row.CreatedAt,
+				UpdatedAt:  row.UpdatedAt,
+			}
+		}
+	}
+
+	records := make([]map[string]interface{}, 0, len(posts))
+	for _, post := range posts {
+		// Format the timestamp properly
+		var createdAtStr string
+		if post.CreatedAt.Valid {
+			createdAtStr = post.CreatedAt.Time.Format("2006-01-02T15:04:05.000Z")
+		} else {
+			createdAtStr = "2025-01-01T00:00:00.000Z" // fallback
+		}
+
+		// Generate URI from post data
+		uri := fmt.Sprintf("at://%s/%s/%s", repo, lexicons.PathFeedPost, post.ID)
+		cid := fmt.Sprintf("bafybeigdyrzt5sfpudm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi-%s", post.ID)
+
+		record := map[string]interface{}{
+			"uri": uri,
+			"cid": cid,
+			"record": map[string]interface{}{
+				"$type":     lexicons.RecordTypePost,
+				"text":      post.Content,
+				"createdAt": createdAtStr,
+			},
+		}
+		records = append(records, record)
+	}
+
+	response := map[string]interface{}{
+		"records": records,
+		"cursor":  s.generateNextCursor(records, limit),
+	}
+
+	return response, nil
+}
+
+func (s *Server) listSubforumRecords(ctx context.Context, repo string, limit int, cursor string) (map[string]interface{}, error) {
+	var subforums []*generated.Subforum
+
+	if cursor != "" {
+		// Parse cursor as timestamp
+		cursorTime, err := time.Parse(time.RFC3339, cursor)
+		if err != nil {
+			return nil, fmt.Errorf("invalid cursor format: %w", err)
+		}
+
+		// Use cursor-based pagination
+		subforums, err = s.db.ListSubforumsWithCursor(ctx, &generated.ListSubforumsWithCursorParams{
+			CreatedAt: pgtype.Timestamptz{Time: cursorTime, Valid: true},
+			Limit:     int32(limit),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to list subforums with cursor: %w", err)
+		}
+	} else {
+		// First page - get most recent subforums
+		subforumRows, err := s.db.ListSubforums(ctx, &generated.ListSubforumsParams{
+			Limit:  int32(limit),
+			Offset: 0,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to list subforums: %w", err)
+		}
+
+		// Convert rows to subforums
+		subforums = make([]*generated.Subforum, len(subforumRows))
+		for i, row := range subforumRows {
+			subforums[i] = &generated.Subforum{
+				ID:          row.ID,
+				Name:        row.Name,
+				Slug:        row.Slug,
+				Description: row.Description,
+				CreatedBy:   row.CreatedBy,
+				CreatedAt:   row.CreatedAt,
+				UpdatedAt:   row.UpdatedAt,
+			}
+		}
+	}
+
+	records := make([]map[string]interface{}, 0, len(subforums))
+	for _, subforum := range subforums {
+		// Format the timestamp properly
+		var createdAtStr string
+		if subforum.CreatedAt.Valid {
+			createdAtStr = subforum.CreatedAt.Time.Format("2006-01-02T15:04:05.000Z")
+		} else {
+			createdAtStr = "2025-01-01T00:00:00.000Z" // fallback
+		}
+
+		// Generate URI from subforum data
+		uri := fmt.Sprintf("at://%s/%s/%s", repo, lexicons.PathFeedSubforum, subforum.ID)
+		cid := fmt.Sprintf("bafybeigdyrzt5sfpudm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi-%s", subforum.ID)
+
+		record := map[string]interface{}{
+			"uri": uri,
+			"cid": cid,
+			"record": map[string]interface{}{
+				"$type":       lexicons.RecordTypeSubforum,
+				"name":        subforum.Name,
+				"slug":        subforum.Slug,
+				"description": subforum.Description,
+				"createdAt":   createdAtStr,
+			},
+		}
+		records = append(records, record)
+	}
+
+	response := map[string]interface{}{
+		"records": records,
+		"cursor":  s.generateNextCursor(records, limit),
+	}
+
+	return response, nil
+}
+
+// Helper methods for record updates
+
+func (s *Server) updatePostRecord(ctx context.Context, uri string, record map[string]interface{}) (map[string]interface{}, error) {
+	// Extract data from the record
+	text, _ := record[lexicons.FieldText].(string)
+
+	if text == "" {
+		return nil, fmt.Errorf("text is required for post update")
+	}
+
+	// Update the post in database
+	updatedPost, err := s.db.UpdatePostByAtprotoURI(ctx, &generated.UpdatePostByAtprotoURIParams{
+		AtprotoUri: &uri,
+		Title:      text, // Using text as title for now
+		Content:    text,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update post: %w", err)
+	}
+
+	// Generate new CID
+	cid := fmt.Sprintf("bafybeigdyrzt5sfpudm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi-%s", updatedPost.ID)
+
+	// Format the timestamp properly
+	var updatedAtStr string
+	if updatedPost.UpdatedAt.Valid {
+		updatedAtStr = updatedPost.UpdatedAt.Time.Format("2006-01-02T15:04:05.000Z")
+	} else {
+		updatedAtStr = "2025-01-01T00:00:00.000Z" // fallback
+	}
+
+	response := map[string]interface{}{
+		"uri": uri,
+		"cid": cid,
+		"record": map[string]interface{}{
+			"$type":     lexicons.RecordTypePost,
+			"text":      updatedPost.Content,
+			"createdAt": updatedAtStr,
+		},
+	}
+
+	s.logger.Info("Updated post record", "uri", uri, "text", text)
+	return response, nil
+}
+
+func (s *Server) updateSubforumRecord(ctx context.Context, rkey string, record map[string]interface{}) (map[string]interface{}, error) {
+	// Extract data from the record
+	name, _ := record[lexicons.FieldName].(string)
+	slug, _ := record[lexicons.FieldSlug].(string)
+	description, _ := record[lexicons.FieldDescription].(string)
+
+	if name == "" || slug == "" {
+		return nil, fmt.Errorf("name and slug are required for subforum update")
+	}
+
+	// Convert rkey to UUID (assuming rkey is the subforum ID)
+	subforumID, err := uuid.Parse(rkey)
+	if err != nil {
+		return nil, fmt.Errorf("invalid subforum ID: %w", err)
+	}
+
+	// Update the subforum in database
+	updatedSubforum, err := s.db.UpdateSubforumByID(ctx, &generated.UpdateSubforumByIDParams{
+		ID:          subforumID,
+		Name:        name,
+		Slug:        slug,
+		Description: &description,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update subforum: %w", err)
+	}
+
+	// Generate new CID
+	cid := fmt.Sprintf("bafybeigdyrzt5sfpudm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi-%s", updatedSubforum.ID)
+
+	// Format the timestamp properly
+	var updatedAtStr string
+	if updatedSubforum.UpdatedAt.Valid {
+		updatedAtStr = updatedSubforum.UpdatedAt.Time.Format("2006-01-02T15:04:05.000Z")
+	} else {
+		updatedAtStr = "2025-01-01T00:00:00.000Z" // fallback
+	}
+
+	// Generate URI
+	uri := fmt.Sprintf("at://%s/%s/%s", "did:plc:hashpost-binding-test", lexicons.PathFeedSubforum, rkey)
+
+	response := map[string]interface{}{
+		"uri": uri,
+		"cid": cid,
+		"record": map[string]interface{}{
+			"$type":       lexicons.RecordTypeSubforum,
+			"name":        updatedSubforum.Name,
+			"slug":        updatedSubforum.Slug,
+			"description": updatedSubforum.Description,
+			"createdAt":   updatedAtStr,
+		},
+	}
+
+	s.logger.Info("Updated subforum record", "uri", uri, "name", name, "slug", slug)
+	return response, nil
+}
+
+// Helper methods for record deletion
+
+func (s *Server) deletePostRecord(ctx context.Context, uri string) error {
+	// Delete the post from database
+	err := s.db.DeletePostByAtprotoURI(ctx, &uri)
+	if err != nil {
+		return fmt.Errorf("failed to delete post: %w", err)
+	}
+
+	s.logger.Info("Deleted post record", "uri", uri)
+	return nil
+}
+
+func (s *Server) deleteSubforumRecord(ctx context.Context, rkey string) error {
+	// Convert rkey to UUID (assuming rkey is the subforum ID)
+	subforumID, err := uuid.Parse(rkey)
+	if err != nil {
+		return fmt.Errorf("invalid subforum ID: %w", err)
+	}
+
+	// Delete the subforum from database
+	err = s.db.DeleteSubforumByID(ctx, subforumID)
+	if err != nil {
+		return fmt.Errorf("failed to delete subforum: %w", err)
+	}
+
+	s.logger.Info("Deleted subforum record", "rkey", rkey)
+	return nil
+}
+
+// getUserEmailFromDID retrieves the user's email from the database by DID
+func (s *Server) getUserEmailFromDID(ctx context.Context, did string) string {
+	user, err := s.db.GetUserByDID(ctx, did)
+	if err != nil {
+		s.logger.Error("Failed to get user by DID", "error", err, "did", did)
+		return "" // Return empty string if user not found
+	}
+
+	if user.Email != nil {
+		return *user.Email
+	}
+
+	return "" // Return empty string if no email
+}
+
+// validateInviteCode validates an invite code
+func (s *Server) validateInviteCode(ctx context.Context, inviteCode string) error {
+	// For now, implement a simple validation
+	// In production, this would check against a database table of valid invite codes
+	if len(inviteCode) < 8 {
+		return fmt.Errorf("invite code too short")
+	}
+
+	// Simple validation - in production, check against database
+	validCodes := []string{"hashpost2024", "beta-invite", "early-access"}
+	for _, validCode := range validCodes {
+		if inviteCode == validCode {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("invalid invite code")
+}
+
+// generateNextCursor generates the next cursor for pagination
+func (s *Server) generateNextCursor(records []map[string]interface{}, limit int) string {
+	if len(records) > 0 && len(records) == limit {
+		// If we got a full page, there might be more records
+		lastRecord := records[len(records)-1]
+		if createdAt, ok := lastRecord["record"].(map[string]interface{})["createdAt"].(string); ok {
+			return createdAt
+		}
+	}
+	return ""
+}

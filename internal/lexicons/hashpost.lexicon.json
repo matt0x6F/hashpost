@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "lexicons": [
+    {
+      "id": "com.hashpost.feed.post",
+      "version": "0.0.1",
+      "defs": {
+        "main": {
+          "type": "object",
+          "required": ["text", "createdAt"],
+          "properties": {
+            "text": {
+              "type": "string",
+              "maxLength": 3000
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "reply": {
+              "type": "object",
+              "properties": {
+                "root": {
+                  "type": "string"
+                },
+                "parent": {
+                  "type": "string"
+                }
+              }
+            },
+            "embed": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": ["image", "link", "quote"]
+                },
+                "url": {
+                  "type": "string"
+                },
+                "alt": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "com.hashpost.forum.subforum",
+      "version": "0.0.1",
+      "defs": {
+        "main": {
+          "type": "object",
+          "required": ["name", "slug", "description"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "slug": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]+$"
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,7 +1,10 @@
-# Build stage
-FROM golang:1.24-alpine AS builder
+# Development stage with Air for hot reloading
+FROM golang:1.24-alpine AS dev
 
 WORKDIR /app
+
+# Install Air for hot reloading (use compatible version for Go 1.24)
+RUN go install github.com/cosmtrek/air@v1.49.0
 
 # Install build dependencies
 RUN apk add --no-cache git
@@ -15,26 +18,11 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build binaries
-RUN go build -o bin/hashpost-pds ./cmd/pds
-RUN go build -o bin/hashpost-appview ./cmd/appview
+# Create Air configuration
+COPY .air.toml ./
 
-# Runtime stage
-FROM alpine:latest
+# Expose ports
+EXPOSE 8080 8081
 
-WORKDIR /app
-
-# Install runtime dependencies
-RUN apk add --no-cache ca-certificates
-
-# Copy binaries
-COPY --from=builder /app/bin/ /app/bin/
-
-# Copy config files
-COPY --from=builder /app/config/ /app/config/
-
-# Make binaries executable
-RUN chmod +x /app/bin/*
-
-# Default command
-CMD ["/app/bin/hashpost-pds"]
+# Default command for development
+CMD ["air", "-c", ".air.toml"]

@@ -1,0 +1,18 @@
+posts:
+  - id: "550e8400-e29b-41d4-a716-446655440020"
+    user_id: "550e8400-e29b-41d4-a716-446655440001"
+    subforum_id: "550e8400-e29b-41d4-a716-446655440010"
+    title: "Welcome to HashPost!"
+    content: "This is a test post to welcome users to HashPost."
+    atproto_uri: "at://did:plc:test-user-1/com.hashpost.feed.post/123"
+    created_at: "2024-01-01T00:00:00Z"
+    updated_at: "2024-01-01T00:00:00Z"
+  
+  - id: "550e8400-e29b-41d4-a716-446655440021"
+    user_id: "550e8400-e29b-41d4-a716-446655440002"
+    subforum_id: "550e8400-e29b-41d4-a716-446655440010"
+    title: "Test Post 2"
+    content: "This is another test post."
+    atproto_uri: "at://did:plc:test-user-2/com.hashpost.feed.post/456"
+    created_at: "2024-01-01T00:00:00Z"
+    updated_at: "2024-01-01T00:00:00Z"

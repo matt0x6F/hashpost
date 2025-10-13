@@ -1,14 +1,13 @@
-# Air configuration file for hot reloading
 root = "."
 testdata_dir = "testdata"
 tmp_dir = "tmp"
 
 [build]
-  args_bin = ["server"]
-  bin = "./tmp/main"
-  cmd = "CGO_ENABLED=0 go build -o ./tmp/main -buildvcs=false ./cmd/server"
+  args_bin = ["run", "--config", "/app/config/dev.yaml"]
+  bin = "./bin/hashpost-pds"
+  cmd = "go build -o bin/hashpost-pds ./cmd/pds"
   delay = 1000
-  exclude_dir = ["assets", "tmp", "vendor", "testdata", "ui"]
+  exclude_dir = ["assets", "tmp", "vendor", "testdata", "bin"]
   exclude_file = []
   exclude_regex = ["_test.go"]
   exclude_unchanged = false
@@ -42,4 +41,4 @@ tmp_dir = "tmp"
 
 [screen]
   clear_on_rebuild = false
-  keep_scroll = true 
+  keep_scroll = true

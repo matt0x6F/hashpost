@@ -14,7 +14,7 @@ import { RulesApi } from '../generated/api/src/apis/RulesApi';
 import { CorrelationApi } from '../generated/api/src/apis/CorrelationApi';
 
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8888';
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081';
 
 // Helper to get a pre-configured API instance with authentication
 export function getApi<T extends { new(config: Configuration): InstanceType<T> }>(ApiClass: T): InstanceType<T> {

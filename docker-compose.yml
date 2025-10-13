@@ -1,20 +1,23 @@
-version: '3.8'
-
 services:
   hashpost-pds:
-    build: .
-    command: hashpost-pds run --config /app/config/dev.yaml
+    build: 
+      context: .
+      target: dev
+    command: air -c .air.toml
     ports:
       - "8080:8080"
     environment:
-      - DATABASE_URL=postgres://hashpost:password@postgres:5432/hashpost_dev
+      - DATABASE_URL=postgres://hashpost_pds:password@postgres:5432/hashpost_pds_dev
       - REDIS_URL=redis://redis:6379
+      - NATS_URL=nats://nats:4222
       - LOG_LEVEL=debug
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      nats:
+        condition: service_started
     volumes:
       - .:/app
       - /app/bin
@@ -22,15 +25,20 @@ services:
       - hashpost-network
 
   hashpost-appview:
-    build: .
-    command: hashpost-appview run --config /app/config/dev.yaml
+    build: 
+      context: .
+      target: dev
+    command: air -c .air.toml --build.cmd="go build -o bin/hashpost-appview ./cmd/appview" --build.bin="./bin/hashpost-appview" --build.args_bin="run --config /app/config/dev.yaml"
     ports:
       - "8081:8081"
     environment:
+      - APPVIEW_DATABASE_URL=postgres://hashpost_appview:password@postgres:5432/hashpost_appview_dev?sslmode=disable
       - PDS_URL=http://hashpost-pds:8080
+      - NATS_URL=nats://nats:4222
       - LOG_LEVEL=debug
     depends_on:
       - hashpost-pds
+      - nats
     volumes:
       - .:/app
       - /app/bin
@@ -42,14 +50,19 @@ services:
     ports:
       - "5432:5432"
     environment:
-      - POSTGRES_DB=hashpost_dev
-      - POSTGRES_USER=hashpost
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=password
     volumes:
       - postgres_dev_data:/var/lib/postgresql/data
-      - ./internal/database/migrations:/docker-entrypoint-initdb.d
+      - ./scripts/init-databases.sql:/docker-entrypoint-initdb.d/00-init-databases.sql
+      - ./scripts/init-pds-database.sql:/docker-entrypoint-initdb.d/init-pds-database.sql
+      - ./scripts/init-appview-database.sql:/docker-entrypoint-initdb.d/init-appview-database.sql
+      - ./scripts/grant-permissions.sql:/docker-entrypoint-initdb.d/grant-permissions.sql
+      - ./scripts/001_initial_schema.sql:/docker-entrypoint-initdb.d/001_initial_schema.sql
+      - ./scripts/001_appview_schema.sql:/docker-entrypoint-initdb.d/001_appview_schema.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U hashpost -d hashpost_dev"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -70,9 +83,21 @@ services:
     networks:
       - hashpost-network
 
+  nats:
+    image: nats:2.10-alpine
+    command: ["--jetstream", "--store_dir", "/data"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"  # HTTP monitoring
+    volumes:
+      - nats_dev_data:/data
+    networks:
+      - hashpost-network
+
 volumes:
   postgres_dev_data:
   redis_dev_data:
+  nats_dev_data:
 
 networks:
   hashpost-network:

@@ -28,10 +28,75 @@ tasks:
     cmds:
       - go test -short ./...
 
+  test:coverage:
+    desc: "Run tests with coverage report"
+    cmds:
+      - go test -coverprofile=coverage.out ./...
+      - go tool cover -html=coverage.out -o coverage.html
+      - go tool cover -func=coverage.out
+
+  test:integration:
+    desc: "Run integration tests with database"
+    env:
+      TEST_DB_HOST: "localhost"
+      TEST_DB_PORT: "5432"
+      TEST_DB_USER: "postgres"
+      TEST_DB_PASSWORD: "password"
+      TEST_DB_NAME: "postgres"
+    cmds:
+      - go test -tags=integration ./...
+
+  test:pds:
+    desc: "Run PDS-specific tests"
+    cmds:
+      - go test ./internal/pds/...
+
+  test:appview:
+    desc: "Run AppView-specific tests"
+    cmds:
+      - go test ./internal/appview/...
+
+  test:coverage:pds:
+    desc: "Run PDS tests with coverage"
+    cmds:
+      - go test -coverprofile=pds-coverage.out ./internal/pds/...
+      - go tool cover -html=pds-coverage.out -o pds-coverage.html
+
+  test:coverage:appview:
+    desc: "Run AppView tests with coverage"
+    cmds:
+      - go test -coverprofile=appview-coverage.out ./internal/appview/...
+      - go tool cover -html=appview-coverage.out -o appview-coverage.html
+
+  test:integration:pds:
+    desc: "Run PDS integration tests with database"
+    env:
+      TEST_DB_HOST: "localhost"
+      TEST_DB_PORT: "5432"
+      TEST_DB_USER: "postgres"
+      TEST_DB_PASSWORD: "password"
+      TEST_DB_NAME: "postgres"
+    cmds:
+      - go test -run ".*Integration.*" ./internal/pds/...
+
+  test:integration:appview:
+    desc: "Run AppView integration tests with database"
+    env:
+      TEST_DB_HOST: "localhost"
+      TEST_DB_PORT: "5432"
+      TEST_DB_USER: "postgres"
+      TEST_DB_PASSWORD: "password"
+      TEST_DB_NAME: "postgres"
+    cmds:
+      - go test -run ".*Integration.*" ./internal/appview/...
+
   migrate:up:
     desc: "Run database migrations up"
+    env:
+      DATABASE_URL: "postgres://postgres:password@localhost:5432/postgres?sslmode=disable"
     cmds:
-      - migrate -path internal/database/migrations -database "$DATABASE_URL" up
+      - migrate -path internal/database/migrations/pds -database "$DATABASE_URL" up
+      - migrate -path internal/database/migrations/appview -database "postgres://postgres:password@localhost:5432/postgres?sslmode=disable" up
 
   migrate:down:
     desc: "Run database migrations down"
@@ -44,14 +109,20 @@ tasks:
       - migrate create -ext sql -dir internal/database/migrations -seq {{.CLI_ARGS}}
 
   generate:sqlc:
-    desc: "Generate sqlc code"
+    desc: "Generate sqlc code for both PDS and AppView"
     cmds:
-      - sqlc generate
+      - sqlc generate --file sqlc-pds.yaml
+      - sqlc generate --file sqlc-appview.yaml
+
+  generate:lexicons:
+    desc: "Generate Go types from HashPost custom lexicons"
+    cmds:
+      - ./scripts/generate-lexicons.sh
 
   generate:openapi:
     desc: "Generate OpenAPI client"
     cmds:
-      - oapi-codegen -config openapi-generator-config.json openapi.yaml
+      - oapi-codegen -config internal/appview/oapi-codegen.yaml internal/appview/openapi.yaml
 
   generate:
     desc: "Generate all code"
@@ -85,6 +156,36 @@ tasks:
     desc: "Tidy go modules"
     cmds:
       - go mod tidy
+
+  test:all:
+    desc: "Run all tests (unit + integration)"
+    cmds:
+      - task: test:unit
+      - task: test:integration
+
+  test:setup:
+    desc: "Setup test environment (start database services)"
+    cmds:
+      - docker-compose up -d postgres redis nats
+      - echo "Waiting for services to be ready..."
+      - sleep 10
+
+  test:teardown:
+    desc: "Teardown test environment"
+    cmds:
+      - docker-compose down
+
+  env:setup:
+    desc: "Setup environment variables from template"
+    cmds:
+      - |
+        if [ ! -f .env ]; then
+          echo "Creating .env file from template..."
+          cp env.template .env
+          echo "Please edit .env file with your database credentials"
+        else
+          echo ".env file already exists"
+        fi
 
   clean:
     desc: "Clean all artifacts"

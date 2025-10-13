@@ -1,0 +1,2042 @@
+openapi: 3.0.3
+info:
+  title: HashPost AppView API
+  description: HashPost AppView provides a unified API for accessing HashPost data aggregated from the PDS
+  version: 1.0.0
+  contact:
+    name: HashPost Team
+    email: team@hashpost.com
+
+servers:
+  - url: http://localhost:8081
+    description: Development server
+  - url: https://appview.hashpost.com
+    description: Production server
+
+paths:
+  # Authentication endpoints
+  /api/v1/auth/login:
+    post:
+      summary: Login user
+      description: Authenticate user with email/password
+      operationId: loginUser
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: User's email address
+                password:
+                  type: string
+                  description: User's password
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserLoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/auth/register:
+    post:
+      summary: Register user
+      description: Create a new user account
+      operationId: registerUser
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - handle
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: User's email address
+                password:
+                  type: string
+                  description: User's password
+                handle:
+                  type: string
+                  description: User's handle
+                inviteCode:
+                  type: string
+                  description: Optional invite code
+      responses:
+        '201':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserRegistrationResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Handle already taken
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/auth/me:
+    get:
+      summary: Get current user session
+      description: Get information about the currently authenticated user
+      operationId: getCurrentUserSession
+      tags:
+        - Authentication
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User session information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSession'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/auth/logout:
+    post:
+      summary: Logout user
+      description: Logout the current user session
+      operationId: logoutUser
+      tags:
+        - Authentication
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Logged out successfully"
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/subforums:
+    get:
+      summary: List subforums
+      description: Get a list of all subforums
+      operationId: listSubforums
+      tags:
+        - Subforums
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of subforums to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          description: Number of subforums to skip
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: List of subforums
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subforums:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Subforum'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/subforums/{slug}:
+    get:
+      summary: Get subforum by slug
+      description: Get a specific subforum by its slug
+      operationId: getSubforumBySlug
+      tags:
+        - Subforums
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: The subforum slug
+          schema:
+            type: string
+            pattern: '^[a-z0-9-]+$'
+      responses:
+        '200':
+          description: Subforum details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subforum'
+        '404':
+          description: Subforum not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/posts:
+    get:
+      summary: List posts
+      description: Get a list of posts, optionally filtered by subforum
+      operationId: listPosts
+      tags:
+        - Posts
+      parameters:
+        - name: subforum
+          in: query
+          description: Filter posts by subforum slug
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum number of posts to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          description: Number of posts to skip
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: List of posts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  posts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Post'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      summary: Create a new post
+      description: Create a new post in a subforum
+      operationId: createPost
+      tags:
+        - Posts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+                - content
+                - subforum_slug
+              properties:
+                title:
+                  type: string
+                  maxLength: 200
+                  description: Title of the post
+                content:
+                  type: string
+                  maxLength: 10000
+                  description: Content of the post
+                subforum_slug:
+                  type: string
+                  description: Slug of the subforum to post in
+      responses:
+        '201':
+          description: Post created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Post'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/posts/{id}:
+    get:
+      summary: Get post by ID
+      description: Get a specific post by its ID
+      operationId: getPostByID
+      tags:
+        - Posts
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The post ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Post details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Post'
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      summary: Update a post
+      description: Update an existing post
+      operationId: updatePost
+      tags:
+        - Posts
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The post ID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+                - content
+              properties:
+                title:
+                  type: string
+                  maxLength: 200
+                  description: Title of the post
+                content:
+                  type: string
+                  maxLength: 10000
+                  description: Content of the post
+      responses:
+        '200':
+          description: Post updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Post'
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      summary: Delete a post
+      description: Delete an existing post
+      operationId: deletePost
+      tags:
+        - Posts
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The post ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Post deleted successfully
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/comments:
+    get:
+      summary: List comments
+      description: Get a list of comments for a specific post
+      operationId: listComments
+      tags:
+        - Comments
+      parameters:
+        - name: post_id
+          in: query
+          description: Filter comments by post ID
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          description: Maximum number of comments to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          description: Number of comments to skip
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: List of comments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  comments:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Comment'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # Subforum RBAC Management Endpoints
+  /api/v1/subforums/{slug}/members:
+    get:
+      summary: List subforum members
+      description: Get a list of members with their roles in a specific subforum
+      operationId: listSubforumMembers
+      tags:
+        - Subforum Management
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: The subforum slug
+          schema:
+            type: string
+            pattern: '^[a-z0-9-]+$'
+        - name: limit
+          in: query
+          description: Maximum number of members to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          description: Number of members to skip
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: List of subforum members with roles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  members:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserWithRoles'
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Insufficient permissions (must be subforum owner or moderator)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Subforum not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/subforums/{slug}/members/{user_did}/roles:
+    post:
+      summary: Assign role to subforum member
+      description: Assign a role to a user in a specific subforum (subforum owner/moderator only)
+      operationId: assignSubforumRole
+      tags:
+        - Subforum Management
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: The subforum slug
+          schema:
+            type: string
+            pattern: '^[a-z0-9-]+$'
+        - name: user_did
+          in: path
+          required: true
+          description: The user's DID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - role_name
+              properties:
+                role_name:
+                  type: string
+                  description: Name of the role to assign
+                expires_at:
+                  type: string
+                  format: date-time
+                  description: When the role assignment expires (optional)
+      responses:
+        '200':
+          description: Role assigned successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Role assigned successfully"
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Insufficient permissions (must be subforum owner or moderator)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Subforum or user not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      summary: Revoke role from subforum member
+      description: Revoke a role from a user in a specific subforum (subforum owner/moderator only)
+      operationId: revokeSubforumRole
+      tags:
+        - Subforum Management
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: The subforum slug
+          schema:
+            type: string
+            pattern: '^[a-z0-9-]+$'
+        - name: user_did
+          in: path
+          required: true
+          description: The user's DID
+          schema:
+            type: string
+        - name: role_name
+          in: query
+          required: true
+          description: Name of the role to revoke
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Role revoked successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Role revoked successfully"
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Insufficient permissions (must be subforum owner or moderator)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Subforum, user, or role not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # User Self-Management Endpoints
+  /api/v1/me/roles:
+    get:
+      summary: Get my roles
+      description: Get all roles assigned to the authenticated user
+      operationId: getMyRoles
+      tags:
+        - User Management
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: subforum_id
+          in: query
+          description: Filter roles by subforum ID
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: User's roles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  roles:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserRole'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/me/permissions:
+    get:
+      summary: Check my permissions
+      description: Check what permissions the authenticated user has
+      operationId: getMyPermissions
+      tags:
+        - User Management
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: subforum_id
+          in: query
+          description: Check permissions for a specific subforum
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: User's permissions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  permissions:
+                    type: array
+                    items:
+                      type: string
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # Platform Admin Endpoints (Global Management)
+  /api/v1/admin/users:
+    get:
+      summary: List all users across platform
+      description: Get a list of all users with their role assignments (platform admin only)
+      operationId: listAllUsers
+      tags:
+        - Platform Admin
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of users to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          description: Number of users to skip
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: List of all users with roles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserWithRoles'
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/admin/roles:
+    get:
+      summary: List all roles
+      description: Get a list of all available roles (platform admin only)
+      operationId: listRoles
+      tags:
+        - RBAC Management
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of roles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  roles:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Role'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/admin/permissions:
+    get:
+      summary: List all permissions
+      description: Get a list of all available permissions (platform admin only)
+      operationId: listPermissions
+      tags:
+        - RBAC Management
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of permissions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  permissions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Permission'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/admin/user-roles:
+    get:
+      summary: Get user roles
+      description: Get all roles for a specific user (platform admin only)
+      operationId: getUserRoles
+      tags:
+        - RBAC Management
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_did
+          in: query
+          description: User DID to get roles for
+          required: true
+          schema:
+            type: string
+        - name: subforum_id
+          in: query
+          description: Filter roles by subforum ID
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: User roles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_did:
+                    type: string
+                  roles:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserRole'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/admin/assign-role:
+    post:
+      summary: Assign role to user
+      description: Assign a role to a user (platform admin only)
+      operationId: assignRole
+      tags:
+        - RBAC Management
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user_did
+                - role_name
+              properties:
+                user_did:
+                  type: string
+                  description: User DID to assign role to
+                role_name:
+                  type: string
+                  description: Name of the role to assign
+                subforum_id:
+                  type: string
+                  format: uuid
+                  description: Subforum ID for subforum-specific roles
+                expires_at:
+                  type: string
+                  format: date-time
+                  description: When the role assignment expires
+      responses:
+        '200':
+          description: Role assigned successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/admin/revoke-role:
+    post:
+      summary: Revoke role from user
+      description: Revoke a role from a user (platform admin only)
+      operationId: revokeRole
+      tags:
+        - RBAC Management
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user_did
+                - role_name
+              properties:
+                user_did:
+                  type: string
+                  description: User DID to revoke role from
+                role_name:
+                  type: string
+                  description: Name of the role to revoke
+                subforum_id:
+                  type: string
+                  format: uuid
+                  description: Subforum ID for subforum-specific roles
+      responses:
+        '200':
+          description: Role revoked successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # Vote endpoints
+  /api/v1/posts/{id}/vote:
+    post:
+      summary: Vote on post
+      description: Vote up or down on a post
+      operationId: voteOnPost
+      tags:
+        - Voting
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Post ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - vote_type
+              properties:
+                vote_type:
+                  type: string
+                  enum: [up, down]
+                  description: Type of vote
+      responses:
+        '200':
+          description: Vote successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteResponse'
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+    delete:
+      summary: Remove vote from post
+      description: Remove user's vote from a post
+      operationId: removeVoteFromPost
+      tags:
+        - Voting
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Post ID
+      responses:
+        '200':
+          description: Vote removed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteResponse'
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+    get:
+      summary: Get user's vote on post
+      description: Get the authenticated user's vote on a post
+      operationId: getUserVoteOnPost
+      tags:
+        - Voting
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Post ID
+      responses:
+        '200':
+          description: User's vote status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteResponse'
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+
+  /api/v1/comments/{id}/vote:
+    post:
+      summary: Vote on comment
+      description: Vote up or down on a comment
+      operationId: voteOnComment
+      tags:
+        - Voting
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Comment ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - vote_type
+              properties:
+                vote_type:
+                  type: string
+                  enum: [up, down]
+                  description: Type of vote
+      responses:
+        '200':
+          description: Vote successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteResponse'
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+    delete:
+      summary: Remove vote from comment
+      description: Remove user's vote from a comment
+      operationId: removeVoteFromComment
+      tags:
+        - Voting
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Comment ID
+      responses:
+        '200':
+          description: Vote removed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteResponse'
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+    get:
+      summary: Get user's vote on comment
+      description: Get the authenticated user's vote on a comment
+      operationId: getUserVoteOnComment
+      tags:
+        - Voting
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Comment ID
+      responses:
+        '200':
+          description: User's vote status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteResponse'
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+
+  # Subscription endpoints
+  /api/v1/subforums/{slug}/subscribe:
+    post:
+      summary: Subscribe to subforum
+      description: Subscribe the authenticated user to a subforum
+      operationId: subscribeToSubforum
+      tags:
+        - Subscriptions
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Subforum slug
+      responses:
+        '201':
+          description: Subscription created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionResponse'
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Subforum not found
+        '500':
+          description: Internal server error
+    delete:
+      summary: Unsubscribe from subforum
+      description: Unsubscribe the authenticated user from a subforum
+      operationId: unsubscribeFromSubforum
+      tags:
+        - Subscriptions
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Subforum slug
+      responses:
+        '200':
+          description: Unsubscribed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Unsubscribed successfully"
+        '401':
+          description: Unauthorized
+        '404':
+          description: Subforum not found
+        '500':
+          description: Internal server error
+    get:
+      summary: Get user's subscription status
+      description: Check if the authenticated user is subscribed to a subforum
+      operationId: getUserSubscription
+      tags:
+        - Subscriptions
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Subforum slug
+      responses:
+        '200':
+          description: Subscription status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subscribed:
+                    type: boolean
+                    description: Whether the user is subscribed
+                  subforum_slug:
+                    type: string
+                    description: Subforum slug (if subscribed)
+                  subscribed_at:
+                    type: string
+                    format: date-time
+                    description: When the user subscribed (if subscribed)
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+
+  /api/v1/me/subscriptions:
+    get:
+      summary: List my subscriptions
+      description: Get all subforums the authenticated user is subscribed to
+      operationId: listMySubscriptions
+      tags:
+        - Subscriptions
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Number of subscriptions to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of subscriptions to skip
+      responses:
+        '200':
+          description: List of user's subscriptions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionListResponse'
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+
+  /api/v1/subforums/{slug}/subscribers:
+    get:
+      summary: List subforum subscribers
+      description: Get all users subscribed to a subforum
+      operationId: listSubforumSubscribers
+      tags:
+        - Subscriptions
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Subforum slug
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Number of subscribers to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of subscribers to skip
+      responses:
+        '200':
+          description: List of subforum subscribers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriberListResponse'
+        '404':
+          description: Subforum not found
+        '500':
+          description: Internal server error
+
+
+components:
+  schemas:
+    # Authentication schemas
+    UserLoginResponse:
+      type: object
+      required:
+        - accessToken
+        - refreshToken
+        - handle
+        - did
+        - email
+      properties:
+        accessToken:
+          type: string
+          description: JWT access token
+        refreshToken:
+          type: string
+          description: JWT refresh token
+        handle:
+          type: string
+          description: User's handle
+        did:
+          type: string
+          description: User's DID
+        email:
+          type: string
+          format: email
+          description: User's email address
+
+    UserRegistrationResponse:
+      type: object
+      required:
+        - accessToken
+        - refreshToken
+        - handle
+        - did
+        - email
+      properties:
+        accessToken:
+          type: string
+          description: JWT access token
+        refreshToken:
+          type: string
+          description: JWT refresh token
+        handle:
+          type: string
+          description: User's handle
+        did:
+          type: string
+          description: User's DID
+        email:
+          type: string
+          format: email
+          description: User's email address
+
+    UserSession:
+      type: object
+      required:
+        - handle
+        - did
+        - email
+      properties:
+        handle:
+          type: string
+          description: User's handle
+        did:
+          type: string
+          description: User's DID
+        email:
+          type: string
+          format: email
+          description: User's email address
+
+    Subforum:
+      type: object
+      required:
+        - id
+        - name
+        - slug
+        - created_by
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the subforum
+        name:
+          type: string
+          maxLength: 100
+          description: Display name of the subforum
+        slug:
+          type: string
+          maxLength: 50
+          pattern: '^[a-z0-9-]+$'
+          description: URL-friendly identifier for the subforum
+        description:
+          type: string
+          maxLength: 500
+          description: Description of the subforum
+        created_by:
+          type: string
+          format: uuid
+          description: ID of the user who created the subforum
+        created_at:
+          type: string
+          format: date-time
+          description: When the subforum was created
+        updated_at:
+          type: string
+          format: date-time
+          description: When the subforum was last updated
+        subscriber_count:
+          type: integer
+          minimum: 0
+          description: Number of subscribers to the subforum
+        post_count:
+          type: integer
+          minimum: 0
+          description: Number of posts in the subforum
+
+    Post:
+      type: object
+      required:
+        - id
+        - author
+        - subforum
+        - title
+        - content
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the post
+        author:
+          type: string
+          format: uuid
+          description: ID of the user who created the post
+        subforum:
+          type: string
+          format: uuid
+          description: ID of the subforum this post belongs to
+        title:
+          type: string
+          maxLength: 200
+          description: Title of the post
+        content:
+          type: string
+          maxLength: 10000
+          description: Content of the post
+        created_at:
+          type: string
+          format: date-time
+          description: When the post was created
+        updated_at:
+          type: string
+          format: date-time
+          description: When the post was last updated
+        upvotes:
+          type: integer
+          minimum: 0
+          description: Number of upvotes
+        downvotes:
+          type: integer
+          minimum: 0
+          description: Number of downvotes
+        comment_count:
+          type: integer
+          minimum: 0
+          description: Number of comments
+        is_pinned:
+          type: boolean
+          description: Whether the post is pinned
+        is_locked:
+          type: boolean
+          description: Whether the post is locked
+
+    Comment:
+      type: object
+      required:
+        - id
+        - author
+        - post
+        - content
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the comment
+        author:
+          type: string
+          format: uuid
+          description: ID of the user who created the comment
+        post:
+          type: string
+          format: uuid
+          description: ID of the post this comment belongs to
+        parent:
+          type: string
+          format: uuid
+          description: ID of the parent comment (for nested comments)
+        content:
+          type: string
+          maxLength: 2000
+          description: Content of the comment
+        created_at:
+          type: string
+          format: date-time
+          description: When the comment was created
+        updated_at:
+          type: string
+          format: date-time
+          description: When the comment was last updated
+        upvotes:
+          type: integer
+          minimum: 0
+          description: Number of upvotes
+        downvotes:
+          type: integer
+          minimum: 0
+          description: Number of downvotes
+        reply_count:
+          type: integer
+          minimum: 0
+          description: Number of replies
+
+    # Vote schemas
+    VoteResponse:
+      type: object
+      required:
+        - vote_type
+        - upvotes
+        - downvotes
+        - score
+      properties:
+        vote_type:
+          type: string
+          enum: [up, down, ""]
+          description: Type of vote (empty string if no vote)
+        upvotes:
+          type: integer
+          minimum: 0
+          description: Number of upvotes
+        downvotes:
+          type: integer
+          minimum: 0
+          description: Number of downvotes
+        score:
+          type: integer
+          description: Net score (upvotes - downvotes)
+
+    # Subscription schemas
+    SubscriptionResponse:
+      type: object
+      required:
+        - subforum_slug
+        - subscribed_at
+      properties:
+        subforum_slug:
+          type: string
+          description: Subforum slug
+        subforum_name:
+          type: string
+          description: Subforum name
+        subscribed_at:
+          type: string
+          format: date-time
+          description: When the user subscribed
+
+    SubscriptionListResponse:
+      type: object
+      required:
+        - subscriptions
+        - total
+        - limit
+        - offset
+      properties:
+        subscriptions:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubscriptionResponse'
+        total:
+          type: integer
+          minimum: 0
+          description: Total number of subscriptions
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: Number of subscriptions returned
+        offset:
+          type: integer
+          minimum: 0
+          description: Number of subscriptions skipped
+
+    SubscriberListResponse:
+      type: object
+      required:
+        - subscribers
+        - total
+        - limit
+        - offset
+      properties:
+        subscribers:
+          type: array
+          items:
+            type: object
+            required:
+              - user_did
+              - user_handle
+              - subscribed_at
+            properties:
+              user_did:
+                type: string
+                description: User's DID
+              user_handle:
+                type: string
+                description: User's handle
+              subscribed_at:
+                type: string
+                format: date-time
+                description: When the user subscribed
+        total:
+          type: integer
+          minimum: 0
+          description: Total number of subscribers
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: Number of subscribers returned
+        offset:
+          type: integer
+          minimum: 0
+          description: Number of subscribers skipped
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          description: Additional error details
+
+    # RBAC Schemas
+    UserWithRoles:
+      type: object
+      required:
+        - user_did
+        - handle
+        - role_count
+      properties:
+        user_did:
+          type: string
+          description: User's DID
+        handle:
+          type: string
+          description: User's handle
+        role_count:
+          type: integer
+          description: Number of roles assigned to the user
+
+    Role:
+      type: object
+      required:
+        - id
+        - name
+        - is_platform_role
+      properties:
+        id:
+          type: integer
+          description: Role ID
+        name:
+          type: string
+          description: Role name
+        description:
+          type: string
+          description: Role description
+        is_platform_role:
+          type: boolean
+          description: Whether this is a platform-wide role
+        created_at:
+          type: string
+          format: date-time
+          description: When the role was created
+
+    Permission:
+      type: object
+      required:
+        - id
+        - name
+        - resource_type
+      properties:
+        id:
+          type: integer
+          description: Permission ID
+        name:
+          type: string
+          description: Permission name
+        description:
+          type: string
+          description: Permission description
+        resource_type:
+          type: string
+          enum: [platform, subforum, post, comment, vote]
+          description: Type of resource this permission applies to
+        created_at:
+          type: string
+          format: date-time
+          description: When the permission was created
+
+    UserRole:
+      type: object
+      required:
+        - role_name
+        - is_platform_role
+      properties:
+        role_name:
+          type: string
+          description: Name of the role
+        subforum_id:
+          type: string
+          format: uuid
+          description: Subforum ID for subforum-specific roles
+        subforum_slug:
+          type: string
+          description: Subforum slug
+        subforum_name:
+          type: string
+          description: Subforum name
+        is_platform_role:
+          type: boolean
+          description: Whether this is a platform-wide role
+        expires_at:
+          type: string
+          format: date-time
+          description: When the role assignment expires
+
+    UserContext:
+      type: object
+      required:
+        - did
+        - handle
+        - roles
+        - is_active
+      properties:
+        did:
+          type: string
+          description: User's DID
+        handle:
+          type: string
+          description: User's handle
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserRole'
+          description: User's role assignments
+        is_active:
+          type: boolean
+          description: Whether the user is active
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token from PDS authentication
+
+tags:
+  - name: Authentication
+    description: User authentication and session management
+  - name: Subforums
+    description: Subforum management and listing
+  - name: Posts
+    description: Post management and listing
+  - name: Comments
+    description: Comment management and listing
+  - name: Subforum Management
+    description: Subforum-level role and member management
+  - name: User Management
+    description: User self-management of roles and permissions
+  - name: Platform Admin
+    description: Platform-wide administration (global admin only)

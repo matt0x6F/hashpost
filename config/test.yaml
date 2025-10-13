@@ -9,12 +9,14 @@ pds:
   database:
     host: "postgres-test"
     port: 5432
-    database: "hashpost_test"
-    username: "hashpost"
+    database: "hashpost_pds_test"
+    username: "hashpost_pds"
     password: "password"
     ssl_mode: "disable"
   redis:
     url: "redis://redis-test:6379"
+  nats:
+    url: "nats://nats-test:4222"
   atproto:
     did_resolver: "https://plc.directory"
     handle_base: "hashpost.test"
@@ -25,6 +27,13 @@ appview:
     host: "0.0.0.0"
     port: 8081
     dev: false
+  database:
+    host: "postgres-test"
+    port: 5432
+    database: "hashpost_appview_test"
+    username: "hashpost_appview"
+    password: "password"
+    ssl_mode: "disable"
   pds:
     url: "http://hashpost-pds-test:8080"
 
