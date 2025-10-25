@@ -10,7 +10,7 @@ import (
 )
 
 const GetUserByDID = `-- name: GetUserByDID :one
-SELECT id, did, handle, display_name, bio, avatar_url, created_at, updated_at, post_count, comment_count, reputation, pds_source, last_seen_at FROM appview_users 
+SELECT id, did, handle, display_name, bio, avatar_url, created_at, updated_at, post_count, comment_count, reputation, pds_source, is_local, last_seen_at FROM appview_users 
 WHERE did = $1
 `
 
@@ -30,6 +30,7 @@ func (q *Queries) GetUserByDID(ctx context.Context, did string) (*AppviewUser, e
 		&i.CommentCount,
 		&i.Reputation,
 		&i.PdsSource,
+		&i.IsLocal,
 		&i.LastSeenAt,
 	)
 	return &i, err

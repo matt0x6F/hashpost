@@ -10,7 +10,7 @@ import (
 )
 
 const GetUsersByDIDs = `-- name: GetUsersByDIDs :many
-SELECT id, did, handle, display_name, bio, avatar_url, created_at, updated_at, post_count, comment_count, reputation, pds_source, last_seen_at FROM appview_users WHERE did = ANY($1::text[])
+SELECT id, did, handle, display_name, bio, avatar_url, created_at, updated_at, post_count, comment_count, reputation, pds_source, is_local, last_seen_at FROM appview_users WHERE did = ANY($1::text[])
 `
 
 func (q *Queries) GetUsersByDIDs(ctx context.Context, dollar_1 []string) ([]*AppviewUser, error) {
@@ -35,6 +35,7 @@ func (q *Queries) GetUsersByDIDs(ctx context.Context, dollar_1 []string) ([]*App
 			&i.CommentCount,
 			&i.Reputation,
 			&i.PdsSource,
+			&i.IsLocal,
 			&i.LastSeenAt,
 		); err != nil {
 			return nil, err

@@ -371,6 +371,51 @@ func (sh *SubscriptionHandlers) ListSubforumSubscribers(w http.ResponseWriter, r
 	sh.writeJSON(w, http.StatusOK, response)
 }
 
+// ListMyModeratedSubforums handles GET /api/v1/me/moderated-subforums
+func (sh *SubscriptionHandlers) ListMyModeratedSubforums(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get authenticated user from context
+	userCtx := GetUserContext(r)
+	if userCtx == nil {
+		sh.writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+		return
+	}
+
+	ctx := r.Context()
+
+	// Get moderated subforums
+	subforums, err := sh.queries.GetModeratedSubforums(ctx, userCtx.Did)
+	if err != nil {
+		sh.logger.Error("Failed to list moderated subforums", "error", err, "user_did", userCtx.Did)
+		sh.writeError(w, http.StatusInternalServerError, "LIST_FAILED", "Failed to list moderated subforums")
+		return
+	}
+
+	// Convert to response format
+	response := make([]map[string]interface{}, len(subforums))
+	for i, sf := range subforums {
+		response[i] = map[string]interface{}{
+			"id":                sf.ID,
+			"name":              sf.Name,
+			"slug":              sf.Slug,
+			"description":       sf.Description,
+			"created_by":        sf.CreatedByDid,
+			"created_by_handle": sf.CreatedByHandle,
+			"created_at":        sf.CreatedAt,
+			"subscriber_count":  sf.SubscriberCount,
+			"post_count":        sf.PostCount,
+			"comment_count":     sf.CommentCount,
+			"prefix_type":       sf.PrefixType,
+		}
+	}
+
+	sh.writeJSON(w, http.StatusOK, response)
+}
+
 // Helper methods
 
 func (sh *SubscriptionHandlers) writeError(w http.ResponseWriter, status int, code, message string) {

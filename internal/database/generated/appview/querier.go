@@ -52,6 +52,7 @@ type Querier interface {
 	GetCommentByURI(ctx context.Context, atprotoUri string) (*AppviewComment, error)
 	GetCommentVoteCounts(ctx context.Context, id uuid.UUID) (*GetCommentVoteCountsRow, error)
 	GetCommentWithPost(ctx context.Context, id uuid.UUID) (*GetCommentWithPostRow, error)
+	GetModeratedSubforums(ctx context.Context, userDid string) ([]*AppviewSubforum, error)
 	GetPDSServerDetails(ctx context.Context, pdsSource *string) (*GetPDSServerDetailsRow, error)
 	GetPDSServerStats(ctx context.Context) ([]*GetPDSServerStatsRow, error)
 	GetPostByAtprotoURI(ctx context.Context, atprotoUri string) (*AppviewPost, error)

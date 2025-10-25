@@ -324,6 +324,24 @@ func (h *Handlers) CreateSubforum(w http.ResponseWriter, r *http.Request) {
 		// Continue anyway - subforum was created successfully
 	}
 
+	// Auto-subscribe creator to the subforum
+	_, err = h.queries.CreateSubscription(r.Context(), &generated.CreateSubscriptionParams{
+		UserDid:      userCtx.Did,
+		UserHandle:   userCtx.Handle,
+		SubforumSlug: prefixedSlug,
+	})
+	if err != nil {
+		h.logger.Error("Failed to auto-subscribe creator", "error", err, "slug", prefixedSlug, "user", userCtx.Did)
+		// Continue anyway - subforum was created successfully
+	}
+
+	// Update subscriber count
+	err = h.queries.UpdateSubforumSubscriberCount(r.Context(), prefixedSlug)
+	if err != nil {
+		h.logger.Error("Failed to update subscriber count", "error", err, "slug", prefixedSlug)
+		// Continue anyway
+	}
+
 	subforum := map[string]interface{}{
 		"id":                createdSubforum.ID,
 		"name":              createdSubforum.Name,

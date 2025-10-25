@@ -27,6 +27,7 @@ const items = [
 
 export function AppSidebar() {
   const [subscriptions, setSubscriptions] = useState<Subforum[]>([]);
+  const [moderatedSubforums, setModeratedSubforums] = useState<Subforum[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasPlatformAdmin, setHasPlatformAdmin] = useState(false);
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -99,8 +100,26 @@ export function AppSidebar() {
     }
   };
 
+  const loadModeratedSubforums = async () => {
+    if (!isAuthenticated) {
+      console.log('[Sidebar] Not authenticated, skipping moderated subforums load');
+      return;
+    }
+
+    try {
+      console.log('[Sidebar] Loading moderated subforums...');
+      const subscriptionsApi = getApi(SubscriptionsApi);
+      const data = await subscriptionsApi.listMyModeratedSubforums();
+      console.log('[Sidebar] Moderated subforums data:', data);
+      setModeratedSubforums(data);
+    } catch (err: unknown) {
+      console.error('[Sidebar] Error loading moderated subforums:', err);
+    }
+  };
+
   useEffect(() => {
     loadSubscriptions();
+    loadModeratedSubforums();
   }, [isAuthenticated]);
 
   useEffect(() => {
@@ -198,6 +217,33 @@ export function AppSidebar() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Moderated Forums Section */}
+        {!authLoading && isAuthenticated && moderatedSubforums.length > 0 && (
+          <div className="mt-6 pt-6 border-t border-sidebar-border">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-medium text-sidebar-foreground">Moderating</h3>
+            </div>
+            <div className="space-y-1">
+              {moderatedSubforums.map((subforum) => (
+                <div
+                  key={subforum.slug}
+                  className="group relative flex items-center gap-2 px-3 py-2 rounded transition-colors text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                >
+                  <Link
+                    href={`/h/${subforum.slug}`}
+                    className="flex-1 flex items-center gap-2 min-w-0"
+                  >
+                    <Shield className="w-4 h-4" />
+                    <span className="text-xs font-medium truncate">
+                      h/{subforum.slug}
+                    </span>
+                  </Link>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </SidebarContent>

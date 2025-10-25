@@ -88,6 +88,8 @@ type AppviewUser struct {
 	Reputation   *int32             `json:"reputation"`
 	// PDS endpoint where user data is stored (NULL for local users)
 	PdsSource *string `json:"pds_source"`
+	// Whether user is stored on HashPost PDS (true) or external PDS (false)
+	IsLocal *bool `json:"is_local"`
 	// Last time user authenticated (for external users)
 	LastSeenAt pgtype.Timestamptz `json:"last_seen_at"`
 }

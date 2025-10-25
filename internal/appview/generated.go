@@ -802,6 +802,9 @@ type ServerInterface interface {
 	// Vote on comment
 	// (POST /api/v1/comments/{id}/vote)
 	VoteOnComment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// List my moderated subforums
+	// (GET /api/v1/me/moderated-subforums)
+	ListMyModeratedSubforums(w http.ResponseWriter, r *http.Request)
 	// Check my permissions
 	// (GET /api/v1/me/permissions)
 	GetMyPermissions(w http.ResponseWriter, r *http.Request, params GetMyPermissionsParams)
@@ -1464,6 +1467,26 @@ func (siw *ServerInterfaceWrapper) VoteOnComment(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.VoteOnComment(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListMyModeratedSubforums operation middleware
+func (siw *ServerInterfaceWrapper) ListMyModeratedSubforums(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListMyModeratedSubforums(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2398,6 +2421,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("DELETE "+options.BaseURL+"/api/v1/comments/{id}/vote", wrapper.RemoveVoteFromComment)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/comments/{id}/vote", wrapper.GetUserVoteOnComment)
 	m.HandleFunc("POST "+options.BaseURL+"/api/v1/comments/{id}/vote", wrapper.VoteOnComment)
+	m.HandleFunc("GET "+options.BaseURL+"/api/v1/me/moderated-subforums", wrapper.ListMyModeratedSubforums)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/me/permissions", wrapper.GetMyPermissions)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/me/roles", wrapper.GetMyRoles)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/me/subscriptions", wrapper.ListMySubscriptions)

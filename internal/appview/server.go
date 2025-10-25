@@ -501,6 +501,10 @@ func (s *Server) ListSubforumSubscribers(w http.ResponseWriter, r *http.Request,
 	s.subscriptionHandlers.ListSubforumSubscribers(w, r)
 }
 
+func (s *Server) ListMyModeratedSubforums(w http.ResponseWriter, r *http.Request) {
+	s.subscriptionHandlers.ListMyModeratedSubforums(w, r)
+}
+
 // New hierarchical RBAC methods
 
 // ListSubforumMembers lists members of a specific subforum
