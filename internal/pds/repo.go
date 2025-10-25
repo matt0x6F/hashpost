@@ -61,6 +61,7 @@ func (s *Server) handleCreateRecord(w http.ResponseWriter, r *http.Request) {
 	validCollections := []string{
 		lexicons.CollectionFeedPost,
 		lexicons.CollectionFeedSubforum,
+		lexicons.CollectionFeedComment,
 		"app.bsky.feed.post",
 		"app.bsky.feed.like",
 		"app.bsky.feed.repost",

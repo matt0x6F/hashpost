@@ -128,6 +128,58 @@ func (sh *SubscriptionHandlers) UnsubscribeFromSubforum(w http.ResponseWriter, r
 	sh.writeJSON(w, http.StatusOK, map[string]string{"message": "Unsubscribed successfully"})
 }
 
+// ListMySubscriptionsWithParams handles GET /api/v1/me/subscriptions with parsed parameters
+func (sh *SubscriptionHandlers) ListMySubscriptionsWithParams(w http.ResponseWriter, r *http.Request, limit int, offset int) {
+	// Get authenticated user from context
+	userCtx := GetUserContext(r)
+	if userCtx == nil {
+		sh.writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+		return
+	}
+
+	ctx := r.Context()
+
+	// Get user subscriptions
+	subscriptions, err := sh.queries.ListUserSubscriptions(ctx, &generated.ListUserSubscriptionsParams{
+		UserDid: userCtx.Did,
+		Limit:   int32(limit),
+		Offset:  int32(offset),
+	})
+	if err != nil {
+		sh.logger.Error("Failed to list user subscriptions", "error", err, "user_did", userCtx.Did)
+		sh.writeError(w, http.StatusInternalServerError, "SUBSCRIPTION_LIST_FAILED", "Failed to list subscriptions")
+		return
+	}
+
+	// Get total count
+	total, err := sh.queries.CountUserSubscriptions(ctx, userCtx.Did)
+	if err != nil {
+		sh.logger.Error("Failed to count user subscriptions", "error", err, "user_did", userCtx.Did)
+		sh.writeError(w, http.StatusInternalServerError, "SUBSCRIPTION_COUNT_FAILED", "Failed to count subscriptions")
+		return
+	}
+
+	// Convert to response format
+	subscriptionResponses := make([]SubscriptionResponse, len(subscriptions))
+	for i, sub := range subscriptions {
+		subscriptionResponses[i] = SubscriptionResponse{
+			SubforumSlug: sub.SubforumSlug,
+			SubforumName: &sub.SubforumName,
+			SubscribedAt: sub.CreatedAt.Time,
+		}
+	}
+
+	response := SubscriptionListResponse{
+		Subscriptions: subscriptionResponses,
+		Total:         int(total),
+		Limit:         limit,
+		Offset:        offset,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
 // ListMySubscriptions handles GET /api/v1/me/subscriptions
 func (sh *SubscriptionHandlers) ListMySubscriptions(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {

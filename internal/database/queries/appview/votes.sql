@@ -11,8 +11,8 @@ WHERE appview_votes.post_id IS NOT NULL
 RETURNING *;
 
 -- name: CreateVoteOnComment :one
-INSERT INTO appview_votes (user_did, post_id, comment_id, vote_type)
-VALUES ($1, $2, $3, $4)
+INSERT INTO appview_votes (user_did, comment_id, vote_type)
+VALUES ($1, $2, $3)
 ON CONFLICT (user_did, comment_id) DO UPDATE SET
     vote_type = EXCLUDED.vote_type,
     created_at = NOW()

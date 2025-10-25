@@ -4,33 +4,13 @@ import React, { useState, useEffect } from 'react';
 import { Button } from './shadcn/button';
 import { PostCard } from './PostCard';
 import { getApi } from '@/lib/api-client';
-import { ContentApi } from '@/generated/api/src/apis/ContentApi';
+import { PostsApi } from '@/generated/api/src/apis/PostsApi';
 import { toast } from 'sonner';
 import { Plus, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import type { Post } from '@/generated/api/src/models/Post';
 
-interface Post {
-  postId: number;
-  slug: string;
-  title: string;
-  content: string;
-  author: {
-    displayName: string;
-    pseudonymId: string;
-  };
-  createdAt: string;
-  score: number;
-  upvotes: number;
-  downvotes: number;
-  commentCount: number;
-  isLocked?: boolean;
-  isSticky?: boolean;
-  isRemoved?: boolean;
-  subforum: {
-    name: string;
-  };
-  userVote?: number; // Add userVote field
-}
+// Use the generated Post type from the API
 
 interface PostListProps {
   subforumName: string;
@@ -52,8 +32,8 @@ export function PostList({ subforumName }: PostListProps) {
     setError(null);
     
     try {
-      const contentApi = getApi(ContentApi);
-      const response = await contentApi.getSubforumPosts(subforumName, undefined, undefined, page, 20, 'new', 'all');
+      const postsApi = getApi(PostsApi);
+      const response = await postsApi.listPosts(subforumName, 20, (page - 1) * 20);
       
       if (response.posts && Array.isArray(response.posts)) {
         const newPosts = response.posts;
@@ -118,8 +98,8 @@ export function PostList({ subforumName }: PostListProps) {
         ) : (
           posts.map((post) => (
             <PostCard
-              key={post.postId}
-              post={post}
+              key={post.id}
+              postId={post.id}
               subforumName={subforumName}
             />
           ))

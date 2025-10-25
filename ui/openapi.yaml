@@ -227,6 +227,73 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+    post:
+      summary: Create subforum
+      description: Create a new subforum (requires authentication)
+      operationId: createSubforum
+      tags:
+        - Subforums
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - slug
+                - prefix_type
+              properties:
+                name:
+                  type: string
+                  description: Name of the subforum
+                  minLength: 1
+                  maxLength: 255
+                  example: "Technology Discussion"
+                slug:
+                  type: string
+                  description: URL-friendly slug for the subforum (without prefix)
+                  minLength: 1
+                  maxLength: 255
+                  pattern: '^[a-z0-9-]+$'
+                  example: "technology"
+                description:
+                  type: string
+                  description: Optional description of the subforum
+                  maxLength: 1000
+                  example: "A place to discuss all things tech"
+                prefix_type:
+                  type: string
+                  description: Subforum prefix type
+                  enum: ["h", "r", "t"]
+                  example: "t"
+      responses:
+        '201':
+          description: Subforum created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subforum'
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /api/v1/subforums/{slug}:
     get:
@@ -1190,6 +1257,672 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  # PDS Management Endpoints
+  /api/v1/admin/pds/servers:
+    get:
+      summary: List PDS servers
+      description: Get statistics for all connected PDS servers
+      operationId: listPDSServers
+      tags:
+        - PDS Management
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of PDS servers with statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  servers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PDSServerStats'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/admin/pds/{endpoint}:
+    get:
+      summary: Get PDS server details
+      description: Get detailed information about a specific PDS server
+      operationId: getPDSServerDetails
+      tags:
+        - PDS Management
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: endpoint
+          in: path
+          required: true
+          schema:
+            type: string
+          description: PDS server endpoint URL (URL encoded)
+      responses:
+        '200':
+          description: PDS server details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PDSServerDetails'
+        '400':
+          description: Invalid endpoint
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: PDS server not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/admin/pds/{endpoint}/users:
+    get:
+      summary: List users from PDS server
+      description: Get users authenticated from a specific PDS server
+      operationId: listPDSServerUsers
+      tags:
+        - PDS Management
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: endpoint
+          in: path
+          required: true
+          schema:
+            type: string
+          description: PDS server endpoint URL (URL encoded)
+        - name: limit
+          in: query
+          description: Maximum number of users to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          description: Number of users to skip
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: List of users from PDS server
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserWithRoles'
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '400':
+          description: Invalid endpoint
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: PDS server not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # Vote endpoints
+  /api/v1/posts/{id}/vote:
+    post:
+      summary: Vote on post
+      description: Vote up or down on a post
+      operationId: voteOnPost
+      tags:
+        - Voting
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Post ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - vote_type
+              properties:
+                vote_type:
+                  type: string
+                  enum: [up, down]
+                  description: Type of vote
+      responses:
+        '200':
+          description: Vote successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteResponse'
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+    delete:
+      summary: Remove vote from post
+      description: Remove user's vote from a post
+      operationId: removeVoteFromPost
+      tags:
+        - Voting
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Post ID
+      responses:
+        '200':
+          description: Vote removed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteResponse'
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+    get:
+      summary: Get user's vote on post
+      description: Get the authenticated user's vote on a post
+      operationId: getUserVoteOnPost
+      tags:
+        - Voting
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Post ID
+      responses:
+        '200':
+          description: User's vote status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteResponse'
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+
+  /api/v1/comments/{id}/vote:
+    post:
+      summary: Vote on comment
+      description: Vote up or down on a comment
+      operationId: voteOnComment
+      tags:
+        - Voting
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Comment ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - vote_type
+              properties:
+                vote_type:
+                  type: string
+                  enum: [up, down]
+                  description: Type of vote
+      responses:
+        '200':
+          description: Vote successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteResponse'
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+    delete:
+      summary: Remove vote from comment
+      description: Remove user's vote from a comment
+      operationId: removeVoteFromComment
+      tags:
+        - Voting
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Comment ID
+      responses:
+        '200':
+          description: Vote removed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteResponse'
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+    get:
+      summary: Get user's vote on comment
+      description: Get the authenticated user's vote on a comment
+      operationId: getUserVoteOnComment
+      tags:
+        - Voting
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Comment ID
+      responses:
+        '200':
+          description: User's vote status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteResponse'
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+
+  # Computed data endpoints
+  /api/v1/posts/{id}/metrics:
+    get:
+      summary: Get post metrics
+      description: Get computed vote counts and score for a post
+      operationId: getPostMetrics
+      tags:
+        - Posts
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Post ID
+      responses:
+        '200':
+          description: Post metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostMetrics'
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/posts/{id}/user-vote:
+    get:
+      summary: Get user's vote on post
+      description: Get the authenticated user's current vote on a post
+      operationId: getPostUserVote
+      tags:
+        - Posts
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Post ID
+      responses:
+        '200':
+          description: User's vote
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserVote'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/posts/{id}/moderation:
+    get:
+      summary: Get post moderation state
+      description: Get moderation flags (pinned, locked, removed) for a post
+      operationId: getPostModerationState
+      tags:
+        - Posts
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Post ID
+      responses:
+        '200':
+          description: Post moderation state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModerationState'
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # Subscription endpoints
+  /api/v1/subforums/{slug}/subscribe:
+    post:
+      summary: Subscribe to subforum
+      description: Subscribe the authenticated user to a subforum
+      operationId: subscribeToSubforum
+      tags:
+        - Subscriptions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Subforum slug
+      responses:
+        '201':
+          description: Subscription created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionResponse'
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Subforum not found
+        '500':
+          description: Internal server error
+    delete:
+      summary: Unsubscribe from subforum
+      description: Unsubscribe the authenticated user from a subforum
+      operationId: unsubscribeFromSubforum
+      tags:
+        - Subscriptions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Subforum slug
+      responses:
+        '200':
+          description: Unsubscribed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Unsubscribed successfully"
+        '401':
+          description: Unauthorized
+        '404':
+          description: Subforum not found
+        '500':
+          description: Internal server error
+    get:
+      summary: Get user's subscription status
+      description: Check if the authenticated user is subscribed to a subforum
+      operationId: getUserSubscription
+      tags:
+        - Subscriptions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Subforum slug
+      responses:
+        '200':
+          description: Subscription status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subscribed:
+                    type: boolean
+                    description: Whether the user is subscribed
+                  subforum_slug:
+                    type: string
+                    description: Subforum slug (if subscribed)
+                  subscribed_at:
+                    type: string
+                    format: date-time
+                    description: When the user subscribed (if subscribed)
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+
+  /api/v1/me/subscriptions:
+    get:
+      summary: List my subscriptions
+      description: Get all subforums the authenticated user is subscribed to
+      operationId: listMySubscriptions
+      tags:
+        - Subscriptions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Number of subscriptions to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of subscriptions to skip
+      responses:
+        '200':
+          description: List of user's subscriptions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionListResponse'
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal server error
+
+  /api/v1/subforums/{slug}/subscribers:
+    get:
+      summary: List subforum subscribers
+      description: Get all users subscribed to a subforum
+      operationId: listSubforumSubscribers
+      tags:
+        - Subscriptions
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Subforum slug
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Number of subscribers to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of subscribers to skip
+      responses:
+        '200':
+          description: List of subforum subscribers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriberListResponse'
+        '404':
+          description: Subforum not found
+        '500':
+          description: Internal server error
+
 
 components:
   schemas:
@@ -1310,6 +2043,14 @@ components:
           type: integer
           minimum: 0
           description: Number of posts in the subforum
+        comment_count:
+          type: integer
+          minimum: 0
+          description: Number of comments in the subforum
+        prefix_type:
+          type: string
+          enum: ["h", "r", "t"]
+          description: Subforum prefix type (h=HashPost, r=regional, t=topical)
 
     Post:
       type: object
@@ -1324,11 +2065,11 @@ components:
         id:
           type: string
           format: uuid
-          description: Unique identifier for the post
+          description: Unique identifier for the post (atproto record URI)
         author:
           type: string
           format: uuid
-          description: ID of the user who created the post
+          description: DID of the user who created the post
         subforum:
           type: string
           format: uuid
@@ -1349,24 +2090,88 @@ components:
           type: string
           format: date-time
           description: When the post was last updated
+
+    # Computed data schemas (not stored in post records)
+    PostMetrics:
+      type: object
+      required:
+        - upvotes
+        - downvotes
+        - score
+        - comment_count
+      properties:
         upvotes:
           type: integer
           minimum: 0
-          description: Number of upvotes
+          description: Number of upvotes (computed from vote records)
         downvotes:
           type: integer
           minimum: 0
-          description: Number of downvotes
+          description: Number of downvotes (computed from vote records)
+        score:
+          type: integer
+          description: Net score (upvotes - downvotes)
         comment_count:
           type: integer
           minimum: 0
-          description: Number of comments
+          description: Number of comments (computed from comment records)
+
+    UserVote:
+      type: object
+      required:
+        - vote_type
+      properties:
+        vote_type:
+          type: string
+          enum: [up, down, null]
+          description: User's current vote on this post (null if no vote)
+
+    ModerationState:
+      type: object
+      required:
+        - is_pinned
+        - is_locked
+        - is_removed
+      properties:
         is_pinned:
           type: boolean
           description: Whether the post is pinned
         is_locked:
           type: boolean
           description: Whether the post is locked
+        is_removed:
+          type: boolean
+          description: Whether the post is removed by moderation
+
+    VoteRecord:
+      type: object
+      required:
+        - id
+        - voter
+        - target
+        - vote_type
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the vote record (atproto record URI)
+        voter:
+          type: string
+          format: uuid
+          description: DID of the user who voted
+        target:
+          type: string
+          format: uuid
+          description: ID of the post or comment being voted on
+        vote_type:
+          type: string
+          enum: [up, down]
+          description: Type of vote
+        created_at:
+          type: string
+          format: date-time
+          description: When the vote was created
 
     Comment:
       type: object
@@ -1418,6 +2223,116 @@ components:
           minimum: 0
           description: Number of replies
 
+    # Vote schemas
+    VoteResponse:
+      type: object
+      required:
+        - vote_type
+        - upvotes
+        - downvotes
+        - score
+      properties:
+        vote_type:
+          type: string
+          enum: [up, down, ""]
+          description: Type of vote (empty string if no vote)
+        upvotes:
+          type: integer
+          minimum: 0
+          description: Number of upvotes
+        downvotes:
+          type: integer
+          minimum: 0
+          description: Number of downvotes
+        score:
+          type: integer
+          description: Net score (upvotes - downvotes)
+
+    # Subscription schemas
+    SubscriptionResponse:
+      type: object
+      required:
+        - subforum_slug
+        - subscribed_at
+      properties:
+        subforum_slug:
+          type: string
+          description: Subforum slug
+        subforum_name:
+          type: string
+          description: Subforum name
+        subscribed_at:
+          type: string
+          format: date-time
+          description: When the user subscribed
+
+    SubscriptionListResponse:
+      type: object
+      required:
+        - subscriptions
+        - total
+        - limit
+        - offset
+      properties:
+        subscriptions:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubscriptionResponse'
+        total:
+          type: integer
+          minimum: 0
+          description: Total number of subscriptions
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: Number of subscriptions returned
+        offset:
+          type: integer
+          minimum: 0
+          description: Number of subscriptions skipped
+
+    SubscriberListResponse:
+      type: object
+      required:
+        - subscribers
+        - total
+        - limit
+        - offset
+      properties:
+        subscribers:
+          type: array
+          items:
+            type: object
+            required:
+              - user_did
+              - user_handle
+              - subscribed_at
+            properties:
+              user_did:
+                type: string
+                description: User's DID
+              user_handle:
+                type: string
+                description: User's handle
+              subscribed_at:
+                type: string
+                format: date-time
+                description: When the user subscribed
+        total:
+          type: integer
+          minimum: 0
+          description: Total number of subscribers
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: Number of subscribers returned
+        offset:
+          type: integer
+          minimum: 0
+          description: Number of subscribers skipped
+
     Error:
       type: object
       required:
@@ -1438,19 +2353,87 @@ components:
     UserWithRoles:
       type: object
       required:
-        - user_did
+        - userDid
         - handle
-        - role_count
+        - roleCount
       properties:
-        user_did:
+        userDid:
           type: string
           description: User's DID
         handle:
           type: string
           description: User's handle
-        role_count:
+        displayName:
+          type: string
+          description: User's display name
+        pdsSource:
+          type: string
+          description: PDS server endpoint where user data is stored
+        isLocal:
+          type: boolean
+          description: Whether user is stored on HashPost PDS
+        lastSeenAt:
+          type: string
+          format: date-time
+          description: Last time user authenticated
+        roleCount:
           type: integer
           description: Number of roles assigned to the user
+
+    # PDS Management Schemas
+    PDSServerStats:
+      type: object
+      required:
+        - pdsEndpoint
+        - userCount
+        - activeUsers24h
+      properties:
+        pdsEndpoint:
+          type: string
+          description: PDS server endpoint URL
+        userCount:
+          type: integer
+          description: Total number of users from this PDS
+        lastActivity:
+          type: string
+          format: date-time
+          description: Last activity timestamp
+        activeUsers24h:
+          type: integer
+          description: Number of users active in last 24 hours
+
+    PDSServerDetails:
+      type: object
+      required:
+        - pdsEndpoint
+        - userCount
+        - activeUsers24h
+        - activeUsers7d
+        - activeUsers30d
+      properties:
+        pdsEndpoint:
+          type: string
+          description: PDS server endpoint URL
+        userCount:
+          type: integer
+          description: Total number of users from this PDS
+        lastActivity:
+          type: string
+          format: date-time
+          description: Last activity timestamp
+        firstUserCreated:
+          type: string
+          format: date-time
+          description: When the first user from this PDS was created
+        activeUsers24h:
+          type: integer
+          description: Number of users active in last 24 hours
+        activeUsers7d:
+          type: integer
+          description: Number of users active in last 7 days
+        activeUsers30d:
+          type: integer
+          description: Number of users active in last 30 days
 
     Role:
       type: object
@@ -1573,3 +2556,5 @@ tags:
     description: User self-management of roles and permissions
   - name: Platform Admin
     description: Platform-wide administration (global admin only)
+  - name: PDS Management
+    description: PDS server management and monitoring

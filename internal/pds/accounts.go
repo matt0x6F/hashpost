@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -45,8 +46,18 @@ func (s *Server) handleCreateAccount(w http.ResponseWriter, r *http.Request) {
 
 	s.logger.Debug("Creating account", "handle", req.Handle)
 
+	// Ensure handle has proper domain format
+	var handleWithDomain string
+	if strings.Contains(req.Handle, ".") {
+		// Handle already has domain
+		handleWithDomain = req.Handle
+	} else {
+		// Use the handle base from configuration
+		handleWithDomain = req.Handle + "." + s.config.PDS.Atproto.HandleBase
+	}
+
 	// Check if handle is already taken
-	existingUser, err := s.db.GetUserByHandle(context.Background(), req.Handle)
+	existingUser, err := s.db.GetUserByHandle(context.Background(), handleWithDomain)
 	if err == nil && existingUser != nil {
 		http.Error(w, "Handle already taken", http.StatusConflict)
 		return
@@ -83,7 +94,7 @@ func (s *Server) handleCreateAccount(w http.ResponseWriter, r *http.Request) {
 		email = &req.Email
 	}
 	user, err := s.db.CreateUserWithPassword(context.Background(), &generated.CreateUserWithPasswordParams{
-		Handle:       req.Handle,
+		Handle:       handleWithDomain,
 		Did:          did,
 		Email:        email,
 		PasswordHash: &passwordHash,
@@ -117,9 +128,8 @@ func (s *Server) handleCreateAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add user to mock identity directory (development only)
-	// Use proper handle format for identity directory
-	handleWithDomain := user.Handle + ".hashpost.local"
-	if err := s.authService.AddUserToMockDirectory(r.Context(), user.Did, handleWithDomain); err != nil {
+	// Handle already has domain from above
+	if err := s.authService.AddUserToMockDirectory(r.Context(), user.Did, user.Handle); err != nil {
 		s.logger.Warn("Failed to add user to mock directory", "error", err)
 		// Don't fail registration, just log the warning
 	}

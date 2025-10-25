@@ -33,6 +33,7 @@ type Querier interface {
 	GetAccessToken(ctx context.Context, accessToken string) (*OauthAccessToken, error)
 	GetAuthorizationCode(ctx context.Context, code string) (*OauthAuthorizationCode, error)
 	GetCommentByID(ctx context.Context, id uuid.UUID) (*GetCommentByIDRow, error)
+	GetCommentByURI(ctx context.Context, atprotoUri *string) (*Comment, error)
 	GetDPoPNonce(ctx context.Context, nonce string) (*DpopNonce, error)
 	GetOAuthClient(ctx context.Context, clientID string) (*OauthClient, error)
 	GetPostByAtprotoURI(ctx context.Context, atprotoUri *string) (*Post, error)
@@ -40,6 +41,7 @@ type Querier interface {
 	GetRefreshToken(ctx context.Context, refreshToken *string) (*OauthAccessToken, error)
 	GetSubforumBySlug(ctx context.Context, slug string) (*GetSubforumBySlugRow, error)
 	GetUserByDID(ctx context.Context, did string) (*User, error)
+	GetUserByEmail(ctx context.Context, email *string) (*User, error)
 	GetUserByHandle(ctx context.Context, handle string) (*User, error)
 	GetUserPasswordHash(ctx context.Context, id uuid.UUID) (*string, error)
 	GetUserSession(ctx context.Context, sessionID string) (*UserSession, error)
@@ -59,6 +61,7 @@ type Querier interface {
 	UpdateSubforumByID(ctx context.Context, arg *UpdateSubforumByIDParams) (*UpdateSubforumByIDRow, error)
 	UpdateSubforumByURI(ctx context.Context, arg *UpdateSubforumByURIParams) (*UpdateSubforumByURIRow, error)
 	UpdateUserPasswordHash(ctx context.Context, arg *UpdateUserPasswordHashParams) error
+	UpdateUserPasswordHashByDID(ctx context.Context, arg *UpdateUserPasswordHashByDIDParams) error
 	UpdateUserSessionLastAccessed(ctx context.Context, sessionID string) error
 }
 

@@ -21,20 +21,22 @@ import {
   Mail,
   Calendar,
   MoreHorizontal,
-  Shield
+  Shield,
+  Database,
+  ExternalLink
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getApi } from '@/lib/api-client';
-import { AdminApi } from '@/generated/api/src/apis/AdminApi';
-import { AdminUserInfo } from '@/generated/api/src/models/AdminUserInfo';
-import { UserEditDialog } from '@/components/admin/UserEditDialog';
+import { PlatformAdminApi } from '@/generated/api/src/apis/PlatformAdminApi';
+import { UserWithRoles } from '@/generated/api/src/models/UserWithRoles';
+// Updated to use PlatformAdminApi for user listing
 
 export default function UserDetailPage() {
   const router = useRouter();
   const params = useParams();
   const userId = params.id as string;
   
-  const [user, setUser] = useState<AdminUserInfo | null>(null);
+  const [user, setUser] = useState<UserWithRoles | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -53,9 +55,10 @@ export default function UserDetailPage() {
     setError(null);
     
     try {
-      const api = getApi(AdminApi);
-      const response = await api.adminGetUser(parseInt(userId));
-      setUser(response);
+      const api = getApi(PlatformAdminApi);
+      const response = await api.listAllUsers(100, 0);
+      const user = response.users?.find(u => u.userDid === userId);
+      setUser(user || null);
     } catch (error: unknown) {
       console.error('Failed to load user details:', error);
       
@@ -90,9 +93,8 @@ export default function UserDetailPage() {
     
     setIsPasswordResetLoading(true);
     try {
-      const api = getApi(AdminApi);
-      await api.adminTriggerPasswordReset(parseInt(userId));
-      toast.success("Password reset email sent successfully");
+      // Password reset not available in atproto system
+      toast.error("Password reset is not available in the atproto system");
     } catch (error: unknown) {
       console.error('Failed to trigger password reset:', error);
       toast.error("Failed to trigger password reset. Please try again.");
@@ -101,7 +103,7 @@ export default function UserDetailPage() {
     }
   };
 
-  const handleUserUpdated = (updatedUser: AdminUserInfo) => {
+  const handleUserUpdated = (updatedUser: UserWithRoles) => {
     setUser(updatedUser);
   };
 
@@ -116,14 +118,9 @@ export default function UserDetailPage() {
     });
   };
 
-  const getUserStatusBadge = (user: AdminUserInfo) => {
-    if (user.isSuspended) {
-      return <Badge variant="destructive">Suspended</Badge>;
-    } else if (user.isActive) {
-      return <Badge variant="secondary">Active</Badge>;
-    } else {
-      return <Badge variant="outline">Inactive</Badge>;
-    }
+  const getUserStatusBadge = (user: UserWithRoles) => {
+    // In atproto system, users are active by default
+    return <Badge variant="secondary">Active</Badge>;
   };
 
   if (isLoading) {
@@ -196,14 +193,14 @@ export default function UserDetailPage() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium">Email:</span>
-                  <span>{user.email}</span>
+                  <User className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">DID:</span>
+                  <span className="font-mono text-sm">{user.userDid}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <span className="font-medium">Created:</span>
-                  <span>{formatDate(user.createdAt)}</span>
+                  <span>N/A</span>
                 </div>
               </div>
               <div className="space-y-2">
@@ -214,16 +211,46 @@ export default function UserDetailPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium">Pseudonyms:</span>
-                  <Badge variant="outline">{user.pseudonymCount}</Badge>
+                  <span className="font-medium">Handle:</span>
+                  <span className="font-mono text-sm">@{user.handle}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium">Email Verified:</span>
-                  <Badge variant={user.emailVerified ? "default" : "destructive"}>
-                    {user.emailVerified ? "Verified" : "Not Verified"}
-                  </Badge>
+                  <Shield className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">Roles:</span>
+                  <Badge variant="outline">{user.roleCount}</Badge>
                 </div>
+                <div className="flex items-center gap-2">
+                  <Database className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">PDS Source:</span>
+                  {user.isLocal ? (
+                    <Badge variant="secondary">HashPost PDS</Badge>
+                  ) : user.pdsSource ? (
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="truncate max-w-xs" title={user.pdsSource}>
+                        {user.pdsSource}
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => window.open(`/admin/pds/${encodeURIComponent(user.pdsSource)}`, '_blank')}
+                        title="View PDS details"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <Badge variant="outline">Unknown</Badge>
+                  )}
+                </div>
+                {user.lastSeenAt && (
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">Last Seen:</span>
+                    <span className="text-sm text-muted-foreground">
+                      {formatDate(user.lastSeenAt)}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </CardContent>
@@ -266,13 +293,7 @@ export default function UserDetailPage() {
 
 
 
-        {/* User Edit Dialog */}
-        <UserEditDialog
-          user={user}
-          open={showEditDialog}
-          onOpenChange={setShowEditDialog}
-          onUserUpdated={handleUserUpdated}
-        />
+        {/* User Edit Dialog not available in atproto system */}
       </div>
     </div>
   );

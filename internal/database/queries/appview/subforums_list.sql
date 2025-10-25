@@ -10,7 +10,8 @@ SELECT
     updated_at,
     subscriber_count,
     post_count,
-    comment_count
+    comment_count,
+    prefix_type
 FROM appview_subforums
 ORDER BY created_at DESC
 LIMIT $1 OFFSET $2;
@@ -27,6 +28,7 @@ SELECT
     updated_at,
     subscriber_count,
     post_count,
-    comment_count
+    comment_count,
+    prefix_type
 FROM appview_subforums
 WHERE slug = $1;

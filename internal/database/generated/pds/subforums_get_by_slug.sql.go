@@ -20,7 +20,8 @@ SELECT
     description,
     created_by,
     created_at,
-    updated_at
+    updated_at,
+    prefix_type
 FROM subforums
 WHERE slug = $1
 `
@@ -33,6 +34,7 @@ type GetSubforumBySlugRow struct {
 	CreatedBy   pgtype.UUID        `json:"created_by"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	PrefixType  string             `json:"prefix_type"`
 }
 
 func (q *Queries) GetSubforumBySlug(ctx context.Context, slug string) (*GetSubforumBySlugRow, error) {
@@ -46,6 +48,7 @@ func (q *Queries) GetSubforumBySlug(ctx context.Context, slug string) (*GetSubfo
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PrefixType,
 	)
 	return &i, err
 }

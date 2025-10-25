@@ -12,12 +12,11 @@ import { Save, ArrowLeft } from 'lucide-react';
 import { DebugUserInfo } from '@/components/DebugUserInfo';
 import { COMMUNITY_CONFIG, type CommunityType } from '@/lib/community-config';
 import { useAuth } from '@/lib/auth-context';
-import { authenticateUserForSubforum } from '@/lib/auth-utils';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { getApi } from '@/lib/api-client';
 import { SubforumsApi } from '@/generated/api/src/apis/SubforumsApi';
-import { SubforumSettings } from '@/generated/api/src/models';
+// Removed SubforumSettings - not available in atproto system
 import { SubforumRulesManager } from '@/components/SubforumRulesManager';
 
 export default function SubforumSettingsPage() {
@@ -31,7 +30,7 @@ export default function SubforumSettingsPage() {
   const communityConfig = COMMUNITY_CONFIG[communityType];
   const { login } = useAuth();
   const [subforumContextLoaded, setSubforumContextLoaded] = useState(false);
-  const [settings, setSettings] = useState<SubforumSettings | null>(null);
+  const [settings, setSettings] = useState<any | null>(null);
   const [subforumId, setSubforumId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -45,10 +44,9 @@ export default function SubforumSettingsPage() {
 
   const loadSubforumUserContext = async () => {
     try {
-      const userData = await authenticateUserForSubforum(fullSubforumPath);
-      if (userData) {
-        login(userData);
-      }
+      // In atproto system, capabilities are handled globally via RBAC
+      // No need for subforum-specific authentication
+      console.log('Subforum context loading not needed in atproto system');
       setSubforumContextLoaded(true);
     } catch (error) {
       console.error('Error loading subforum user context:', error);
@@ -70,11 +68,9 @@ export default function SubforumSettingsPage() {
       
       try {
         // Call the API method and get the response
-        const response = await subforumsApi.getSubforumSettings(communityType, subforumName);
-        
-        // Use the actual settings from the API response
-        setSettings(response.settings);
-        setSubforumId(response.subforumId);
+        // Subforum settings not available in atproto system
+        setSettings(null);
+        setSubforumId(null);
       } catch (error: unknown) {
         if (error && typeof error === 'object' && 'status' in error && error.status === 403) {
           toast.error('You do not have permission to view subforum settings');
@@ -98,9 +94,8 @@ export default function SubforumSettingsPage() {
       setSaving(true);
       const subforumsApi = getApi(SubforumsApi);
       
-      await subforumsApi.updateSubforumSettings(communityType, subforumName, settings);
-      
-      toast.success('Settings saved successfully');
+      // Subforum settings not available in atproto system
+      toast.error('Subforum settings are not available in the atproto system');
     } catch (error) {
       console.error('Error saving settings:', error);
       toast.error('Failed to save settings');
@@ -112,7 +107,8 @@ export default function SubforumSettingsPage() {
   // Check if user has moderator permissions and redirect if not
   useEffect(() => {
     if (!isLoading && isAuthenticated && user && subforumContextLoaded) {
-      const hasManageSettings = user.capabilities?.includes('manage_subforum_settings');
+      // In atproto system, permissions are handled via RBAC - for now, assume no permissions
+      const hasManageSettings = false;
       
       if (!hasManageSettings) {
         toast.error('You do not have permission to access subforum settings');
@@ -138,7 +134,8 @@ export default function SubforumSettingsPage() {
   }
 
   // Check if user has moderator permissions
-  const hasManageSettings = user?.capabilities?.includes('manage_subforum_settings');
+  // In atproto system, permissions are handled via RBAC - for now, assume no permissions
+  const hasManageSettings = false;
 
   // Don't render the page if user doesn't have permissions (redirect will happen)
   if (!isAuthenticated || !hasManageSettings) {
@@ -266,7 +263,7 @@ export default function SubforumSettingsPage() {
           <SubforumRulesManager 
             communityType={communityType}
             subforumName={subforumName}
-            subforumId={subforumId}
+            subforumId={subforumId.toString()}
           />
         )}
 

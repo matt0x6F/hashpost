@@ -6,6 +6,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "../lib/auth-context";
 import { Toaster } from "../components/shadcn/sonner";
 import { ThemeProvider } from "next-themes";
+import { ForumRefreshProvider } from "../lib/forum-refresh-context";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -47,9 +48,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           disableTransitionOnChange
         >
           <AuthProvider>
-            <SidebarProvider>
-              <LayoutContent>{children}</LayoutContent>
-            </SidebarProvider>
+            <ForumRefreshProvider>
+              <SidebarProvider>
+                <LayoutContent>{children}</LayoutContent>
+              </SidebarProvider>
+            </ForumRefreshProvider>
           </AuthProvider>
           <Toaster />
         </ThemeProvider>

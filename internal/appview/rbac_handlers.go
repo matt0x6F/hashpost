@@ -204,10 +204,14 @@ func (h *RBACHandlers) ListUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := map[string]interface{}{
-		"users":  users,
-		"limit":  limit,
-		"offset": offset,
+	response := struct {
+		Users  []UserWithRoles `json:"users"`
+		Limit  int             `json:"limit"`
+		Offset int             `json:"offset"`
+	}{
+		Users:  users,
+		Limit:  limit,
+		Offset: offset,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -13,17 +13,15 @@ import { Plus, Edit, Trash2, ArrowLeft, Crown, Shield } from 'lucide-react';
 import { DebugUserInfo } from '@/components/DebugUserInfo';
 import { COMMUNITY_CONFIG, type CommunityType } from '@/lib/community-config';
 import { useAuth } from '@/lib/auth-context';
-import { authenticateUserForSubforum } from '@/lib/auth-utils';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { getApi } from '@/lib/api-client';
 import { SubforumsApi } from '@/generated/api/src/apis/SubforumsApi';
-import type { ModeratorTeamMember } from '@/generated/api/src/models/ModeratorTeamMember';
-import type { ModeratorTeamResponseBody } from '@/generated/api/src/models/ModeratorTeamResponseBody';
+// Removed ModeratorTeamMember and ModeratorTeamResponseBody - not available in atproto system
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 
-// Use the generated types
-type ModeratorTeam = ModeratorTeamResponseBody;
+// Use placeholder types since moderator team models are not available in atproto system
+type ModeratorTeam = any;
 
 export default function ModeratorTeamPage() {
   const params = useParams();
@@ -77,10 +75,9 @@ export default function ModeratorTeamPage() {
 
   const loadSubforumUserContext = async () => {
     try {
-      const userData = await authenticateUserForSubforum(fullSubforumPath);
-      if (userData) {
-        login(userData);
-      }
+      // In atproto system, capabilities are handled globally via RBAC
+      // No need for subforum-specific authentication
+      console.log('Subforum context loading not needed in atproto system');
       setSubforumContextLoaded(true);
     } catch (error) {
       console.error('Error loading subforum user context:', error);
@@ -101,9 +98,8 @@ export default function ModeratorTeamPage() {
       const subforumsApi = getApi(SubforumsApi);
       
       try {
-        const response = await subforumsApi.getModeratorTeam(communityType, subforumName);
-        // The response is already the body data
-        setModeratorTeam(response);
+        // Moderator team management not available in atproto system
+        setModeratorTeam(null);
       } catch (error: unknown) {
         if (error && typeof error === 'object' && 'status' in error && error.status === 403) {
           toast.error('You do not have permission to view the moderator team');
@@ -130,9 +126,8 @@ export default function ModeratorTeamPage() {
         capabilities: formData.capabilities
       };
       
-      await subforumsApi.addModerator(communityType, subforumName, addModeratorBody);
-
-      toast.success('Moderator added successfully');
+      // Moderator team management not available in atproto system
+      toast.error('Moderator team management is not available in the atproto system');
       setShowAddForm(false);
       setFormData({ pseudonym_id: '', role: 'moderator', capabilities: [] });
       loadModeratorTeam();
@@ -152,9 +147,8 @@ export default function ModeratorTeamPage() {
         isActive: true // TODO: Add isActive to formData
       };
       
-      await subforumsApi.updateModerator(communityType, subforumName, pseudonymId, updateModeratorBody);
-
-      toast.success('Moderator updated successfully');
+      // Moderator team management not available in atproto system
+      toast.error('Moderator team management is not available in the atproto system');
       setEditingModerator(null);
       setFormData({ pseudonym_id: '', role: 'moderator', capabilities: [] });
       loadModeratorTeam();
@@ -175,9 +169,8 @@ export default function ModeratorTeamPage() {
     try {
       const subforumsApi = getApi(SubforumsApi);
       
-      await subforumsApi.removeModerator(communityType, subforumName, moderatorToRemove);
-
-      toast.success('Moderator removed successfully');
+      // Moderator team management not available in atproto system
+      toast.error('Moderator team management is not available in the atproto system');
       loadModeratorTeam();
     } catch (error) {
       console.error('Error removing moderator:', error);
@@ -185,7 +178,7 @@ export default function ModeratorTeamPage() {
     }
   };
 
-  const startEditing = (moderator: ModeratorTeamMember) => {
+  const startEditing = (moderator: any) => {
     setEditingModerator(moderator.pseudonymId);
     setFormData({
       pseudonym_id: moderator.pseudonymId,
@@ -211,7 +204,8 @@ export default function ModeratorTeamPage() {
   // Check if user has moderator permissions and redirect if not
   useEffect(() => {
     if (!isLoading && isAuthenticated && user && subforumContextLoaded) {
-      const hasManageModerators = user.capabilities?.includes('manage_moderators');
+      // In atproto system, permissions are handled via RBAC - for now, assume no permissions
+      const hasManageModerators = false;
       
       if (!hasManageModerators) {
         toast.error('You do not have permission to manage the moderator team');
@@ -237,7 +231,8 @@ export default function ModeratorTeamPage() {
   }
 
   // Check if user has moderator permissions
-  const hasManageModerators = user?.capabilities?.includes('manage_moderators');
+  // In atproto system, permissions are handled via RBAC - for now, assume no permissions
+  const hasManageModerators = false;
 
   // Don't render the page if user doesn't have permissions (redirect will happen)
   if (!isAuthenticated || !hasManageModerators) {
@@ -330,7 +325,7 @@ export default function ModeratorTeamPage() {
               </p>
             ) : (
               <div className="space-y-4">
-                {moderatorTeam.members.map((moderator) => (
+                {moderatorTeam.members.map((moderator: any) => (
                   <div key={moderator.pseudonymId} className="flex items-center justify-between p-4 border rounded-lg">
                     <div>
                       <div className="font-medium">{moderator.displayName || moderator.pseudonymId}</div>

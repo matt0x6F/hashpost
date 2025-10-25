@@ -24,10 +24,9 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getApi } from '@/lib/api-client';
-import { ModerationApi } from '@/generated/api/src/apis/ModerationApi';
 import { ReportDetailDialog } from './ReportDetailDialog';
 
-import type { Report } from '@/generated/api/src/models/Report';
+// Report model not available in atproto system
 
 interface ReportsListProps {
   subforumPath: string;
@@ -35,7 +34,7 @@ interface ReportsListProps {
 }
 
 export function ReportsList({ subforumPath, initialStatus = 'pending' }: ReportsListProps) {
-  const [reports, setReports] = useState<Report[]>([]);
+  const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState(initialStatus);
   
@@ -45,32 +44,20 @@ export function ReportsList({ subforumPath, initialStatus = 'pending' }: Reports
     setStatusFilter(initialStatus);
     setPage(1); // Reset to first page when status changes
   }, [initialStatus]);
-  const [selectedReport, setSelectedReport] = useState<Report | null>(null);
+  const [selectedReport, setSelectedReport] = useState<any | null>(null);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  const moderationApi = getApi(ModerationApi);
+  // ModerationApi not available in atproto system
 
   const loadReports = async () => {
 
     setLoading(true);
     try {
-      const response = await moderationApi.getSubforumReports(
-        subforumPath,
-        '', // authorization
-        '', // accessToken
-        statusFilter,
-        page,
-        25 // limit
-      );
-
-      
-
-      if (response.reports) {
-        setReports(response.reports);
-        setTotalPages(Math.ceil((response.pagination?.total || 0) / 25));
-      }
+      // Reports not available in atproto system
+      setReports([]);
+      setTotalPages(0);
     } catch (error: unknown) {
       console.error('Error loading reports:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to load reports';
@@ -86,19 +73,10 @@ export function ReportsList({ subforumPath, initialStatus = 'pending' }: Reports
 
   const handleReportAction = async (reportId: number, action: 'resolve' | 'dismiss' | 'remove' | 'ban_user' | 'ban_pseudonym' | 'mute_user', notes?: string, muteDuration?: number) => {
     try {
-      const moderationApi = getApi(ModerationApi);
+      // ModerationApi not available in atproto system
       
-      if (action === 'resolve' || action === 'dismiss') {
-        // Call the resolve report endpoint
-        await moderationApi.resolveReport(reportId, {
-          action: action,
-          notes: notes || ''
-        }, '', ''); // authorization and accessToken parameters
-      } else if (action === 'remove') {
-        // TODO: Implement content removal
-      } else if (action === 'ban_user' || action === 'ban_pseudonym' || action === 'mute_user') {
-        // TODO: Implement user banning
-      }
+      // Moderation actions not available in atproto system
+      toast.error('Moderation actions are not available in the atproto system');
       
       // Reload reports to show updated status
       await loadReports();

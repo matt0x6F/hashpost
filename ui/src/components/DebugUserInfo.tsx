@@ -18,7 +18,7 @@ export function DebugUserInfo() {
     return <div>Not authenticated</div>;
   }
 
-  const isModerator = user?.capabilities?.includes('moderate_content');
+  const isModerator = false; // Capabilities not available in atproto system
 
   return (
     <Card className="mb-4">
@@ -50,14 +50,13 @@ export function DebugUserInfo() {
       {isExpanded && (
         <CardContent>
           <div className="space-y-2 text-sm">
-            <div><strong>User ID:</strong> {user.userId}</div>
+            <div><strong>DID:</strong> {user.did}</div>
             <div><strong>Email:</strong> {user.email}</div>
-            <div><strong>Active Pseudonym:</strong> {user.activePseudonymId}</div>
-            <div><strong>Display Name:</strong> {user.displayName}</div>
-            <div><strong>Capabilities:</strong> {user.capabilities?.join(', ') || 'None'}</div>
+            <div><strong>Handle:</strong> {user.handle}</div>
+            <div><strong>Capabilities:</strong> N/A (not available in atproto system)</div>
             <div><strong>Is Moderator:</strong> {isModerator ? 'Yes' : 'No'}</div>
-            <div><strong>Has moderate_content:</strong> {user.capabilities?.includes('moderate_content') ? 'Yes' : 'No'}</div>
-            <div><strong>Has platform_admin:</strong> {user.capabilities?.includes('platform_admin') ? 'Yes' : 'No'}</div>
+            <div><strong>Has moderate_content:</strong> N/A</div>
+            <div><strong>Has platform_admin:</strong> N/A</div>
           </div>
         </CardContent>
       )}

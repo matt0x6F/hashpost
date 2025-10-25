@@ -52,15 +52,26 @@ type HashPostForumSubforum struct {
 	CreatedAt   time.Time `json:"createdAt"`   // ISO 8601 timestamp
 }
 
+// HashPostFeedComment represents a HashPost feed comment record
+type HashPostFeedComment struct {
+	Type      string    `json:"$type"`      // Always "com.hashpost.feed.comment"
+	Text      string    `json:"text"`       // Comment content (max 3000 chars)
+	Post      string    `json:"post"`       // AT-URI of the post this comment belongs to
+	Parent    string    `json:"parent,omitempty"` // AT-URI of parent comment for nested replies
+	CreatedAt time.Time `json:"createdAt"` // ISO 8601 timestamp
+}
+
 // Constants for HashPost lexicon types
 const (
 	// Record types
 	RecordTypeHashPostFeedPost     = "com.hashpost.feed.post"
 	RecordTypeHashPostForumSubforum = "com.hashpost.forum.subforum"
+	RecordTypeHashPostFeedComment  = "com.hashpost.feed.comment"
 	
 	// Collection names
 	CollectionHashPostFeedPost     = "com.hashpost.feed.post"
 	CollectionHashPostForumSubforum = "com.hashpost.forum.subforum"
+	CollectionHashPostFeedComment  = "com.hashpost.feed.comment"
 	
 	// Field names
 	FieldText        = "text"
@@ -70,6 +81,8 @@ const (
 	FieldDescription = "description"
 	FieldReply       = "reply"
 	FieldEmbed       = "embed"
+	FieldPost        = "post"
+	FieldParent      = "parent"
 	
 	// Embed types
 	EmbedTypeImage = "image"
@@ -121,6 +134,27 @@ func ValidateHashPostForumSubforum(subforum *HashPostForumSubforum) error {
 	
 	if len(subforum.Description) > 500 {
 		return fmt.Errorf("description exceeds maximum length of 500 characters")
+	}
+	
+	return nil
+}
+
+// ValidateHashPostFeedComment validates a HashPost feed comment record
+func ValidateHashPostFeedComment(comment *HashPostFeedComment) error {
+	if comment.Type != RecordTypeHashPostFeedComment {
+		return fmt.Errorf("invalid record type: %s", comment.Type)
+	}
+	
+	if len(comment.Text) == 0 {
+		return fmt.Errorf("text is required")
+	}
+	
+	if len(comment.Text) > 3000 {
+		return fmt.Errorf("text exceeds maximum length of 3000 characters")
+	}
+	
+	if len(comment.Post) == 0 {
+		return fmt.Errorf("post is required")
 	}
 	
 	return nil

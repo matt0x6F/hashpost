@@ -10,12 +10,11 @@ import { Switch } from '@/components/shadcn/switch';
 import { Save, ArrowLeft } from 'lucide-react';
 import { type CommunityType } from '@/lib/community-config';
 import { useAuth } from '@/lib/auth-context';
-import { authenticateUserForSubforum } from '@/lib/auth-utils';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { getApi } from '@/lib/api-client';
 import { SubforumsApi } from '@/generated/api/src/apis/SubforumsApi';
-import { SubforumSettings } from '@/generated/api/src/models';
+// Removed SubforumSettings - not available in atproto system
 
 export default function ContentRulesPage() {
   const params = useParams();
@@ -27,7 +26,7 @@ export default function ContentRulesPage() {
 
   const { login } = useAuth();
   const [subforumContextLoaded, setSubforumContextLoaded] = useState(false);
-  const [settings, setSettings] = useState<SubforumSettings | null>(null);
+  const [settings, setSettings] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -40,10 +39,9 @@ export default function ContentRulesPage() {
 
   const loadSubforumUserContext = async () => {
     try {
-      const userData = await authenticateUserForSubforum(fullSubforumPath);
-      if (userData) {
-        login(userData);
-      }
+      // In atproto system, capabilities are handled globally via RBAC
+      // No need for subforum-specific authentication
+      console.log('Subforum context loading not needed in atproto system');
       setSubforumContextLoaded(true);
     } catch (error) {
       console.error('Error loading subforum user context:', error);
@@ -61,19 +59,8 @@ export default function ContentRulesPage() {
   const loadSettings = async () => {
     try {
       setLoading(true);
-      const subforumsApi = getApi(SubforumsApi);
-      
-      try {
-        const response = await subforumsApi.getSubforumSettings(communityType, subforumName);
-        setSettings(response.settings);
-      } catch (error: unknown) {
-        if (error && typeof error === 'object' && 'status' in error && error.status === 403) {
-          toast.error('You do not have permission to view content rules');
-          router.push(`/${fullSubforumPath}/moderation`);
-          return;
-        }
-        throw new Error('Failed to load settings');
-      }
+      // Content rules not available in atproto system
+      setSettings(null);
     } catch (error) {
       console.error('Error loading settings:', error);
       toast.error('Failed to load content rules');
@@ -87,9 +74,8 @@ export default function ContentRulesPage() {
 
     try {
       setSaving(true);
-      const subforumsApi = getApi(SubforumsApi);
-      await subforumsApi.updateSubforumSettings(communityType, subforumName, settings);
-      toast.success('Content rules saved successfully');
+      // Content rules not available in atproto system
+      toast.error('Content rules are not available in the atproto system');
     } catch (error) {
       console.error('Error saving settings:', error);
       toast.error('Failed to save content rules');
@@ -110,7 +96,8 @@ export default function ContentRulesPage() {
   }
 
   // Check if user has moderator permissions
-  const hasModerateContent = user?.capabilities?.includes('moderate_content') || false;
+  // In atproto system, permissions are handled via RBAC - for now, assume no permissions
+  const hasModerateContent = false;
 
   if (!hasModerateContent) {
     return (
@@ -118,7 +105,7 @@ export default function ContentRulesPage() {
         <div className="text-center py-12">
           <p className="text-muted-foreground">You do not have permission to access this page.</p>
           <p className="text-sm text-muted-foreground mt-2">
-            Debug: Auth={isAuthenticated}, Mod={hasModerateContent}, Caps={user?.capabilities?.join(', ')}
+            Debug: Auth={isAuthenticated}, Mod={hasModerateContent}, Caps=N/A
           </p>
         </div>
       </div>

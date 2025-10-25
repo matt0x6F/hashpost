@@ -4,22 +4,19 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/shadcn/button';
 import { Bell, BellOff } from 'lucide-react';
 import { getApi } from '@/lib/api-client';
-import { SubforumsApi } from '@/generated/api/src/apis/SubforumsApi';
+import { SubscriptionsApi } from '@/generated/api/src/apis/SubscriptionsApi';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth-context';
-import type { CommunityType } from '@/lib/community-config';
 
 interface SubscribeButtonProps {
-  communityType: CommunityType;
-  subforumName: string;
+  subforumSlug: string;
   isSubscribed: boolean;
   subscriberCount: number;
   onSubscriptionChange?: (isSubscribed: boolean, newCount: number) => void;
 }
 
 export function SubscribeButton({
-  communityType,
-  subforumName,
+  subforumSlug,
   isSubscribed,
   subscriberCount: initialSubscriberCount,
   onSubscriptionChange,
@@ -43,16 +40,16 @@ export function SubscribeButton({
 
     setIsLoading(true);
     try {
-      const subforumsApi = getApi(SubforumsApi);
+      const subscriptionsApi = getApi(SubscriptionsApi);
       
       if (isSubscribed) {
         // Unsubscribe
-        await subforumsApi.unsubscribeFromSubforum(communityType, subforumName);
+        await subscriptionsApi.unsubscribeFromSubforum(subforumSlug);
         setSubscriberCount(prev => Math.max(0, prev - 1));
         toast.success('Unsubscribed from subforum');
       } else {
         // Subscribe
-        await subforumsApi.subscribeToSubforum(communityType, subforumName);
+        await subscriptionsApi.subscribeToSubforum(subforumSlug);
         setSubscriberCount(prev => prev + 1);
         toast.success('Subscribed to subforum');
       }

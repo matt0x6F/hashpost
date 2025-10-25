@@ -32,6 +32,11 @@ type Server struct {
 
 // NewServer creates a new PDS server instance
 func NewServer(cfg *config.Config, db *generated.Queries) (*Server, error) {
+	// Validate required configuration
+	if cfg.PDS.Atproto.HandleBase == "" {
+		return nil, fmt.Errorf("pds.atproto.handle_base is required in configuration")
+	}
+
 	// Create structured logger with text handler for better Docker visibility
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
@@ -49,7 +54,8 @@ func NewServer(cfg *config.Config, db *generated.Queries) (*Server, error) {
 	}
 	logger.Info("Event streamer created successfully")
 
-	// Create JWT service for production
+	// Create JWT service for production with shared signing key
+	// Use a fixed signing key so AppView can validate PDS-issued tokens
 	jwtService := jwtservice.NewProductionJWTService(jwtservice.JWTServiceConfig{
 		Algorithm:          "ES256K",
 		Expiration:         time.Hour,
@@ -89,8 +95,8 @@ func (s *Server) Start() error {
 	// Register atproto endpoints
 	s.registerAtprotoEndpoints(mux)
 
-	// Wrap the mux with logging middleware
-	handler := middleware.LoggingMiddleware(s.logger)(mux)
+	// Wrap the mux with CORS and logging middleware
+	handler := s.corsMiddleware(middleware.LoggingMiddleware(s.logger)(mux))
 
 	s.httpServer = &http.Server{
 		Addr:    s.config.GetPDSServerAddress(),
@@ -120,6 +126,8 @@ func (s *Server) registerAtprotoEndpoints(mux *http.ServeMux) {
 	mux.HandleFunc("/xrpc/com.atproto.server.getSession", s.handleGetSession)
 	mux.HandleFunc("/xrpc/com.atproto.server.refreshSession", s.handleRefreshSession)
 	mux.HandleFunc("/xrpc/com.atproto.server.deleteSession", s.handleDeleteSession)
+	mux.HandleFunc("/xrpc/com.atproto.server.updatePassword", s.handleUpdatePassword)
+	mux.HandleFunc("/xrpc/com.atproto.server.describeServer", s.handleDescribeServer)
 
 	// Repository endpoints
 	mux.HandleFunc("/xrpc/com.atproto.repo.createRecord", s.handleCreateRecord)
@@ -152,6 +160,8 @@ func (s *Server) createHashPostRecord(ctx context.Context, repo, collection, rec
 		return s.createPostRecord(ctx, repo, recordID, uri, cid, record)
 	case lexicons.CollectionFeedSubforum:
 		return s.createSubforumRecord(ctx, repo, recordID, uri, cid, record)
+	case lexicons.CollectionFeedComment:
+		return s.createCommentRecord(ctx, repo, recordID, uri, cid, record)
 	default:
 		return fmt.Errorf("unsupported HashPost collection: %s", collection)
 	}
@@ -197,14 +207,74 @@ func (s *Server) createPostRecord(ctx context.Context, repo, recordID, uri, cid 
 	return nil
 }
 
+func (s *Server) createCommentRecord(ctx context.Context, repo, recordID, uri, cid string, record map[string]interface{}) error {
+	// Extract data from record
+	text, _ := record[lexicons.FieldText].(string)
+	postURI, _ := record[lexicons.FieldPost].(string)
+	parentURI, _ := record[lexicons.FieldParent].(string) // optional
+
+	// Look up user by DID
+	user, err := s.db.GetUserByDID(ctx, repo)
+	if err != nil {
+		s.logger.Error("Failed to find user by DID", "error", err, "did", repo)
+		return fmt.Errorf("failed to find user: %w", err)
+	}
+
+	// Look up post by atproto URI
+	post, err := s.db.GetPostByAtprotoURI(ctx, &postURI)
+	if err != nil {
+		s.logger.Error("Failed to find post by URI", "error", err, "post_uri", postURI)
+		return fmt.Errorf("failed to find post: %w", err)
+	}
+
+	// Look up parent comment if specified
+	var parentID pgtype.UUID
+	if parentURI != "" {
+		parent, err := s.db.GetCommentByURI(ctx, &parentURI)
+		if err != nil {
+			s.logger.Error("Failed to find parent comment by URI", "error", err, "parent_uri", parentURI)
+			return fmt.Errorf("failed to find parent comment: %w", err)
+		}
+		parentID = pgtype.UUID{Bytes: parent.ID, Valid: true}
+	}
+
+	// Create comment
+	_, err = s.db.CreateComment(ctx, &generated.CreateCommentParams{
+		UserID:     pgtype.UUID{Bytes: user.ID, Valid: true},
+		PostID:     pgtype.UUID{Bytes: post.ID, Valid: true},
+		ParentID:   parentID,
+		Content:    text,
+		AtprotoUri: &uri,
+	})
+
+	if err != nil {
+		s.logger.Error("Failed to create comment in database", "error", err, "uri", uri)
+		return fmt.Errorf("failed to create comment: %w", err)
+	}
+
+	s.logger.Info("Created comment record", "uri", uri, "text", text, "post_uri", postURI)
+	return nil
+}
+
 func (s *Server) createSubforumRecord(ctx context.Context, repo, recordID, uri, cid string, record map[string]interface{}) error {
 	// Extract data from the record
 	name, _ := record[lexicons.FieldName].(string)
 	slug, _ := record[lexicons.FieldSlug].(string)
 	description, _ := record[lexicons.FieldDescription].(string)
+	prefixType, _ := record[lexicons.FieldPrefixType].(string)
 
 	if name == "" || slug == "" {
 		return fmt.Errorf("name and slug are required for subforum")
+	}
+
+	// Validate prefix_type if provided
+	if prefixType != "" && prefixType != "h" && prefixType != "r" && prefixType != "t" {
+		return fmt.Errorf("invalid prefix_type: must be 'h', 'r', or 't'")
+	}
+
+	// Default to 't' if not provided
+	if prefixType == "" {
+		prefixType = "t"
 	}
 
 	// Look up the user by DID (repo)
@@ -221,6 +291,7 @@ func (s *Server) createSubforumRecord(ctx context.Context, repo, recordID, uri, 
 		Slug:        slug,
 		Description: &description,
 		CreatedBy:   createdByPg,
+		PrefixType:  prefixType,
 	})
 
 	if err != nil {
@@ -617,4 +688,24 @@ func (s *Server) generateNextCursor(records []map[string]interface{}, limit int)
 		}
 	}
 	return ""
+}
+
+// corsMiddleware handles CORS headers for cross-origin requests
+func (s *Server) corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Set CORS headers
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Max-Age", "86400")
+
+		// Handle preflight requests
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }

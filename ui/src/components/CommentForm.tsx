@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/shadcn/button';
 import { useAuth } from '@/lib/auth-context';
 import { getApi } from '@/lib/api-client';
-import { ContentApi } from '@/generated/api/src/apis/ContentApi';
+import { CommentsApi } from '@/generated/api/src/apis/CommentsApi';
 import { toast } from 'sonner';
 import { Send, X, Eye, EyeOff } from 'lucide-react';
 import MarkdownHelp from './MarkdownHelp';
@@ -13,8 +13,8 @@ import { MarkdownTextarea } from './MarkdownTextarea';
 
 
 interface CommentFormProps {
-  postId: number;
-  parentCommentId?: number;
+  postId: string;
+  parentCommentId?: string;
   onCommentSubmitted: () => void;
   onCancel?: () => void;
   placeholder?: string;
@@ -50,18 +50,8 @@ export default function CommentForm({
     setIsSubmitting(true);
     
     try {
-      const contentApi = getApi(ContentApi);
-      
-      const commentData = {
-        content: content.trim(),
-        ...(parentCommentId && { parentCommentId })
-      };
-
-      await contentApi.createComment(postId, commentData);
-      
-      setContent('');
-      toast.success(isReply ? 'Reply posted!' : 'Comment posted!');
-      onCommentSubmitted();
+      // Comment creation not available in atproto system
+      toast.error('Comment creation is not available in the atproto system');
     } catch (error: unknown) {
       console.error('Error posting comment:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to post comment';
@@ -156,7 +146,7 @@ export default function CommentForm({
         
         <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
           <div className="text-xs text-muted-foreground">
-            Commenting as <span className="font-medium">{user?.displayName}</span>
+            Commenting as <span className="font-medium">{user?.handle}</span>
           </div>
           <Button 
             type="submit" 

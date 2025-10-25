@@ -9,6 +9,7 @@ import { Label } from "@/components/shadcn/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/shadcn/card";
 import { getApi } from "@/lib/api-client";
 import { AuthenticationApi } from "@/generated/api/src/apis/AuthenticationApi";
+import { toast } from "sonner";
 
 function ResetPasswordConfirmContent() {
   const searchParams = useSearchParams();
@@ -44,12 +45,8 @@ function ResetPasswordConfirmContent() {
 
     try {
       const authApi = getApi(AuthenticationApi);
-      await authApi.resetPassword({
-        token: token!,
-        password: password
-      });
-
-      setIsSuccess(true);
+      // Password reset not available in atproto system
+      toast.error("Password reset is not available in the atproto system");
     } catch (error) {
       console.error("Password reset failed:", error);
       setError("Failed to reset password. The link may have expired or be invalid.");

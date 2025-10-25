@@ -21,7 +21,8 @@ SELECT
     updated_at,
     subscriber_count,
     post_count,
-    comment_count
+    comment_count,
+    prefix_type
 FROM appview_subforums
 WHERE slug = $1
 `
@@ -41,6 +42,7 @@ func (q *Queries) GetAppViewSubforumBySlug(ctx context.Context, slug string) (*A
 		&i.SubscriberCount,
 		&i.PostCount,
 		&i.CommentCount,
+		&i.PrefixType,
 	)
 	return &i, err
 }
@@ -57,7 +59,8 @@ SELECT
     updated_at,
     subscriber_count,
     post_count,
-    comment_count
+    comment_count,
+    prefix_type
 FROM appview_subforums
 ORDER BY created_at DESC
 LIMIT $1 OFFSET $2
@@ -89,6 +92,7 @@ func (q *Queries) ListAppViewSubforums(ctx context.Context, arg *ListAppViewSubf
 			&i.SubscriberCount,
 			&i.PostCount,
 			&i.CommentCount,
+			&i.PrefixType,
 		); err != nil {
 			return nil, err
 		}

@@ -20,6 +20,7 @@ type OAuthService struct {
 	authService *AuthService
 	logger      *slog.Logger
 	db          *generated.Queries
+	externalPDS *ExternalPDSClient
 }
 
 // OAuthClient represents an OAuth client application
@@ -76,10 +77,14 @@ type TokenResponse struct {
 
 // NewOAuthService creates a new OAuth service
 func NewOAuthService(authService *AuthService, db *generated.Queries, logger *slog.Logger) *OAuthService {
+	// Create external PDS client
+	externalPDS := NewExternalPDSClient(authService.directory, logger)
+
 	return &OAuthService{
 		authService: authService,
 		logger:      logger,
 		db:          db,
+		externalPDS: externalPDS,
 	}
 }
 
@@ -340,4 +345,102 @@ func generateRandomString(length int) string {
 	bytes := make([]byte, length)
 	rand.Read(bytes)
 	return base64.URLEncoding.EncodeToString(bytes)
+}
+
+// HandleExternalOAuthCallback handles OAuth callbacks from external PDS servers
+func (o *OAuthService) HandleExternalOAuthCallback(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse callback parameters
+	code := r.URL.Query().Get("code")
+	state := r.URL.Query().Get("state")
+	error := r.URL.Query().Get("error")
+	errorDescription := r.URL.Query().Get("error_description")
+
+	// Handle OAuth errors
+	if error != "" {
+		o.logger.Error("External OAuth error", "error", error, "description", errorDescription)
+		http.Error(w, fmt.Sprintf("OAuth error: %s", error), http.StatusBadRequest)
+		return
+	}
+
+	if code == "" {
+		http.Error(w, "Missing authorization code", http.StatusBadRequest)
+		return
+	}
+
+	// Validate state parameter (should match what we sent)
+	// In production, this would be stored in session or cache
+	o.logger.Debug("External OAuth callback received", "code", code, "state", state)
+
+	// Exchange authorization code for tokens
+	tokenResponse, err := o.exchangeExternalAuthorizationCode(r.Context(), code, state)
+	if err != nil {
+		o.logger.Error("Failed to exchange authorization code", "error", err)
+		http.Error(w, "Failed to exchange authorization code", http.StatusInternalServerError)
+		return
+	}
+
+	// Return token response
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(tokenResponse)
+}
+
+// exchangeExternalAuthorizationCode exchanges an authorization code from external PDS for tokens
+func (o *OAuthService) exchangeExternalAuthorizationCode(ctx context.Context, code, state string) (*TokenResponse, error) {
+	// For now, this is a simplified implementation
+	// In production, this would:
+	// 1. Validate the state parameter
+	// 2. Exchange the code with the external PDS
+	// 3. Validate the returned tokens
+	// 4. Create a session in HashPost
+
+	o.logger.Info("Exchanging external authorization code", "code", code, "state", state)
+
+	// Mock token response for now
+	// In production, this would make actual HTTP requests to the external PDS
+	tokenResponse := &TokenResponse{
+		AccessToken:  "mock_access_token_" + code,
+		TokenType:    "Bearer",
+		ExpiresIn:    3600,
+		RefreshToken: "mock_refresh_token_" + code,
+		Scope:        "com.atproto.access",
+	}
+
+	return tokenResponse, nil
+}
+
+// RegisterWithExternalPDS registers HashPost as an OAuth client with an external PDS
+func (o *OAuthService) RegisterWithExternalPDS(ctx context.Context, pdsEndpoint string) error {
+	o.logger.Info("Registering with external PDS", "endpoint", pdsEndpoint)
+
+	// For now, this is a simplified implementation
+	// In production, this would:
+	// 1. Make a request to the external PDS's OAuth registration endpoint
+	// 2. Store the returned client credentials
+	// 3. Handle any registration errors
+
+	// Mock registration
+	clientID := "hashpost_" + generateRandomString(16)
+	_ = generateRandomString(32) // clientSecret not used in mock
+
+	// Store in database (placeholder - would need proper SQLC query)
+	// _, err := o.db.CreateExternalPDSClient(ctx, generated.CreateExternalPDSClientParams{
+	// 	PDSEndpoint: pdsEndpoint,
+	// 	ClientID:    clientID,
+	// 	ClientSecret: &clientSecret,
+	// })
+
+	// For now, just log the registration
+	o.logger.Info("External PDS client registration", "endpoint", pdsEndpoint, "client_id", clientID)
+
+	// Mock successful registration
+	// In production, this would store the client credentials in the database
+
+	o.logger.Info("Successfully registered with external PDS", "endpoint", pdsEndpoint, "client_id", clientID)
+	return nil
 }

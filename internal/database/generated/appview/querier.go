@@ -21,7 +21,7 @@ type Querier interface {
 	CountUserSubscriptions(ctx context.Context, userDid string) (int64, error)
 	CreateAppViewComment(ctx context.Context, arg *CreateAppViewCommentParams) (*AppviewComment, error)
 	CreateAppViewPost(ctx context.Context, arg *CreateAppViewPostParams) (*AppviewPost, error)
-	CreateAppViewSubforum(ctx context.Context, arg *CreateAppViewSubforumParams) (*CreateAppViewSubforumRow, error)
+	CreateAppViewSubforum(ctx context.Context, arg *CreateAppViewSubforumParams) (*AppviewSubforum, error)
 	// Comment operations for HashPost AppView
 	// These queries handle CRUD operations for comments with proper denormalized counts
 	CreateComment(ctx context.Context, arg *CreateCommentParams) (*AppviewComment, error)
@@ -38,23 +38,29 @@ type Querier interface {
 	DeleteAppViewPost(ctx context.Context, id uuid.UUID) error
 	DeleteAppViewSubforum(ctx context.Context, slug string) error
 	DeleteComment(ctx context.Context, id uuid.UUID) error
+	DeleteCommentByURI(ctx context.Context, atprotoUri string) error
 	DeletePostByAtprotoURI(ctx context.Context, atprotoUri string) error
 	DeleteSubscription(ctx context.Context, arg *DeleteSubscriptionParams) error
 	DeleteVote(ctx context.Context, arg *DeleteVoteParams) error
 	DeleteVoteOnComment(ctx context.Context, arg *DeleteVoteOnCommentParams) error
 	GetAllPermissions(ctx context.Context) ([]*GetAllPermissionsRow, error)
 	GetAllRoles(ctx context.Context) ([]*GetAllRolesRow, error)
-	GetAppViewPostByID(ctx context.Context, id uuid.UUID) (*AppviewPost, error)
-	GetAppViewPostByURI(ctx context.Context, atprotoUri string) (*AppviewPost, error)
+	GetAppViewPostByID(ctx context.Context, id uuid.UUID) (*GetAppViewPostByIDRow, error)
+	GetAppViewPostByURI(ctx context.Context, atprotoUri string) (*GetAppViewPostByURIRow, error)
 	GetAppViewSubforumBySlug(ctx context.Context, slug string) (*AppviewSubforum, error)
 	GetCommentByID(ctx context.Context, id uuid.UUID) (*AppviewComment, error)
+	GetCommentByURI(ctx context.Context, atprotoUri string) (*AppviewComment, error)
 	GetCommentVoteCounts(ctx context.Context, id uuid.UUID) (*GetCommentVoteCountsRow, error)
 	GetCommentWithPost(ctx context.Context, id uuid.UUID) (*GetCommentWithPostRow, error)
+	GetPDSServerDetails(ctx context.Context, pdsSource *string) (*GetPDSServerDetailsRow, error)
+	GetPDSServerStats(ctx context.Context) ([]*GetPDSServerStatsRow, error)
+	GetPostByAtprotoURI(ctx context.Context, atprotoUri string) (*AppviewPost, error)
 	GetPostCommentCount(ctx context.Context, id uuid.UUID) (*int32, error)
 	GetPostVoteCounts(ctx context.Context, id uuid.UUID) (*GetPostVoteCountsRow, error)
 	GetSubforumByID(ctx context.Context, id uuid.UUID) (*AppviewSubforum, error)
 	GetSubforumBySlug(ctx context.Context, slug string) (*AppviewSubforum, error)
 	GetSubforumMembers(ctx context.Context, arg *GetSubforumMembersParams) ([]*GetSubforumMembersRow, error)
+	GetSubforumStats(ctx context.Context, slug string) (*GetSubforumStatsRow, error)
 	GetSubforumSubscriberCount(ctx context.Context, slug string) (*int32, error)
 	GetUserByDID(ctx context.Context, did string) (*AppviewUser, error)
 	GetUserPermissions(ctx context.Context, arg *GetUserPermissionsParams) ([]string, error)
@@ -62,10 +68,12 @@ type Querier interface {
 	GetUserSubscription(ctx context.Context, arg *GetUserSubscriptionParams) (*AppviewSubscription, error)
 	GetUserVoteOnComment(ctx context.Context, arg *GetUserVoteOnCommentParams) (*AppviewVote, error)
 	GetUserVoteOnPost(ctx context.Context, arg *GetUserVoteOnPostParams) (*AppviewVote, error)
+	GetUsersByDIDs(ctx context.Context, dollar_1 []string) ([]*AppviewUser, error)
+	GetUsersByPDSSource(ctx context.Context, arg *GetUsersByPDSSourceParams) ([]*GetUsersByPDSSourceRow, error)
 	GetUsersWithRoles(ctx context.Context, arg *GetUsersWithRolesParams) ([]*GetUsersWithRolesRow, error)
 	HasUserRole(ctx context.Context, arg *HasUserRoleParams) (bool, error)
-	ListAppViewPosts(ctx context.Context, arg *ListAppViewPostsParams) ([]*AppviewPost, error)
-	ListAppViewPostsBySubforum(ctx context.Context, arg *ListAppViewPostsBySubforumParams) ([]*AppviewPost, error)
+	ListAppViewPosts(ctx context.Context, arg *ListAppViewPostsParams) ([]*ListAppViewPostsRow, error)
+	ListAppViewPostsBySubforum(ctx context.Context, arg *ListAppViewPostsBySubforumParams) ([]*ListAppViewPostsBySubforumRow, error)
 	ListAppViewSubforums(ctx context.Context, arg *ListAppViewSubforumsParams) ([]*AppviewSubforum, error)
 	ListCommentsByAuthor(ctx context.Context, arg *ListCommentsByAuthorParams) ([]*ListCommentsByAuthorRow, error)
 	ListCommentsByPost(ctx context.Context, arg *ListCommentsByPostParams) ([]*ListCommentsByPostRow, error)
@@ -77,12 +85,17 @@ type Querier interface {
 	UpdateAppViewComment(ctx context.Context, arg *UpdateAppViewCommentParams) (*AppviewComment, error)
 	UpdateAppViewPost(ctx context.Context, arg *UpdateAppViewPostParams) (*AppviewPost, error)
 	UpdateAppViewSubforum(ctx context.Context, arg *UpdateAppViewSubforumParams) (*UpdateAppViewSubforumRow, error)
-	UpdateComment(ctx context.Context, arg *UpdateCommentParams) (*AppviewComment, error)
+	UpdateComment(ctx context.Context, arg *UpdateCommentParams) (*UpdateCommentRow, error)
+	UpdateCommentByURI(ctx context.Context, arg *UpdateCommentByURIParams) (*AppviewComment, error)
 	UpdateCommentVoteCounts(ctx context.Context, id uuid.UUID) error
 	UpdatePostByAtprotoURI(ctx context.Context, arg *UpdatePostByAtprotoURIParams) (*AppviewPost, error)
 	UpdatePostCommentCount(ctx context.Context, postID pgtype.UUID) error
 	UpdatePostVoteCounts(ctx context.Context, id uuid.UUID) error
+	UpdateSubforumCommentCount(ctx context.Context, arg *UpdateSubforumCommentCountParams) error
+	UpdateSubforumPostCount(ctx context.Context, arg *UpdateSubforumPostCountParams) error
 	UpdateSubforumSubscriberCount(ctx context.Context, subforumSlug string) error
+	UpdateUserLastSeen(ctx context.Context, did string) error
+	UpdateUserProfile(ctx context.Context, arg *UpdateUserProfileParams) (*AppviewUser, error)
 }
 
 var _ Querier = (*Queries)(nil)

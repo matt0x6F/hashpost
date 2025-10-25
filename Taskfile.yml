@@ -19,9 +19,10 @@ tasks:
   test:
     desc: "Run tests with Docker Compose"
     cmds:
-      - docker-compose -f docker-compose.test.yml up -d
-      - go test ./...
-      - docker-compose -f docker-compose.test.yml down -v
+      - docker-compose up -d postgres redis nats
+      - sleep 10
+      - go test -short ./...
+      - docker-compose down
 
   test:unit:
     desc: "Run unit tests only"
@@ -44,7 +45,10 @@ tasks:
       TEST_DB_PASSWORD: "password"
       TEST_DB_NAME: "postgres"
     cmds:
+      - docker-compose up -d postgres redis nats
+      - sleep 10
       - go test -tags=integration ./...
+      - docker-compose down
 
   test:pds:
     desc: "Run PDS-specific tests"
@@ -90,18 +94,22 @@ tasks:
     cmds:
       - go test -run ".*Integration.*" ./internal/appview/...
 
+  test:external-pds:
+    desc: "Run external PDS integration tests"
+    cmds:
+      - go test -run "TestExternalPDS" ./internal/pds/...
+
   migrate:up:
     desc: "Run database migrations up"
-    env:
-      DATABASE_URL: "postgres://postgres:password@localhost:5432/postgres?sslmode=disable"
     cmds:
-      - migrate -path internal/database/migrations/pds -database "$DATABASE_URL" up
-      - migrate -path internal/database/migrations/appview -database "postgres://postgres:password@localhost:5432/postgres?sslmode=disable" up
+      - migrate -path internal/database/migrations/pds -database "postgres://postgres:password@localhost:5432/hashpost_pds_dev?sslmode=disable" up
+      - migrate -path internal/database/migrations/appview -database "postgres://postgres:password@localhost:5432/hashpost_appview_dev?sslmode=disable" up
 
   migrate:down:
     desc: "Run database migrations down"
     cmds:
-      - migrate -path internal/database/migrations -database "$DATABASE_URL" down
+      - migrate -path internal/database/migrations/pds -database "postgres://postgres:password@localhost:5432/hashpost_pds_dev?sslmode=disable" down
+      - migrate -path internal/database/migrations/appview -database "postgres://postgres:password@localhost:5432/hashpost_appview_dev?sslmode=disable" down
 
   migrate:create:
     desc: "Create a new migration"

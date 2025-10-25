@@ -12,7 +12,7 @@ import (
 )
 
 const GetSubforumByID = `-- name: GetSubforumByID :one
-SELECT id, name, slug, description, created_by_did, created_by_handle, created_at, updated_at, subscriber_count, post_count, comment_count FROM appview_subforums 
+SELECT id, name, slug, description, created_by_did, created_by_handle, created_at, updated_at, subscriber_count, post_count, comment_count, prefix_type FROM appview_subforums 
 WHERE id = $1
 `
 
@@ -31,6 +31,7 @@ func (q *Queries) GetSubforumByID(ctx context.Context, id uuid.UUID) (*AppviewSu
 		&i.SubscriberCount,
 		&i.PostCount,
 		&i.CommentCount,
+		&i.PrefixType,
 	)
 	return &i, err
 }

@@ -30,6 +30,16 @@ type DpopNonce struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+// OAuth client registrations with external PDS servers
+type ExternalPdsClient struct {
+	ID           uuid.UUID          `json:"id"`
+	PdsEndpoint  string             `json:"pds_endpoint"`
+	ClientID     string             `json:"client_id"`
+	ClientSecret *string            `json:"client_secret"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
 type OauthAccessToken struct {
 	ID           uuid.UUID          `json:"id"`
 	AccessToken  string             `json:"access_token"`
@@ -86,6 +96,7 @@ type Subforum struct {
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 	AtprotoUri  *string            `json:"atproto_uri"`
+	PrefixType  string             `json:"prefix_type"`
 }
 
 type SubforumSubscription struct {

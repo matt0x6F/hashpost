@@ -9,30 +9,52 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const GetAppViewPostByID = `-- name: GetAppViewPostByID :one
 SELECT 
-    id,
-    atproto_uri,
-    author_did,
-    author_handle,
-    subforum_slug,
-    title,
-    content,
-    created_at,
-    updated_at,
-    upvotes,
-    downvotes,
-    comment_count,
-    score
-FROM appview_posts
-WHERE id = $1
+    p.id,
+    p.atproto_uri,
+    p.author_did,
+    p.author_handle,
+    p.subforum_slug,
+    p.title,
+    p.content,
+    p.created_at,
+    p.updated_at,
+    p.upvotes,
+    p.downvotes,
+    p.comment_count,
+    p.score,
+    u.display_name as author_display_name,
+    u.avatar_url as author_avatar_url
+FROM appview_posts p
+LEFT JOIN appview_users u ON p.author_did = u.did
+WHERE p.id = $1
 `
 
-func (q *Queries) GetAppViewPostByID(ctx context.Context, id uuid.UUID) (*AppviewPost, error) {
+type GetAppViewPostByIDRow struct {
+	ID                uuid.UUID          `json:"id"`
+	AtprotoUri        string             `json:"atproto_uri"`
+	AuthorDid         string             `json:"author_did"`
+	AuthorHandle      string             `json:"author_handle"`
+	SubforumSlug      string             `json:"subforum_slug"`
+	Title             string             `json:"title"`
+	Content           string             `json:"content"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	Upvotes           *int32             `json:"upvotes"`
+	Downvotes         *int32             `json:"downvotes"`
+	CommentCount      *int32             `json:"comment_count"`
+	Score             *int32             `json:"score"`
+	AuthorDisplayName *string            `json:"author_display_name"`
+	AuthorAvatarUrl   *string            `json:"author_avatar_url"`
+}
+
+func (q *Queries) GetAppViewPostByID(ctx context.Context, id uuid.UUID) (*GetAppViewPostByIDRow, error) {
 	row := q.db.QueryRow(ctx, GetAppViewPostByID, id)
-	var i AppviewPost
+	var i GetAppViewPostByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.AtprotoUri,
@@ -47,32 +69,55 @@ func (q *Queries) GetAppViewPostByID(ctx context.Context, id uuid.UUID) (*Appvie
 		&i.Downvotes,
 		&i.CommentCount,
 		&i.Score,
+		&i.AuthorDisplayName,
+		&i.AuthorAvatarUrl,
 	)
 	return &i, err
 }
 
 const GetAppViewPostByURI = `-- name: GetAppViewPostByURI :one
 SELECT 
-    id,
-    atproto_uri,
-    author_did,
-    author_handle,
-    subforum_slug,
-    title,
-    content,
-    created_at,
-    updated_at,
-    upvotes,
-    downvotes,
-    comment_count,
-    score
-FROM appview_posts
-WHERE atproto_uri = $1
+    p.id,
+    p.atproto_uri,
+    p.author_did,
+    p.author_handle,
+    p.subforum_slug,
+    p.title,
+    p.content,
+    p.created_at,
+    p.updated_at,
+    p.upvotes,
+    p.downvotes,
+    p.comment_count,
+    p.score,
+    u.display_name as author_display_name,
+    u.avatar_url as author_avatar_url
+FROM appview_posts p
+LEFT JOIN appview_users u ON p.author_did = u.did
+WHERE p.atproto_uri = $1
 `
 
-func (q *Queries) GetAppViewPostByURI(ctx context.Context, atprotoUri string) (*AppviewPost, error) {
+type GetAppViewPostByURIRow struct {
+	ID                uuid.UUID          `json:"id"`
+	AtprotoUri        string             `json:"atproto_uri"`
+	AuthorDid         string             `json:"author_did"`
+	AuthorHandle      string             `json:"author_handle"`
+	SubforumSlug      string             `json:"subforum_slug"`
+	Title             string             `json:"title"`
+	Content           string             `json:"content"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	Upvotes           *int32             `json:"upvotes"`
+	Downvotes         *int32             `json:"downvotes"`
+	CommentCount      *int32             `json:"comment_count"`
+	Score             *int32             `json:"score"`
+	AuthorDisplayName *string            `json:"author_display_name"`
+	AuthorAvatarUrl   *string            `json:"author_avatar_url"`
+}
+
+func (q *Queries) GetAppViewPostByURI(ctx context.Context, atprotoUri string) (*GetAppViewPostByURIRow, error) {
 	row := q.db.QueryRow(ctx, GetAppViewPostByURI, atprotoUri)
-	var i AppviewPost
+	var i GetAppViewPostByURIRow
 	err := row.Scan(
 		&i.ID,
 		&i.AtprotoUri,
@@ -87,6 +132,8 @@ func (q *Queries) GetAppViewPostByURI(ctx context.Context, atprotoUri string) (*
 		&i.Downvotes,
 		&i.CommentCount,
 		&i.Score,
+		&i.AuthorDisplayName,
+		&i.AuthorAvatarUrl,
 	)
 	return &i, err
 }

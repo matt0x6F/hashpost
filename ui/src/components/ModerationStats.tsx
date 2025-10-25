@@ -4,8 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/shadcn/card';
 import { Flag, Users, History, Calendar, MessageSquare, TrendingUp } from 'lucide-react';
 import { getApi } from '@/lib/api-client';
-import { ModerationApi, GetModerationStatsTimeRangeEnum } from '@/generated/api/src';
-import type { ModerationStats } from '@/generated/api/src';
+// ModerationStats not available in atproto system
 import Link from 'next/link';
 
 interface ModerationStatsProps {
@@ -14,7 +13,7 @@ interface ModerationStatsProps {
 }
 
 export function ModerationStats({ subforumPath, timeRange = '30d' }: ModerationStatsProps) {
-  const [stats, setStats] = useState<ModerationStats | null>(null);
+  const [stats, setStats] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const lastFetchKey = useRef<string>('');
@@ -28,10 +27,9 @@ export function ModerationStats({ subforumPath, timeRange = '30d' }: ModerationS
       setError(null);
       
       try {
-        const moderationApi = getApi(ModerationApi);
-        const timeRangeEnum = timeRange as GetModerationStatsTimeRangeEnum;
-        const response = await moderationApi.getModerationStats(subforumPath, undefined, undefined, timeRangeEnum);
-        setStats(response);
+        // Moderation stats not available in atproto system
+        setStats(null);
+        setError('Moderation stats are not available in the atproto system');
         lastFetchKey.current = fetchKey;
       } catch (err) {
         console.error('Failed to fetch moderation stats:', err);

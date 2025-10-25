@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	generated "github.com/matt0x6f/hashpost/internal/database/generated/appview"
 )
@@ -36,17 +37,19 @@ func (d *Database) Close() error {
 // AppView Data Models
 
 type AppViewUser struct {
-	ID           uuid.UUID `json:"id"`
-	DID          string    `json:"did"`
-	Handle       string    `json:"handle"`
-	DisplayName  string    `json:"display_name"`
-	Bio          string    `json:"bio"`
-	AvatarURL    string    `json:"avatar_url"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
-	PostCount    int       `json:"post_count"`
-	CommentCount int       `json:"comment_count"`
-	Reputation   int       `json:"reputation"`
+	ID           uuid.UUID  `json:"id"`
+	DID          string     `json:"did"`
+	Handle       string     `json:"handle"`
+	DisplayName  string     `json:"display_name"`
+	Bio          string     `json:"bio"`
+	AvatarURL    string     `json:"avatar_url"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+	PostCount    int        `json:"post_count"`
+	CommentCount int        `json:"comment_count"`
+	Reputation   int        `json:"reputation"`
+	PDSSource    *string    `json:"pds_source,omitempty"`   // PDS endpoint where user data is stored
+	LastSeenAt   *time.Time `json:"last_seen_at,omitempty"` // Last authentication time
 }
 
 type AppViewSubforum struct {
@@ -77,6 +80,21 @@ type AppViewPost struct {
 	Downvotes    int       `json:"downvotes"`
 	CommentCount int       `json:"comment_count"`
 	Score        int       `json:"score"`
+}
+
+type AppViewComment struct {
+	ID           uuid.UUID  `json:"id"`
+	AtprotoURI   string     `json:"atproto_uri"`
+	AuthorDID    string     `json:"author_did"`
+	AuthorHandle string     `json:"author_handle"`
+	PostID       uuid.UUID  `json:"post_id"`
+	ParentID     *uuid.UUID `json:"parent_id,omitempty"`
+	Content      string     `json:"content"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+	Upvotes      int        `json:"upvotes"`
+	Downvotes    int        `json:"downvotes"`
+	Score        int        `json:"score"`
 }
 
 // Database Operations
@@ -164,5 +182,78 @@ func (d *Database) DeletePost(atprotoURI string) error {
 	}
 
 	d.logger.Info("Post deleted from AppView", "uri", atprotoURI)
+	return nil
+}
+
+// GetPostByURI retrieves a post by its atproto URI
+func (d *Database) GetPostByURI(uri string) (*generated.AppviewPost, error) {
+	post, err := d.queries.GetPostByAtprotoURI(context.Background(), uri)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get post by URI: %w", err)
+	}
+	return post, nil
+}
+
+// GetCommentByURI retrieves a comment by its atproto URI
+func (d *Database) GetCommentByURI(uri string) (*generated.AppviewComment, error) {
+	comment, err := d.queries.GetCommentByURI(context.Background(), uri)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get comment by URI: %w", err)
+	}
+	return comment, nil
+}
+
+// CreateComment creates a new comment in the AppView database
+func (d *Database) CreateComment(comment *AppViewComment) error {
+	// Convert UUIDs to pgtype.UUID
+	postID := pgtype.UUID{Bytes: comment.PostID, Valid: true}
+	var parentID pgtype.UUID
+	if comment.ParentID != nil {
+		parentID = pgtype.UUID{Bytes: *comment.ParentID, Valid: true}
+	}
+
+	_, err := d.queries.CreateComment(context.Background(), &generated.CreateCommentParams{
+		AtprotoUri:   comment.AtprotoURI,
+		AuthorDid:    comment.AuthorDID,
+		AuthorHandle: comment.AuthorHandle,
+		PostID:       postID,
+		ParentID:     parentID,
+		Content:      comment.Content,
+	})
+
+	if err != nil {
+		d.logger.Error("Failed to create comment", "error", err, "uri", comment.AtprotoURI)
+		return fmt.Errorf("failed to create comment: %w", err)
+	}
+
+	d.logger.Info("Comment created in AppView", "uri", comment.AtprotoURI)
+	return nil
+}
+
+// UpdateComment updates an existing comment in the AppView database
+func (d *Database) UpdateComment(atprotoURI string, comment *AppViewComment) error {
+	_, err := d.queries.UpdateCommentByURI(context.Background(), &generated.UpdateCommentByURIParams{
+		AtprotoUri: atprotoURI,
+		Content:    comment.Content,
+	})
+
+	if err != nil {
+		d.logger.Error("Failed to update comment", "error", err, "uri", atprotoURI)
+		return fmt.Errorf("failed to update comment: %w", err)
+	}
+
+	d.logger.Info("Comment updated in AppView", "uri", atprotoURI)
+	return nil
+}
+
+// DeleteCommentByURI removes a comment from the AppView database
+func (d *Database) DeleteCommentByURI(atprotoURI string) error {
+	err := d.queries.DeleteCommentByURI(context.Background(), atprotoURI)
+	if err != nil {
+		d.logger.Error("Failed to delete comment", "error", err, "uri", atprotoURI)
+		return fmt.Errorf("failed to delete comment: %w", err)
+	}
+
+	d.logger.Info("Comment deleted from AppView", "uri", atprotoURI)
 	return nil
 }

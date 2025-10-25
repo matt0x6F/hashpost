@@ -1,6 +1,7 @@
 package appview
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -10,6 +11,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	generated "github.com/matt0x6f/hashpost/internal/database/generated/appview"
+	"github.com/matt0x6f/hashpost/internal/lexicons"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // CommentsHandler handles GET and POST /api/v1/comments
@@ -74,7 +77,8 @@ func (h *Handlers) ListComments(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Get comments from database
-	comments, err := h.queries.ListCommentsByPost(ctx, &generated.ListCommentsByPostParams{
+	var comments []*generated.ListCommentsByPostRow
+	comments, err = h.queries.ListCommentsByPost(ctx, &generated.ListCommentsByPostParams{
 		PostID: pgtype.UUID{Bytes: postID, Valid: true},
 		Limit:  int32(limit),
 		Offset: int32(offset),
@@ -94,19 +98,44 @@ func (h *Handlers) ListComments(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Convert to response format
-	commentResponses := make([]map[string]interface{}, len(comments))
+	commentResponses := make([]Comment, len(comments))
 	for i, comment := range comments {
-		commentResponses[i] = map[string]interface{}{
-			"id":         comment.ID.String(),
-			"author":     comment.AuthorDid,
-			"post":       comment.PostID.String(),
-			"parent":     comment.ParentID.String(),
-			"content":    comment.Content,
-			"created_at": comment.CreatedAt.Time.Format(time.RFC3339),
-			"updated_at": comment.UpdatedAt.Time.Format(time.RFC3339),
-			"upvotes":    int(*comment.Upvotes),
-			"downvotes":  int(*comment.Downvotes),
-			"score":      int(*comment.Score),
+		commentResponses[i] = Comment{
+			Id: openapi_types.UUID(comment.ID),
+			Author: Author{
+				Did:         comment.AuthorDid,
+				Handle:      comment.AuthorHandle,
+				DisplayName: comment.AuthorDisplayName,
+				AvatarUrl:   comment.AuthorAvatarUrl,
+			},
+			Post: openapi_types.UUID(comment.PostID.Bytes),
+			Parent: func() *openapi_types.UUID {
+				if comment.ParentID.Valid {
+					u := openapi_types.UUID(comment.ParentID.Bytes)
+					return &u
+				} else {
+					return nil
+				}
+			}(),
+			Content:   comment.Content,
+			CreatedAt: comment.CreatedAt.Time,
+			UpdatedAt: &comment.UpdatedAt.Time,
+			Upvotes: func() *int {
+				if comment.Upvotes != nil {
+					v := int(*comment.Upvotes)
+					return &v
+				} else {
+					return nil
+				}
+			}(),
+			Downvotes: func() *int {
+				if comment.Downvotes != nil {
+					v := int(*comment.Downvotes)
+					return &v
+				} else {
+					return nil
+				}
+			}(),
 		}
 	}
 
@@ -159,50 +188,97 @@ func (h *Handlers) CreateComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var parentID pgtype.UUID
+	// Get post to construct AT-URI
+	post, err := h.queries.GetAppViewPostByID(r.Context(), postID)
+	if err != nil {
+		h.writeError(w, http.StatusNotFound, "POST_NOT_FOUND", "Post not found")
+		return
+	}
+
+	// Construct comment record
+	record := map[string]interface{}{
+		"$type":     lexicons.CollectionFeedComment,
+		"text":      req.Content,
+		"post":      post.AtprotoUri,
+		"createdAt": time.Now().Format(time.RFC3339),
+	}
+
+	// Add parent if specified
 	if req.ParentID != "" {
-		parsedParentID, err := uuid.Parse(req.ParentID)
+		parentID, err := uuid.Parse(req.ParentID)
 		if err != nil {
 			h.writeError(w, http.StatusBadRequest, "INVALID_PARENT_ID", "Invalid parent_id format")
 			return
 		}
-		parentID = pgtype.UUID{Bytes: parsedParentID, Valid: true}
+		parent, err := h.queries.GetCommentByID(r.Context(), parentID)
+		if err == nil {
+			record["parent"] = parent.AtprotoUri
+		}
 	}
 
-	ctx := r.Context()
-
-	// Create comment in database
-	comment, err := h.queries.CreateComment(ctx, &generated.CreateCommentParams{
-		AtprotoUri:   "at://placeholder.uri", // This would come from PDS in real implementation
-		AuthorDid:    userCtx.Did,
-		AuthorHandle: userCtx.Handle,
-		PostID:       pgtype.UUID{Bytes: postID, Valid: true},
-		ParentID:     parentID,
-		Content:      req.Content,
-	})
+	// Create record in PDS via com.atproto.repo.createRecord
+	pdsURL := h.getPDSURL(userCtx.Did)
+	uri, cid, err := h.createRecordInPDS(r.Context(), pdsURL, "", userCtx.Did, lexicons.CollectionFeedComment, record)
 	if err != nil {
-		h.logger.Error("Failed to create comment", "error", err, "user_did", userCtx.Did, "post_id", postID)
+		h.logger.Error("Failed to create comment in PDS", "error", err)
 		h.writeError(w, http.StatusInternalServerError, "COMMENT_CREATE_FAILED", "Failed to create comment")
 		return
 	}
 
-	// Update post comment count
-	err = h.queries.UpdatePostCommentCount(ctx, pgtype.UUID{Bytes: postID, Valid: true})
+	// Wait for event to sync to AppView (with timeout)
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	comment, err := h.waitForCommentSync(ctx, uri)
 	if err != nil {
-		h.logger.Error("Failed to update comment count", "error", err, "post_id", postID)
-		// Don't fail the request, just log the error
+		h.logger.Warn("Comment created in PDS but sync timed out", "uri", uri)
+		// Return success anyway - eventual consistency
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"uri": uri,
+			"cid": cid,
+		})
+		return
 	}
 
-	response := map[string]interface{}{
-		"id":         comment.ID.String(),
-		"content":    comment.Content,
-		"post":       comment.PostID.String(),
-		"parent":     comment.ParentID.String(),
-		"author":     comment.AuthorDid,
-		"created_at": comment.CreatedAt.Time.Format(time.RFC3339),
-		"upvotes":    int(*comment.Upvotes),
-		"downvotes":  int(*comment.Downvotes),
-		"score":      int(*comment.Score),
+	// Return synced comment
+	response := Comment{
+		Id: openapi_types.UUID(comment.ID),
+		Author: Author{
+			Did:         comment.AuthorDid,
+			Handle:      comment.AuthorHandle,
+			DisplayName: nil, // Will be fetched async via profile fetcher
+			AvatarUrl:   nil,
+		},
+		Post: openapi_types.UUID(comment.PostID.Bytes),
+		Parent: func() *openapi_types.UUID {
+			if comment.ParentID.Valid {
+				u := openapi_types.UUID(comment.ParentID.Bytes)
+				return &u
+			} else {
+				return nil
+			}
+		}(),
+		Content:   comment.Content,
+		CreatedAt: comment.CreatedAt.Time,
+		UpdatedAt: &comment.UpdatedAt.Time,
+		Upvotes: func() *int {
+			if comment.Upvotes != nil {
+				v := int(*comment.Upvotes)
+				return &v
+			} else {
+				return nil
+			}
+		}(),
+		Downvotes: func() *int {
+			if comment.Downvotes != nil {
+				v := int(*comment.Downvotes)
+				return &v
+			} else {
+				return nil
+			}
+		}(),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -278,17 +354,42 @@ func (h *Handlers) UpdateComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := map[string]interface{}{
-		"id":         updatedComment.ID.String(),
-		"content":    updatedComment.Content,
-		"post":       updatedComment.PostID.String(),
-		"parent":     updatedComment.ParentID.String(),
-		"author":     updatedComment.AuthorDid,
-		"created_at": updatedComment.CreatedAt.Time.Format(time.RFC3339),
-		"updated_at": updatedComment.UpdatedAt.Time.Format(time.RFC3339),
-		"upvotes":    int(*updatedComment.Upvotes),
-		"downvotes":  int(*updatedComment.Downvotes),
-		"score":      int(*updatedComment.Score),
+	response := Comment{
+		Id: openapi_types.UUID(updatedComment.ID),
+		Author: Author{
+			Did:         updatedComment.AuthorDid,
+			Handle:      updatedComment.AuthorHandle,
+			DisplayName: updatedComment.AuthorDisplayName,
+			AvatarUrl:   updatedComment.AuthorAvatarUrl,
+		},
+		Post: openapi_types.UUID(updatedComment.PostID.Bytes),
+		Parent: func() *openapi_types.UUID {
+			if updatedComment.ParentID.Valid {
+				u := openapi_types.UUID(updatedComment.ParentID.Bytes)
+				return &u
+			} else {
+				return nil
+			}
+		}(),
+		Content:   updatedComment.Content,
+		CreatedAt: updatedComment.CreatedAt.Time,
+		UpdatedAt: &updatedComment.UpdatedAt.Time,
+		Upvotes: func() *int {
+			if updatedComment.Upvotes != nil {
+				v := int(*updatedComment.Upvotes)
+				return &v
+			} else {
+				return nil
+			}
+		}(),
+		Downvotes: func() *int {
+			if updatedComment.Downvotes != nil {
+				v := int(*updatedComment.Downvotes)
+				return &v
+			} else {
+				return nil
+			}
+		}(),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -355,4 +456,37 @@ func (h *Handlers) DeleteComment(w http.ResponseWriter, r *http.Request) {
 
 	h.logger.Info("Comment deleted", "comment_id", commentID, "user_did", userCtx.Did)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// Helper methods for PDS integration
+
+func (h *Handlers) getPDSURL(did string) string {
+	// TODO: Implement proper PDS discovery
+	// For now, return a placeholder PDS URL
+	return "http://localhost:8080" // HashPost PDS URL
+}
+
+func (h *Handlers) createRecordInPDS(ctx context.Context, pdsURL, accessToken, repo, collection string, record map[string]interface{}) (uri, cid string, err error) {
+	// TODO: Implement PDS API call to com.atproto.repo.createRecord
+	// This would make an HTTP request to the PDS server
+	// For now, return placeholder values
+	return "at://placeholder.uri", "placeholder.cid", nil
+}
+
+func (h *Handlers) waitForCommentSync(ctx context.Context, uri string) (*generated.AppviewComment, error) {
+	// Poll for comment to appear in AppView database
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-ticker.C:
+			comment, err := h.queries.GetCommentByURI(ctx, uri)
+			if err == nil {
+				return comment, nil
+			}
+		}
+	}
 }

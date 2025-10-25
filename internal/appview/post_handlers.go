@@ -2,10 +2,15 @@ package appview
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
+	generated "github.com/matt0x6f/hashpost/internal/database/generated/appview"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // PostsHandler handles both GET and POST /api/v1/posts
@@ -18,6 +23,100 @@ func (h *Handlers) PostsHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+// ListPostsWithParams handles GET /api/v1/posts with parsed parameters
+func (h *Handlers) ListPostsWithParams(w http.ResponseWriter, r *http.Request, limit int, offset int, subforum string) {
+	h.logger.Debug("Listing posts", "limit", limit, "offset", offset, "subforum", subforum)
+
+	// Get posts from database
+	var posts interface{}
+	var err error
+
+	if subforum != "" {
+		// Parse subforum parameter (format: "h/hashpost")
+		subforumParts := strings.Split(subforum, "/")
+		if len(subforumParts) == 2 && subforumParts[0] == "h" {
+			subforumSlug := subforumParts[1]
+			posts, err = h.queries.ListAppViewPostsBySubforum(r.Context(), &generated.ListAppViewPostsBySubforumParams{
+				SubforumSlug: subforumSlug,
+				Limit:        int32(limit),
+				Offset:       int32(offset),
+			})
+		} else {
+			h.writeError(w, http.StatusBadRequest, "INVALID_SUBFORUM", "Invalid subforum format")
+			return
+		}
+	} else {
+		posts, err = h.queries.ListAppViewPosts(r.Context(), &generated.ListAppViewPostsParams{
+			Limit:  int32(limit),
+			Offset: int32(offset),
+		})
+	}
+
+	if err != nil {
+		h.logger.Error("Failed to list posts", "error", err)
+		h.writeError(w, http.StatusInternalServerError, "LIST_FAILED", "Failed to list posts")
+		return
+	}
+
+	// Convert posts to response format using proper Post types
+	var postList []Post
+
+	// Handle different post types
+	switch p := posts.(type) {
+	case []*generated.ListAppViewPostsRow:
+		postList = make([]Post, len(p))
+		for i, post := range p {
+			postList[i] = Post{
+				Id: openapi_types.UUID(post.ID),
+				Author: Author{
+					Did:         post.AuthorDid,
+					Handle:      post.AuthorHandle,
+					DisplayName: post.AuthorDisplayName,
+					AvatarUrl:   post.AuthorAvatarUrl,
+				},
+				Subforum:  post.SubforumSlug,
+				Title:     post.Title,
+				Content:   post.Content,
+				CreatedAt: post.CreatedAt.Time,
+				UpdatedAt: &post.UpdatedAt.Time,
+			}
+		}
+	case []*generated.ListAppViewPostsBySubforumRow:
+		postList = make([]Post, len(p))
+		for i, post := range p {
+			postList[i] = Post{
+				Id: openapi_types.UUID(post.ID),
+				Author: Author{
+					Did:         post.AuthorDid,
+					Handle:      post.AuthorHandle,
+					DisplayName: post.AuthorDisplayName,
+					AvatarUrl:   post.AuthorAvatarUrl,
+				},
+				Subforum:  post.SubforumSlug,
+				Title:     post.Title,
+				Content:   post.Content,
+				CreatedAt: post.CreatedAt.Time,
+				UpdatedAt: &post.UpdatedAt.Time,
+			}
+		}
+	default:
+		h.logger.Error("Unknown post type", "type", fmt.Sprintf("%T", posts))
+		h.writeError(w, http.StatusInternalServerError, "UNKNOWN_TYPE", "Unknown post type")
+		return
+	}
+
+	response := map[string]interface{}{
+		"posts":  postList,
+		"total":  len(postList),
+		"limit":  limit,
+		"offset": offset,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
 }
 
 // ListPosts handles GET /api/v1/posts
@@ -41,25 +140,87 @@ func (h *Handlers) ListPosts(w http.ResponseWriter, r *http.Request) {
 
 	h.logger.Debug("Listing posts", "limit", limit, "offset", offset, "subforum", subforum)
 
-	// For now, return mock data
+	// Get posts from database
+	var posts interface{}
+	var err error
+
+	if subforum != "" {
+		// Parse subforum parameter (format: "h/hashpost")
+		subforumParts := strings.Split(subforum, "/")
+		if len(subforumParts) == 2 && subforumParts[0] == "h" {
+			subforumSlug := subforumParts[1]
+			posts, err = h.queries.ListAppViewPostsBySubforum(r.Context(), &generated.ListAppViewPostsBySubforumParams{
+				SubforumSlug: subforumSlug,
+				Limit:        int32(limit),
+				Offset:       int32(offset),
+			})
+		} else {
+			h.writeError(w, http.StatusBadRequest, "INVALID_SUBFORUM", "Invalid subforum format")
+			return
+		}
+	} else {
+		posts, err = h.queries.ListAppViewPosts(r.Context(), &generated.ListAppViewPostsParams{
+			Limit:  int32(limit),
+			Offset: int32(offset),
+		})
+	}
+
+	if err != nil {
+		h.logger.Error("Failed to list posts", "error", err)
+		h.writeError(w, http.StatusInternalServerError, "LIST_FAILED", "Failed to list posts")
+		return
+	}
+
+	// Convert posts to response format using proper Post types
+	var postList []Post
+
+	// Handle different post types
+	switch p := posts.(type) {
+	case []*generated.ListAppViewPostsRow:
+		postList = make([]Post, len(p))
+		for i, post := range p {
+			postList[i] = Post{
+				Id: openapi_types.UUID(post.ID),
+				Author: Author{
+					Did:         post.AuthorDid,
+					Handle:      post.AuthorHandle,
+					DisplayName: post.AuthorDisplayName,
+					AvatarUrl:   post.AuthorAvatarUrl,
+				},
+				Subforum:  post.SubforumSlug,
+				Title:     post.Title,
+				Content:   post.Content,
+				CreatedAt: post.CreatedAt.Time,
+				UpdatedAt: &post.UpdatedAt.Time,
+			}
+		}
+	case []*generated.ListAppViewPostsBySubforumRow:
+		postList = make([]Post, len(p))
+		for i, post := range p {
+			postList[i] = Post{
+				Id: openapi_types.UUID(post.ID),
+				Author: Author{
+					Did:         post.AuthorDid,
+					Handle:      post.AuthorHandle,
+					DisplayName: post.AuthorDisplayName,
+					AvatarUrl:   post.AuthorAvatarUrl,
+				},
+				Subforum:  post.SubforumSlug,
+				Title:     post.Title,
+				Content:   post.Content,
+				CreatedAt: post.CreatedAt.Time,
+				UpdatedAt: &post.UpdatedAt.Time,
+			}
+		}
+	default:
+		h.logger.Error("Unknown post type", "type", fmt.Sprintf("%T", posts))
+		h.writeError(w, http.StatusInternalServerError, "UNKNOWN_TYPE", "Unknown post type")
+		return
+	}
+
 	response := map[string]interface{}{
-		"posts": []map[string]interface{}{
-			{
-				"id":            "550e8400-e29b-41d4-a716-446655440002",
-				"author":        "550e8400-e29b-41d4-a716-446655440001",
-				"subforum":      "550e8400-e29b-41d4-a716-446655440000",
-				"title":         "Welcome to HashPost!",
-				"content":       "This is the first post in our new HashPost community. Welcome everyone!",
-				"created_at":    time.Now().Add(-2 * time.Hour).Format(time.RFC3339),
-				"updated_at":    time.Now().Add(-2 * time.Hour).Format(time.RFC3339),
-				"upvotes":       15,
-				"downvotes":     2,
-				"comment_count": 8,
-				"is_pinned":     true,
-				"is_locked":     false,
-			},
-		},
-		"total":  1,
+		"posts":  postList,
+		"total":  len(postList),
 		"limit":  limit,
 		"offset": offset,
 	}
@@ -94,20 +255,35 @@ func (h *Handlers) GetPostByID(w http.ResponseWriter, r *http.Request) {
 
 	h.logger.Debug("Getting post by ID", "id", path)
 
-	// For now, return mock data
-	response := map[string]interface{}{
-		"id":            path,
-		"author":        "550e8400-e29b-41d4-a716-446655440001",
-		"subforum":      "550e8400-e29b-41d4-a716-446655440000",
-		"title":         "Welcome to HashPost!",
-		"content":       "This is the first post in our new HashPost community. Welcome everyone!",
-		"created_at":    time.Now().Add(-2 * time.Hour).Format(time.RFC3339),
-		"updated_at":    time.Now().Add(-2 * time.Hour).Format(time.RFC3339),
-		"upvotes":       15,
-		"downvotes":     2,
-		"comment_count": 8,
-		"is_pinned":     true,
-		"is_locked":     false,
+	// Parse post ID as UUID
+	postID, err := uuid.Parse(path)
+	if err != nil {
+		h.writeError(w, http.StatusBadRequest, "INVALID_POST_ID", "Invalid post ID format")
+		return
+	}
+
+	// Get post from database
+	post, err := h.queries.GetAppViewPostByID(r.Context(), postID)
+	if err != nil {
+		h.logger.Error("Failed to get post", "error", err, "post_id", path)
+		h.writeError(w, http.StatusNotFound, "POST_NOT_FOUND", "Post not found")
+		return
+	}
+
+	// Return the post data using proper generated types
+	response := Post{
+		Id: openapi_types.UUID(post.ID),
+		Author: Author{
+			Did:         post.AuthorDid,
+			Handle:      post.AuthorHandle,
+			DisplayName: post.AuthorDisplayName,
+			AvatarUrl:   post.AuthorAvatarUrl,
+		},
+		Subforum:  post.SubforumSlug,
+		Title:     post.Title,
+		Content:   post.Content,
+		CreatedAt: post.CreatedAt.Time,
+		UpdatedAt: &post.UpdatedAt.Time,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -119,6 +295,13 @@ func (h *Handlers) GetPostByID(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) CreatePost(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get authenticated user from context
+	userCtx := GetUserContext(r)
+	if userCtx == nil {
+		h.writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 		return
 	}
 
@@ -135,23 +318,55 @@ func (h *Handlers) CreatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// For now, use placeholder values for author
-	// In a real implementation, these would come from authentication
-	authorDID := "did:placeholder:author"
+	// Use authenticated user's DID as author
+	authorDID := userCtx.Did
+	authorHandle := userCtx.Handle
+
+	// Generate a new UUID for the post
+	postID := uuid.New()
+
+	// Create atproto URI for the post
+	atprotoURI := fmt.Sprintf("at://%s/app.bsky.feed.post/%s", authorDID, postID.String())
 
 	// Create post in database
-	// Note: This would need to be implemented with the actual database operations
-	// For now, we'll return a mock response
+	createdPost, err := h.queries.CreateAppViewPost(r.Context(), &generated.CreateAppViewPostParams{
+		AtprotoUri:   atprotoURI,
+		AuthorDid:    authorDID,
+		AuthorHandle: authorHandle,
+		SubforumSlug: req.SubforumSlug,
+		Title:        req.Title,
+		Content:      req.Content,
+	})
+
+	if err != nil {
+		h.logger.Error("Failed to create post", "error", err, "title", req.Title)
+		h.writeError(w, http.StatusInternalServerError, "CREATE_FAILED", "Failed to create post")
+		return
+	}
+
+	// Update subforum post count
+	err = h.queries.UpdateSubforumPostCount(r.Context(), &generated.UpdateSubforumPostCountParams{
+		Slug:      req.SubforumSlug,
+		PostCount: &[]int32{1}[0],
+	})
+	if err != nil {
+		h.logger.Error("Failed to update subforum post count", "error", err, "subforum", req.SubforumSlug)
+		// Don't fail the request, just log the error
+	}
+
+	// Return the created post
 	post := map[string]interface{}{
-		"id":            "placeholder-id",
-		"title":         req.Title,
-		"content":       req.Content,
-		"subforum":      req.SubforumSlug,
-		"author":        authorDID,
-		"created_at":    time.Now().Format(time.RFC3339),
-		"upvotes":       0,
-		"downvotes":     0,
-		"comment_count": 0,
+		"id":            createdPost.ID.String(),
+		"title":         createdPost.Title,
+		"content":       createdPost.Content,
+		"subforum":      createdPost.SubforumSlug,
+		"author":        createdPost.AuthorDid,
+		"author_handle": createdPost.AuthorHandle,
+		"created_at":    createdPost.CreatedAt.Time.Format(time.RFC3339),
+		"upvotes":       *createdPost.Upvotes,
+		"downvotes":     *createdPost.Downvotes,
+		"comment_count": *createdPost.CommentCount,
+		"score":         *createdPost.Score,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

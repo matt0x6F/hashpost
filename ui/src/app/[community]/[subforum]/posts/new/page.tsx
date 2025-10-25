@@ -6,15 +6,14 @@ import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
 import { Label } from "@/components/shadcn/label";
 import { Checkbox } from "@/components/shadcn/checkbox";
-import { getApi } from "@/lib/api-client";
-import { ContentApi } from "@/generated/api/src/apis/ContentApi";
+import { getApi, postsApiWithRefresh, extractApiErrorMessage, getAccessToken } from "@/lib/api-client";
+import { CreatePostRequest } from "@/generated/api/src/models/CreatePostRequest";
 import { toast } from "sonner";
 import { Eye, EyeOff, Lock, Pin } from "lucide-react";
 import MarkdownHelp from "@/components/MarkdownHelp";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
 import { MarkdownTextarea } from "@/components/MarkdownTextarea";
 import { useAuth } from "@/lib/auth-context";
-import { authenticateUserForSubforum } from "@/lib/auth-utils";
 
 import { COMMUNITY_CONFIG, type CommunityType } from '@/lib/community-config';
 
@@ -25,7 +24,7 @@ export default function NewPostPage() {
   const communityType = params.community as CommunityType;
   const subforumName = params.subforum as string;
   const fullSubforumPath = `${communityType}/${subforumName}`;
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user, isLoading } = useAuth();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -36,6 +35,25 @@ export default function NewPostPage() {
 
   const communityConfig = COMMUNITY_CONFIG[communityType];
 
+  // Redirect unauthenticated users
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push(`/${communityType}/${subforumName}`);
+    }
+  }, [isLoading, isAuthenticated, router, communityType, subforumName]);
+
+  // Show loading state while checking authentication
+  if (isLoading || !isAuthenticated || !user) {
+    return (
+      <div className="max-w-7xl mx-auto p-2 sm:p-4">
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Load subforum-specific user context to check moderator status
   useEffect(() => {
     if (fullSubforumPath && isAuthenticated) {
@@ -45,38 +63,57 @@ export default function NewPostPage() {
 
   const loadSubforumUserContext = async () => {
     try {
-      const userData = await authenticateUserForSubforum(fullSubforumPath);
-      if (userData) {
-        const hasModerateContentCapability = userData.capabilities?.includes('moderate_content') ?? false;
-        setIsModerator(hasModerateContentCapability);
-      }
+      // In atproto system, capabilities are handled globally via RBAC
+      // No need for subforum-specific authentication
+      console.log('Subforum context loading not needed in atproto system');
+      setIsModerator(false); // For now, assume no permissions
     } catch (error) {
       console.error('Error loading subforum user context:', error);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
+    console.log('[CreatePost] Form submitted!');
     e.preventDefault();
+    
     if (!title.trim() || !content.trim()) {
+      console.log('[CreatePost] Validation failed - missing title or content');
       toast.error("Title and content are required");
       return;
     }
+    
+    if (!isAuthenticated) {
+      console.log('[CreatePost] User not authenticated');
+      toast.error("Please log in to create a post");
+      return;
+    }
+    
+    // Debug: Check authentication state
+    console.log('[CreatePost] Authentication state:', {
+      isAuthenticated,
+      user: user,
+      hasAccessToken: !!getAccessToken()
+    });
+    
     setIsSubmitting(true);
     try {
-      const contentApi = getApi(ContentApi);
-      const response = await contentApi.createPost(fullSubforumPath, {
+      const request: CreatePostRequest = {
         title: title.trim(),
         content: content.trim(),
-        postType: "text",
-        isNsfw: false,
-        isSpoiler: false,
-        isLocked: isLocked,
-        isSticky: isSticky,
-      });
+        subforumSlug: subforumName,
+      };
+      
+      console.log('[CreatePost] Making API request with:', request);
+      const post = await postsApiWithRefresh.createPost(request);
+      
+      console.log('[CreatePost] API request successful:', post);
       toast.success("Post created successfully!");
-      router.push(`/${communityType}/${subforumName}/posts/${response.slug}`);
-    } catch {
-      toast.error("Failed to create post");
+      router.push(`/${communityType}/${subforumName}/posts/${post.id}`);
+    } catch (error) {
+      console.error('[CreatePost] API request failed:', error);
+      const errorMessage = await extractApiErrorMessage(error);
+      console.error('[CreatePost] Error message:', errorMessage);
+      toast.error(`Failed to create post: ${errorMessage}`);
     } finally {
       setIsSubmitting(false);
     }

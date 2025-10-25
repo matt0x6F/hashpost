@@ -8,10 +8,12 @@ const (
 	// Feed Collections
 	CollectionFeedPost     = "com.hashpost.feed.post"
 	CollectionFeedSubforum = "com.hashpost.feed.subforum"
+	CollectionFeedComment  = "com.hashpost.feed.comment"
 
 	// Record Types
 	RecordTypePost     = "com.hashpost.feed.post"
 	RecordTypeSubforum = "com.hashpost.feed.subforum"
+	RecordTypeComment  = "com.hashpost.feed.comment"
 )
 
 // HashPost Field Constants
@@ -27,8 +29,13 @@ const (
 	FieldTitle   = "title"
 	FieldContent = "content"
 
+	// Comment-specific fields
+	FieldPost   = "post"
+	FieldParent = "parent"
+
 	// Subforum-specific fields
-	FieldCreatedBy = "createdBy"
+	FieldCreatedBy  = "createdBy"
+	FieldPrefixType = "prefixType"
 )
 
 // HashPost URI Constants

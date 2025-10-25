@@ -1,22 +1,35 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/shadcn/card';
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/shadcn/card';
+import { Button } from '@/components/shadcn/button';
+import { Input } from '@/components/shadcn/input';
+import { Textarea } from '@/components/shadcn/textarea';
+import { Switch } from '@/components/shadcn/switch';
+import { Badge } from '@/components/shadcn/badge';
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/shadcn/select';
+import { 
+  Plus, 
+  Trash2, 
+  Save,
+  Loader2
+} from 'lucide-react';
 import { toast } from 'sonner';
-import { getApi } from '@/lib/api-client';
-import { RulesApi } from '@/generated/api/src/apis';
-import { RulesEditor, type Rule } from './RulesEditor';
-
-
 
 interface SubforumRulesManagerProps {
   communityType: string;
   subforumName: string;
-  subforumId: number;
+  subforumId: string;
 }
 
 export function SubforumRulesManager({ communityType, subforumName, subforumId }: SubforumRulesManagerProps) {
-  const [rules, setRules] = useState<Rule[]>([]);
+  const [rules, setRules] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -27,19 +40,8 @@ export function SubforumRulesManager({ communityType, subforumName, subforumId }
   const loadRules = async () => {
     try {
       setLoading(true);
-      const rulesApi = getApi(RulesApi);
-      const response = await rulesApi.getSubforumRulesRaw({
-        communityType,
-        subforumName,
-        activeOnly: false
-      });
-      
-      if (response.raw.status === 200) {
-        const data = await response.value();
-        setRules(data.rules || []);
-      } else {
-        toast.error('Failed to load rules');
-      }
+      // Subforum rules not available in atproto system
+      setRules([]);
     } catch (error) {
       console.error('Error loading rules:', error);
       toast.error('Failed to load rules');
@@ -48,93 +50,54 @@ export function SubforumRulesManager({ communityType, subforumName, subforumId }
     }
   };
 
-  const handleRulesChange = async (newRules: Rule[]) => {
-    setRules(newRules);
-    await saveRules(newRules);
-  };
-
-  const saveRules = async (rulesToSave: Rule[]) => {
+  const saveRules = async (rulesToSave: any[]) => {
     try {
       setSaving(true);
       
-      // Get current rules from backend
-      const rulesApi = getApi(RulesApi);
-      const currentResponse = await rulesApi.getSubforumRulesRaw({
-        communityType,
-        subforumName,
-        activeOnly: false
-      });
-      
-      const currentRules = currentResponse.raw.status === 200 ? (await currentResponse.value()).rules || [] : [];
-      
-      // Find rules to create, update, and delete
-      const currentRuleCodes = new Set(currentRules.map(r => r.code));
-      const newRuleCodes = new Set(rulesToSave.map(r => r.code));
-      
-      // Delete rules that are no longer present
-      for (const currentRule of currentRules) {
-        if (!newRuleCodes.has(currentRule.code)) {
-          await rulesApi.deleteSubforumRule(communityType, subforumName, currentRule.code);
-        }
-      }
-      
-      // Create or update rules
-      for (const rule of rulesToSave) {
-        if (currentRuleCodes.has(rule.code)) {
-          // Update existing rule
-          await rulesApi.updateSubforumRule(
-            communityType,
-            subforumName,
-            rule.code,
-            {
-              name: rule.name,
-              description: rule.description,
-              category: rule.category,
-              severity: rule.severity,
-              active: rule.active,
-            }
-          );
-        } else {
-          // Create new rule
-          await rulesApi.createSubforumRule(
-            communityType,
-            subforumName,
-            {
-              code: rule.code,
-              name: rule.name,
-              description: rule.description,
-              category: rule.category,
-              severity: rule.severity,
-              active: rule.active,
-            }
-          );
-        }
-      }
-      
-      toast.success('Rules updated successfully');
+      // Subforum rules not available in atproto system
+      toast.error('Subforum rules are not available in the atproto system');
     } catch (error) {
       console.error('Error saving rules:', error);
       toast.error('Failed to save rules');
-      // Reload rules to revert UI state
-      loadRules();
     } finally {
       setSaving(false);
     }
   };
 
+  const addRule = () => {
+    const newRule = {
+      id: Date.now(),
+      code: '',
+      name: '',
+      description: '',
+      category: 'content',
+      severity: 'medium',
+      active: true
+    };
+    setRules([...rules, newRule]);
+  };
 
+  const updateRule = (id: number, field: string, value: any) => {
+    setRules(rules.map(rule => 
+      rule.id === id ? { ...rule, [field]: value } : rule
+    ));
+  };
+
+  const removeRule = (id: number) => {
+    setRules(rules.filter(rule => rule.id !== id));
+  };
+
+  const handleSave = () => {
+    saveRules(rules);
+  };
 
   if (loading) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>Rules Management</CardTitle>
-          <CardDescription>Configure rules for this subforum</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Loading rules...</p>
+        <CardContent className="p-6">
+          <div className="flex items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin mr-2" />
+            Loading rules...
           </div>
         </CardContent>
       </Card>
@@ -142,12 +105,23 @@ export function SubforumRulesManager({ communityType, subforumName, subforumId }
   }
 
   return (
-    <RulesEditor
-      rules={rules}
-      onChange={handleRulesChange}
-      disabled={saving}
-      showTitle={true}
-      maxRules={20}
-    />
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Subforum Rules</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Subforum rules are not available in the atproto system
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center text-muted-foreground py-8">
+            <p>Subforum rules management is not available in the atproto system.</p>
+            <p className="text-sm mt-2">
+              In the atproto system, content moderation is handled through different mechanisms.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
-} 
+}

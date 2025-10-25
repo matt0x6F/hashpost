@@ -21,9 +21,12 @@ WHERE id = $1;
 SELECT 
     c.*,
     p.title as post_title,
-    p.subforum_slug
+    p.subforum_slug,
+    u.display_name as author_display_name,
+    u.avatar_url as author_avatar_url
 FROM appview_comments c
 JOIN appview_posts p ON c.post_id = p.id
+LEFT JOIN appview_users u ON c.author_did = u.did
 WHERE c.post_id = $1
 ORDER BY c.created_at ASC
 LIMIT $2 OFFSET $3;
@@ -36,29 +39,39 @@ WHERE post_id = $1;
 -- name: ListCommentsByPostWithReplies :many
 WITH RECURSIVE comment_tree AS (
     -- Base case: top-level comments
-    SELECT c.*, 0 as depth, p.title as post_title, p.subforum_slug
+    SELECT c.*, 0 as depth, p.title as post_title, p.subforum_slug, u.display_name as author_display_name, u.avatar_url as author_avatar_url
     FROM appview_comments c
     JOIN appview_posts p ON c.post_id = p.id
+    LEFT JOIN appview_users u ON c.author_did = u.did
     WHERE c.post_id = $1 AND c.parent_id IS NULL
     
     UNION ALL
     
     -- Recursive case: replies
-    SELECT c.*, ct.depth + 1, ct.post_title, ct.subforum_slug
+    SELECT c.*, ct.depth + 1, ct.post_title, ct.subforum_slug, u.display_name as author_display_name, u.avatar_url as author_avatar_url
     FROM appview_comments c
     JOIN comment_tree ct ON c.parent_id = ct.id
+    LEFT JOIN appview_users u ON c.author_did = u.did
 )
 SELECT * FROM comment_tree
 ORDER BY depth, created_at ASC
 LIMIT $2 OFFSET $3;
 
 -- name: UpdateComment :one
-UPDATE appview_comments 
-SET 
-    content = $2,
-    updated_at = NOW()
-WHERE id = $1
-RETURNING *;
+WITH updated AS (
+    UPDATE appview_comments 
+    SET 
+        content = $2,
+        updated_at = NOW()
+    WHERE appview_comments.id = $1
+    RETURNING *
+)
+SELECT 
+    updated.*,
+    u.display_name as author_display_name,
+    u.avatar_url as author_avatar_url
+FROM updated
+LEFT JOIN appview_users u ON updated.author_did = u.did;
 
 -- name: DeleteComment :exec
 DELETE FROM appview_comments 
@@ -82,9 +95,12 @@ WHERE id = $1;
 SELECT 
     c.*,
     p.title as post_title,
-    p.subforum_slug
+    p.subforum_slug,
+    u.display_name as author_display_name,
+    u.avatar_url as author_avatar_url
 FROM appview_comments c
 JOIN appview_posts p ON c.post_id = p.id
+LEFT JOIN appview_users u ON c.author_did = u.did
 WHERE c.author_did = $1
 ORDER BY c.created_at DESC
 LIMIT $2 OFFSET $3;
@@ -100,7 +116,27 @@ SELECT
     p.title as post_title,
     p.subforum_slug,
     p.author_did as post_author_did,
-    p.author_handle as post_author_handle
+    p.author_handle as post_author_handle,
+    u.display_name as author_display_name,
+    u.avatar_url as author_avatar_url
 FROM appview_comments c
 JOIN appview_posts p ON c.post_id = p.id
+LEFT JOIN appview_users u ON c.author_did = u.did
 WHERE c.id = $1;
+
+-- name: GetCommentByURI :one
+SELECT * FROM appview_comments WHERE atproto_uri = $1;
+
+-- name: GetPostByAtprotoURI :one
+SELECT * FROM appview_posts WHERE atproto_uri = $1;
+
+-- name: UpdateCommentByURI :one
+UPDATE appview_comments 
+SET 
+    content = $2,
+    updated_at = NOW()
+WHERE atproto_uri = $1
+RETURNING *;
+
+-- name: DeleteCommentByURI :exec
+DELETE FROM appview_comments WHERE atproto_uri = $1;

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/shadcn/button';
 import { Textarea } from '@/components/shadcn/textarea';
+import { UserDisplay } from '@/components/UserDisplay';
 import { 
   MessageSquare, 
   Calendar, 
@@ -20,16 +21,16 @@ import { Comment as CommentType } from '@/generated/api/src/models';
 import { useAuth } from '@/lib/auth-context';
 import { toast } from 'sonner';
 import { getApi } from '@/lib/api-client';
-import { ContentApi, ModerationApi } from '@/generated/api/src';
+import { VotingApi, CommentsApi } from '@/generated/api/src/apis';
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 import CommentForm from './CommentForm';
 import { ReportDialog } from './ReportDialog';
 
 interface CommentProps {
   comment: CommentType;
-  postId: number;
+  postId: string;
   onCommentUpdated: () => void;
-  onCommentVoted: (commentId: number, voteValue: number) => void;
+  onCommentVoted: (commentId: string, voteValue: number) => void;
 }
 
 export default function Comment({ comment, postId, onCommentUpdated, onCommentVoted }: CommentProps) {
@@ -63,8 +64,9 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
     };
   }, [showDropdown]);
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+  const formatDate = (date: Date | string) => {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    return dateObj.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -74,14 +76,14 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
   };
 
   // Check if current user is the comment author
-  const isCommentAuthor = user?.activePseudonymId && comment.author?.pseudonymId && 
-                         (user.activePseudonymId === comment.author.pseudonymId);
+  const isCommentAuthor = user?.did && comment.author && 
+                         (user.did === comment.author);
   
-  // Check if user is a moderator
-  const isModerator = user?.capabilities?.includes('moderate_content');
+  // Check if user is a moderator (not available in atproto system)
+  const isModerator = false;
 
-  // Check if comment is deleted by user
-  const isDeletedByUser = comment.isDeleted;
+  // In atproto system, comments are immutable once created
+  const isDeletedByUser = false;
 
   // Disable actions for deleted comments
   const isActionDisabled = isSubmitting || isDeleting || isDeletedByUser;
@@ -94,11 +96,8 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
 
     setIsSubmitting(true);
     try {
-      const contentApi = getApi(ContentApi);
-      await contentApi.editComment(comment.commentId, { content: editContent });
-      setIsEditing(false);
-      onCommentUpdated();
-      toast.success('Comment updated');
+      // Comment editing not available in atproto system
+      toast.error('Comment editing is not available in the atproto system');
     } catch (error: unknown) {
       console.error('Error editing comment:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to edit comment';
@@ -115,10 +114,8 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
 
     setIsDeleting(true);
     try {
-      const contentApi = getApi(ContentApi);
-      await contentApi.deleteComment(comment.commentId, { reason: 'User requested deletion' });
-      onCommentUpdated();
-      toast.success('Comment deleted');
+      // Comment deletion not available in atproto system
+      toast.error('Comment deletion is not available in the atproto system');
     } catch (error: unknown) {
       console.error('Error deleting comment:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to delete comment';
@@ -137,14 +134,8 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
 
     setIsSubmitting(true);
     try {
-      const moderationApi = getApi(ModerationApi);
-      switch (action) {
-        case 'remove':
-          await moderationApi.removeComment(comment.commentId, { removed: value });
-          break;
-      }
-      onCommentUpdated();
-      toast.success(`Comment ${action === 'remove' ? (value ? 'removed' : 'restored') : 'updated'}`);
+      // Moderation actions not available in atproto system
+      toast.error('Moderation actions are not available in the atproto system');
     } catch (error: unknown) {
       console.error('Error performing moderator action:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to perform action';
@@ -180,7 +171,7 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
               variant="ghost"
               size="sm"
               className="h-6 w-6 p-0 rounded-full hover:bg-muted"
-              disabled={!comment.replies || comment.replies.length === 0}
+              disabled={!comment.replyCount || comment.replyCount === 0}
               onClick={() => setIsCollapsed(!isCollapsed)}
             >
               <ChevronDown className={`w-4 h-4 transition-transform ${isCollapsed ? 'rotate-180' : ''}`} />
@@ -192,13 +183,7 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
             <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
               <User className="w-4 h-4" />
               <span>Deleted by user</span>
-              {comment.deletedAt && (
-                <>
-                  <span>•</span>
-                  <Calendar className="w-4 h-4" />
-                  <span>{formatDate(comment.deletedAt)}</span>
-                </>
-              )}
+              {/* Deletion timestamp not available in atproto system */}
             </div>
             {!isCollapsed && (
               <div className="text-sm text-muted-foreground italic">
@@ -209,17 +194,12 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
         </div>
         
         {/* Show replies even for deleted comments */}
-        {comment.replies && comment.replies.length > 0 && !isCollapsed && (
+        {comment.replyCount && comment.replyCount > 0 && !isCollapsed && (
           <div className="ml-8 space-y-4">
-            {comment.replies.map((reply) => (
-              <Comment
-                key={reply.commentId}
-                comment={reply}
-                postId={postId}
-                onCommentUpdated={onCommentUpdated}
-                onCommentVoted={onCommentVoted}
-              />
-            ))}
+            {/* Replies not available in atproto system */}
+            <div className="text-sm text-muted-foreground italic">
+              Replies are not available in the atproto system
+            </div>
           </div>
         )}
       </div>
@@ -238,7 +218,7 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
             variant="ghost"
             size="sm"
             className="h-6 w-6 p-0 rounded-full hover:bg-muted"
-            disabled={!comment.replies || comment.replies.length === 0}
+            disabled={!comment.replyCount || comment.replyCount === 0}
             onClick={() => setIsCollapsed(!isCollapsed)}
           >
             <ChevronDown className={`w-4 h-4 transition-transform ${isCollapsed ? 'rotate-180' : ''}`} />
@@ -250,7 +230,7 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
           <div className="flex items-start justify-between mb-2">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <User className="w-4 h-4" />
-              <span>{comment.author?.displayName || 'Unknown'}</span>
+              <UserDisplay author={comment.author} />
               <span>•</span>
               <Calendar className="w-4 h-4" />
               <span>{formatDate(comment.createdAt)}</span>
@@ -387,9 +367,9 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
 
               <div className="flex items-center gap-4">
                 <VoteButtons
-                  score={comment.score}
-                  userVote={comment.userVote}
-                  onVote={(voteValue) => onCommentVoted(comment.commentId, voteValue)}
+                  score={(comment.upvotes || 0) - (comment.downvotes || 0)}
+                  userVote={0}
+                  onVote={(voteValue) => onCommentVoted(comment.id, voteValue)}
                   disabled={isActionDisabled}
                   size="sm"
                 />
@@ -408,7 +388,7 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
                     </Button>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <MessageSquare className="w-4 h-4" />
-                      <span>{comment.replies?.length || 0} replies</span>
+                      <span>{comment.replyCount || 0} replies</span>
                     </div>
                   </div>
                 )}
@@ -419,7 +399,7 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
                 <div className="mt-4">
                   <CommentForm
                     postId={postId}
-                    parentCommentId={comment.commentId}
+                    parentCommentId={comment.id}
                     onCommentSubmitted={() => {
                       onCommentUpdated();
                       setShowReplyForm(false);
@@ -436,17 +416,12 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
       </div>
 
       {/* Nested replies */}
-      {comment.replies && comment.replies.length > 0 && !isCollapsed && (
+      {comment.replyCount && comment.replyCount > 0 && !isCollapsed && (
         <div className="ml-8 space-y-4">
-          {comment.replies.map((reply) => (
-            <Comment
-              key={reply.commentId}
-              comment={reply}
-              postId={postId}
-              onCommentUpdated={onCommentUpdated}
-              onCommentVoted={onCommentVoted}
-            />
-          ))}
+          {/* Replies not available in atproto system */}
+          <div className="text-sm text-muted-foreground italic">
+            Replies are not available in the atproto system
+          </div>
         </div>
       )}
       
@@ -455,10 +430,10 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
         open={showReportDialog}
         onOpenChange={setShowReportDialog}
         contentType="comment"
-        contentId={comment.commentId}
-        reportedPseudonymId={comment.author?.pseudonymId}
+        contentId={parseInt(comment.id)}
+        reportedPseudonymId={comment.author}
         contentPreview={comment.content}
-        reportedUserDisplayName={comment.author?.displayName}
+        reportedUserDisplayName={comment.author}
       />
     </div>
   );

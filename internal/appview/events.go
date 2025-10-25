@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	generated "github.com/matt0x6f/hashpost/internal/database/generated/appview"
 	"github.com/matt0x6f/hashpost/internal/lexicons"
 	"github.com/nats-io/nats.go"
 )
@@ -19,6 +21,7 @@ type EventConsumer struct {
 	logger           *slog.Logger
 	db               *Database
 	identityResolver *IdentityResolver
+	profileFetcher   *ProfileFetcher
 
 	// Enhanced error handling
 	maxRetries      int
@@ -45,12 +48,16 @@ func NewEventConsumer(natsURL string, db *Database, logger *slog.Logger) (*Event
 	// Create identity resolver
 	identityResolver := NewIdentityResolver(logger)
 
+	// Create profile fetcher
+	profileFetcher := NewProfileFetcher(db.queries, logger)
+
 	consumer := &EventConsumer{
 		nc:               nc,
 		js:               js,
 		logger:           logger,
 		db:               db,
 		identityResolver: identityResolver,
+		profileFetcher:   profileFetcher,
 
 		// Enhanced error handling configuration
 		maxRetries:      3,
@@ -89,6 +96,7 @@ func (ec *EventConsumer) StartConsuming(ctx context.Context) error {
 	ec.logger.Info("Started consuming atproto events", "subject", subject)
 
 	// Process messages in a loop
+	emptyFetchCount := 0
 	for {
 		select {
 		case <-ctx.Done():
@@ -97,18 +105,23 @@ func (ec *EventConsumer) StartConsuming(ctx context.Context) error {
 			return nil
 		default:
 			// Fetch messages
-			ec.logger.Debug("Fetching messages from NATS...")
 			msgs, err := sub.Fetch(10, nats.MaxWait(5*time.Second))
 			if err != nil {
 				if err == nats.ErrTimeout {
 					// No messages, continue
-					ec.logger.Debug("No messages received, continuing...")
+					emptyFetchCount++
+					// Only log every 10th empty fetch to reduce spam
+					if emptyFetchCount%10 == 0 {
+						ec.logger.Debug("No messages received, continuing...", "empty_fetches", emptyFetchCount)
+					}
 					continue
 				}
 				ec.logger.Error("Failed to fetch messages", "error", err)
 				continue
 			}
 
+			// Reset empty fetch counter when we get messages
+			emptyFetchCount = 0
 			ec.logger.Info("Received messages from NATS", "count", len(msgs))
 
 			// Process each message with enhanced error handling
@@ -287,6 +300,8 @@ func (ec *EventConsumer) handleRecordCreated(event AtprotoEvent) error {
 		return ec.handlePostCreated(event)
 	case lexicons.CollectionFeedSubforum:
 		return ec.handleSubforumCreated(event)
+	case lexicons.CollectionFeedComment:
+		return ec.handleCommentCreated(event)
 	default:
 		ec.logger.Debug("Unknown collection type", "collection", event.Collection)
 	}
@@ -308,6 +323,8 @@ func (ec *EventConsumer) handleRecordUpdated(event AtprotoEvent) error {
 		return ec.handlePostUpdated(event)
 	case lexicons.CollectionFeedSubforum:
 		return ec.handleSubforumUpdated(event)
+	case lexicons.CollectionFeedComment:
+		return ec.handleCommentUpdated(event)
 	default:
 		ec.logger.Debug("Unknown collection type for update", "collection", event.Collection)
 	}
@@ -329,6 +346,8 @@ func (ec *EventConsumer) handleRecordDeleted(event AtprotoEvent) error {
 		return ec.handlePostDeleted(event)
 	case lexicons.CollectionFeedSubforum:
 		return ec.handleSubforumDeleted(event)
+	case lexicons.CollectionFeedComment:
+		return ec.handleCommentDeleted(event)
 	default:
 		ec.logger.Debug("Unknown collection type for deletion", "collection", event.Collection)
 	}
@@ -351,12 +370,12 @@ func (ec *EventConsumer) handleIdentityResolved(event AtprotoEvent) error {
 		return nil
 	}
 
-	// Create or update user in AppView database
+	// Create or update user in AppView database with basic info
 	user := &AppViewUser{
 		ID:          uuid.New(),
 		DID:         did,
 		Handle:      handle,
-		DisplayName: handle, // Use handle as display name for now
+		DisplayName: handle, // Use handle as display name initially
 		CreatedAt:   event.Timestamp,
 		UpdatedAt:   event.Timestamp,
 	}
@@ -365,6 +384,20 @@ func (ec *EventConsumer) handleIdentityResolved(event AtprotoEvent) error {
 		ec.logger.Error("Failed to update user from identity resolution", "error", err, "did", did)
 		return fmt.Errorf("failed to update user: %w", err)
 	}
+
+	// Fetch full profile data from PDS (async, don't block event processing)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		profileData, err := ec.profileFetcher.FetchProfileFromPDS(ctx, did)
+		if err != nil {
+			ec.logger.Warn("Failed to fetch profile data", "error", err, "did", did)
+			return
+		}
+
+		ec.logger.Info("Profile data fetched and cached", "did", did, "display_name", profileData.DisplayName)
+	}()
 
 	ec.logger.Info("User information updated from identity resolution", "did", did, "handle", handle)
 	return nil
@@ -467,6 +500,20 @@ func (ec *EventConsumer) handlePostCreated(event AtprotoEvent) error {
 	// Store in AppView database
 	if err := ec.db.CreatePost(post); err != nil {
 		return fmt.Errorf("failed to create post in AppView: %w", err)
+	}
+
+	// Update subforum post count
+	if err := ec.db.queries.UpdateSubforumPostCount(context.Background(), &generated.UpdateSubforumPostCountParams{
+		Slug:      post.SubforumSlug,
+		PostCount: &[]int32{1}[0],
+	}); err != nil {
+		ec.logger.Warn("Failed to update subforum post count", "error", err, "subforum", post.SubforumSlug)
+		// Don't fail the event processing, just log the error
+	}
+
+	// Update user's last seen time
+	if err := ec.db.queries.UpdateUserLastSeen(context.Background(), event.Repo); err != nil {
+		ec.logger.Warn("Failed to update user last seen time", "error", err, "did", event.Repo)
 	}
 
 	ec.logger.Info("Post stored in AppView database",
@@ -658,6 +705,180 @@ func (ec *EventConsumer) handleSubforumDeleted(event AtprotoEvent) error {
 	// For now, we'll need to implement subforum deletion by slug
 	ec.logger.Info("Subforum deletion not yet implemented", "uri", event.URI)
 	return nil
+}
+
+// handleCommentCreated processes HashPost comment creation events
+func (ec *EventConsumer) handleCommentCreated(event AtprotoEvent) error {
+	ec.logger.Info("HashPost comment created",
+		"repo", event.Repo,
+		"uri", event.URI,
+		"text", event.Record["text"],
+	)
+
+	// Extract comment data from the record
+	text, ok := event.Record["text"].(string)
+	if !ok {
+		return fmt.Errorf("invalid text field in comment record")
+	}
+
+	postURI, ok := event.Record["post"].(string)
+	if !ok {
+		return fmt.Errorf("invalid post field in comment record")
+	}
+
+	parentURI, _ := event.Record["parent"].(string) // optional
+
+	createdAtStr, ok := event.Record["createdAt"].(string)
+	if !ok {
+		return fmt.Errorf("invalid createdAt field in comment record")
+	}
+
+	// Parse createdAt
+	var createdAt time.Time
+	var err error
+	createdAt, err = time.Parse(time.RFC3339, createdAtStr)
+	if err != nil {
+		// Fallback to current time
+		createdAt = time.Now()
+		ec.logger.Warn("Failed to parse createdAt, using current time",
+			"createdAt", createdAtStr, "error", err)
+	}
+
+	// Resolve author handle from DID
+	authorHandle, err := ec.identityResolver.ResolveHandleFromDID(context.Background(), event.Repo)
+	if err != nil {
+		ec.logger.Warn("Failed to resolve author handle", "error", err, "did", event.Repo)
+		authorHandle = "unknown"
+	}
+
+	// Get post ID from URI
+	post, err := ec.db.GetPostByURI(postURI)
+	if err != nil {
+		return fmt.Errorf("failed to find post: %w", err)
+	}
+
+	// Look up parent comment if specified
+	var parentID *uuid.UUID
+	if parentURI != "" {
+		parent, err := ec.db.GetCommentByURI(parentURI)
+		if err == nil {
+			parentUUID := parent.ID
+			parentID = &parentUUID
+		}
+	}
+
+	// Create AppView comment data
+	comment := &AppViewComment{
+		ID:           uuid.New(),
+		AtprotoURI:   event.URI,
+		AuthorDID:    event.Repo,
+		AuthorHandle: authorHandle,
+		PostID:       post.ID,
+		ParentID:     parentID,
+		Content:      text,
+		CreatedAt:    createdAt,
+		UpdatedAt:    createdAt,
+	}
+
+	// Store in AppView database
+	if err := ec.db.CreateComment(comment); err != nil {
+		return fmt.Errorf("failed to create comment in AppView: %w", err)
+	}
+
+	// Update user's last seen time
+	if err := ec.db.queries.UpdateUserLastSeen(context.Background(), event.Repo); err != nil {
+		ec.logger.Warn("Failed to update user last seen time", "error", err, "did", event.Repo)
+	}
+
+	ec.logger.Info("Comment created in AppView database", "uri", event.URI)
+	return nil
+}
+
+// handleCommentUpdated processes comment update events
+func (ec *EventConsumer) handleCommentUpdated(event AtprotoEvent) error {
+	ec.logger.Info("HashPost comment updated",
+		"repo", event.Repo,
+		"uri", event.URI,
+	)
+
+	// Extract comment data from the record
+	text, ok := event.Record["text"].(string)
+	if !ok {
+		return fmt.Errorf("invalid text field in comment record")
+	}
+
+	// Create updated comment data
+	comment := &AppViewComment{
+		AtprotoURI: event.URI,
+		Content:    text,
+		UpdatedAt:  event.Timestamp,
+	}
+
+	// Update comment in AppView database
+	if err := ec.db.UpdateComment(event.URI, comment); err != nil {
+		return fmt.Errorf("failed to update comment in AppView: %w", err)
+	}
+
+	ec.logger.Info("Comment updated in AppView database", "uri", event.URI)
+	return nil
+}
+
+// handleCommentDeleted processes comment deletion events
+func (ec *EventConsumer) handleCommentDeleted(event AtprotoEvent) error {
+	ec.logger.Info("HashPost comment deleted",
+		"repo", event.Repo,
+		"uri", event.URI,
+	)
+
+	// Delete comment from AppView database
+	if err := ec.db.DeleteCommentByURI(event.URI); err != nil {
+		return fmt.Errorf("failed to delete comment from AppView: %w", err)
+	}
+
+	ec.logger.Info("Comment deleted from AppView database", "uri", event.URI)
+	return nil
+}
+
+// isLocalUser determines if a user is local to HashPost PDS
+func (ec *EventConsumer) isLocalUser(did string) bool {
+	// For now, we'll use a simple heuristic based on DID format
+	// In production, this would check against our PDS server DID
+	// or query our local database to see if the user exists there
+
+	// Simple check: if DID contains our server identifier, it's local
+	// This is a placeholder - in production, we'd have proper PDS identification
+	return !ec.isExternalDID(did)
+}
+
+// isExternalDID checks if a DID belongs to an external PDS
+func (ec *EventConsumer) isExternalDID(did string) bool {
+	// For development, we'll consider DIDs that don't contain our local identifiers as external
+	// In production, this would be more sophisticated
+	return !ec.containsLocalIdentifier(did)
+}
+
+// containsLocalIdentifier checks if a DID contains local identifiers
+func (ec *EventConsumer) containsLocalIdentifier(did string) bool {
+	// Check for local development identifiers
+	localIdentifiers := []string{
+		"hashpost",
+		"localhost",
+		"127.0.0.1",
+	}
+
+	for _, identifier := range localIdentifiers {
+		if strings.Contains(did, identifier) {
+			return true
+		}
+	}
+	return false
+}
+
+// resolvePDSSource resolves the PDS endpoint for a given DID
+func (ec *EventConsumer) resolvePDSSource(did string) string {
+	// For now, return a placeholder PDS endpoint
+	// In production, this would resolve the actual PDS endpoint from the DID document
+	return "https://external-pds.example.com"
 }
 
 // Close closes the NATS connection

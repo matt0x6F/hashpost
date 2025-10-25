@@ -5,9 +5,9 @@ import { redirect } from "next/navigation";
 import { PlatformAdminDashboard } from "@/components/PlatformAdminDashboard";
 
 export default function AdminPage() {
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
 
-  // Show loading state
+  // Show loading state while auth is loading
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -18,14 +18,6 @@ export default function AdminPage() {
 
   // Redirect if not authenticated
   if (!isAuthenticated) {
-    redirect("/");
-  }
-
-  // Check if user has platform admin capabilities
-  const hasPlatformAdminCapability = user?.capabilities?.includes("system_admin") || 
-                                   user?.capabilities?.includes("user_management");
-
-  if (!hasPlatformAdminCapability) {
     redirect("/");
   }
 

@@ -70,7 +70,7 @@ func TestServerConfig(t *testing.T) {
 func TestHealthEndpoint(t *testing.T) {
 	// Create handlers directly for testing
 	logger := slog.New(slog.NewTextHandler(nil, nil))
-	handlers := NewHandlers(nil, logger) // Pass nil for database in test
+	handlers := NewHandlers(nil, logger, nil) // Pass nil for database and rbacService in test
 
 	// Create a test request
 	req, err := http.NewRequest("GET", "/health", nil)
@@ -93,7 +93,7 @@ func TestHealthEndpoint(t *testing.T) {
 func TestCORSHeaders(t *testing.T) {
 	// Create handlers directly for testing
 	logger := slog.New(slog.NewTextHandler(nil, nil))
-	handlers := NewHandlers(nil, logger) // Pass nil for database in test
+	handlers := NewHandlers(nil, logger, nil) // Pass nil for database and rbacService in test
 
 	// Create a test request
 	req, err := http.NewRequest("GET", "/health", nil)

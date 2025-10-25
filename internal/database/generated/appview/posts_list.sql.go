@@ -7,25 +7,31 @@ package generated
 
 import (
 	"context"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const ListAppViewPosts = `-- name: ListAppViewPosts :many
 SELECT 
-    id,
-    atproto_uri,
-    author_did,
-    author_handle,
-    subforum_slug,
-    title,
-    content,
-    created_at,
-    updated_at,
-    upvotes,
-    downvotes,
-    comment_count,
-    score
-FROM appview_posts
-ORDER BY created_at DESC
+    p.id,
+    p.atproto_uri,
+    p.author_did,
+    p.author_handle,
+    p.subforum_slug,
+    p.title,
+    p.content,
+    p.created_at,
+    p.updated_at,
+    p.upvotes,
+    p.downvotes,
+    p.comment_count,
+    p.score,
+    u.display_name as author_display_name,
+    u.avatar_url as author_avatar_url
+FROM appview_posts p
+LEFT JOIN appview_users u ON p.author_did = u.did
+ORDER BY p.created_at DESC
 LIMIT $1 OFFSET $2
 `
 
@@ -34,15 +40,33 @@ type ListAppViewPostsParams struct {
 	Offset int32 `json:"offset"`
 }
 
-func (q *Queries) ListAppViewPosts(ctx context.Context, arg *ListAppViewPostsParams) ([]*AppviewPost, error) {
+type ListAppViewPostsRow struct {
+	ID                uuid.UUID          `json:"id"`
+	AtprotoUri        string             `json:"atproto_uri"`
+	AuthorDid         string             `json:"author_did"`
+	AuthorHandle      string             `json:"author_handle"`
+	SubforumSlug      string             `json:"subforum_slug"`
+	Title             string             `json:"title"`
+	Content           string             `json:"content"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	Upvotes           *int32             `json:"upvotes"`
+	Downvotes         *int32             `json:"downvotes"`
+	CommentCount      *int32             `json:"comment_count"`
+	Score             *int32             `json:"score"`
+	AuthorDisplayName *string            `json:"author_display_name"`
+	AuthorAvatarUrl   *string            `json:"author_avatar_url"`
+}
+
+func (q *Queries) ListAppViewPosts(ctx context.Context, arg *ListAppViewPostsParams) ([]*ListAppViewPostsRow, error) {
 	rows, err := q.db.Query(ctx, ListAppViewPosts, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*AppviewPost{}
+	items := []*ListAppViewPostsRow{}
 	for rows.Next() {
-		var i AppviewPost
+		var i ListAppViewPostsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.AtprotoUri,
@@ -57,6 +81,8 @@ func (q *Queries) ListAppViewPosts(ctx context.Context, arg *ListAppViewPostsPar
 			&i.Downvotes,
 			&i.CommentCount,
 			&i.Score,
+			&i.AuthorDisplayName,
+			&i.AuthorAvatarUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -70,22 +96,25 @@ func (q *Queries) ListAppViewPosts(ctx context.Context, arg *ListAppViewPostsPar
 
 const ListAppViewPostsBySubforum = `-- name: ListAppViewPostsBySubforum :many
 SELECT 
-    id,
-    atproto_uri,
-    author_did,
-    author_handle,
-    subforum_slug,
-    title,
-    content,
-    created_at,
-    updated_at,
-    upvotes,
-    downvotes,
-    comment_count,
-    score
-FROM appview_posts
-WHERE subforum_slug = $1
-ORDER BY created_at DESC
+    p.id,
+    p.atproto_uri,
+    p.author_did,
+    p.author_handle,
+    p.subforum_slug,
+    p.title,
+    p.content,
+    p.created_at,
+    p.updated_at,
+    p.upvotes,
+    p.downvotes,
+    p.comment_count,
+    p.score,
+    u.display_name as author_display_name,
+    u.avatar_url as author_avatar_url
+FROM appview_posts p
+LEFT JOIN appview_users u ON p.author_did = u.did
+WHERE p.subforum_slug = $1
+ORDER BY p.created_at DESC
 LIMIT $2 OFFSET $3
 `
 
@@ -95,15 +124,33 @@ type ListAppViewPostsBySubforumParams struct {
 	Offset       int32  `json:"offset"`
 }
 
-func (q *Queries) ListAppViewPostsBySubforum(ctx context.Context, arg *ListAppViewPostsBySubforumParams) ([]*AppviewPost, error) {
+type ListAppViewPostsBySubforumRow struct {
+	ID                uuid.UUID          `json:"id"`
+	AtprotoUri        string             `json:"atproto_uri"`
+	AuthorDid         string             `json:"author_did"`
+	AuthorHandle      string             `json:"author_handle"`
+	SubforumSlug      string             `json:"subforum_slug"`
+	Title             string             `json:"title"`
+	Content           string             `json:"content"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	Upvotes           *int32             `json:"upvotes"`
+	Downvotes         *int32             `json:"downvotes"`
+	CommentCount      *int32             `json:"comment_count"`
+	Score             *int32             `json:"score"`
+	AuthorDisplayName *string            `json:"author_display_name"`
+	AuthorAvatarUrl   *string            `json:"author_avatar_url"`
+}
+
+func (q *Queries) ListAppViewPostsBySubforum(ctx context.Context, arg *ListAppViewPostsBySubforumParams) ([]*ListAppViewPostsBySubforumRow, error) {
 	rows, err := q.db.Query(ctx, ListAppViewPostsBySubforum, arg.SubforumSlug, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*AppviewPost{}
+	items := []*ListAppViewPostsBySubforumRow{}
 	for rows.Next() {
-		var i AppviewPost
+		var i ListAppViewPostsBySubforumRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.AtprotoUri,
@@ -118,6 +165,8 @@ func (q *Queries) ListAppViewPostsBySubforum(ctx context.Context, arg *ListAppVi
 			&i.Downvotes,
 			&i.CommentCount,
 			&i.Score,
+			&i.AuthorDisplayName,
+			&i.AuthorAvatarUrl,
 		); err != nil {
 			return nil, err
 		}

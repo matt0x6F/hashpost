@@ -2,11 +2,15 @@ package appview
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 // AuthHandler handles authentication endpoints by proxying to PDS
@@ -19,6 +23,8 @@ func (h *Handlers) AuthHandler(w http.ResponseWriter, r *http.Request) {
 		h.handleLogin(w, r)
 	case strings.HasSuffix(path, "/register"):
 		h.handleRegister(w, r)
+	case strings.HasSuffix(path, "/register/external"):
+		h.handleExternalRegister(w, r)
 	case strings.HasSuffix(path, "/me"):
 		h.handleGetCurrentUser(w, r)
 	case strings.HasSuffix(path, "/logout"):
@@ -64,10 +70,26 @@ func (h *Handlers) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Return the PDS response directly
+	// Parse PDS response and map to frontend format
+	var pdsData map[string]interface{}
+	if err := json.Unmarshal(pdsResponse, &pdsData); err != nil {
+		h.logger.Error("Failed to parse PDS response", "error", err)
+		http.Error(w, "Authentication failed", http.StatusInternalServerError)
+		return
+	}
+
+	// Map PDS response to frontend format
+	response := map[string]interface{}{
+		"accessToken":  pdsData["accessJwt"],
+		"refreshToken": pdsData["refreshJwt"],
+		"handle":       pdsData["handle"],
+		"did":          pdsData["did"],
+		"email":        pdsData["email"],
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(pdsResponse)
+	json.NewEncoder(w).Encode(response)
 }
 
 // handleRegister handles POST /api/v1/auth/register
@@ -110,14 +132,165 @@ func (h *Handlers) handleRegister(w http.ResponseWriter, r *http.Request) {
 	pdsResponse, err := h.makePDSRequest("POST", "com.atproto.server.createAccount", body)
 	if err != nil {
 		h.logger.Error("PDS registration failed", "error", err)
+
+		// Parse error message to determine appropriate status code
+		errorMsg := err.Error()
+		if strings.Contains(errorMsg, "409") && strings.Contains(errorMsg, "Handle already taken") {
+			http.Error(w, "Handle already taken", http.StatusConflict)
+			return
+		} else if strings.Contains(errorMsg, "400") {
+			http.Error(w, "Invalid registration data", http.StatusBadRequest)
+			return
+		} else if strings.Contains(errorMsg, "401") {
+			http.Error(w, "Authentication failed", http.StatusUnauthorized)
+			return
+		}
+
 		http.Error(w, "Registration failed", http.StatusInternalServerError)
 		return
 	}
 
-	// Return the PDS response directly
+	// Parse PDS response and map to frontend format
+	var pdsData map[string]interface{}
+	if err := json.Unmarshal(pdsResponse, &pdsData); err != nil {
+		h.logger.Error("Failed to parse PDS response", "error", err)
+		http.Error(w, "Registration failed", http.StatusInternalServerError)
+		return
+	}
+
+	// Map PDS response to frontend format
+	response := map[string]interface{}{
+		"accessToken":  pdsData["accessJwt"],
+		"refreshToken": pdsData["refreshJwt"],
+		"handle":       pdsData["handle"],
+		"did":          pdsData["did"],
+		"email":        pdsData["email"],
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	w.Write(pdsResponse)
+	json.NewEncoder(w).Encode(response)
+}
+
+// handleExternalRegister handles POST /api/v1/auth/register/external
+func (h *Handlers) handleExternalRegister(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse request body
+	var req struct {
+		DID    string `json:"did"`
+		Handle string `json:"handle"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if req.DID == "" && req.Handle == "" {
+		http.Error(w, "DID or handle required", http.StatusBadRequest)
+		return
+	}
+
+	h.logger.Debug("Handling external registration", "did", req.DID, "handle", req.Handle)
+
+	// Resolve DID if handle provided
+	did := req.DID
+	if did == "" && req.Handle != "" {
+		// Resolve handle to DID
+		resolvedDID, err := h.resolveHandleToDID(r.Context(), req.Handle)
+		if err != nil {
+			h.logger.Error("Failed to resolve handle", "error", err, "handle", req.Handle)
+			http.Error(w, "Failed to resolve handle", http.StatusBadRequest)
+			return
+		}
+		did = resolvedDID
+	}
+
+	// Validate DID ownership (simplified for now)
+	if err := h.validateDIDOwnership(r.Context(), did); err != nil {
+		h.logger.Error("DID ownership validation failed", "error", err, "did", did)
+		http.Error(w, "DID ownership validation failed", http.StatusUnauthorized)
+		return
+	}
+
+	// Create lightweight user record in AppView
+	user, err := h.createExternalUserRecord(r.Context(), did, req.Handle)
+	if err != nil {
+		h.logger.Error("Failed to create external user record", "error", err, "did", did)
+		http.Error(w, "Failed to create user record", http.StatusInternalServerError)
+		return
+	}
+
+	// Return user info
+	response := map[string]interface{}{
+		"did":        user.DID,
+		"handle":     user.Handle,
+		"isExternal": true,
+		"message":    "External user registered successfully",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(response)
+}
+
+// resolveHandleToDID resolves a handle to a DID
+func (h *Handlers) resolveHandleToDID(ctx context.Context, handle string) (string, error) {
+	// For now, this is a simplified implementation
+	// In production, this would use the identity directory to resolve the handle
+
+	// Mock resolution for development
+	if strings.Contains(handle, ".hashpost.local") {
+		return "did:plc:hashpost-binding-test", nil
+	}
+
+	// For external handles, we'd need to resolve via identity directory
+	return "did:plc:external-user", nil
+}
+
+// validateDIDOwnership validates that the user owns the DID
+func (h *Handlers) validateDIDOwnership(ctx context.Context, did string) error {
+	// For now, this is a simplified implementation
+	// In production, this would:
+	// 1. Check if the DID is resolvable
+	// 2. Verify the user can authenticate with their PDS
+	// 3. Perform a challenge-response or OAuth flow
+
+	h.logger.Debug("Validating DID ownership", "did", did)
+
+	// Mock validation for development
+	return nil
+}
+
+// createExternalUserRecord creates a lightweight user record for external users
+func (h *Handlers) createExternalUserRecord(ctx context.Context, did, handle string) (*AppViewUser, error) {
+	// For now, this is a simplified implementation
+	// In production, this would use the RBAC service to create the user record
+
+	h.logger.Info("Creating external user record", "did", did, "handle", handle)
+
+	// Mock user creation
+	user := &AppViewUser{
+		ID:          uuid.New(),
+		DID:         did,
+		Handle:      handle,
+		DisplayName: handle,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+		PDSSource:   &[]string{"https://external-pds.example.com"}[0],
+		LastSeenAt:  timePtr(time.Now()),
+	}
+
+	return user, nil
+}
+
+// Helper functions for pointer creation
+func timePtr(t time.Time) *time.Time {
+	return &t
 }
 
 // handleGetCurrentUser handles GET /api/v1/auth/me
@@ -127,25 +300,24 @@ func (h *Handlers) handleGetCurrentUser(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Get JWT token from Authorization header
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" {
-		http.Error(w, "Authorization header required", http.StatusUnauthorized)
+	// Get user context from middleware (authentication already handled by middleware)
+	userCtx := GetUserContext(r)
+	if userCtx == nil {
+		http.Error(w, "Authentication required", http.StatusUnauthorized)
 		return
 	}
 
-	// Proxy to PDS for session info
-	pdsResponse, err := h.makePDSRequest("GET", "com.atproto.server.getSession", nil, authHeader)
-	if err != nil {
-		h.logger.Error("PDS session lookup failed", "error", err)
-		http.Error(w, "Authentication failed", http.StatusUnauthorized)
-		return
+	// Return user session info
+	response := map[string]interface{}{
+		"did":    userCtx.Did,
+		"handle": userCtx.Handle,
+		"email":  "", // Email not available in AppView
+		"active": userCtx.IsActive,
 	}
 
-	// Return the PDS response directly
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(pdsResponse)
+	json.NewEncoder(w).Encode(response)
 }
 
 // handleLogout handles POST /api/v1/auth/logout

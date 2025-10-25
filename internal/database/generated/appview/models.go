@@ -63,6 +63,7 @@ type AppviewSubforum struct {
 	SubscriberCount *int32             `json:"subscriber_count"`
 	PostCount       *int32             `json:"post_count"`
 	CommentCount    *int32             `json:"comment_count"`
+	PrefixType      string             `json:"prefix_type"`
 }
 
 type AppviewSubscription struct {
@@ -85,6 +86,10 @@ type AppviewUser struct {
 	PostCount    *int32             `json:"post_count"`
 	CommentCount *int32             `json:"comment_count"`
 	Reputation   *int32             `json:"reputation"`
+	// PDS endpoint where user data is stored (NULL for local users)
+	PdsSource *string `json:"pds_source"`
+	// Last time user authenticated (for external users)
+	LastSeenAt pgtype.Timestamptz `json:"last_seen_at"`
 }
 
 type AppviewVote struct {

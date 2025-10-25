@@ -18,21 +18,63 @@ import {
   Activity
 } from "lucide-react";
 import { UserListTab } from "./admin/UserListTab";
-import { PseudonymListTab } from "./admin/PseudonymListTab";
+// Removed PseudonymListTab - not part of atproto system
 import { ContentModerationTab } from "./admin/ContentModerationTab";
 import { SystemSettingsTab } from "./admin/SystemSettingsTab";
 import { AnalyticsTab } from "./admin/AnalyticsTab";
-import { CorrelationTab } from "./admin/CorrelationTab";
+import { PDSServersTab } from "./admin/PDSServersTab";
 import { useAuth } from "@/lib/auth-context";
+import { useCapabilities } from "@/lib/capabilities";
 
 export function PlatformAdminDashboard() {
   const { user } = useAuth();
+  const { hasRole, hasPermission } = useCapabilities();
   const router = useRouter();
   const searchParams = useSearchParams();
   
   // Get initial tab and search context from URL params
   const initialTab = searchParams.get('tab') || 'users';
   const [activeTab, setActiveTab] = useState(initialTab);
+  const [capabilities, setCapabilities] = useState({
+    hasUserManagement: false,
+    hasSystemAdmin: false,
+    hasModeration: false,
+    hasCompliance: false,
+    hasLegalRequests: false,
+  });
+
+  // Load capabilities on mount
+  useEffect(() => {
+    const loadCapabilities = async () => {
+      try {
+        const [
+          userManagement,
+          systemAdmin,
+          moderation,
+          compliance,
+          legalRequests,
+        ] = await Promise.all([
+          hasRole('platform_admin') || hasPermission('manage_users'),
+          hasRole('platform_admin') || hasPermission('system_admin'),
+          hasRole('platform_admin') || hasPermission('moderate_content'),
+          hasRole('platform_admin') || hasPermission('compliance'),
+          hasRole('platform_admin') || hasPermission('legal_requests'),
+        ]);
+
+        setCapabilities({
+          hasUserManagement: userManagement,
+          hasSystemAdmin: systemAdmin,
+          hasModeration: moderation,
+          hasCompliance: compliance,
+          hasLegalRequests: legalRequests,
+        });
+      } catch (error) {
+        console.error('Failed to load capabilities:', error);
+      }
+    };
+
+    loadCapabilities();
+  }, [hasRole, hasPermission]);
 
   // Update URL when tab changes
   const handleTabChange = (value: string) => {
@@ -59,13 +101,8 @@ export function PlatformAdminDashboard() {
     }
   }, [searchParams, activeTab]);
 
-  // Check specific capabilities
-  const hasUserManagement = user?.capabilities?.includes("user_management");
-  const hasSystemAdmin = user?.capabilities?.includes("system_admin");
-  const hasModeration = user?.capabilities?.includes("moderation");
-  const hasCompliance = user?.capabilities?.includes("compliance");
-  const hasLegalRequests = user?.capabilities?.includes("legal_requests");
-  const hasCrossUserCorrelation = user?.capabilities?.includes("cross_user_correlation");
+  // Use the loaded capabilities
+  const { hasUserManagement, hasSystemAdmin, hasModeration, hasCompliance, hasLegalRequests } = capabilities;
 
   return (
     <div className="space-y-6">
@@ -112,45 +149,36 @@ export function PlatformAdminDashboard() {
                 Legal Requests
               </Badge>
             )}
-            {hasCrossUserCorrelation && (
-              <Badge variant="secondary" className="flex items-center gap-1">
-                <Search className="h-3 w-3" />
-                Cross-User Correlation
-              </Badge>
-            )}
           </div>
         </CardContent>
       </Card>
 
       {/* Main Admin Interface */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="users" disabled={!hasUserManagement}>
             <Users className="h-4 w-4 mr-2" />
             Users
           </TabsTrigger>
-          <TabsTrigger value="pseudonyms" disabled={!hasUserManagement}>
-            <Users className="h-4 w-4 mr-2" />
-            Pseudonyms
-          </TabsTrigger>
+          {/* Removed pseudonyms tab - not part of atproto system */}
           <TabsTrigger value="moderation" disabled={!hasModeration}>
             <Shield className="h-4 w-4 mr-2" />
             Moderation
           </TabsTrigger>
-          <TabsTrigger value="correlation" disabled={!hasCrossUserCorrelation}>
-            <Search className="h-4 w-4 mr-2" />
-            Correlation
-          </TabsTrigger>
           <TabsTrigger value="analytics" disabled={!hasSystemAdmin}>
             <BarChart3 className="h-4 w-4 mr-2" />
             Analytics
+          </TabsTrigger>
+          <TabsTrigger value="pds" disabled={!hasSystemAdmin}>
+            <Database className="h-4 w-4 mr-2" />
+            PDS Servers
           </TabsTrigger>
           <TabsTrigger value="settings" disabled={!hasSystemAdmin}>
             <Settings className="h-4 w-4 mr-2" />
             Settings
           </TabsTrigger>
           <TabsTrigger value="system" disabled={!hasSystemAdmin}>
-            <Database className="h-4 w-4 mr-2" />
+            <Key className="h-4 w-4 mr-2" />
             System
           </TabsTrigger>
         </TabsList>
@@ -159,20 +187,19 @@ export function PlatformAdminDashboard() {
           <UserListTab />
         </TabsContent>
 
-        <TabsContent value="pseudonyms" className="space-y-4">
-          <PseudonymListTab />
-        </TabsContent>
+        {/* Removed pseudonyms tab content - not part of atproto system */}
 
         <TabsContent value="moderation" className="space-y-4">
           <ContentModerationTab />
         </TabsContent>
 
-        <TabsContent value="correlation" className="space-y-4">
-          <CorrelationTab />
-        </TabsContent>
 
         <TabsContent value="analytics" className="space-y-4">
           <AnalyticsTab />
+        </TabsContent>
+
+        <TabsContent value="pds" className="space-y-4">
+          <PDSServersTab />
         </TabsContent>
 
         <TabsContent value="settings" className="space-y-4">

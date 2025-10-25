@@ -19,7 +19,17 @@ pds:
     url: "nats://nats:4222"
   atproto:
     did_resolver: "https://plc.directory"
-    handle_base: "hashpost.local"
+    handle_base: "hashpost-pds"
+  # External PDS Support
+  external_support:
+    enabled: true
+    token_cache_ttl: "1h"
+    public_key_cache_ttl: "24h"
+  # OAuth Configuration
+  oauth:
+    client_name: "HashPost"
+    redirect_uris:
+      - "http://localhost:3000/auth/callback"
 
 # AppView Configuration  
 appview:

@@ -321,6 +321,52 @@ func (vh *VoteHandlers) GetUserVoteOnPost(w http.ResponseWriter, r *http.Request
 	vh.writeJSON(w, http.StatusOK, response)
 }
 
+// GetUserVoteOnly handles GET /api/v1/posts/{id}/user-vote (returns UserVote format)
+func (vh *VoteHandlers) GetUserVoteOnly(w http.ResponseWriter, r *http.Request) {
+	// Extract post ID from URL path
+	pathParts := strings.Split(r.URL.Path, "/")
+	if len(pathParts) < 5 {
+		vh.writeError(w, http.StatusBadRequest, "INVALID_POST_ID", "Invalid post ID")
+		return
+	}
+	postIDStr := pathParts[4]
+	postID, err := uuid.Parse(postIDStr)
+	if err != nil {
+		vh.writeError(w, http.StatusBadRequest, "INVALID_POST_ID", "Invalid post ID format")
+		return
+	}
+
+	// Get authenticated user from context
+	userCtx := GetUserContext(r)
+	if userCtx == nil {
+		vh.writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+		return
+	}
+
+	ctx := r.Context()
+
+	// Get user's vote on this post
+	vote, err := vh.queries.GetUserVoteOnPost(ctx, &generated.GetUserVoteOnPostParams{
+		UserDid: userCtx.Did,
+		PostID:  pgtype.UUID{Bytes: postID, Valid: true},
+	})
+	if err != nil {
+		// User hasn't voted on this post
+		response := map[string]interface{}{
+			"vote_type": nil,
+		}
+		vh.writeJSON(w, http.StatusOK, response)
+		return
+	}
+
+	// Return just the vote type
+	response := map[string]interface{}{
+		"vote_type": vote.VoteType,
+	}
+
+	vh.writeJSON(w, http.StatusOK, response)
+}
+
 // GetUserVoteOnComment handles GET /api/v1/comments/{id}/vote
 func (vh *VoteHandlers) GetUserVoteOnComment(w http.ResponseWriter, r *http.Request) {
 	// Extract comment ID from URL path

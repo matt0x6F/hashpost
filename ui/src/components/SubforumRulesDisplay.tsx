@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { ScrollArea } from '@/components/shadcn/scroll-area';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { getApi } from '@/lib/api-client';
-import { RulesApi } from '@/generated/api/src/apis';
 import { type Rule } from './RulesEditor';
 
 interface SubforumRulesDisplayProps {
@@ -24,17 +23,8 @@ export function SubforumRulesDisplay({ communityType, subforumName }: SubforumRu
   const loadRules = async () => {
     try {
       setLoading(true);
-      const rulesApi = getApi(RulesApi);
-      const response = await rulesApi.getSubforumRulesRaw({
-        communityType,
-        subforumName,
-        activeOnly: true // Only show active rules
-      });
-      
-      if (response.raw.status === 200) {
-        const data = await response.value();
-        setRules(data.rules || []);
-      }
+      // Subforum rules not available in atproto system
+      setRules([]);
     } catch (error) {
       console.error('Error loading rules:', error);
       // Don't show error toast for sidebar display

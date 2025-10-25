@@ -52,8 +52,8 @@ func (q *Queries) CreateVote(ctx context.Context, arg *CreateVoteParams) (*Appvi
 }
 
 const CreateVoteOnComment = `-- name: CreateVoteOnComment :one
-INSERT INTO appview_votes (user_did, post_id, comment_id, vote_type)
-VALUES ($1, $2, $3, $4)
+INSERT INTO appview_votes (user_did, comment_id, vote_type)
+VALUES ($1, $2, $3)
 ON CONFLICT (user_did, comment_id) DO UPDATE SET
     vote_type = EXCLUDED.vote_type,
     created_at = NOW()
@@ -63,18 +63,12 @@ RETURNING id, user_did, post_id, comment_id, vote_type, created_at
 
 type CreateVoteOnCommentParams struct {
 	UserDid   string      `json:"user_did"`
-	PostID    pgtype.UUID `json:"post_id"`
 	CommentID pgtype.UUID `json:"comment_id"`
 	VoteType  string      `json:"vote_type"`
 }
 
 func (q *Queries) CreateVoteOnComment(ctx context.Context, arg *CreateVoteOnCommentParams) (*AppviewVote, error) {
-	row := q.db.QueryRow(ctx, CreateVoteOnComment,
-		arg.UserDid,
-		arg.PostID,
-		arg.CommentID,
-		arg.VoteType,
-	)
+	row := q.db.QueryRow(ctx, CreateVoteOnComment, arg.UserDid, arg.CommentID, arg.VoteType)
 	var i AppviewVote
 	err := row.Scan(
 		&i.ID,

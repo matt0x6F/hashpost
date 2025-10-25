@@ -8,24 +8,74 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	generated "github.com/matt0x6f/hashpost/internal/database/generated/appview"
 )
 
 // Handlers contains simple HTTP handlers for the AppView
 type Handlers struct {
-	queries *generated.Queries
-	logger  *slog.Logger
-	pdsURL  string
+	queries     *generated.Queries
+	logger      *slog.Logger
+	pdsURL      string
+	rbacService *RBACService
 }
 
 // NewHandlers creates a new simple handlers instance
-func NewHandlers(queries *generated.Queries, logger *slog.Logger) *Handlers {
+func NewHandlers(queries *generated.Queries, logger *slog.Logger, rbacService *RBACService) *Handlers {
 	return &Handlers{
-		queries: queries,
-		logger:  logger,
-		pdsURL:  "http://hashpost-pds:8080", // Default PDS URL
+		queries:     queries,
+		logger:      logger,
+		pdsURL:      "http://hashpost-pds:8080", // Default PDS URL
+		rbacService: rbacService,
 	}
+}
+
+// ListSubforumsWithParams handles GET /api/v1/subforums with parsed parameters
+func (h *Handlers) ListSubforumsWithParams(w http.ResponseWriter, r *http.Request, limit int, offset int) {
+	h.logger.Debug("Listing subforums", "limit", limit, "offset", offset)
+
+	// Query subforums from database
+	subforums, err := h.queries.ListAppViewSubforums(r.Context(), &generated.ListAppViewSubforumsParams{
+		Limit:  int32(limit),
+		Offset: int32(offset),
+	})
+
+	h.logger.Debug("Query result", "count", len(subforums), "error", err)
+	if err != nil {
+		h.logger.Error("Failed to list subforums", "error", err)
+		http.Error(w, "Failed to list subforums", http.StatusInternalServerError)
+		return
+	}
+
+	// Convert to response format
+	subforumList := make([]map[string]interface{}, len(subforums))
+	for i, subforum := range subforums {
+		subforumList[i] = map[string]interface{}{
+			"id":                subforum.ID,
+			"name":              subforum.Name,
+			"slug":              subforum.Slug,
+			"description":       subforum.Description,
+			"created_by":        subforum.CreatedByDid,
+			"created_by_handle": subforum.CreatedByHandle,
+			"created_at":        formatTimestamptz(subforum.CreatedAt),
+			"updated_at":        formatTimestamptz(subforum.UpdatedAt),
+			"subscriber_count":  subforum.SubscriberCount,
+			"post_count":        subforum.PostCount,
+			"comment_count":     subforum.CommentCount,
+			"prefix_type":       subforum.PrefixType,
+		}
+	}
+
+	response := map[string]interface{}{
+		"subforums": subforumList,
+		"total":     len(subforumList),
+		"limit":     limit,
+		"offset":    offset,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }
 
 // ListSubforums handles GET /api/v1/subforums
@@ -57,6 +107,8 @@ func (h *Handlers) ListSubforums(w http.ResponseWriter, r *http.Request) {
 		Limit:  int32(limit),
 		Offset: int32(offset),
 	})
+
+	h.logger.Debug("Query result", "count", len(subforums), "error", err)
 	if err != nil {
 		h.logger.Error("Failed to list subforums", "error", err)
 		http.Error(w, "Failed to list subforums", http.StatusInternalServerError)
@@ -78,6 +130,7 @@ func (h *Handlers) ListSubforums(w http.ResponseWriter, r *http.Request) {
 			"subscriber_count":  subforum.SubscriberCount,
 			"post_count":        subforum.PostCount,
 			"comment_count":     subforum.CommentCount,
+			"prefix_type":       subforum.PrefixType,
 		}
 	}
 
@@ -150,6 +203,7 @@ func (h *Handlers) GetSubforumBySlug(w http.ResponseWriter, r *http.Request) {
 		"subscriber_count":  subforum.SubscriberCount,
 		"post_count":        subforum.PostCount,
 		"comment_count":     subforum.CommentCount,
+		"prefix_type":       subforum.PrefixType,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -193,6 +247,7 @@ func (h *Handlers) CreateSubforum(w http.ResponseWriter, r *http.Request) {
 		Name        string `json:"name"`
 		Slug        string `json:"slug"`
 		Description string `json:"description,omitempty"`
+		PrefixType  string `json:"prefix_type"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.writeError(w, http.StatusBadRequest, "INVALID_JSON", "Invalid JSON")
@@ -200,8 +255,14 @@ func (h *Handlers) CreateSubforum(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate required fields
-	if req.Name == "" || req.Slug == "" {
-		h.writeError(w, http.StatusBadRequest, "MISSING_FIELDS", "name and slug are required")
+	if req.Name == "" || req.Slug == "" || req.PrefixType == "" {
+		h.writeError(w, http.StatusBadRequest, "MISSING_FIELDS", "name, slug, and prefix_type are required")
+		return
+	}
+
+	// Validate prefix_type
+	if req.PrefixType != "h" && req.PrefixType != "r" && req.PrefixType != "t" {
+		h.writeError(w, http.StatusBadRequest, "INVALID_PREFIX_TYPE", "prefix_type must be 'h', 'r', or 't'")
 		return
 	}
 
@@ -212,6 +273,24 @@ func (h *Handlers) CreateSubforum(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check permissions for 'h' prefix (HashPost-centric, admin only)
+	if req.PrefixType == "h" {
+		hasAdminRole := false
+		for _, role := range userCtx.Roles {
+			if role.RoleName == "platform_admin" {
+				hasAdminRole = true
+				break
+			}
+		}
+		if !hasAdminRole {
+			h.writeError(w, http.StatusForbidden, "INSUFFICIENT_PERMISSIONS", "Only platform administrators can create HashPost-centric subforums")
+			return
+		}
+	}
+
+	// Auto-prepend prefix to slug
+	prefixedSlug := req.PrefixType + "-" + req.Slug
+
 	// Create subforum in database
 	description := &req.Description
 	if req.Description == "" {
@@ -219,15 +298,30 @@ func (h *Handlers) CreateSubforum(w http.ResponseWriter, r *http.Request) {
 	}
 	createdSubforum, err := h.queries.CreateAppViewSubforum(r.Context(), &generated.CreateAppViewSubforumParams{
 		Name:            req.Name,
-		Slug:            req.Slug,
+		Slug:            prefixedSlug,
 		Description:     description,
 		CreatedByDid:    userCtx.Did,
 		CreatedByHandle: userCtx.Handle,
+		PrefixType:      req.PrefixType,
 	})
 	if err != nil {
 		h.logger.Error("Failed to create subforum", "error", err)
 		h.writeError(w, http.StatusInternalServerError, "CREATE_FAILED", "Failed to create subforum")
 		return
+	}
+
+	// Assign subforum_owner role to creator
+	err = h.rbacService.AssignSubforumRole(r.Context(), prefixedSlug, userCtx.Did, "subforum_owner", userCtx.Did, nil)
+	if err != nil {
+		h.logger.Error("Failed to assign subforum_owner role", "error", err, "slug", prefixedSlug, "user", userCtx.Did)
+		// Continue anyway - subforum was created successfully
+	}
+
+	// Assign subforum_moderator role to creator
+	err = h.rbacService.AssignSubforumRole(r.Context(), prefixedSlug, userCtx.Did, "subforum_moderator", userCtx.Did, nil)
+	if err != nil {
+		h.logger.Error("Failed to assign subforum_moderator role", "error", err, "slug", prefixedSlug, "user", userCtx.Did)
+		// Continue anyway - subforum was created successfully
 	}
 
 	subforum := map[string]interface{}{
@@ -240,6 +334,8 @@ func (h *Handlers) CreateSubforum(w http.ResponseWriter, r *http.Request) {
 		"created_at":        formatTimestamptz(createdSubforum.CreatedAt),
 		"subscriber_count":  createdSubforum.SubscriberCount,
 		"post_count":        createdSubforum.PostCount,
+		"comment_count":     createdSubforum.CommentCount,
+		"prefix_type":       createdSubforum.PrefixType,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -353,10 +449,177 @@ func (h *Handlers) DeleteSubforum(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// GetPostMetrics handles GET /api/v1/posts/{id}/metrics
+func (h *Handlers) GetPostMetrics(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract post ID from URL path
+	pathParts := strings.Split(r.URL.Path, "/")
+	if len(pathParts) < 5 {
+		http.Error(w, "Invalid post ID", http.StatusBadRequest)
+		return
+	}
+	postIDStr := pathParts[4]
+
+	ctx := r.Context()
+
+	// Parse post ID as UUID
+	postID, err := uuid.Parse(postIDStr)
+	if err != nil {
+		http.Error(w, "Invalid post ID format", http.StatusBadRequest)
+		return
+	}
+
+	// Get post metrics from database
+	commentCount, err := h.queries.GetPostCommentCount(ctx, postID)
+	if err != nil {
+		h.logger.Error("Failed to get post comment count", "error", err, "post_id", postIDStr)
+		http.Error(w, "Failed to get post metrics", http.StatusInternalServerError)
+		return
+	}
+
+	voteCounts, err := h.queries.GetPostVoteCounts(ctx, postID)
+	if err != nil {
+		h.logger.Error("Failed to get post vote counts", "error", err, "post_id", postIDStr)
+		http.Error(w, "Failed to get post metrics", http.StatusInternalServerError)
+		return
+	}
+
+	// Calculate total votes
+	totalVotes := int32(0)
+	if voteCounts.Upvotes != nil {
+		totalVotes += *voteCounts.Upvotes
+	}
+	if voteCounts.Downvotes != nil {
+		totalVotes += *voteCounts.Downvotes
+	}
+
+	response := PostMetrics{
+		Upvotes:      int(*voteCounts.Upvotes),
+		Downvotes:    int(*voteCounts.Downvotes),
+		Score:        int(*voteCounts.Score),
+		CommentCount: int(*commentCount),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// GetPostModerationState handles GET /api/v1/posts/{id}/moderation
+func (h *Handlers) GetPostModerationState(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract post ID from URL path
+	pathParts := strings.Split(r.URL.Path, "/")
+	if len(pathParts) < 5 {
+		http.Error(w, "Invalid post ID", http.StatusBadRequest)
+		return
+	}
+	postIDStr := pathParts[4]
+
+	// For now, return a default moderation state since we don't have the method yet
+	response := map[string]interface{}{
+		"post_id":      postIDStr,
+		"state":        "approved",
+		"reason":       nil,
+		"moderated_at": time.Now().Format(time.RFC3339),
+		"moderated_by": nil,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
 // formatTimestamptz formats a pgtype.Timestamptz as RFC3339 string
 func formatTimestamptz(ts pgtype.Timestamptz) string {
 	if !ts.Valid {
 		return time.Now().Format(time.RFC3339)
 	}
 	return ts.Time.Format(time.RFC3339)
+}
+
+// UpdatePassword handles POST /api/v1/auth/updatePassword
+func (h *Handlers) UpdatePassword(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse request body
+	var req struct {
+		CurrentPassword string `json:"currentPassword"`
+		NewPassword     string `json:"newPassword"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if req.CurrentPassword == "" || req.NewPassword == "" {
+		http.Error(w, "currentPassword and newPassword required", http.StatusBadRequest)
+		return
+	}
+
+	// Get the user's token from the Authorization header
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		http.Error(w, "Authorization header required", http.StatusUnauthorized)
+		return
+	}
+
+	// Create request body for PDS
+	reqBody, err := json.Marshal(req)
+	if err != nil {
+		h.logger.Error("Failed to marshal request", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// Proxy the request to the PDS server
+	pdsURL := h.pdsURL + "/xrpc/com.atproto.server.updatePassword"
+
+	// Create request to PDS server
+	pdsReq, err := http.NewRequest("POST", pdsURL, strings.NewReader(string(reqBody)))
+	if err != nil {
+		h.logger.Error("Failed to create PDS request", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// Copy headers from original request
+	pdsReq.Header.Set("Content-Type", "application/json")
+	pdsReq.Header.Set("Authorization", authHeader)
+
+	// Make request to PDS server
+	client := &http.Client{Timeout: 30 * time.Second}
+	pdsResp, err := client.Do(pdsReq)
+	if err != nil {
+		h.logger.Error("Failed to call PDS server", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	defer pdsResp.Body.Close()
+
+	// Copy response status and headers
+	w.WriteHeader(pdsResp.StatusCode)
+
+	// Copy response body
+	if pdsResp.StatusCode != http.StatusOK {
+		// Read error response from PDS
+		body := make([]byte, 1024)
+		n, _ := pdsResp.Body.Read(body)
+		http.Error(w, string(body[:n]), pdsResp.StatusCode)
+		return
+	}
+
+	// Success response
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 }

@@ -36,8 +36,8 @@ export function PseudonymManager({ children, onOpen }: PseudonymManagerProps) {
         </DialogHeader>
         <div className="p-4">
           <h3 className="text-lg font-medium mb-4">Manage your pseudonyms</h3>
-          <p className="text-muted-foreground mb-2">User: {user.displayName}</p>
-          <p className="text-muted-foreground mb-4">Pseudonyms: {user.pseudonyms.length}</p>
+          <p className="text-muted-foreground mb-2">User: {user.handle}</p>
+          <p className="text-muted-foreground mb-4">Pseudonyms: N/A (not available in atproto system)</p>
           <Button onClick={() => {
             setIsOpen(false);
           }}>Close</Button>

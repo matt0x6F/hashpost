@@ -20,7 +20,8 @@ SELECT
     description,
     created_by,
     created_at,
-    updated_at
+    updated_at,
+    prefix_type
 FROM subforums
 ORDER BY created_at DESC
 LIMIT $1 OFFSET $2
@@ -39,6 +40,7 @@ type ListSubforumsRow struct {
 	CreatedBy   pgtype.UUID        `json:"created_by"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	PrefixType  string             `json:"prefix_type"`
 }
 
 func (q *Queries) ListSubforums(ctx context.Context, arg *ListSubforumsParams) ([]*ListSubforumsRow, error) {
@@ -58,6 +60,7 @@ func (q *Queries) ListSubforums(ctx context.Context, arg *ListSubforumsParams) (
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PrefixType,
 		); err != nil {
 			return nil, err
 		}

@@ -12,11 +12,11 @@ import { CreateForumDialog } from "./CreateForumDialog";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { getApi } from "@/lib/api-client";
-import { SubforumsApi } from "@/generated/api/src/apis/SubforumsApi";
+import { SubscriptionsApi } from "@/generated/api/src/apis/SubscriptionsApi";
 import { toast } from "sonner";
 import type { Subforum } from "@/generated/api/src/models";
-import type { CommunityType } from "@/lib/community-config";
 import Link from "next/link";
+import { useCapabilities } from "@/lib/capabilities";
 
 const items = [
   { title: "Home", url: "/", icon: Home },
@@ -28,19 +28,46 @@ const items = [
 export function AppSidebar() {
   const [subscriptions, setSubscriptions] = useState<Subforum[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasPlatformAdmin, setHasPlatformAdmin] = useState(false);
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { hasRole } = useCapabilities();
 
+  const checkPlatformAdminRole = async () => {
+    if (!isAuthenticated) {
+      setHasPlatformAdmin(false);
+      return;
+    }
+
+    try {
+      // Check for platform admin role (no subforumId means platform-level role)
+      const isPlatformAdmin = await hasRole('platform_admin');
+      setHasPlatformAdmin(isPlatformAdmin);
+    } catch (error) {
+      console.error('Error checking platform admin role:', error);
+      setHasPlatformAdmin(false);
+    }
+  };
 
   const loadSubscriptions = async () => {
-    if (!isAuthenticated || !user?.activePseudonymId) {
+    if (!isAuthenticated) {
       return;
     }
 
     setIsLoading(true);
     try {
-      const subforumsApi = getApi(SubforumsApi);
-      const response = await subforumsApi.getPseudonymSubscriptions(user.activePseudonymId);
-      setSubscriptions(response.subforums || []);
+      const subscriptionsApi = getApi(SubscriptionsApi);
+      const response = await subscriptionsApi.listMySubscriptions(20, 0);
+      setSubscriptions(response.subscriptions?.map(sub => ({
+        id: sub.subforumSlug,
+        name: sub.subforumName || sub.subforumSlug,
+        slug: sub.subforumSlug,
+        description: undefined,
+        createdBy: '',
+        createdAt: new Date(sub.subscribedAt),
+        updatedAt: undefined,
+        subscriberCount: undefined,
+        postCount: undefined
+      })) || []);
     } catch (err: unknown) {
       console.error('Error loading subscriptions:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to load subscriptions';
@@ -53,17 +80,17 @@ export function AppSidebar() {
   };
 
   const handleUnsubscribe = async (subforum: Subforum) => {
-    if (!isAuthenticated || !user?.activePseudonymId) {
+    if (!isAuthenticated) {
       toast.error('Please log in to manage subscriptions');
       return;
     }
 
     try {
-      const subforumsApi = getApi(SubforumsApi);
-      await subforumsApi.unsubscribeFromSubforum(subforum.communityType as CommunityType, subforum.name);
+      const subscriptionsApi = getApi(SubscriptionsApi);
+      await subscriptionsApi.unsubscribeFromSubforum(subforum.slug);
       
       // Remove from local state
-      setSubscriptions(prev => prev.filter(sub => sub.name !== subforum.name));
+      setSubscriptions(prev => prev.filter(sub => sub.slug !== subforum.slug));
       toast.success('Unsubscribed from subforum');
     } catch (error) {
       console.error('Unsubscribe error:', error);
@@ -74,7 +101,11 @@ export function AppSidebar() {
 
   useEffect(() => {
     loadSubscriptions();
-  }, [isAuthenticated, user?.activePseudonymId]);
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    checkPlatformAdminRole();
+  }, [isAuthenticated]);
 
   return (
     <Sidebar>
@@ -108,8 +139,8 @@ export function AppSidebar() {
           </CreateForumDialog>
         </div>
 
-        {/* Admin Section */}
-        {!authLoading && isAuthenticated && (user?.capabilities?.includes("system_admin") || user?.capabilities?.includes("user_management")) && (
+        {/* Admin Section - Only show for users with platform admin role */}
+        {!authLoading && isAuthenticated && hasPlatformAdmin && (
           <div className="mt-6 pt-6 border-t border-sidebar-border">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-medium text-sidebar-foreground">Administration</h3>
@@ -143,15 +174,15 @@ export function AppSidebar() {
               <div className="space-y-1">
                 {subscriptions.map((subforum) => (
                   <div
-                    key={subforum.name}
+                    key={subforum.slug}
                     className="group relative flex items-center gap-2 px-3 py-2 rounded transition-colors text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   >
                     <Link
-                      href={`/${subforum.communityType}/${subforum.name}`}
+                      href={`/h/${subforum.slug}`}
                       className="flex-1 flex items-center gap-2 min-w-0"
                     >
                       <span className="text-xs font-medium truncate">
-                        {subforum.communityType}/{subforum.name}
+                        h/{subforum.slug}
                       </span>
                     </Link>
                     

@@ -41,11 +41,8 @@ function VerifyEmailContent() {
     setError("");
 
     try {
-      const authApi = getApi(AuthenticationApi);
-      await authApi.verifyEmail({ token });
-      
-      setIsSuccess(true);
-      toast.success("Email verified successfully! You can now log in.");
+      // Email verification not available in atproto system
+      toast.error("Email verification is not available in the atproto system");
     } catch (error) {
       console.error("Email verification failed:", error);
       setError("Failed to verify email. The link may have expired or be invalid.");
@@ -66,7 +63,7 @@ function VerifyEmailContent() {
         password: loginPassword
       });
       
-      login(loginResponse);
+      login(loginEmail, loginPassword);
       toast.success("Logged in successfully!");
       // Redirect to home or dashboard
       window.location.href = "/";

@@ -28,6 +28,20 @@ const (
 	PermissionResourceTypeVote     PermissionResourceType = "vote"
 )
 
+// Defines values for SubforumPrefixType.
+const (
+	SubforumPrefixTypeH SubforumPrefixType = "h"
+	SubforumPrefixTypeR SubforumPrefixType = "r"
+	SubforumPrefixTypeT SubforumPrefixType = "t"
+)
+
+// Defines values for UserVoteVoteType.
+const (
+	UserVoteVoteTypeDown        UserVoteVoteType = "down"
+	UserVoteVoteTypeLessThannil UserVoteVoteType = "<nil>"
+	UserVoteVoteTypeUp          UserVoteVoteType = "up"
+)
+
 // Defines values for VoteResponseVoteType.
 const (
 	VoteResponseVoteTypeDown  VoteResponseVoteType = "down"
@@ -43,14 +57,35 @@ const (
 
 // Defines values for VoteOnPostJSONBodyVoteType.
 const (
-	Down VoteOnPostJSONBodyVoteType = "down"
-	Up   VoteOnPostJSONBodyVoteType = "up"
+	VoteOnPostJSONBodyVoteTypeDown VoteOnPostJSONBodyVoteType = "down"
+	VoteOnPostJSONBodyVoteTypeUp   VoteOnPostJSONBodyVoteType = "up"
 )
+
+// Defines values for CreateSubforumJSONBodyPrefixType.
+const (
+	CreateSubforumJSONBodyPrefixTypeH CreateSubforumJSONBodyPrefixType = "h"
+	CreateSubforumJSONBodyPrefixTypeR CreateSubforumJSONBodyPrefixType = "r"
+	CreateSubforumJSONBodyPrefixTypeT CreateSubforumJSONBodyPrefixType = "t"
+)
+
+// Author defines model for Author.
+type Author struct {
+	// AvatarUrl URL to user's avatar image (optional)
+	AvatarUrl *string `json:"avatar_url"`
+
+	// Did Decentralized Identifier of the user
+	Did string `json:"did"`
+
+	// DisplayName User's display name (optional)
+	DisplayName *string `json:"display_name"`
+
+	// Handle User's handle (username.domain)
+	Handle string `json:"handle"`
+}
 
 // Comment defines model for Comment.
 type Comment struct {
-	// Author ID of the user who created the comment
-	Author openapi_types.UUID `json:"author"`
+	Author Author `json:"author"`
 
 	// Content Content of the comment
 	Content string `json:"content"`
@@ -92,6 +127,57 @@ type Error struct {
 	Message string `json:"message"`
 }
 
+// ModerationState defines model for ModerationState.
+type ModerationState struct {
+	// IsLocked Whether the post is locked
+	IsLocked bool `json:"is_locked"`
+
+	// IsPinned Whether the post is pinned
+	IsPinned bool `json:"is_pinned"`
+
+	// IsRemoved Whether the post is removed by moderation
+	IsRemoved bool `json:"is_removed"`
+}
+
+// PDSServerDetails defines model for PDSServerDetails.
+type PDSServerDetails struct {
+	// ActiveUsers24h Number of users active in last 24 hours
+	ActiveUsers24h int `json:"activeUsers24h"`
+
+	// ActiveUsers30d Number of users active in last 30 days
+	ActiveUsers30d int `json:"activeUsers30d"`
+
+	// ActiveUsers7d Number of users active in last 7 days
+	ActiveUsers7d int `json:"activeUsers7d"`
+
+	// FirstUserCreated When the first user from this PDS was created
+	FirstUserCreated *time.Time `json:"firstUserCreated,omitempty"`
+
+	// LastActivity Last activity timestamp
+	LastActivity *time.Time `json:"lastActivity,omitempty"`
+
+	// PdsEndpoint PDS server endpoint URL
+	PdsEndpoint string `json:"pdsEndpoint"`
+
+	// UserCount Total number of users from this PDS
+	UserCount int `json:"userCount"`
+}
+
+// PDSServerStats defines model for PDSServerStats.
+type PDSServerStats struct {
+	// ActiveUsers24h Number of users active in last 24 hours
+	ActiveUsers24h int `json:"activeUsers24h"`
+
+	// LastActivity Last activity timestamp
+	LastActivity *time.Time `json:"lastActivity,omitempty"`
+
+	// PdsEndpoint PDS server endpoint URL
+	PdsEndpoint string `json:"pdsEndpoint"`
+
+	// UserCount Total number of users from this PDS
+	UserCount int `json:"userCount"`
+}
+
 // Permission defines model for Permission.
 type Permission struct {
 	// CreatedAt When the permission was created
@@ -115,11 +201,7 @@ type PermissionResourceType string
 
 // Post defines model for Post.
 type Post struct {
-	// Author ID of the user who created the post
-	Author openapi_types.UUID `json:"author"`
-
-	// CommentCount Number of comments
-	CommentCount *int `json:"comment_count,omitempty"`
+	Author Author `json:"author"`
 
 	// Content Content of the post
 	Content string `json:"content"`
@@ -127,29 +209,32 @@ type Post struct {
 	// CreatedAt When the post was created
 	CreatedAt time.Time `json:"created_at"`
 
-	// Downvotes Number of downvotes
-	Downvotes *int `json:"downvotes,omitempty"`
-
-	// Id Unique identifier for the post
+	// Id Unique identifier for the post (atproto record URI)
 	Id openapi_types.UUID `json:"id"`
 
-	// IsLocked Whether the post is locked
-	IsLocked *bool `json:"is_locked,omitempty"`
-
-	// IsPinned Whether the post is pinned
-	IsPinned *bool `json:"is_pinned,omitempty"`
-
-	// Subforum ID of the subforum this post belongs to
-	Subforum openapi_types.UUID `json:"subforum"`
+	// Subforum Slug of the subforum this post belongs to
+	Subforum string `json:"subforum"`
 
 	// Title Title of the post
 	Title string `json:"title"`
 
 	// UpdatedAt When the post was last updated
 	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+}
 
-	// Upvotes Number of upvotes
-	Upvotes *int `json:"upvotes,omitempty"`
+// PostMetrics defines model for PostMetrics.
+type PostMetrics struct {
+	// CommentCount Number of comments (computed from comment records)
+	CommentCount int `json:"comment_count"`
+
+	// Downvotes Number of downvotes (computed from vote records)
+	Downvotes int `json:"downvotes"`
+
+	// Score Net score (upvotes - downvotes)
+	Score int `json:"score"`
+
+	// Upvotes Number of upvotes (computed from vote records)
+	Upvotes int `json:"upvotes"`
 }
 
 // Role defines model for Role.
@@ -172,6 +257,9 @@ type Role struct {
 
 // Subforum defines model for Subforum.
 type Subforum struct {
+	// CommentCount Number of comments in the subforum
+	CommentCount *int `json:"comment_count,omitempty"`
+
 	// CreatedAt When the subforum was created
 	CreatedAt time.Time `json:"created_at"`
 
@@ -190,6 +278,9 @@ type Subforum struct {
 	// PostCount Number of posts in the subforum
 	PostCount *int `json:"post_count,omitempty"`
 
+	// PrefixType Subforum prefix type (h=HashPost, r=regional, t=topical)
+	PrefixType *SubforumPrefixType `json:"prefix_type,omitempty"`
+
 	// Slug URL-friendly identifier for the subforum
 	Slug string `json:"slug"`
 
@@ -199,6 +290,9 @@ type Subforum struct {
 	// UpdatedAt When the subforum was last updated
 	UpdatedAt *time.Time `json:"updated_at,omitempty"`
 }
+
+// SubforumPrefixType Subforum prefix type (h=HashPost, r=regional, t=topical)
+type SubforumPrefixType string
 
 // SubscriberListResponse defines model for SubscriberListResponse.
 type SubscriberListResponse struct {
@@ -316,16 +410,37 @@ type UserSession struct {
 	Handle string `json:"handle"`
 }
 
+// UserVote defines model for UserVote.
+type UserVote struct {
+	// VoteType User's current vote on this post (null if no vote)
+	VoteType UserVoteVoteType `json:"vote_type"`
+}
+
+// UserVoteVoteType User's current vote on this post (null if no vote)
+type UserVoteVoteType string
+
 // UserWithRoles defines model for UserWithRoles.
 type UserWithRoles struct {
+	// DisplayName User's display name
+	DisplayName *string `json:"displayName,omitempty"`
+
 	// Handle User's handle
 	Handle string `json:"handle"`
 
+	// IsLocal Whether user is stored on HashPost PDS
+	IsLocal *bool `json:"isLocal,omitempty"`
+
+	// LastSeenAt Last time user authenticated
+	LastSeenAt *time.Time `json:"lastSeenAt,omitempty"`
+
+	// PdsSource PDS server endpoint where user data is stored
+	PdsSource *string `json:"pdsSource,omitempty"`
+
 	// RoleCount Number of roles assigned to the user
-	RoleCount int `json:"role_count"`
+	RoleCount int `json:"roleCount"`
 
 	// UserDid User's DID
-	UserDid string `json:"user_did"`
+	UserDid string `json:"userDid"`
 }
 
 // VoteResponse defines model for VoteResponse.
@@ -359,6 +474,15 @@ type AssignRoleJSONBody struct {
 
 	// UserDid User DID to assign role to
 	UserDid string `json:"user_did"`
+}
+
+// ListPDSServerUsersParams defines parameters for ListPDSServerUsers.
+type ListPDSServerUsersParams struct {
+	// Limit Maximum number of users to return
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of users to skip
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
 // RevokeRoleJSONBody defines parameters for RevokeRole.
@@ -425,6 +549,24 @@ type ListCommentsParams struct {
 
 	// Offset Number of comments to skip
 	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// CreateCommentJSONBody defines parameters for CreateComment.
+type CreateCommentJSONBody struct {
+	// Content Comment text content
+	Content string `json:"content"`
+
+	// ParentId Optional ID of parent comment for nested replies
+	ParentId *openapi_types.UUID `json:"parent_id,omitempty"`
+
+	// PostId ID of the post to comment on
+	PostId openapi_types.UUID `json:"post_id"`
+}
+
+// UpdateCommentJSONBody defines parameters for UpdateComment.
+type UpdateCommentJSONBody struct {
+	// Content Updated comment content
+	Content string `json:"content"`
 }
 
 // VoteOnCommentJSONBody defines parameters for VoteOnComment.
@@ -508,6 +650,24 @@ type ListSubforumsParams struct {
 	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
+// CreateSubforumJSONBody defines parameters for CreateSubforum.
+type CreateSubforumJSONBody struct {
+	// Description Optional description of the subforum
+	Description *string `json:"description,omitempty"`
+
+	// Name Name of the subforum
+	Name string `json:"name"`
+
+	// PrefixType Subforum prefix type
+	PrefixType CreateSubforumJSONBodyPrefixType `json:"prefix_type"`
+
+	// Slug URL-friendly slug for the subforum (without prefix)
+	Slug string `json:"slug"`
+}
+
+// CreateSubforumJSONBodyPrefixType defines parameters for CreateSubforum.
+type CreateSubforumJSONBodyPrefixType string
+
 // ListSubforumMembersParams defines parameters for ListSubforumMembers.
 type ListSubforumMembersParams struct {
 	// Limit Maximum number of members to return
@@ -553,6 +713,12 @@ type LoginUserJSONRequestBody LoginUserJSONBody
 // RegisterUserJSONRequestBody defines body for RegisterUser for application/json ContentType.
 type RegisterUserJSONRequestBody RegisterUserJSONBody
 
+// CreateCommentJSONRequestBody defines body for CreateComment for application/json ContentType.
+type CreateCommentJSONRequestBody CreateCommentJSONBody
+
+// UpdateCommentJSONRequestBody defines body for UpdateComment for application/json ContentType.
+type UpdateCommentJSONRequestBody UpdateCommentJSONBody
+
 // VoteOnCommentJSONRequestBody defines body for VoteOnComment for application/json ContentType.
 type VoteOnCommentJSONRequestBody VoteOnCommentJSONBody
 
@@ -565,6 +731,9 @@ type UpdatePostJSONRequestBody UpdatePostJSONBody
 // VoteOnPostJSONRequestBody defines body for VoteOnPost for application/json ContentType.
 type VoteOnPostJSONRequestBody VoteOnPostJSONBody
 
+// CreateSubforumJSONRequestBody defines body for CreateSubforum for application/json ContentType.
+type CreateSubforumJSONRequestBody CreateSubforumJSONBody
+
 // AssignSubforumRoleJSONRequestBody defines body for AssignSubforumRole for application/json ContentType.
 type AssignSubforumRoleJSONRequestBody AssignSubforumRoleJSONBody
 
@@ -573,6 +742,15 @@ type ServerInterface interface {
 	// Assign role to user
 	// (POST /api/v1/admin/assign-role)
 	AssignRole(w http.ResponseWriter, r *http.Request)
+	// List PDS servers
+	// (GET /api/v1/admin/pds/servers)
+	ListPDSServers(w http.ResponseWriter, r *http.Request)
+	// Get PDS server details
+	// (GET /api/v1/admin/pds/{endpoint})
+	GetPDSServerDetails(w http.ResponseWriter, r *http.Request, endpoint string)
+	// List users from PDS server
+	// (GET /api/v1/admin/pds/{endpoint}/users)
+	ListPDSServerUsers(w http.ResponseWriter, r *http.Request, endpoint string, params ListPDSServerUsersParams)
 	// List all permissions
 	// (GET /api/v1/admin/permissions)
 	ListPermissions(w http.ResponseWriter, r *http.Request)
@@ -603,6 +781,18 @@ type ServerInterface interface {
 	// List comments
 	// (GET /api/v1/comments)
 	ListComments(w http.ResponseWriter, r *http.Request, params ListCommentsParams)
+	// Create a comment
+	// (POST /api/v1/comments)
+	CreateComment(w http.ResponseWriter, r *http.Request)
+	// Delete a comment
+	// (DELETE /api/v1/comments/{id})
+	DeleteComment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Get comment by ID
+	// (GET /api/v1/comments/{id})
+	GetCommentByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Update a comment
+	// (PUT /api/v1/comments/{id})
+	UpdateComment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// Remove vote from comment
 	// (DELETE /api/v1/comments/{id}/vote)
 	RemoveVoteFromComment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
@@ -636,6 +826,15 @@ type ServerInterface interface {
 	// Update a post
 	// (PUT /api/v1/posts/{id})
 	UpdatePost(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Get post metrics
+	// (GET /api/v1/posts/{id}/metrics)
+	GetPostMetrics(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Get post moderation state
+	// (GET /api/v1/posts/{id}/moderation)
+	GetPostModerationState(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Get user's vote on post
+	// (GET /api/v1/posts/{id}/user-vote)
+	GetPostUserVote(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// Remove vote from post
 	// (DELETE /api/v1/posts/{id}/vote)
 	RemoveVoteFromPost(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
@@ -648,6 +847,9 @@ type ServerInterface interface {
 	// List subforums
 	// (GET /api/v1/subforums)
 	ListSubforums(w http.ResponseWriter, r *http.Request, params ListSubforumsParams)
+	// Create subforum
+	// (POST /api/v1/subforums)
+	CreateSubforum(w http.ResponseWriter, r *http.Request)
 	// Get subforum by slug
 	// (GET /api/v1/subforums/{slug})
 	GetSubforumBySlug(w http.ResponseWriter, r *http.Request, slug string)
@@ -694,6 +896,107 @@ func (siw *ServerInterfaceWrapper) AssignRole(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.AssignRole(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListPDSServers operation middleware
+func (siw *ServerInterfaceWrapper) ListPDSServers(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListPDSServers(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetPDSServerDetails operation middleware
+func (siw *ServerInterfaceWrapper) GetPDSServerDetails(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "endpoint" -------------
+	var endpoint string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "endpoint", r.PathValue("endpoint"), &endpoint, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "endpoint", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPDSServerDetails(w, r, endpoint)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListPDSServerUsers operation middleware
+func (siw *ServerInterfaceWrapper) ListPDSServerUsers(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "endpoint" -------------
+	var endpoint string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "endpoint", r.PathValue("endpoint"), &endpoint, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "endpoint", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListPDSServerUsersParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "offset", r.URL.Query(), &params.Offset)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "offset", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListPDSServerUsers(w, r, endpoint, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -970,6 +1273,113 @@ func (siw *ServerInterfaceWrapper) ListComments(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// CreateComment operation middleware
+func (siw *ServerInterfaceWrapper) CreateComment(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateComment(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteComment operation middleware
+func (siw *ServerInterfaceWrapper) DeleteComment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteComment(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCommentByID operation middleware
+func (siw *ServerInterfaceWrapper) GetCommentByID(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCommentByID(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateComment operation middleware
+func (siw *ServerInterfaceWrapper) UpdateComment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateComment(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // RemoveVoteFromComment operation middleware
 func (siw *ServerInterfaceWrapper) RemoveVoteFromComment(w http.ResponseWriter, r *http.Request) {
 
@@ -983,6 +1393,12 @@ func (siw *ServerInterfaceWrapper) RemoveVoteFromComment(w http.ResponseWriter, 
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
 		return
 	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.RemoveVoteFromComment(w, r, id)
@@ -1009,6 +1425,12 @@ func (siw *ServerInterfaceWrapper) GetUserVoteOnComment(w http.ResponseWriter, r
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetUserVoteOnComment(w, r, id)
 	}))
@@ -1033,6 +1455,12 @@ func (siw *ServerInterfaceWrapper) VoteOnComment(w http.ResponseWriter, r *http.
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
 		return
 	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.VoteOnComment(w, r, id)
@@ -1116,6 +1544,12 @@ func (siw *ServerInterfaceWrapper) ListMySubscriptions(w http.ResponseWriter, r 
 
 	var err error
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	// Parameter object where we will unmarshal all parameters from the context
 	var params ListMySubscriptionsParams
 
@@ -1191,6 +1625,12 @@ func (siw *ServerInterfaceWrapper) ListPosts(w http.ResponseWriter, r *http.Requ
 
 // CreatePost operation middleware
 func (siw *ServerInterfaceWrapper) CreatePost(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CreatePost(w, r)
@@ -1278,6 +1718,87 @@ func (siw *ServerInterfaceWrapper) UpdatePost(w http.ResponseWriter, r *http.Req
 	handler.ServeHTTP(w, r)
 }
 
+// GetPostMetrics operation middleware
+func (siw *ServerInterfaceWrapper) GetPostMetrics(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPostMetrics(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetPostModerationState operation middleware
+func (siw *ServerInterfaceWrapper) GetPostModerationState(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPostModerationState(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetPostUserVote operation middleware
+func (siw *ServerInterfaceWrapper) GetPostUserVote(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPostUserVote(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // RemoveVoteFromPost operation middleware
 func (siw *ServerInterfaceWrapper) RemoveVoteFromPost(w http.ResponseWriter, r *http.Request) {
 
@@ -1291,6 +1812,12 @@ func (siw *ServerInterfaceWrapper) RemoveVoteFromPost(w http.ResponseWriter, r *
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
 		return
 	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.RemoveVoteFromPost(w, r, id)
@@ -1317,6 +1844,12 @@ func (siw *ServerInterfaceWrapper) GetUserVoteOnPost(w http.ResponseWriter, r *h
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetUserVoteOnPost(w, r, id)
 	}))
@@ -1341,6 +1874,12 @@ func (siw *ServerInterfaceWrapper) VoteOnPost(w http.ResponseWriter, r *http.Req
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
 		return
 	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.VoteOnPost(w, r, id)
@@ -1379,6 +1918,26 @@ func (siw *ServerInterfaceWrapper) ListSubforums(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListSubforums(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateSubforum operation middleware
+func (siw *ServerInterfaceWrapper) CreateSubforum(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateSubforum(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1575,6 +2134,12 @@ func (siw *ServerInterfaceWrapper) UnsubscribeFromSubforum(w http.ResponseWriter
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UnsubscribeFromSubforum(w, r, slug)
 	}))
@@ -1600,6 +2165,12 @@ func (siw *ServerInterfaceWrapper) GetUserSubscription(w http.ResponseWriter, r 
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetUserSubscription(w, r, slug)
 	}))
@@ -1624,6 +2195,12 @@ func (siw *ServerInterfaceWrapper) SubscribeToSubforum(w http.ResponseWriter, r 
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
 		return
 	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.SubscribeToSubforum(w, r, slug)
@@ -1801,6 +2378,9 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	}
 
 	m.HandleFunc("POST "+options.BaseURL+"/api/v1/admin/assign-role", wrapper.AssignRole)
+	m.HandleFunc("GET "+options.BaseURL+"/api/v1/admin/pds/servers", wrapper.ListPDSServers)
+	m.HandleFunc("GET "+options.BaseURL+"/api/v1/admin/pds/{endpoint}", wrapper.GetPDSServerDetails)
+	m.HandleFunc("GET "+options.BaseURL+"/api/v1/admin/pds/{endpoint}/users", wrapper.ListPDSServerUsers)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/admin/permissions", wrapper.ListPermissions)
 	m.HandleFunc("POST "+options.BaseURL+"/api/v1/admin/revoke-role", wrapper.RevokeRole)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/admin/roles", wrapper.ListRoles)
@@ -1811,6 +2391,10 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/auth/me", wrapper.GetCurrentUserSession)
 	m.HandleFunc("POST "+options.BaseURL+"/api/v1/auth/register", wrapper.RegisterUser)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/comments", wrapper.ListComments)
+	m.HandleFunc("POST "+options.BaseURL+"/api/v1/comments", wrapper.CreateComment)
+	m.HandleFunc("DELETE "+options.BaseURL+"/api/v1/comments/{id}", wrapper.DeleteComment)
+	m.HandleFunc("GET "+options.BaseURL+"/api/v1/comments/{id}", wrapper.GetCommentByID)
+	m.HandleFunc("PUT "+options.BaseURL+"/api/v1/comments/{id}", wrapper.UpdateComment)
 	m.HandleFunc("DELETE "+options.BaseURL+"/api/v1/comments/{id}/vote", wrapper.RemoveVoteFromComment)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/comments/{id}/vote", wrapper.GetUserVoteOnComment)
 	m.HandleFunc("POST "+options.BaseURL+"/api/v1/comments/{id}/vote", wrapper.VoteOnComment)
@@ -1822,10 +2406,14 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("DELETE "+options.BaseURL+"/api/v1/posts/{id}", wrapper.DeletePost)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/posts/{id}", wrapper.GetPostByID)
 	m.HandleFunc("PUT "+options.BaseURL+"/api/v1/posts/{id}", wrapper.UpdatePost)
+	m.HandleFunc("GET "+options.BaseURL+"/api/v1/posts/{id}/metrics", wrapper.GetPostMetrics)
+	m.HandleFunc("GET "+options.BaseURL+"/api/v1/posts/{id}/moderation", wrapper.GetPostModerationState)
+	m.HandleFunc("GET "+options.BaseURL+"/api/v1/posts/{id}/user-vote", wrapper.GetPostUserVote)
 	m.HandleFunc("DELETE "+options.BaseURL+"/api/v1/posts/{id}/vote", wrapper.RemoveVoteFromPost)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/posts/{id}/vote", wrapper.GetUserVoteOnPost)
 	m.HandleFunc("POST "+options.BaseURL+"/api/v1/posts/{id}/vote", wrapper.VoteOnPost)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/subforums", wrapper.ListSubforums)
+	m.HandleFunc("POST "+options.BaseURL+"/api/v1/subforums", wrapper.CreateSubforum)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/subforums/{slug}", wrapper.GetSubforumBySlug)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/subforums/{slug}/members", wrapper.ListSubforumMembers)
 	m.HandleFunc("DELETE "+options.BaseURL+"/api/v1/subforums/{slug}/members/{user_did}/roles", wrapper.RevokeSubforumRole)

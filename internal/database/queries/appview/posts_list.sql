@@ -1,38 +1,44 @@
 -- name: ListAppViewPosts :many
 SELECT 
-    id,
-    atproto_uri,
-    author_did,
-    author_handle,
-    subforum_slug,
-    title,
-    content,
-    created_at,
-    updated_at,
-    upvotes,
-    downvotes,
-    comment_count,
-    score
-FROM appview_posts
-ORDER BY created_at DESC
+    p.id,
+    p.atproto_uri,
+    p.author_did,
+    p.author_handle,
+    p.subforum_slug,
+    p.title,
+    p.content,
+    p.created_at,
+    p.updated_at,
+    p.upvotes,
+    p.downvotes,
+    p.comment_count,
+    p.score,
+    u.display_name as author_display_name,
+    u.avatar_url as author_avatar_url
+FROM appview_posts p
+LEFT JOIN appview_users u ON p.author_did = u.did
+ORDER BY p.created_at DESC
 LIMIT $1 OFFSET $2;
 
 -- name: ListAppViewPostsBySubforum :many
 SELECT 
-    id,
-    atproto_uri,
-    author_did,
-    author_handle,
-    subforum_slug,
-    title,
-    content,
-    created_at,
-    updated_at,
-    upvotes,
-    downvotes,
-    comment_count,
-    score
-FROM appview_posts
-WHERE subforum_slug = $1
-ORDER BY created_at DESC
+    p.id,
+    p.atproto_uri,
+    p.author_did,
+    p.author_handle,
+    p.subforum_slug,
+    p.title,
+    p.content,
+    p.created_at,
+    p.updated_at,
+    p.upvotes,
+    p.downvotes,
+    p.comment_count,
+    p.score,
+    u.display_name as author_display_name,
+    u.avatar_url as author_avatar_url
+FROM appview_posts p
+LEFT JOIN appview_users u ON p.author_did = u.did
+WHERE p.subforum_slug = $1
+ORDER BY p.created_at DESC
 LIMIT $2 OFFSET $3;

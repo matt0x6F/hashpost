@@ -8,6 +8,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/crypto"
 	"github.com/bluesky-social/indigo/atproto/identity"
+	generated "github.com/matt0x6f/hashpost/internal/database/generated/pds"
 	"github.com/matt0x6f/hashpost/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -203,6 +204,148 @@ func TestAuthService_AddUserToMockDirectory(t *testing.T) {
 	err := authService.AddUserToMockDirectory(context.Background(), "did:plc:new-user", "newuser.hashpost.local")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not a mock directory")
+}
+
+func TestAuthService_UpdatePassword(t *testing.T) {
+	// Create test database
+	pool := testutil.SetupPDSTestDB(t)
+	db := generated.New(pool)
+
+	// Create auth service
+	logger := testutil.CreateMockLogger()
+	jwtService := testutil.NewMockJWTService()
+	authService := &AuthService{
+		db:         db,
+		logger:     logger,
+		serverDID:  "did:plc:hashpost-server",
+		signingKey: generateTestSigningKey(t),
+		jwtService: jwtService,
+	}
+
+	// Create test user with password
+	testDID := "did:plc:test-user"
+	testHandle := "testuser.hashpost.local"
+	testEmail := "test@hashpost.local"
+	testPassword := "oldpassword123"
+
+	// Hash the initial password
+	hashedPassword, err := authService.HashPassword(testPassword)
+	require.NoError(t, err)
+
+	// Create user in database
+	_, err = db.CreateUserWithPassword(context.Background(), &generated.CreateUserWithPasswordParams{
+		Did:          testDID,
+		Handle:       testHandle,
+		Email:        &testEmail,
+		PasswordHash: &hashedPassword,
+	})
+	require.NoError(t, err)
+
+	// Test password update with valid current password
+	newPassword := "newpassword123"
+	err = authService.UpdateUserPassword(context.Background(), testDID, testPassword, newPassword)
+	require.NoError(t, err)
+
+	// Verify old password no longer works
+	err = authService.validatePassword(context.Background(), testDID, testPassword)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "password mismatch")
+
+	// Verify new password works
+	err = authService.validatePassword(context.Background(), testDID, newPassword)
+	require.NoError(t, err)
+}
+
+func TestAuthService_UpdatePassword_InvalidCurrentPassword(t *testing.T) {
+	// Create test database
+	pool := testutil.SetupPDSTestDB(t)
+	db := generated.New(pool)
+
+	// Create auth service
+	logger := testutil.CreateMockLogger()
+	jwtService := testutil.NewMockJWTService()
+	authService := &AuthService{
+		db:         db,
+		logger:     logger,
+		serverDID:  "did:plc:hashpost-server",
+		signingKey: generateTestSigningKey(t),
+		jwtService: jwtService,
+	}
+
+	// Create test user with password
+	testDID := "did:plc:test-user"
+	testHandle := "testuser.hashpost.local"
+	testEmail := "test@hashpost.local"
+	testPassword := "currentpassword123"
+
+	// Hash the initial password
+	hashedPassword, err := authService.HashPassword(testPassword)
+	require.NoError(t, err)
+
+	// Create user in database
+	_, err = db.CreateUserWithPassword(context.Background(), &generated.CreateUserWithPasswordParams{
+		Did:          testDID,
+		Handle:       testHandle,
+		Email:        &testEmail,
+		PasswordHash: &hashedPassword,
+	})
+	require.NoError(t, err)
+
+	// Test password update with invalid current password
+	newPassword := "newpassword123"
+	err = authService.UpdateUserPassword(context.Background(), testDID, "wrongpassword", newPassword)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "password mismatch")
+
+	// Verify original password still works (password wasn't changed)
+	err = authService.validatePassword(context.Background(), testDID, testPassword)
+	require.NoError(t, err)
+}
+
+func TestAuthService_UpdatePassword_WeakPassword(t *testing.T) {
+	// Create test database
+	pool := testutil.SetupPDSTestDB(t)
+	db := generated.New(pool)
+
+	// Create auth service
+	logger := testutil.CreateMockLogger()
+	jwtService := testutil.NewMockJWTService()
+	authService := &AuthService{
+		db:         db,
+		logger:     logger,
+		serverDID:  "did:plc:hashpost-server",
+		signingKey: generateTestSigningKey(t),
+		jwtService: jwtService,
+	}
+
+	// Create test user with password
+	testDID := "did:plc:test-user"
+	testHandle := "testuser.hashpost.local"
+	testEmail := "test@hashpost.local"
+	testPassword := "currentpassword123"
+
+	// Hash the initial password
+	hashedPassword, err := authService.HashPassword(testPassword)
+	require.NoError(t, err)
+
+	// Create user in database
+	_, err = db.CreateUserWithPassword(context.Background(), &generated.CreateUserWithPasswordParams{
+		Did:          testDID,
+		Handle:       testHandle,
+		Email:        &testEmail,
+		PasswordHash: &hashedPassword,
+	})
+	require.NoError(t, err)
+
+	// Test password update with weak new password
+	weakPassword := "123" // Too short
+	err = authService.UpdateUserPassword(context.Background(), testDID, testPassword, weakPassword)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "password must be at least 8 characters long")
+
+	// Verify original password still works (password wasn't changed)
+	err = authService.validatePassword(context.Background(), testDID, testPassword)
+	require.NoError(t, err)
 }
 
 // Helper function to generate a test signing key

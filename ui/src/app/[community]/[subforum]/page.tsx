@@ -3,17 +3,16 @@
 import { useParams } from 'next/navigation';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Button } from '@/components/shadcn/button';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Hash, MapPin, Tag } from 'lucide-react';
 import Link from 'next/link';
 import { getApi } from '@/lib/api-client';
 import { SubforumsApi } from '@/generated/api/src/apis/SubforumsApi';
-import type { SubforumDetailsResponseBody, SubforumModerator } from '@/generated/api/src/models';
+// Removed SubforumDetailsResponseBody and SubforumModerator - not available in atproto system
 import { PostList } from '@/components/PostList';
 import { SubforumRulesDisplay } from '@/components/SubforumRulesDisplay';
 import { SubscribeButton } from '@/components/SubscribeButton';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth-context';
-import { authenticateUserForSubforum } from '@/lib/auth-utils';
 
 import type { CommunityType } from '@/lib/community-config';
 
@@ -23,7 +22,7 @@ export default function SubforumPage() {
   const subforumName = params.subforum as string;
   const fullSubforumPath = `${communityType}/${subforumName}`;
   
-  const [forum, setForum] = useState<SubforumDetailsResponseBody | null>(null);
+  const [forum, setForum] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { login } = useAuth();
@@ -44,10 +43,9 @@ export default function SubforumPage() {
 
   const loadSubforumUserContext = useCallback(async () => {
     try {
-      const userData = await authenticateUserForSubforum(fullSubforumPath);
-      if (userData) {
-        login(userData);
-      }
+      // In atproto system, capabilities are handled globally via RBAC
+      // No need for subforum-specific authentication
+      console.log('Subforum context loading not needed in atproto system');
     } catch (error) {
       console.error('Error loading subforum user context:', error);
     }
@@ -59,8 +57,28 @@ export default function SubforumPage() {
     
     try {
       const subforumsApi = getApi(SubforumsApi);
-      const response = await subforumsApi.getSubforumDetails(communityType, subforumName);
-      setForum(response);
+      const subforum = await subforumsApi.getSubforumBySlug(subforumName);
+      
+      // Transform the API response to match the expected format
+      setForum({
+        subforum: {
+          id: subforum.id,
+          name: subforum.name,
+          slug: subforum.slug,
+          description: subforum.description,
+          createdBy: subforum.createdBy,
+          createdByHandle: subforum.createdByHandle,
+          createdAt: subforum.createdAt,
+          updatedAt: subforum.updatedAt,
+          subscriberCount: subforum.subscriberCount,
+          postCount: subforum.postCount,
+          commentCount: subforum.commentCount,
+          isPrivate: false, // Default to public
+          isNsfw: false, // Default to SFW
+        },
+        isSubscribed: false, // Default to not subscribed
+        moderators: [], // Default to no moderators
+      });
     } catch (err: unknown) {
       console.error('Error loading forum:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to load forum';
@@ -145,6 +163,24 @@ export default function SubforumPage() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <h1 className="text-3xl font-bold">{communityType}/{forum.subforum.name}</h1>
+                {forum.subforum.prefixType === 'h' && (
+                  <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                    <Hash className="w-3 h-3" />
+                    <span>HashPost</span>
+                  </div>
+                )}
+                {forum.subforum.prefixType === 'r' && (
+                  <div className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                    <MapPin className="w-3 h-3" />
+                    <span>Regional</span>
+                  </div>
+                )}
+                {forum.subforum.prefixType === 't' && (
+                  <div className="flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full">
+                    <Tag className="w-3 h-3" />
+                    <span>Topical</span>
+                  </div>
+                )}
                 {forum.subforum.isPrivate && (
                   <span className="text-xs bg-secondary text-secondary-foreground px-2 py-1 rounded">
                     Private
@@ -157,8 +193,7 @@ export default function SubforumPage() {
                 )}
               </div>
               <SubscribeButton
-                communityType={communityType}
-                subforumName={subforumName}
+                subforumSlug={subforumName}
                 isSubscribed={forum.isSubscribed}
                 subscriberCount={forum.subforum.subscriberCount || 0}
                 onSubscriptionChange={handleSubscriptionChange}
@@ -214,8 +249,7 @@ export default function SubforumPage() {
             {/* Subscription Button in Sidebar */}
             <div className="mb-6">
               <SubscribeButton
-                communityType={communityType}
-                subforumName={subforumName}
+                subforumSlug={subforumName}
                 isSubscribed={forum.isSubscribed}
                 subscriberCount={forum.subforum.subscriberCount || 0}
                 onSubscriptionChange={handleSubscriptionChange}
@@ -226,7 +260,7 @@ export default function SubforumPage() {
               <div className="mb-6">
                 <h3 className="text-md font-semibold mb-2 text-foreground">Moderators</h3>
                 <ul className="space-y-1">
-                  {forum.moderators.map((mod: SubforumModerator) => (
+                  {forum.moderators.map((mod: any) => (
                     <li key={mod.pseudonymId} className="text-sm text-foreground">
                       {mod.displayName || mod.pseudonymId}
                     </li>

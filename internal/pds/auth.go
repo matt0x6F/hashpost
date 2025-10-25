@@ -27,12 +27,13 @@ const (
 
 // AuthService handles DID-based authentication using Indigo libraries
 type AuthService struct {
-	directory  identity.Directory
-	logger     *slog.Logger
-	signingKey crypto.PrivateKey
-	serverDID  string
-	db         *generated.Queries
-	jwtService jwtservice.JWTService
+	directory   identity.Directory
+	logger      *slog.Logger
+	signingKey  crypto.PrivateKey
+	serverDID   string
+	db          *generated.Queries
+	jwtService  jwtservice.JWTService
+	externalPDS *ExternalPDSClient
 }
 
 // NewAuthService creates a new authentication service
@@ -43,7 +44,6 @@ func NewAuthService(db *generated.Queries, logger *slog.Logger, jwtService jwtse
 	environment := os.Getenv("ENVIRONMENT")
 	if environment == EnvironmentProduction {
 		// Production: Use real atproto identity resolution
-		// This connects to plc.directory and DNS for real DID/handle resolution
 		directory = identity.DefaultDirectory()
 		logger.Info("Using production identity directory (plc.directory + DNS)")
 	} else {
@@ -53,11 +53,11 @@ func NewAuthService(db *generated.Queries, logger *slog.Logger, jwtService jwtse
 		// Add test identities for development
 		testUser := identity.Identity{
 			DID:    syntax.DID("did:plc:hashpost-binding-test"),
-			Handle: syntax.Handle("testuser.hashpost.local"),
+			Handle: syntax.Handle("testuser.hashpost-pds"),
 		}
 		adminUser := identity.Identity{
 			DID:    syntax.DID("did:plc:hashpost-admin-test"),
-			Handle: syntax.Handle("admin.hashpost.local"),
+			Handle: syntax.Handle("admin.hashpost-pds"),
 		}
 
 		mockDir.Insert(testUser)
@@ -81,13 +81,17 @@ func NewAuthService(db *generated.Queries, logger *slog.Logger, jwtService jwtse
 		serverDID = "did:plc:hashpost-server"
 	}
 
+	// Create external PDS client
+	externalPDS := NewExternalPDSClient(directory, logger)
+
 	return &AuthService{
-		directory:  directory,
-		logger:     logger,
-		signingKey: signingKey,
-		serverDID:  serverDID,
-		db:         db,
-		jwtService: jwtService,
+		directory:   directory,
+		logger:      logger,
+		signingKey:  signingKey,
+		serverDID:   serverDID,
+		db:          db,
+		jwtService:  jwtService,
+		externalPDS: externalPDS,
 	}
 }
 
@@ -119,28 +123,55 @@ type Session struct {
 func (as *AuthService) AuthenticateSession(ctx context.Context, identifier, password string) (*Session, error) {
 	as.logger.Debug("Authenticating session", "identifier", identifier)
 
-	// Parse the identifier (could be handle or DID)
-	ident, err := syntax.ParseAtIdentifier(identifier)
-	if err != nil {
-		return nil, fmt.Errorf("invalid identifier: %w", err)
-	}
-
 	var did string
 	var handle string
+	var err error
 
-	// Resolve the identifier to get DID and handle
-	if ident.IsHandle() {
-		// Resolve handle to DID
-		handle = ident.String()
-
-		// First check if this is a local user in our database
+	// Check if identifier is an email address first
+	if strings.Contains(identifier, "@") && len(identifier) > 3 && strings.Contains(identifier, ".") {
+		// Try to find user by email
 		if as.db != nil {
-			user, err := as.db.GetUserByHandle(ctx, handle)
+			user, err := as.db.GetUserByEmail(ctx, &identifier)
 			if err == nil && user != nil {
-				as.logger.Info("Handle resolved from database", "handle", handle, "did", user.Did)
+				as.logger.Info("Email resolved from database", "email", identifier, "did", user.Did, "handle", user.Handle)
 				did = user.Did
+				handle = user.Handle
 			} else {
-				// If not found in database, try the identity directory
+				as.logger.Error("User not found by email", "error", err, "email", identifier)
+				return nil, fmt.Errorf("user not found")
+			}
+		} else {
+			return nil, fmt.Errorf("database not available for email lookup")
+		}
+	} else {
+		// Parse the identifier (could be handle or DID)
+		ident, err := syntax.ParseAtIdentifier(identifier)
+		if err != nil {
+			return nil, fmt.Errorf("invalid identifier: %w", err)
+		}
+
+		// Resolve the identifier to get DID and handle
+		if ident.IsHandle() {
+			// Resolve handle to DID
+			handle = ident.String()
+
+			// First check if this is a local user in our database
+			if as.db != nil {
+				user, err := as.db.GetUserByHandle(ctx, handle)
+				if err == nil && user != nil {
+					as.logger.Info("Handle resolved from database", "handle", handle, "did", user.Did)
+					did = user.Did
+				} else {
+					// If not found in database, try the identity directory
+					identity, err := as.directory.LookupHandle(ctx, syntax.Handle(handle))
+					if err != nil {
+						as.logger.Error("Failed to resolve handle", "error", err, "handle", handle)
+						return nil, fmt.Errorf("handle resolution failed: %w", err)
+					}
+					did = identity.DID.String()
+				}
+			} else {
+				// No database available, use identity directory
 				identity, err := as.directory.LookupHandle(ctx, syntax.Handle(handle))
 				if err != nil {
 					as.logger.Error("Failed to resolve handle", "error", err, "handle", handle)
@@ -148,27 +179,27 @@ func (as *AuthService) AuthenticateSession(ctx context.Context, identifier, pass
 				}
 				did = identity.DID.String()
 			}
-		} else {
-			// No database available, use identity directory
-			identity, err := as.directory.LookupHandle(ctx, syntax.Handle(handle))
-			if err != nil {
-				as.logger.Error("Failed to resolve handle", "error", err, "handle", handle)
-				return nil, fmt.Errorf("handle resolution failed: %w", err)
-			}
-			did = identity.DID.String()
-		}
-	} else if ident.IsDID() {
-		// Resolve DID to get handle
-		did = ident.String()
+		} else if ident.IsDID() {
+			// Resolve DID to get handle
+			did = ident.String()
 
-		// First check if this is a local user in our database
-		if as.db != nil {
-			user, err := as.db.GetUserByDID(ctx, did)
-			if err == nil && user != nil {
-				as.logger.Info("DID resolved from database", "did", did, "handle", user.Handle)
-				handle = user.Handle
+			// First check if this is a local user in our database
+			if as.db != nil {
+				user, err := as.db.GetUserByDID(ctx, did)
+				if err == nil && user != nil {
+					as.logger.Info("DID resolved from database", "did", did, "handle", user.Handle)
+					handle = user.Handle
+				} else {
+					// If not found in database, try the identity directory
+					identity, err := as.directory.LookupDID(ctx, syntax.DID(did))
+					if err != nil {
+						as.logger.Error("Failed to resolve DID", "error", err, "did", did)
+						return nil, fmt.Errorf("DID resolution failed: %w", err)
+					}
+					handle = identity.Handle.String()
+				}
 			} else {
-				// If not found in database, try the identity directory
+				// No database available, use identity directory
 				identity, err := as.directory.LookupDID(ctx, syntax.DID(did))
 				if err != nil {
 					as.logger.Error("Failed to resolve DID", "error", err, "did", did)
@@ -177,22 +208,34 @@ func (as *AuthService) AuthenticateSession(ctx context.Context, identifier, pass
 				handle = identity.Handle.String()
 			}
 		} else {
-			// No database available, use identity directory
-			identity, err := as.directory.LookupDID(ctx, syntax.DID(did))
-			if err != nil {
-				as.logger.Error("Failed to resolve DID", "error", err, "did", did)
-				return nil, fmt.Errorf("DID resolution failed: %w", err)
-			}
-			handle = identity.Handle.String()
+			return nil, fmt.Errorf("invalid identifier type")
 		}
-	} else {
-		return nil, fmt.Errorf("invalid identifier type")
 	}
 
-	// Validate password against stored hash
-	if err := as.validatePassword(ctx, did, password); err != nil {
-		as.logger.Error("Password validation failed", "error", err, "did", did)
-		return nil, fmt.Errorf("invalid credentials: %w", err)
+	// Check if user exists locally first
+	var isLocalUser bool
+	if as.db != nil {
+		_, err := as.db.GetUserByDID(ctx, did)
+		isLocalUser = (err == nil)
+	}
+
+	if isLocalUser {
+		// Local user - validate password against stored hash
+		if err := as.validatePassword(ctx, did, password); err != nil {
+			as.logger.Error("Password validation failed", "error", err, "did", did)
+			return nil, fmt.Errorf("invalid credentials: %w", err)
+		}
+	} else {
+		// External user - authenticate against their home PDS
+		as.logger.Info("Attempting external PDS authentication", "did", did)
+		externalSession, err := as.authenticateWithExternalPDS(ctx, did, identifier, password)
+		if err != nil {
+			as.logger.Error("External PDS authentication failed", "error", err, "did", did)
+			return nil, fmt.Errorf("external authentication failed: %w", err)
+		}
+		// Use the external session data
+		did = externalSession.DID
+		handle = externalSession.Handle
 	}
 
 	// Create session
@@ -403,6 +446,28 @@ func (as *AuthService) ResolveDID(ctx context.Context, did string) (*identity.Id
 	return identity, nil
 }
 
+// GetPublicKeyPEM returns the public key in JWK format (JSON)
+func (as *AuthService) GetPublicKeyPEM() (string, error) {
+	publicKey, err := as.signingKey.PublicKey()
+	if err != nil {
+		return "", fmt.Errorf("failed to get public key: %w", err)
+	}
+
+	// Export public key as JWK
+	jwk, err := publicKey.JWK()
+	if err != nil {
+		return "", fmt.Errorf("failed to export public key to JWK: %w", err)
+	}
+
+	// Marshal JWK to JSON
+	jwkBytes, err := json.Marshal(jwk)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal JWK: %w", err)
+	}
+
+	return string(jwkBytes), nil
+}
+
 // VerifySignature verifies a cryptographic signature
 func (as *AuthService) VerifySignature(ctx context.Context, did string, message []byte, signature []byte) error {
 	as.logger.Debug("Verifying signature", "did", did)
@@ -440,12 +505,12 @@ func (as *AuthService) validatePassword(ctx context.Context, did, password strin
 		return fmt.Errorf("user not found: %w", err)
 	}
 
-	// Check if user has a password hash (for existing users without passwords)
+	// Check if user has a password hash
 	if user.PasswordHash == nil || *user.PasswordHash == "" {
-		// For development, allow any password for users without password hash
-		// In production, this should require password reset
-		as.logger.Warn("User has no password hash, allowing authentication", "did", did)
-		return nil
+		// User has no password hash - this should not happen in production
+		// In production, this would require password reset or account recovery
+		as.logger.Error("User has no password hash", "did", did)
+		return fmt.Errorf("user account requires password reset")
 	}
 
 	// Compare the provided password with the stored hash
@@ -455,6 +520,20 @@ func (as *AuthService) validatePassword(ctx context.Context, did, password strin
 	}
 
 	return nil
+}
+
+// authenticateWithExternalPDS authenticates a user against their home PDS
+func (as *AuthService) authenticateWithExternalPDS(ctx context.Context, did, identifier, password string) (*Session, error) {
+	as.logger.Debug("Authenticating with external PDS", "did", did, "identifier", identifier)
+
+	// Use the external PDS client to authenticate
+	session, err := as.externalPDS.AuthenticateUser(ctx, did, identifier, password)
+	if err != nil {
+		return nil, fmt.Errorf("external PDS authentication failed: %w", err)
+	}
+
+	as.logger.Info("External PDS authentication successful", "did", session.DID, "handle", session.Handle)
+	return session, nil
 }
 
 // HashPassword hashes a password using bcrypt
@@ -475,6 +554,37 @@ func (as *AuthService) ValidatePasswordStrength(password string) error {
 
 	// Add more complexity requirements as needed
 	// For now, just check minimum length
+	return nil
+}
+
+// UpdateUserPassword updates a user's password after validating the current password
+func (as *AuthService) UpdateUserPassword(ctx context.Context, did, currentPassword, newPassword string) error {
+	// Validate current password
+	if err := as.validatePassword(ctx, did, currentPassword); err != nil {
+		return fmt.Errorf("current password validation failed: %w", err)
+	}
+
+	// Validate new password strength
+	if err := as.ValidatePasswordStrength(newPassword); err != nil {
+		return fmt.Errorf("new password strength validation failed: %w", err)
+	}
+
+	// Hash new password
+	hashedPassword, err := as.HashPassword(newPassword)
+	if err != nil {
+		return fmt.Errorf("failed to hash new password: %w", err)
+	}
+
+	// Update password in database
+	err = as.db.UpdateUserPasswordHashByDID(ctx, &generated.UpdateUserPasswordHashByDIDParams{
+		PasswordHash: &hashedPassword,
+		Did:          did,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update password in database: %w", err)
+	}
+
+	as.logger.Info("Password updated successfully", "did", did)
 	return nil
 }
 
@@ -660,4 +770,117 @@ func (s *Server) handleDeleteSession(w http.ResponseWriter, r *http.Request) {
 
 	s.logger.Info("Session deleted", "session_id", session.ID)
 	w.WriteHeader(http.StatusOK)
+}
+
+// handleUpdatePassword handles password update requests
+func (s *Server) handleUpdatePassword(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract token from Authorization header
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		http.Error(w, "Authorization header required", http.StatusUnauthorized)
+		return
+	}
+
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		http.Error(w, "Invalid authorization format", http.StatusUnauthorized)
+		return
+	}
+
+	token := strings.TrimPrefix(authHeader, "Bearer ")
+	session, err := s.authService.ValidateToken(token)
+	if err != nil {
+		s.logger.Error("Token validation failed", "error", err)
+		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		return
+	}
+
+	// Parse request body
+	var req struct {
+		CurrentPassword string `json:"currentPassword"`
+		NewPassword     string `json:"newPassword"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if req.CurrentPassword == "" || req.NewPassword == "" {
+		http.Error(w, "currentPassword and newPassword required", http.StatusBadRequest)
+		return
+	}
+
+	s.logger.Debug("Updating password", "did", session.DID)
+
+	// Validate current password
+	if err := s.authService.validatePassword(r.Context(), session.DID, req.CurrentPassword); err != nil {
+		s.logger.Error("Current password validation failed", "error", err, "did", session.DID)
+		http.Error(w, "Invalid current password", http.StatusUnauthorized)
+		return
+	}
+
+	// Validate new password strength
+	if err := s.authService.ValidatePasswordStrength(req.NewPassword); err != nil {
+		s.logger.Error("New password strength validation failed", "error", err, "did", session.DID)
+		http.Error(w, "Password does not meet strength requirements", http.StatusBadRequest)
+		return
+	}
+
+	// Hash new password
+	hashedPassword, err := s.authService.HashPassword(req.NewPassword)
+	if err != nil {
+		s.logger.Error("Failed to hash new password", "error", err, "did", session.DID)
+		http.Error(w, "Failed to process password", http.StatusInternalServerError)
+		return
+	}
+
+	// Update password in database
+	err = s.db.UpdateUserPasswordHashByDID(r.Context(), &generated.UpdateUserPasswordHashByDIDParams{
+		PasswordHash: &hashedPassword,
+		Did:          session.DID,
+	})
+	if err != nil {
+		s.logger.Error("Failed to update password", "error", err, "did", session.DID)
+		http.Error(w, "Failed to update password", http.StatusInternalServerError)
+		return
+	}
+
+	s.logger.Info("Password updated successfully", "did", session.DID)
+	w.WriteHeader(http.StatusOK)
+}
+
+// handleDescribeServer handles server description requests
+func (s *Server) handleDescribeServer(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get the actual public key
+	publicKeyPEM, err := s.authService.GetPublicKeyPEM()
+	if err != nil {
+		s.logger.Error("Failed to get public key", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// Return server description with public key
+	response := map[string]interface{}{
+		"availableUserDomains": []string{"hashpost.local"},
+		"inviteCodeRequired":   false,
+		"links": map[string]interface{}{
+			"privacyPolicy":  "https://hashpost.com/privacy",
+			"termsOfService": "https://hashpost.com/terms",
+		},
+		"publicKey": publicKeyPEM,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
 }

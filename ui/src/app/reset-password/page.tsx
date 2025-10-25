@@ -20,11 +20,8 @@ export default function ResetPasswordPage() {
     setIsLoading(true);
 
     try {
-      const authApi = getApi(AuthenticationApi);
-      await authApi.requestPasswordReset({ email });
-      
-      setIsSubmitted(true);
-      toast.success("Password reset email sent");
+      // Password reset not available in atproto system
+      toast.error("Password reset is not available in the atproto system");
     } catch (error) {
       console.error("Password reset request failed:", error);
       toast.error("Failed to send password reset email. Please try again.");

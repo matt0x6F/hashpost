@@ -8,7 +8,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useTheme } from "next-themes";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { authenticateUserForSubforum } from "@/lib/auth-utils";
+// Removed authenticateUserForSubforum - not needed in atproto system
 
 interface TopBarProps {
   onMenuClick?: () => void;
@@ -32,11 +32,9 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
     if (isAuthenticated && user && currentSubforumPath && !subforumContextLoaded) {
       const loadSubforumContext = async () => {
         try {
-          const subforumUserData = await authenticateUserForSubforum(currentSubforumPath);
-          if (subforumUserData) {
-            // Store subforum-specific capabilities for this component only
-            setSubforumUserCapabilities(subforumUserData.capabilities || []);
-          }
+          // In atproto system, capabilities are handled globally via RBAC
+          // No need for subforum-specific authentication
+          console.log('Subforum context loading not needed in atproto system');
         } catch (error) {
           console.error('Error loading subforum user context:', error);
         } finally {
@@ -80,7 +78,7 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
         subforumContextLoaded,
         hasSubforumModeration,
         subforumUserCapabilities,
-        userCapabilities: user.capabilities,
+        userCapabilities: [], // Capabilities not available in atproto system
         isModerator,
         moderationButtonShown: !isLoading && isAuthenticated && isModerator
       });

@@ -6,15 +6,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Activity } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area, BarChart, Bar } from 'recharts';
 import { getApi } from '@/lib/api-client';
-import { ModerationApi, EngagementDataPoint, GetEngagementAnalyticsTimeRangeEnum } from '@/generated/api/src';
 
 interface EngagementAnalyticsProps {
   subforumPath: string;
   timeRange?: '7d' | '14d' | '30d';
 }
 
+// Analytics not available in atproto system
 export function EngagementAnalytics({ subforumPath, timeRange = '30d' }: EngagementAnalyticsProps) {
-  const [data, setData] = useState<EngagementDataPoint[]>([]);
+  const [data, setData] = useState<any[]>([]);
   const [selectedTimeRange, setSelectedTimeRange] = useState<'7d' | '14d' | '30d'>(timeRange || '30d');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,10 +29,9 @@ export function EngagementAnalytics({ subforumPath, timeRange = '30d' }: Engagem
       setError(null);
       
       try {
-        const moderationApi = getApi(ModerationApi);
-        const timeRangeEnum = selectedTimeRange as GetEngagementAnalyticsTimeRangeEnum;
-        const response = await moderationApi.getEngagementAnalytics(subforumPath, undefined, undefined, timeRangeEnum);
-        setData(response.dataPoints || []);
+        // Analytics not available in atproto system
+        setData([]);
+        setError('Analytics are not available in the atproto system');
         lastFetchKey.current = fetchKey;
       } catch (err) {
         console.error('Failed to fetch engagement analytics:', err);

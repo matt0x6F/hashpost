@@ -6,15 +6,13 @@ import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
 import { Label } from "@/components/shadcn/label";
 import { getApi } from "@/lib/api-client";
-import { ContentApi } from "@/generated/api/src/apis/ContentApi";
-import { PostDetailsResponseBody } from "@/generated/api/src/models";
+// Removed PostDetailsResponseBody - not available in atproto system
 import { toast } from "sonner";
 import { Eye, EyeOff, ArrowLeft } from "lucide-react";
 import MarkdownHelp from "@/components/MarkdownHelp";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
 import { MarkdownTextarea } from "@/components/MarkdownTextarea";
 import { useAuth } from "@/lib/auth-context";
-import { authenticateUserForSubforum } from "@/lib/auth-utils";
 import Link from "next/link";
 
 export default function EditPostPage() {
@@ -31,7 +29,7 @@ export default function EditPostPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [postDetails, setPostDetails] = useState<PostDetailsResponseBody | null>(null);
+  const [postDetails, setPostDetails] = useState<any | null>(null);
 
   useEffect(() => {
     if (fullSubforumPath && slug) {
@@ -42,10 +40,9 @@ export default function EditPostPage() {
 
   const loadSubforumUserContext = async () => {
     try {
-      const userData = await authenticateUserForSubforum(fullSubforumPath);
-      if (userData) {
-        // Update user context if needed
-      }
+      // In atproto system, capabilities are handled globally via RBAC
+      // No need for subforum-specific authentication
+      console.log('Subforum context loading not needed in atproto system');
     } catch (error) {
       console.error('Error loading subforum user context:', error);
     }
@@ -56,19 +53,9 @@ export default function EditPostPage() {
     setError(null);
     
     try {
-      const contentApi = getApi(ContentApi);
-      const response = await contentApi.getPostBySlug(fullSubforumPath, slug, 'best');
-      setPostDetails(response);
-      
-      // Check if user is the author
-      if (user?.activePseudonymId !== response.author?.pseudonymId) {
-        toast.error("You can only edit your own posts");
-        router.push(`/${communityType}/${subforum}/posts/${slug}`);
-        return;
-      }
-      
-      setTitle(response.title);
-      setContent(response.content || "");
+      // Post editing not available in atproto system
+      setPostDetails(null);
+      toast.error("Post editing is not available in the atproto system");
     } catch (err: unknown) {
       console.error('Error loading post details:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to load post';
@@ -95,13 +82,8 @@ export default function EditPostPage() {
         return;
       }
       
-      const contentApi = getApi(ContentApi);
-      await contentApi.editPost(postDetails.postId, {
-        title: title.trim(),
-        content: content.trim(),
-      });
-      toast.success("Post updated successfully!");
-      router.push(`/${communityType}/${subforum}/posts/${slug}`);
+      // Post editing not available in atproto system
+      toast.error("Post editing is not available in the atproto system");
     } catch {
       toast.error("Failed to update post");
     } finally {

@@ -7,9 +7,6 @@ package generated
 
 import (
 	"context"
-
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const CreateAppViewSubforum = `-- name: CreateAppViewSubforum :one
@@ -18,9 +15,10 @@ INSERT INTO appview_subforums (
     slug,
     description,
     created_by_did,
-    created_by_handle
+    created_by_handle,
+    prefix_type
 ) VALUES (
-    $1, $2, $3, $4, $5
+    $1, $2, $3, $4, $5, $6
 ) RETURNING 
     id,
     name,
@@ -31,7 +29,9 @@ INSERT INTO appview_subforums (
     created_at,
     updated_at,
     subscriber_count,
-    post_count
+    post_count,
+    comment_count,
+    prefix_type
 `
 
 type CreateAppViewSubforumParams struct {
@@ -40,30 +40,19 @@ type CreateAppViewSubforumParams struct {
 	Description     *string `json:"description"`
 	CreatedByDid    string  `json:"created_by_did"`
 	CreatedByHandle string  `json:"created_by_handle"`
+	PrefixType      string  `json:"prefix_type"`
 }
 
-type CreateAppViewSubforumRow struct {
-	ID              uuid.UUID          `json:"id"`
-	Name            string             `json:"name"`
-	Slug            string             `json:"slug"`
-	Description     *string            `json:"description"`
-	CreatedByDid    string             `json:"created_by_did"`
-	CreatedByHandle string             `json:"created_by_handle"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
-	SubscriberCount *int32             `json:"subscriber_count"`
-	PostCount       *int32             `json:"post_count"`
-}
-
-func (q *Queries) CreateAppViewSubforum(ctx context.Context, arg *CreateAppViewSubforumParams) (*CreateAppViewSubforumRow, error) {
+func (q *Queries) CreateAppViewSubforum(ctx context.Context, arg *CreateAppViewSubforumParams) (*AppviewSubforum, error) {
 	row := q.db.QueryRow(ctx, CreateAppViewSubforum,
 		arg.Name,
 		arg.Slug,
 		arg.Description,
 		arg.CreatedByDid,
 		arg.CreatedByHandle,
+		arg.PrefixType,
 	)
-	var i CreateAppViewSubforumRow
+	var i AppviewSubforum
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -75,6 +64,8 @@ func (q *Queries) CreateAppViewSubforum(ctx context.Context, arg *CreateAppViewS
 		&i.UpdatedAt,
 		&i.SubscriberCount,
 		&i.PostCount,
+		&i.CommentCount,
+		&i.PrefixType,
 	)
 	return &i, err
 }

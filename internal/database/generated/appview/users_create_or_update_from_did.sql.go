@@ -26,7 +26,7 @@ DO UPDATE SET
     display_name = EXCLUDED.display_name,
     avatar_url = EXCLUDED.avatar_url,
     updated_at = NOW()
-RETURNING id, did, handle, display_name, bio, avatar_url, created_at, updated_at, post_count, comment_count, reputation
+RETURNING id, did, handle, display_name, bio, avatar_url, created_at, updated_at, post_count, comment_count, reputation, pds_source, last_seen_at
 `
 
 type CreateOrUpdateUserFromDIDParams struct {
@@ -56,6 +56,8 @@ func (q *Queries) CreateOrUpdateUserFromDID(ctx context.Context, arg *CreateOrUp
 		&i.PostCount,
 		&i.CommentCount,
 		&i.Reputation,
+		&i.PdsSource,
+		&i.LastSeenAt,
 	)
 	return &i, err
 }

@@ -6,7 +6,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/s
 import { Label } from '@/components/shadcn/label';
 import { Input } from '@/components/shadcn/input';
 import { getApi } from '@/lib/api-client';
-import { ContentApi } from '@/generated/api/src/apis/ContentApi';
 import { toast } from 'sonner';
 import type { Comment } from '@/generated/api/src/models';
 import { Eye, EyeOff } from 'lucide-react';
@@ -43,18 +42,8 @@ export default function EditCommentDialog({
     setIsSubmitting(true);
     
     try {
-      const contentApi = getApi(ContentApi);
-      
-      const payload = {
-        content: content.trim(),
-        ...(editReason.trim() && { editReason: editReason.trim() })
-      };
-
-      await contentApi.editComment(comment.commentId, payload);
-      
-      toast.success('Comment updated successfully');
-      onCommentEdited();
-      onClose();
+      // Comment editing not available in atproto system
+      toast.error('Comment editing is not available in the atproto system');
     } catch (error: unknown) {
       console.error('Error editing comment:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to edit comment';

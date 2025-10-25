@@ -17,7 +17,6 @@ import { getApi, extractApiErrorMessage } from "@/lib/api-client";
 import { AuthenticationApi } from "@/generated/api/src/apis/AuthenticationApi";
 import { useAuth } from "@/lib/auth-context";
 import { usePathname } from "next/navigation";
-import { authenticateUserForSubforum } from "@/lib/auth-utils";
 import Link from "next/link";
 
 interface LoginDialogProps {
@@ -29,7 +28,7 @@ interface LoginDialogProps {
 type DialogMode = "login" | "signup" | "signup-success";
 
 export function LoginDialog({ children, onLoginSuccess, onSignupSuccess }: LoginDialogProps) {
-  const { login, updateUserWithSubforumData } = useAuth();
+  const { login, register } = useAuth();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<DialogMode>("login");
   const [email, setEmail] = useState("");
@@ -52,36 +51,16 @@ export function LoginDialog({ children, onLoginSuccess, onSignupSuccess }: Login
 
     try {
       if (mode === "login") {
-        const authApi = getApi(AuthenticationApi);
-        const response = await authApi.loginUser({ email, password });
+        // Use auth context login function which handles both API call and token storage
+        await login(email, password);
         
-        // Store user data in global state
-        login(response);
-        
-        // If we're on a subforum page, refresh the subforum-specific user context
-        // This ensures the sidebar gets updated subscriptions and header gets updated moderator status
-        if (isInSubforumContext && subforumName) {
-          try {
-            const subforumUserData = await authenticateUserForSubforum(subforumName);
-            if (subforumUserData) {
-              // Update the user context with subforum-specific capabilities
-              updateUserWithSubforumData(subforumUserData);
-            }
-          } catch (error) {
-            console.error('Error refreshing subforum user context after login:', error);
-            // Don't fail the login if subforum context refresh fails
-          }
-        }
+        // Subforum context not needed in atproto system
         
         setOpen(false);
         onLoginSuccess?.();
       } else if (mode === "signup") {
-        const authApi = getApi(AuthenticationApi);
-        await authApi.registerUser({
-          email,
-          password,
-          displayName,
-        });
+        // Use auth context register function which handles both API call and token storage
+        await register(email, password, displayName);
         
         // Switch to success mode instead of closing dialog
         setMode("signup-success");
@@ -97,8 +76,12 @@ export function LoginDialog({ children, onLoginSuccess, onSignupSuccess }: Login
         setError("Your account has been deactivated. Please contact support for assistance.");
       } else if (errorMessage.includes("account suspended")) {
         setError("Your account has been suspended. Please contact support for more information.");
-      } else if (errorMessage.includes("invalid credentials")) {
+      } else if (errorMessage.includes("invalid credentials") || errorMessage.includes("Authentication failed")) {
         setError("Invalid email or password. Please check your credentials and try again.");
+      } else if (errorMessage.includes("Handle already taken")) {
+        setError("This display name is already taken. Please choose a different one.");
+      } else if (errorMessage.includes("Invalid registration data")) {
+        setError("Please check your registration information and try again.");
       } else {
         setError(errorMessage);
       }

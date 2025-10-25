@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/shadcn/card';
 import { Shield } from 'lucide-react';
 import { getApi } from '@/lib/api-client';
-import { ModerationApi } from '@/generated/api/src/apis/ModerationApi';
 import Link from 'next/link';
 
 interface ReportCountsProps {
@@ -35,37 +34,14 @@ export function ReportCounts({ subforumPath, initialStatus = 'pending' }: Report
       setError(null);
       
       try {
-        const moderationApi = getApi(ModerationApi);
-        
-        // Get all reports in one call with a high limit to get all counts
-        const allReports = await moderationApi.getSubforumReports(subforumPath, '', '', '', 1, 1000);
-        
-        // Count reports by status on the frontend
-        const counts = {
+        // Report counts not available in atproto system
+        setCounts({
           pending: 0,
           investigating: 0,
           resolved: 0,
           dismissed: 0
-        };
-        
-        allReports.reports?.forEach(report => {
-          switch (report.status) {
-            case 'pending':
-              counts.pending++;
-              break;
-            case 'investigating':
-              counts.investigating++;
-              break;
-            case 'resolved':
-              counts.resolved++;
-              break;
-            case 'dismissed':
-              counts.dismissed++;
-              break;
-          }
         });
-
-        setCounts(counts);
+        setError('Report counts are not available in the atproto system');
       } catch (err) {
         console.error('Failed to fetch report counts:', err);
         setError('Failed to load report counts. Please try again.');

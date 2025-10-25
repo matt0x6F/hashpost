@@ -12,9 +12,9 @@ import (
 )
 
 const CreateSubforum = `-- name: CreateSubforum :one
-INSERT INTO subforums (name, slug, description, created_by)
-VALUES ($1, $2, $3, $4)
-RETURNING id, name, slug, description, created_by, created_at, updated_at, atproto_uri
+INSERT INTO subforums (name, slug, description, created_by, prefix_type)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, name, slug, description, created_by, created_at, updated_at, atproto_uri, prefix_type
 `
 
 type CreateSubforumParams struct {
@@ -22,6 +22,7 @@ type CreateSubforumParams struct {
 	Slug        string      `json:"slug"`
 	Description *string     `json:"description"`
 	CreatedBy   pgtype.UUID `json:"created_by"`
+	PrefixType  string      `json:"prefix_type"`
 }
 
 func (q *Queries) CreateSubforum(ctx context.Context, arg *CreateSubforumParams) (*Subforum, error) {
@@ -30,6 +31,7 @@ func (q *Queries) CreateSubforum(ctx context.Context, arg *CreateSubforumParams)
 		arg.Slug,
 		arg.Description,
 		arg.CreatedBy,
+		arg.PrefixType,
 	)
 	var i Subforum
 	err := row.Scan(
@@ -41,6 +43,7 @@ func (q *Queries) CreateSubforum(ctx context.Context, arg *CreateSubforumParams)
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.AtprotoUri,
+		&i.PrefixType,
 	)
 	return &i, err
 }

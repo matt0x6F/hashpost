@@ -30,6 +30,7 @@ type Server struct {
 	rbacHandlers         *RBACHandlers
 	voteHandlers         *VoteHandlers
 	subscriptionHandlers *SubscriptionHandlers
+	pdsHandlers          *PDSHandlers
 	logger               *slog.Logger
 }
 
@@ -62,7 +63,7 @@ func NewServer(cfg *config.Config) (*Server, error) {
 	queries := generated.New(dbPool)
 
 	// Create handlers
-	handlers := NewHandlers(queries, logger)
+	handlers := NewHandlers(queries, logger, rbacService)
 
 	// Create RBAC handlers
 	rbacHandlers := NewRBACHandlers(rbacService, logger)
@@ -72,6 +73,9 @@ func NewServer(cfg *config.Config) (*Server, error) {
 
 	// Create subscription handlers
 	subscriptionHandlers := NewSubscriptionHandlers(queries, logger)
+
+	// Create PDS handlers
+	pdsHandlers := NewPDSHandlers(queries, logger)
 
 	// Get NATS URL from environment
 	natsURL := os.Getenv("NATS_URL")
@@ -102,6 +106,7 @@ func NewServer(cfg *config.Config) (*Server, error) {
 	server.rbacHandlers = rbacHandlers
 	server.voteHandlers = voteHandlers
 	server.subscriptionHandlers = subscriptionHandlers
+	server.pdsHandlers = pdsHandlers
 
 	return server, nil
 }
@@ -113,8 +118,28 @@ func (s *Server) Start() error {
 	// Register API endpoints
 	s.registerAPIEndpoints(mux)
 
+	// Add CORS middleware
+	corsHandler := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Set CORS headers
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Set("Access-Control-Max-Age", "86400")
+
+			// Handle preflight requests
+			if r.Method == "OPTIONS" {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+
 	// Add logging middleware
-	handler := middleware.LoggingMiddleware(s.logger)(mux)
+	handler := middleware.LoggingMiddleware(s.logger)(corsHandler(mux))
 
 	s.httpServer = &http.Server{
 		Addr:    s.config.GetAppViewServerAddress(),
@@ -160,10 +185,80 @@ func (s *Server) registerAPIEndpoints(mux *http.ServeMux) {
 	// Health endpoint (no authentication required)
 	mux.HandleFunc("/health", s.handlers.Health)
 
+	// Password update endpoint (requires authentication)
+	mux.HandleFunc("/api/v1/auth/updatePassword", s.handlers.UpdatePassword)
+
 	// Use the generated server wrapper for all OpenAPI endpoints
 	// This ensures spec-handler parity
-	handler := Handler(s)
+	handler := HandlerWithOptions(s, StdHTTPServerOptions{
+		Middlewares: []MiddlewareFunc{
+			// Apply authentication middleware to all routes
+			func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					// Skip authentication for certain public endpoints
+					// For /api/v1/subforums, only GET requests are public (listing), POST requires auth (creating)
+					if s.isPublicEndpoint(r.URL.Path, r.Method) {
+						next.ServeHTTP(w, r)
+						return
+					}
+
+					// Apply authentication middleware
+					s.authMiddleware.RequireAuth(func(w http.ResponseWriter, r *http.Request) {
+						next.ServeHTTP(w, r)
+					})(w, r)
+				})
+			},
+		},
+	})
 	mux.Handle("/api/v1/", handler)
+}
+
+// isPublicEndpoint checks if an endpoint should skip authentication
+func (s *Server) isPublicEndpoint(path string, method string) bool {
+	// Always public endpoints (any method)
+	alwaysPublicEndpoints := []string{
+		"/api/v1/auth/login",
+		"/api/v1/auth/register",
+	}
+
+	for _, endpoint := range alwaysPublicEndpoints {
+		if path == endpoint {
+			return true
+		}
+	}
+
+	// Method-specific public endpoints
+	if path == "/api/v1/subforums" && method == "GET" {
+		return true // GET /api/v1/subforums is public (list subforums)
+	}
+
+	// Check for subforum detail endpoint (GET /api/v1/subforums/{slug})
+	if method == "GET" && len(path) > 18 && path[:18] == "/api/v1/subforums/" {
+		return true // GET /api/v1/subforums/{slug} is public (view subforum)
+	}
+
+	// Check for posts endpoint (GET /api/v1/posts)
+	if path == "/api/v1/posts" && method == "GET" {
+		return true // GET /api/v1/posts is public (list posts)
+	}
+
+	// Check for individual post endpoints (GET /api/v1/posts/{id})
+	// But exclude user-vote endpoints which require authentication
+	if method == "GET" && len(path) > 15 && strings.HasPrefix(path, "/api/v1/posts/") && !strings.Contains(path, "/user-vote") {
+		return true // GET /api/v1/posts/{id} is public (view post)
+	}
+
+	// Check for comments endpoint (GET /api/v1/comments)
+	if path == "/api/v1/comments" && method == "GET" {
+		return true // GET /api/v1/comments is public (list comments)
+	}
+
+	// Check for individual comment endpoints (GET /api/v1/comments/{id})
+	if method == "GET" && len(path) > 18 && strings.HasPrefix(path, "/api/v1/comments/") {
+		return true // GET /api/v1/comments/{id} is public (view comment)
+	}
+
+	return false
 }
 
 // Implement the generated ServerInterface
@@ -213,7 +308,17 @@ func (s *Server) GetUserRoles(w http.ResponseWriter, r *http.Request, params Get
 
 func (s *Server) ListAllUsers(w http.ResponseWriter, r *http.Request, params ListAllUsersParams) {
 	// Convert params to query parameters for existing handler
-	query := fmt.Sprintf("limit=%d&offset=%d", params.Limit, params.Offset)
+	limit := 20
+	offset := 0
+
+	if params.Limit != nil {
+		limit = *params.Limit
+	}
+	if params.Offset != nil {
+		offset = *params.Offset
+	}
+
+	query := fmt.Sprintf("limit=%d&offset=%d", limit, offset)
 	r.URL.RawQuery = query
 	s.rbacHandlers.ListUsers(w, r)
 }
@@ -226,13 +331,23 @@ func (s *Server) ListComments(w http.ResponseWriter, r *http.Request, params Lis
 }
 
 func (s *Server) ListPosts(w http.ResponseWriter, r *http.Request, params ListPostsParams) {
-	// Convert params to query parameters for existing handler
-	query := fmt.Sprintf("limit=%d&offset=%d", params.Limit, params.Offset)
-	if params.Subforum != nil {
-		query += fmt.Sprintf("&subforum=%s", *params.Subforum)
+	// Use the generated parameters directly instead of re-parsing URL
+	limit := 20
+	offset := 0
+	subforum := ""
+
+	if params.Limit != nil {
+		limit = *params.Limit
 	}
-	r.URL.RawQuery = query
-	s.handlers.PostsHandler(w, r)
+	if params.Offset != nil {
+		offset = *params.Offset
+	}
+	if params.Subforum != nil {
+		subforum = *params.Subforum
+	}
+
+	// Call the handler with the parsed parameters
+	s.handlers.ListPostsWithParams(w, r, limit, offset, subforum)
 }
 
 func (s *Server) CreatePost(w http.ResponseWriter, r *http.Request) {
@@ -257,16 +372,53 @@ func (s *Server) UpdatePost(w http.ResponseWriter, r *http.Request, id openapi_t
 	s.handlers.PostByIDHandler(w, r)
 }
 
+// Comment endpoints
+func (s *Server) CreateComment(w http.ResponseWriter, r *http.Request) {
+	s.handlers.CreateComment(w, r)
+}
+
+func (s *Server) GetCommentByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	// Set the ID in the URL path for the existing handler
+	r.URL.Path = fmt.Sprintf("/api/v1/comments/%s", id.String())
+	s.handlers.CommentByIDHandler(w, r)
+}
+
+func (s *Server) UpdateComment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	// Set the ID in the URL path for the existing handler
+	r.URL.Path = fmt.Sprintf("/api/v1/comments/%s", id.String())
+	s.handlers.CommentByIDHandler(w, r)
+}
+
+func (s *Server) DeleteComment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	// Set the ID in the URL path for the existing handler
+	r.URL.Path = fmt.Sprintf("/api/v1/comments/%s", id.String())
+	s.handlers.CommentByIDHandler(w, r)
+}
+
 func (s *Server) ListSubforums(w http.ResponseWriter, r *http.Request, params ListSubforumsParams) {
-	// Convert params to query parameters for existing handler
-	r.URL.RawQuery = fmt.Sprintf("limit=%d&offset=%d", params.Limit, params.Offset)
-	s.handlers.SubforumsHandler(w, r)
+	// Use the generated parameters directly instead of re-parsing URL
+	limit := 20
+	offset := 0
+
+	if params.Limit != nil {
+		limit = *params.Limit
+	}
+	if params.Offset != nil {
+		offset = *params.Offset
+	}
+
+	// Call the handler with the parsed parameters
+	s.handlers.ListSubforumsWithParams(w, r, limit, offset)
 }
 
 func (s *Server) GetSubforumBySlug(w http.ResponseWriter, r *http.Request, slug string) {
 	// Set the slug in the URL path for the existing handler
 	r.URL.Path = fmt.Sprintf("/api/v1/subforums/%s", slug)
 	s.handlers.SubforumBySlugHandler(w, r)
+}
+
+func (s *Server) CreateSubforum(w http.ResponseWriter, r *http.Request) {
+	s.handlers.CreateSubforum(w, r)
 }
 
 // Vote Endpoints
@@ -326,11 +478,19 @@ func (s *Server) GetUserSubscription(w http.ResponseWriter, r *http.Request, slu
 }
 
 func (s *Server) ListMySubscriptions(w http.ResponseWriter, r *http.Request, params ListMySubscriptionsParams) {
-	// Convert params to query parameters for the subscription handler
-	query := fmt.Sprintf("limit=%d&offset=%d", params.Limit, params.Offset)
-	r.URL.RawQuery = query
-	r.URL.Path = "/api/v1/me/subscriptions"
-	s.subscriptionHandlers.ListMySubscriptions(w, r)
+	// Use the generated parameters directly instead of re-parsing URL
+	limit := 20
+	offset := 0
+
+	if params.Limit != nil {
+		limit = *params.Limit
+	}
+	if params.Offset != nil {
+		offset = *params.Offset
+	}
+
+	// Call the handler with the parsed parameters
+	s.subscriptionHandlers.ListMySubscriptionsWithParams(w, r, limit, offset)
 }
 
 func (s *Server) ListSubforumSubscribers(w http.ResponseWriter, r *http.Request, slug string, params ListSubforumSubscribersParams) {
@@ -612,4 +772,42 @@ func (s *Server) handleMyPermissions(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+// GetPostMetrics handles GET /api/v1/posts/{id}/metrics
+func (s *Server) GetPostMetrics(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	// Set the ID in the URL path for the post handler
+	r.URL.Path = fmt.Sprintf("/api/v1/posts/%s/metrics", id.String())
+	s.handlers.GetPostMetrics(w, r)
+}
+
+// GetPostModerationState handles GET /api/v1/posts/{id}/moderation
+func (s *Server) GetPostModerationState(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	// Set the ID in the URL path for the post handler
+	r.URL.Path = fmt.Sprintf("/api/v1/posts/%s/moderation", id.String())
+	s.handlers.GetPostModerationState(w, r)
+}
+
+// GetPostUserVote handles GET /api/v1/posts/{id}/user-vote
+func (s *Server) GetPostUserVote(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	// Set the ID in the URL path for the vote handler
+	r.URL.Path = fmt.Sprintf("/api/v1/posts/%s/user-vote", id.String())
+	s.voteHandlers.GetUserVoteOnly(w, r)
+}
+
+// PDS Management Endpoints
+
+// ListPDSServers handles GET /api/v1/admin/pds/servers
+func (s *Server) ListPDSServers(w http.ResponseWriter, r *http.Request) {
+	s.pdsHandlers.ListPDSServers(w, r)
+}
+
+// GetPDSServerDetails handles GET /api/v1/admin/pds/{endpoint}
+func (s *Server) GetPDSServerDetails(w http.ResponseWriter, r *http.Request, endpoint string) {
+	s.pdsHandlers.GetPDSServerDetails(w, r, endpoint)
+}
+
+// ListPDSServerUsers handles GET /api/v1/admin/pds/{endpoint}/users
+func (s *Server) ListPDSServerUsers(w http.ResponseWriter, r *http.Request, endpoint string, params ListPDSServerUsersParams) {
+	s.pdsHandlers.ListPDSServerUsers(w, r, endpoint, params)
 }

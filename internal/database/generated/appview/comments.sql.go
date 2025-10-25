@@ -100,6 +100,15 @@ func (q *Queries) DeleteComment(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const DeleteCommentByURI = `-- name: DeleteCommentByURI :exec
+DELETE FROM appview_comments WHERE atproto_uri = $1
+`
+
+func (q *Queries) DeleteCommentByURI(ctx context.Context, atprotoUri string) error {
+	_, err := q.db.Exec(ctx, DeleteCommentByURI, atprotoUri)
+	return err
+}
+
 const GetCommentByID = `-- name: GetCommentByID :one
 SELECT id, atproto_uri, author_did, author_handle, post_id, parent_id, content, created_at, updated_at, upvotes, downvotes, score FROM appview_comments 
 WHERE id = $1
@@ -125,35 +134,64 @@ func (q *Queries) GetCommentByID(ctx context.Context, id uuid.UUID) (*AppviewCom
 	return &i, err
 }
 
+const GetCommentByURI = `-- name: GetCommentByURI :one
+SELECT id, atproto_uri, author_did, author_handle, post_id, parent_id, content, created_at, updated_at, upvotes, downvotes, score FROM appview_comments WHERE atproto_uri = $1
+`
+
+func (q *Queries) GetCommentByURI(ctx context.Context, atprotoUri string) (*AppviewComment, error) {
+	row := q.db.QueryRow(ctx, GetCommentByURI, atprotoUri)
+	var i AppviewComment
+	err := row.Scan(
+		&i.ID,
+		&i.AtprotoUri,
+		&i.AuthorDid,
+		&i.AuthorHandle,
+		&i.PostID,
+		&i.ParentID,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Upvotes,
+		&i.Downvotes,
+		&i.Score,
+	)
+	return &i, err
+}
+
 const GetCommentWithPost = `-- name: GetCommentWithPost :one
 SELECT 
     c.id, c.atproto_uri, c.author_did, c.author_handle, c.post_id, c.parent_id, c.content, c.created_at, c.updated_at, c.upvotes, c.downvotes, c.score,
     p.title as post_title,
     p.subforum_slug,
     p.author_did as post_author_did,
-    p.author_handle as post_author_handle
+    p.author_handle as post_author_handle,
+    u.display_name as author_display_name,
+    u.avatar_url as author_avatar_url
 FROM appview_comments c
 JOIN appview_posts p ON c.post_id = p.id
+LEFT JOIN appview_users u ON c.author_did = u.did
 WHERE c.id = $1
 `
 
 type GetCommentWithPostRow struct {
-	ID               uuid.UUID          `json:"id"`
-	AtprotoUri       string             `json:"atproto_uri"`
-	AuthorDid        string             `json:"author_did"`
-	AuthorHandle     string             `json:"author_handle"`
-	PostID           pgtype.UUID        `json:"post_id"`
-	ParentID         pgtype.UUID        `json:"parent_id"`
-	Content          string             `json:"content"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
-	Upvotes          *int32             `json:"upvotes"`
-	Downvotes        *int32             `json:"downvotes"`
-	Score            *int32             `json:"score"`
-	PostTitle        string             `json:"post_title"`
-	SubforumSlug     string             `json:"subforum_slug"`
-	PostAuthorDid    string             `json:"post_author_did"`
-	PostAuthorHandle string             `json:"post_author_handle"`
+	ID                uuid.UUID          `json:"id"`
+	AtprotoUri        string             `json:"atproto_uri"`
+	AuthorDid         string             `json:"author_did"`
+	AuthorHandle      string             `json:"author_handle"`
+	PostID            pgtype.UUID        `json:"post_id"`
+	ParentID          pgtype.UUID        `json:"parent_id"`
+	Content           string             `json:"content"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	Upvotes           *int32             `json:"upvotes"`
+	Downvotes         *int32             `json:"downvotes"`
+	Score             *int32             `json:"score"`
+	PostTitle         string             `json:"post_title"`
+	SubforumSlug      string             `json:"subforum_slug"`
+	PostAuthorDid     string             `json:"post_author_did"`
+	PostAuthorHandle  string             `json:"post_author_handle"`
+	AuthorDisplayName *string            `json:"author_display_name"`
+	AuthorAvatarUrl   *string            `json:"author_avatar_url"`
 }
 
 func (q *Queries) GetCommentWithPost(ctx context.Context, id uuid.UUID) (*GetCommentWithPostRow, error) {
@@ -176,6 +214,33 @@ func (q *Queries) GetCommentWithPost(ctx context.Context, id uuid.UUID) (*GetCom
 		&i.SubforumSlug,
 		&i.PostAuthorDid,
 		&i.PostAuthorHandle,
+		&i.AuthorDisplayName,
+		&i.AuthorAvatarUrl,
+	)
+	return &i, err
+}
+
+const GetPostByAtprotoURI = `-- name: GetPostByAtprotoURI :one
+SELECT id, atproto_uri, author_did, author_handle, subforum_slug, title, content, created_at, updated_at, upvotes, downvotes, comment_count, score FROM appview_posts WHERE atproto_uri = $1
+`
+
+func (q *Queries) GetPostByAtprotoURI(ctx context.Context, atprotoUri string) (*AppviewPost, error) {
+	row := q.db.QueryRow(ctx, GetPostByAtprotoURI, atprotoUri)
+	var i AppviewPost
+	err := row.Scan(
+		&i.ID,
+		&i.AtprotoUri,
+		&i.AuthorDid,
+		&i.AuthorHandle,
+		&i.SubforumSlug,
+		&i.Title,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Upvotes,
+		&i.Downvotes,
+		&i.CommentCount,
+		&i.Score,
 	)
 	return &i, err
 }
@@ -197,9 +262,12 @@ const ListCommentsByAuthor = `-- name: ListCommentsByAuthor :many
 SELECT 
     c.id, c.atproto_uri, c.author_did, c.author_handle, c.post_id, c.parent_id, c.content, c.created_at, c.updated_at, c.upvotes, c.downvotes, c.score,
     p.title as post_title,
-    p.subforum_slug
+    p.subforum_slug,
+    u.display_name as author_display_name,
+    u.avatar_url as author_avatar_url
 FROM appview_comments c
 JOIN appview_posts p ON c.post_id = p.id
+LEFT JOIN appview_users u ON c.author_did = u.did
 WHERE c.author_did = $1
 ORDER BY c.created_at DESC
 LIMIT $2 OFFSET $3
@@ -212,20 +280,22 @@ type ListCommentsByAuthorParams struct {
 }
 
 type ListCommentsByAuthorRow struct {
-	ID           uuid.UUID          `json:"id"`
-	AtprotoUri   string             `json:"atproto_uri"`
-	AuthorDid    string             `json:"author_did"`
-	AuthorHandle string             `json:"author_handle"`
-	PostID       pgtype.UUID        `json:"post_id"`
-	ParentID     pgtype.UUID        `json:"parent_id"`
-	Content      string             `json:"content"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
-	Upvotes      *int32             `json:"upvotes"`
-	Downvotes    *int32             `json:"downvotes"`
-	Score        *int32             `json:"score"`
-	PostTitle    string             `json:"post_title"`
-	SubforumSlug string             `json:"subforum_slug"`
+	ID                uuid.UUID          `json:"id"`
+	AtprotoUri        string             `json:"atproto_uri"`
+	AuthorDid         string             `json:"author_did"`
+	AuthorHandle      string             `json:"author_handle"`
+	PostID            pgtype.UUID        `json:"post_id"`
+	ParentID          pgtype.UUID        `json:"parent_id"`
+	Content           string             `json:"content"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	Upvotes           *int32             `json:"upvotes"`
+	Downvotes         *int32             `json:"downvotes"`
+	Score             *int32             `json:"score"`
+	PostTitle         string             `json:"post_title"`
+	SubforumSlug      string             `json:"subforum_slug"`
+	AuthorDisplayName *string            `json:"author_display_name"`
+	AuthorAvatarUrl   *string            `json:"author_avatar_url"`
 }
 
 func (q *Queries) ListCommentsByAuthor(ctx context.Context, arg *ListCommentsByAuthorParams) ([]*ListCommentsByAuthorRow, error) {
@@ -252,6 +322,8 @@ func (q *Queries) ListCommentsByAuthor(ctx context.Context, arg *ListCommentsByA
 			&i.Score,
 			&i.PostTitle,
 			&i.SubforumSlug,
+			&i.AuthorDisplayName,
+			&i.AuthorAvatarUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -267,9 +339,12 @@ const ListCommentsByPost = `-- name: ListCommentsByPost :many
 SELECT 
     c.id, c.atproto_uri, c.author_did, c.author_handle, c.post_id, c.parent_id, c.content, c.created_at, c.updated_at, c.upvotes, c.downvotes, c.score,
     p.title as post_title,
-    p.subforum_slug
+    p.subforum_slug,
+    u.display_name as author_display_name,
+    u.avatar_url as author_avatar_url
 FROM appview_comments c
 JOIN appview_posts p ON c.post_id = p.id
+LEFT JOIN appview_users u ON c.author_did = u.did
 WHERE c.post_id = $1
 ORDER BY c.created_at ASC
 LIMIT $2 OFFSET $3
@@ -282,20 +357,22 @@ type ListCommentsByPostParams struct {
 }
 
 type ListCommentsByPostRow struct {
-	ID           uuid.UUID          `json:"id"`
-	AtprotoUri   string             `json:"atproto_uri"`
-	AuthorDid    string             `json:"author_did"`
-	AuthorHandle string             `json:"author_handle"`
-	PostID       pgtype.UUID        `json:"post_id"`
-	ParentID     pgtype.UUID        `json:"parent_id"`
-	Content      string             `json:"content"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
-	Upvotes      *int32             `json:"upvotes"`
-	Downvotes    *int32             `json:"downvotes"`
-	Score        *int32             `json:"score"`
-	PostTitle    string             `json:"post_title"`
-	SubforumSlug string             `json:"subforum_slug"`
+	ID                uuid.UUID          `json:"id"`
+	AtprotoUri        string             `json:"atproto_uri"`
+	AuthorDid         string             `json:"author_did"`
+	AuthorHandle      string             `json:"author_handle"`
+	PostID            pgtype.UUID        `json:"post_id"`
+	ParentID          pgtype.UUID        `json:"parent_id"`
+	Content           string             `json:"content"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	Upvotes           *int32             `json:"upvotes"`
+	Downvotes         *int32             `json:"downvotes"`
+	Score             *int32             `json:"score"`
+	PostTitle         string             `json:"post_title"`
+	SubforumSlug      string             `json:"subforum_slug"`
+	AuthorDisplayName *string            `json:"author_display_name"`
+	AuthorAvatarUrl   *string            `json:"author_avatar_url"`
 }
 
 func (q *Queries) ListCommentsByPost(ctx context.Context, arg *ListCommentsByPostParams) ([]*ListCommentsByPostRow, error) {
@@ -322,6 +399,8 @@ func (q *Queries) ListCommentsByPost(ctx context.Context, arg *ListCommentsByPos
 			&i.Score,
 			&i.PostTitle,
 			&i.SubforumSlug,
+			&i.AuthorDisplayName,
+			&i.AuthorAvatarUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -336,19 +415,21 @@ func (q *Queries) ListCommentsByPost(ctx context.Context, arg *ListCommentsByPos
 const ListCommentsByPostWithReplies = `-- name: ListCommentsByPostWithReplies :many
 WITH RECURSIVE comment_tree AS (
     -- Base case: top-level comments
-    SELECT c.id, c.atproto_uri, c.author_did, c.author_handle, c.post_id, c.parent_id, c.content, c.created_at, c.updated_at, c.upvotes, c.downvotes, c.score, 0 as depth, p.title as post_title, p.subforum_slug
+    SELECT c.id, c.atproto_uri, c.author_did, c.author_handle, c.post_id, c.parent_id, c.content, c.created_at, c.updated_at, c.upvotes, c.downvotes, c.score, 0 as depth, p.title as post_title, p.subforum_slug, u.display_name as author_display_name, u.avatar_url as author_avatar_url
     FROM appview_comments c
     JOIN appview_posts p ON c.post_id = p.id
+    LEFT JOIN appview_users u ON c.author_did = u.did
     WHERE c.post_id = $1 AND c.parent_id IS NULL
     
     UNION ALL
     
     -- Recursive case: replies
-    SELECT c.id, c.atproto_uri, c.author_did, c.author_handle, c.post_id, c.parent_id, c.content, c.created_at, c.updated_at, c.upvotes, c.downvotes, c.score, ct.depth + 1, ct.post_title, ct.subforum_slug
+    SELECT c.id, c.atproto_uri, c.author_did, c.author_handle, c.post_id, c.parent_id, c.content, c.created_at, c.updated_at, c.upvotes, c.downvotes, c.score, ct.depth + 1, ct.post_title, ct.subforum_slug, u.display_name as author_display_name, u.avatar_url as author_avatar_url
     FROM appview_comments c
     JOIN comment_tree ct ON c.parent_id = ct.id
+    LEFT JOIN appview_users u ON c.author_did = u.did
 )
-SELECT id, atproto_uri, author_did, author_handle, post_id, parent_id, content, created_at, updated_at, upvotes, downvotes, score, depth, post_title, subforum_slug FROM comment_tree
+SELECT id, atproto_uri, author_did, author_handle, post_id, parent_id, content, created_at, updated_at, upvotes, downvotes, score, depth, post_title, subforum_slug, author_display_name, author_avatar_url FROM comment_tree
 ORDER BY depth, created_at ASC
 LIMIT $2 OFFSET $3
 `
@@ -360,21 +441,23 @@ type ListCommentsByPostWithRepliesParams struct {
 }
 
 type ListCommentsByPostWithRepliesRow struct {
-	ID           uuid.UUID          `json:"id"`
-	AtprotoUri   string             `json:"atproto_uri"`
-	AuthorDid    string             `json:"author_did"`
-	AuthorHandle string             `json:"author_handle"`
-	PostID       pgtype.UUID        `json:"post_id"`
-	ParentID     pgtype.UUID        `json:"parent_id"`
-	Content      string             `json:"content"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
-	Upvotes      *int32             `json:"upvotes"`
-	Downvotes    *int32             `json:"downvotes"`
-	Score        *int32             `json:"score"`
-	Depth        int32              `json:"depth"`
-	PostTitle    string             `json:"post_title"`
-	SubforumSlug string             `json:"subforum_slug"`
+	ID                uuid.UUID          `json:"id"`
+	AtprotoUri        string             `json:"atproto_uri"`
+	AuthorDid         string             `json:"author_did"`
+	AuthorHandle      string             `json:"author_handle"`
+	PostID            pgtype.UUID        `json:"post_id"`
+	ParentID          pgtype.UUID        `json:"parent_id"`
+	Content           string             `json:"content"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	Upvotes           *int32             `json:"upvotes"`
+	Downvotes         *int32             `json:"downvotes"`
+	Score             *int32             `json:"score"`
+	Depth             int32              `json:"depth"`
+	PostTitle         string             `json:"post_title"`
+	SubforumSlug      string             `json:"subforum_slug"`
+	AuthorDisplayName *string            `json:"author_display_name"`
+	AuthorAvatarUrl   *string            `json:"author_avatar_url"`
 }
 
 func (q *Queries) ListCommentsByPostWithReplies(ctx context.Context, arg *ListCommentsByPostWithRepliesParams) ([]*ListCommentsByPostWithRepliesRow, error) {
@@ -402,6 +485,8 @@ func (q *Queries) ListCommentsByPostWithReplies(ctx context.Context, arg *ListCo
 			&i.Depth,
 			&i.PostTitle,
 			&i.SubforumSlug,
+			&i.AuthorDisplayName,
+			&i.AuthorAvatarUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -414,12 +499,20 @@ func (q *Queries) ListCommentsByPostWithReplies(ctx context.Context, arg *ListCo
 }
 
 const UpdateComment = `-- name: UpdateComment :one
-UPDATE appview_comments 
-SET 
-    content = $2,
-    updated_at = NOW()
-WHERE id = $1
-RETURNING id, atproto_uri, author_did, author_handle, post_id, parent_id, content, created_at, updated_at, upvotes, downvotes, score
+WITH updated AS (
+    UPDATE appview_comments 
+    SET 
+        content = $2,
+        updated_at = NOW()
+    WHERE appview_comments.id = $1
+    RETURNING id, atproto_uri, author_did, author_handle, post_id, parent_id, content, created_at, updated_at, upvotes, downvotes, score
+)
+SELECT 
+    updated.id, updated.atproto_uri, updated.author_did, updated.author_handle, updated.post_id, updated.parent_id, updated.content, updated.created_at, updated.updated_at, updated.upvotes, updated.downvotes, updated.score,
+    u.display_name as author_display_name,
+    u.avatar_url as author_avatar_url
+FROM updated
+LEFT JOIN appview_users u ON updated.author_did = u.did
 `
 
 type UpdateCommentParams struct {
@@ -427,8 +520,61 @@ type UpdateCommentParams struct {
 	Content string    `json:"content"`
 }
 
-func (q *Queries) UpdateComment(ctx context.Context, arg *UpdateCommentParams) (*AppviewComment, error) {
+type UpdateCommentRow struct {
+	ID                uuid.UUID          `json:"id"`
+	AtprotoUri        string             `json:"atproto_uri"`
+	AuthorDid         string             `json:"author_did"`
+	AuthorHandle      string             `json:"author_handle"`
+	PostID            pgtype.UUID        `json:"post_id"`
+	ParentID          pgtype.UUID        `json:"parent_id"`
+	Content           string             `json:"content"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	Upvotes           *int32             `json:"upvotes"`
+	Downvotes         *int32             `json:"downvotes"`
+	Score             *int32             `json:"score"`
+	AuthorDisplayName *string            `json:"author_display_name"`
+	AuthorAvatarUrl   *string            `json:"author_avatar_url"`
+}
+
+func (q *Queries) UpdateComment(ctx context.Context, arg *UpdateCommentParams) (*UpdateCommentRow, error) {
 	row := q.db.QueryRow(ctx, UpdateComment, arg.ID, arg.Content)
+	var i UpdateCommentRow
+	err := row.Scan(
+		&i.ID,
+		&i.AtprotoUri,
+		&i.AuthorDid,
+		&i.AuthorHandle,
+		&i.PostID,
+		&i.ParentID,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Upvotes,
+		&i.Downvotes,
+		&i.Score,
+		&i.AuthorDisplayName,
+		&i.AuthorAvatarUrl,
+	)
+	return &i, err
+}
+
+const UpdateCommentByURI = `-- name: UpdateCommentByURI :one
+UPDATE appview_comments 
+SET 
+    content = $2,
+    updated_at = NOW()
+WHERE atproto_uri = $1
+RETURNING id, atproto_uri, author_did, author_handle, post_id, parent_id, content, created_at, updated_at, upvotes, downvotes, score
+`
+
+type UpdateCommentByURIParams struct {
+	AtprotoUri string `json:"atproto_uri"`
+	Content    string `json:"content"`
+}
+
+func (q *Queries) UpdateCommentByURI(ctx context.Context, arg *UpdateCommentByURIParams) (*AppviewComment, error) {
+	row := q.db.QueryRow(ctx, UpdateCommentByURI, arg.AtprotoUri, arg.Content)
 	var i AppviewComment
 	err := row.Scan(
 		&i.ID,

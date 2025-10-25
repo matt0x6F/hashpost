@@ -22,7 +22,6 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getApi } from '@/lib/api-client';
-import { ModerationApi } from '@/generated/api/src/apis/ModerationApi';
 
 interface ReportDialogProps {
   open: boolean;
@@ -122,17 +121,8 @@ export function ReportDialog({
 
     setIsSubmitting(true);
     try {
-      const moderationApi = getApi(ModerationApi);
-      
-      await moderationApi.reportContent({
-        contentType,
-        contentId: contentId || null,
-        reportedPseudonymId: reportedPseudonymId || '',
-        reportReason,
-        reportDetails: reportDetails.trim()
-      });
-
-      toast.success('Report submitted successfully. Thank you for helping keep our community safe.');
+      // Report creation not available in atproto system
+      toast.error('Report creation is not available in the atproto system');
       onOpenChange(false);
       
       // Reset form

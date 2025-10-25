@@ -67,6 +67,39 @@
               "type": "string",
               "maxLength": 500
             },
+            "prefixType": {
+              "type": "string",
+              "enum": ["h", "r", "t"],
+              "description": "Subforum prefix type: h (HashPost), r (regional), t (topical)"
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "com.hashpost.feed.comment",
+      "version": "0.0.1",
+      "defs": {
+        "main": {
+          "type": "object",
+          "required": ["text", "post", "createdAt"],
+          "properties": {
+            "text": {
+              "type": "string",
+              "maxLength": 3000
+            },
+            "post": {
+              "type": "string",
+              "description": "AT-URI of the post this comment belongs to"
+            },
+            "parent": {
+              "type": "string",
+              "description": "AT-URI of parent comment for nested replies"
+            },
             "createdAt": {
               "type": "string",
               "format": "date-time"

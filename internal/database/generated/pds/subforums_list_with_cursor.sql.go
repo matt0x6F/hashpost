@@ -12,7 +12,7 @@ import (
 )
 
 const ListSubforumsWithCursor = `-- name: ListSubforumsWithCursor :many
-SELECT id, name, slug, description, created_by, created_at, updated_at, atproto_uri FROM subforums 
+SELECT id, name, slug, description, created_by, created_at, updated_at, atproto_uri, prefix_type FROM subforums 
 WHERE created_at < $1
 ORDER BY created_at DESC 
 LIMIT $2
@@ -41,6 +41,7 @@ func (q *Queries) ListSubforumsWithCursor(ctx context.Context, arg *ListSubforum
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.AtprotoUri,
+			&i.PrefixType,
 		); err != nil {
 			return nil, err
 		}

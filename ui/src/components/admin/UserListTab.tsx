@@ -6,10 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/shadcn/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/shadcn/table";
 import { Badge } from "@/components/shadcn/badge";
-import { Users, Eye } from "lucide-react";
+import { Users, Eye, ExternalLink } from "lucide-react";
 import { getApi } from "@/lib/api-client";
-import { AdminApi } from "@/generated/api/src/apis/AdminApi";
-import { AdminUserInfo } from "@/generated/api/src/models/AdminUserInfo";
+import { PlatformAdminApi } from "@/generated/api/src/apis/PlatformAdminApi";
+import { UserWithRoles } from "@/generated/api/src/models/UserWithRoles";
 import { toast } from "sonner";
 import { DEFAULT_PAGE_SIZE } from "@/lib/constants";
 
@@ -18,7 +18,7 @@ export function UserListTab() {
   const searchParams = useSearchParams();
   
   // User management state
-  const [users, setUsers] = useState<AdminUserInfo[]>([]);
+  const [users, setUsers] = useState<UserWithRoles[]>([]);
   const [isUserListLoading, setIsUserListLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -43,50 +43,53 @@ export function UserListTab() {
     }
   }, [searchParams]);
 
-  // Load users on component mount and when page changes
+  // Load users when currentPage changes
   useEffect(() => {
-    loadUsers();
-  }, [currentPage]);
-
-  const loadUsers = async () => {
-    setIsUserListLoading(true);
-    try {
-      const api = getApi(AdminApi);
-      const response = await api.adminListUsers(undefined, undefined, currentPage, DEFAULT_PAGE_SIZE);
-      
-      if (response.users) {
-        setUsers(response.users);
-        setTotalPages(response.pagination?.pages || 1);
-        setTotalUsers(response.pagination?.total || 0);
-      } else {
-        setUsers([]);
-        setTotalPages(1);
-        setTotalUsers(0);
-      }
-    } catch (error: unknown) {
-      console.error('Failed to load users:', error);
-      
-      // Handle specific error cases
-      if (error && typeof error === 'object' && 'response' in error && error.response && typeof error.response === 'object' && 'status' in error.response) {
-        const status = (error.response as { status: number }).status;
-        if (status === 401) {
-          toast.error("Authentication required. Please log in again.");
-        } else if (status === 403) {
-          toast.error("Insufficient permissions for user management");
-        } else if (status === 500) {
-          toast.error("Server error. Please try again later.");
+    const loadUsers = async () => {
+      setIsUserListLoading(true);
+      try {
+        const api = getApi(PlatformAdminApi);
+        const offset = (currentPage - 1) * DEFAULT_PAGE_SIZE;
+        const response = await api.listAllUsers(DEFAULT_PAGE_SIZE, offset);
+        
+        if (response.users) {
+          setUsers(response.users);
+          // In atproto system, pagination is handled differently
+          // For now, assume we have all users if we get a response
+          setTotalPages(1);
+          setTotalUsers(response.users.length);
+        } else {
+          setUsers([]);
+          setTotalPages(1);
+          setTotalUsers(0);
+        }
+      } catch (error: unknown) {
+        console.error('Failed to load users:', error);
+        
+        // Handle specific error cases
+        if (error && typeof error === 'object' && 'response' in error && error.response && typeof error.response === 'object' && 'status' in error.response) {
+          const status = (error.response as { status: number }).status;
+          if (status === 401) {
+            toast.error("Authentication required. Please log in again.");
+          } else if (status === 403) {
+            toast.error("Insufficient permissions for user management");
+          } else if (status === 500) {
+            toast.error("Server error. Please try again later.");
+          } else {
+            toast.error("Failed to load users. Please try again.");
+          }
         } else {
           toast.error("Failed to load users. Please try again.");
         }
-      } else {
-        toast.error("Failed to load users. Please try again.");
+        
+        setUsers([]);
+      } finally {
+        setIsUserListLoading(false);
       }
-      
-      setUsers([]);
-    } finally {
-      setIsUserListLoading(false);
-    }
-  };
+    };
+
+    loadUsers();
+  }, [currentPage]);
 
   const updateUserPageURL = (page: number = 1) => {
     const newSearchParams = new URLSearchParams(searchParams);
@@ -135,44 +138,60 @@ export function UserListTab() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>User ID</TableHead>
-                    <TableHead>Email</TableHead>
+                    <TableHead>DID</TableHead>
+                    <TableHead>Handle</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Email Verified</TableHead>
-                    <TableHead>Pseudonyms</TableHead>
+                    <TableHead>Roles</TableHead>
+                    <TableHead>PDS Source</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {users.map((user) => (
-                    <TableRow key={user.userId}>
+                  {users.map((user, index) => (
+                    <TableRow key={user.userDid || user.handle || index}>
                       <TableCell>
-                        <Badge variant="outline">{user.userId}</Badge>
+                        <Badge variant="outline">{user.userDid || user.handle || 'N/A'}</Badge>
                       </TableCell>
-                      <TableCell>{user.email}</TableCell>
+                      <TableCell>@{user.handle}</TableCell>
                       <TableCell>
-                        {user.isActive ? (
-                          <Badge variant="secondary">Active</Badge>
+                        <Badge variant="secondary">Active</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="default">N/A</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{user.roleCount || 0}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        {user.isLocal ? (
+                          <Badge variant="secondary">HashPost PDS</Badge>
+                        ) : user.pdsSource ? (
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="truncate max-w-xs" title={user.pdsSource}>
+                              {user.pdsSource}
+                            </Badge>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => window.open(`/admin/pds/${encodeURIComponent(user.pdsSource)}`, '_blank')}
+                              title="View PDS details"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                          </div>
                         ) : (
-                          <Badge variant="outline">Inactive</Badge>
+                          <Badge variant="outline">Unknown</Badge>
                         )}
                       </TableCell>
-                      <TableCell>
-                        <Badge variant={user.emailVerified ? "default" : "destructive"}>
-                          {user.emailVerified ? "Verified" : "Not Verified"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{user.pseudonymCount}</Badge>
-                      </TableCell>
-                      <TableCell>{formatDate(user.createdAt)}</TableCell>
+                      <TableCell>N/A</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => router.push(`/admin/users/${user.userId}?returnTab=users&returnUserPage=${currentPage}`)}
+                            onClick={() => router.push(`/admin/users/${user.userDid || user.handle}?returnTab=users&returnUserPage=${currentPage}`)}
                             title="View user details"
                           >
                             <Eye className="h-4 w-4" />

@@ -94,6 +94,23 @@ services:
     networks:
       - hashpost-network
 
+  hashpost-frontend:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:8081
+    depends_on:
+      - hashpost-appview
+    volumes:
+      - ./ui:/app
+      - /app/node_modules
+    networks:
+      - hashpost-network
+
 volumes:
   postgres_dev_data:
   redis_dev_data:

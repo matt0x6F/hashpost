@@ -25,10 +25,10 @@ import {
   Eye
 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Report } from '@/generated/api/src/models/Report';
+// Report model not available in atproto system
 
 interface ReportDetailDialogProps {
-  report: Report | null;
+  report: any | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAction: (reportId: number, action: 'resolve' | 'dismiss' | 'remove' | 'ban_user' | 'ban_pseudonym' | 'mute_user', notes?: string, muteDuration?: number) => Promise<void>;

@@ -4,18 +4,21 @@ import React, { useState, useEffect } from 'react';
 import { Button } from './shadcn/button';
 import { Input } from './shadcn/input';
 import { Label } from './shadcn/label';
-import { Search, Users, MessageSquare, Calendar, Shield } from 'lucide-react';
+import { Search, Users, MessageSquare, Calendar, Shield, MapPin, Hash, Tag } from 'lucide-react';
 import { getApi } from '@/lib/api-client';
 import { SubforumsApi } from '@/generated/api/src/apis/SubforumsApi';
 import type { Subforum } from '@/generated/api/src/models/Subforum';
 import { toast } from 'sonner';
 import Link from 'next/link';
+import { useForumRefresh } from '@/lib/forum-refresh-context';
 
 interface ForumListProps {
   className?: string;
+  refreshTrigger?: number; // Add a refresh trigger prop
 }
 
-export function ForumList({ className }: ForumListProps) {
+export function ForumList({ className, refreshTrigger }: ForumListProps) {
+  const { refreshTrigger: contextRefreshTrigger } = useForumRefresh();
   const [forums, setForums] = useState<Subforum[]>([]);
   const [filteredForums, setFilteredForums] = useState<Subforum[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -27,6 +30,20 @@ export function ForumList({ className }: ForumListProps) {
     loadForums();
   }, []);
 
+  // Watch for refresh trigger changes
+  useEffect(() => {
+    if (refreshTrigger !== undefined) {
+      loadForums();
+    }
+  }, [refreshTrigger]);
+
+  // Watch for context refresh trigger changes
+  useEffect(() => {
+    if (contextRefreshTrigger > 0) {
+      loadForums();
+    }
+  }, [contextRefreshTrigger]);
+
   useEffect(() => {
     filterAndSortForums();
   }, [forums, searchTerm, sortBy]);
@@ -37,7 +54,7 @@ export function ForumList({ className }: ForumListProps) {
     
     try {
       const subforumsApi = getApi(SubforumsApi);
-      const response = await subforumsApi.getSubforums(1, 100, sortBy);
+      const response = await subforumsApi.listSubforums(100, 0);
       setForums(response.subforums || []);
     } catch (err: unknown) {
       console.error('Error loading forums:', err);
@@ -60,8 +77,8 @@ export function ForumList({ className }: ForumListProps) {
     if (searchTerm.trim()) {
       filtered = forums.filter(forum => 
         forum.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        forum.displayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        forum.description.toLowerCase().includes(searchTerm.toLowerCase())
+        forum.slug.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (forum.description && forum.description.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
 
@@ -69,7 +86,7 @@ export function ForumList({ className }: ForumListProps) {
     filtered.sort((a, b) => {
       switch (sortBy) {
         case 'name':
-          return a.displayName.localeCompare(b.displayName);
+          return a.name.localeCompare(b.name);
         case 'subscribers':
           return (b.subscriberCount || 0) - (a.subscriberCount || 0);
         case 'posts':
@@ -168,13 +185,8 @@ export function ForumList({ className }: ForumListProps) {
         ) : (
           <div className="grid gap-4">
             {filteredForums.map((forum) => {
-              const communityTypePrefix = forum.communityType === 't' ? 't/' : 
-                                        forum.communityType === 'g' ? 'g/' : 
-                                        forum.communityType === 'b' ? 'b/' : 
-                                        forum.communityType === 'c' ? 'c/' : 'h/';
-
               return (
-                <Link key={forum.name} href={`/${communityTypePrefix}${forum.name}`} className="block">
+                <Link key={forum.id} href={`/h/${forum.slug}`} className="block">
                   <div
                     className="p-4 border border-border rounded-lg cursor-pointer"
                   >
@@ -182,21 +194,31 @@ export function ForumList({ className }: ForumListProps) {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-2">
                           <h3 className="text-lg font-semibold truncate">
-                            {communityTypePrefix}{forum.name}
+                            {forum.prefixType || 't'}/{forum.slug}
                           </h3>
                           <div className="flex items-center gap-1">
-                            {forum.isPrivate && (
-                              <Shield className="w-4 h-4 text-muted-foreground" />
+                            {forum.prefixType === 'h' && (
+                              <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                                <Hash className="w-3 h-3" />
+                                <span>HashPost</span>
+                              </div>
                             )}
-                            {forum.isNsfw && (
-                              <span className="text-xs bg-destructive/10 text-destructive px-2 py-1 rounded">
-                                NSFW
-                              </span>
+                            {forum.prefixType === 'r' && (
+                              <div className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                                <MapPin className="w-3 h-3" />
+                                <span>Regional</span>
+                              </div>
+                            )}
+                            {forum.prefixType === 't' && (
+                              <div className="flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full">
+                                <Tag className="w-3 h-3" />
+                                <span>Topical</span>
+                              </div>
                             )}
                           </div>
                         </div>
                         <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                          {forum.description}
+                          {forum.description || 'No description available'}
                         </p>
                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
                           <div className="flex items-center gap-1">

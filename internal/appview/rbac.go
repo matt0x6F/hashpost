@@ -4,24 +4,26 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	_ "github.com/bluesky-social/indigo/atproto/auth" // Register JWT signing methods
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	appview "github.com/matt0x6f/hashpost/internal/database/generated/appview"
+	"github.com/matt0x6f/hashpost/internal/pds"
 )
 
 // RBACService handles role-based access control for AppView
 type RBACService struct {
-	db        *pgxpool.Pool
-	queries   *appview.Queries
-	directory identity.Directory
-	logger    *slog.Logger
+	db             *pgxpool.Pool
+	queries        *appview.Queries
+	directory      identity.Directory
+	logger         *slog.Logger
+	tokenValidator *pds.MultiPDSTokenValidator
 }
 
 // NewRBACService creates a new RBAC service
@@ -45,11 +47,15 @@ func NewRBACService(db *pgxpool.Pool, logger *slog.Logger) *RBACService {
 	// Create queries instance
 	queries := appview.New(db)
 
+	// Create multi-PDS token validator
+	tokenValidator := pds.NewMultiPDSTokenValidator(logger)
+
 	return &RBACService{
-		db:        db,
-		queries:   queries,
-		directory: &directory,
-		logger:    logger,
+		db:             db,
+		queries:        queries,
+		directory:      &directory,
+		logger:         logger,
+		tokenValidator: tokenValidator,
 	}
 }
 
@@ -61,51 +67,32 @@ type UserContext struct {
 	IsActive bool       `json:"is_active"`
 }
 
-// ValidateToken validates a JWT token from PDS and returns user context
+// ValidateToken validates a JWT token from any PDS and returns user context
 func (r *RBACService) ValidateToken(ctx context.Context, tokenString string) (*UserContext, error) {
-	// For development, we'll parse the JWT token without signature verification
-	// In production, this would validate against the PDS public key
+	r.logger.Debug("Validating JWT token", "token_length", len(tokenString))
 
-	// Parse JWT token without signature verification
-	parsedToken, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		// Skip signature verification for development
-		return jwt.UnsafeAllowNoneSignatureType, nil
-	})
-
+	// Use multi-PDS token validator
+	validationResult, err := r.tokenValidator.ValidateTokenFromAnyPDS(ctx, tokenString)
 	if err != nil {
+		r.logger.Error("Token validation failed", "error", err)
 		return nil, fmt.Errorf("token validation failed: %w", err)
 	}
 
-	if !parsedToken.Valid {
-		return nil, fmt.Errorf("invalid token")
-	}
-
-	// Extract claims
-	claims, ok := parsedToken.Claims.(jwt.MapClaims)
-	if !ok {
-		return nil, fmt.Errorf("invalid token claims")
-	}
-
-	// Extract user information
-	did, ok := claims["sub"].(string)
-	if !ok {
-		return nil, fmt.Errorf("missing subject (DID) in token")
-	}
-
-	handle, ok := claims["handle"].(string)
-	if !ok {
-		return nil, fmt.Errorf("missing handle in token")
+	// Ensure user exists in AppView database (create lightweight record if needed)
+	_, err = r.ensureUserExists(ctx, validationResult.DID, validationResult.Handle, validationResult.Issuer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to ensure user exists: %w", err)
 	}
 
 	// Get user roles from database
-	roles, err := r.getUserRoles(ctx, did)
+	roles, err := r.getUserRoles(ctx, validationResult.DID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user roles: %w", err)
 	}
 
 	return &UserContext{
-		Did:      did,
-		Handle:   handle,
+		Did:      validationResult.DID,
+		Handle:   validationResult.Handle,
 		Roles:    roles,
 		IsActive: true,
 	}, nil
@@ -261,11 +248,13 @@ func (r *RBACService) IsSubforumModerator(ctx context.Context, userDID string, s
 }
 
 // GetUsersWithRoles retrieves users with their roles
-func (r *RBACService) GetUsersWithRoles(ctx context.Context, limit, offset int, subforumID string) ([]map[string]interface{}, error) {
+func (r *RBACService) GetUsersWithRoles(ctx context.Context, limit, offset int, subforumID string) ([]UserWithRoles, error) {
 	var subforumIDStr string
 	if subforumID != "" {
 		subforumIDStr = subforumID
 	}
+
+	r.logger.Debug("Getting users with roles", "subforumID", subforumIDStr, "limit", limit, "offset", offset)
 
 	rows, err := r.queries.GetUsersWithRoles(ctx, &appview.GetUsersWithRolesParams{
 		Column1: subforumIDStr,
@@ -273,17 +262,25 @@ func (r *RBACService) GetUsersWithRoles(ctx context.Context, limit, offset int, 
 		Offset:  int32(offset),
 	})
 	if err != nil {
+		r.logger.Error("Failed to get users with roles", "error", err)
 		return nil, err
 	}
 
-	var users []map[string]interface{}
+	r.logger.Debug("Query returned users", "count", len(rows))
+
+	var users []UserWithRoles
 	for _, row := range rows {
-		users = append(users, map[string]interface{}{
-			"user_did":   row.UserDid,
-			"role_count": row.RoleCount,
-		})
+		r.logger.Debug("Processing user", "user_did", row.UserDid, "handle", row.Handle, "role_count", row.RoleCount)
+		user := UserWithRoles{
+			UserDid:   row.UserDid,
+			Handle:    row.Handle,
+			RoleCount: int(row.RoleCount),
+		}
+
+		users = append(users, user)
 	}
 
+	r.logger.Debug("Returning users", "count", len(users))
 	return users, nil
 }
 
@@ -413,4 +410,98 @@ func (r *RBACService) GetUserRoles(ctx context.Context, userDID string, subforum
 	// For now, we'll use the existing getUserRoles method since it doesn't filter by subforum
 	// In the future, we could create a separate SQLC query for this
 	return r.getUserRoles(ctx, userDID)
+}
+
+// ensureUserExists ensures a user exists in the AppView database, creating a lightweight record if needed
+func (r *RBACService) ensureUserExists(ctx context.Context, did, handle, issuer string) (*AppViewUser, error) {
+	// Check if user already exists
+	existingUser, err := r.queries.GetUserByDID(ctx, did)
+	if err == nil && existingUser != nil {
+		// User exists, update last seen time if external
+		if existingUser.PdsSource != nil && *existingUser.PdsSource != "http://hashpost-pds:8080" {
+			// For now, just log that we would update last seen time
+			// In production, we'd need to add this method to SQLC
+			r.logger.Debug("Would update last seen time for external user", "did", did)
+		}
+
+		// Convert to AppViewUser type
+		user := &AppViewUser{
+			ID:          existingUser.ID,
+			DID:         existingUser.Did,
+			Handle:      existingUser.Handle,
+			DisplayName: getStringValue(existingUser.DisplayName),
+			CreatedAt:   existingUser.CreatedAt.Time,
+			UpdatedAt:   existingUser.UpdatedAt.Time,
+			PDSSource:   existingUser.PdsSource,
+			LastSeenAt:  getTimeValue(existingUser.LastSeenAt),
+		}
+		return user, nil
+	}
+
+	// User doesn't exist, create lightweight record
+	r.logger.Info("Creating lightweight user record", "did", did, "handle", handle, "issuer", issuer)
+
+	// Determine PDS source
+	pdsSource := r.determinePDSSource(issuer)
+
+	// For now, we'll use a simplified approach since the SQLC methods might not exist yet
+	// In production, we'd need to add the proper SQLC queries for user creation
+	r.logger.Info("User creation not yet implemented in SQLC", "did", did, "handle", handle, "pds_source", pdsSource)
+
+	// Return a mock user for now
+	user := &AppViewUser{
+		ID:          uuid.New(),
+		DID:         did,
+		Handle:      handle,
+		DisplayName: handle,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+		PDSSource:   pdsSource,
+	}
+
+	// Set last seen time for external users
+	if pdsSource != nil && *pdsSource != "http://hashpost-pds:8080" {
+		now := time.Now()
+		user.LastSeenAt = &now
+	}
+
+	return user, nil
+}
+
+// determinePDSSource determines the PDS source for a given issuer
+func (r *RBACService) determinePDSSource(issuer string) *string {
+	// For now, we'll use a simple heuristic
+	// In production, this would check against our PDS server endpoint
+	localIdentifiers := []string{
+		"localhost",
+		"127.0.0.1",
+		"hashpost",
+	}
+
+	for _, identifier := range localIdentifiers {
+		if strings.Contains(issuer, identifier) {
+			// This is our local PDS
+			localPDS := "http://hashpost-pds:8080"
+			return &localPDS
+		}
+	}
+
+	// This is an external PDS
+	return &issuer
+}
+
+// getStringValue safely extracts string value from pointer
+func getStringValue(ptr *string) string {
+	if ptr == nil {
+		return ""
+	}
+	return *ptr
+}
+
+// getTimeValue safely extracts time value from pgtype.Timestamptz
+func getTimeValue(ts pgtype.Timestamptz) *time.Time {
+	if !ts.Valid {
+		return nil
+	}
+	return &ts.Time
 }

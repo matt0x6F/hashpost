@@ -11,7 +11,6 @@ import { EngagementAnalytics } from '@/components/EngagementAnalytics';
 import { ModerationStats } from '@/components/ModerationStats';
 import { COMMUNITY_CONFIG, type CommunityType } from '@/lib/community-config';
 import { useAuth } from '@/lib/auth-context';
-import { authenticateUserForSubforum } from '@/lib/auth-utils';
 import Link from 'next/link';
 import {
   NavigationMenu,
@@ -24,7 +23,7 @@ import {
 
 export default function SubforumModerationPage() {
   const params = useParams();
-  const { user, isAuthenticated, isLoading, updateUserWithSubforumData } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const [subforumContextLoaded, setSubforumContextLoaded] = useState(false);
   const hasLoadedContext = useRef(false);
 
@@ -39,11 +38,9 @@ export default function SubforumModerationPage() {
     if (isAuthenticated && user && subforumName && !hasLoadedContext.current) {
       hasLoadedContext.current = true;
       try {
-        const subforumUserData = await authenticateUserForSubforum(fullSubforumPath);
-        if (subforumUserData) {
-          // Update the user context with subforum-specific capabilities
-          updateUserWithSubforumData(subforumUserData);
-        }
+        // In atproto system, capabilities are handled globally via RBAC
+        // No need for subforum-specific authentication
+        console.log('Subforum context loading not needed in atproto system');
       } catch (error) {
         console.error('Error loading subforum user context:', error);
       } finally {
@@ -72,13 +69,14 @@ export default function SubforumModerationPage() {
   }
 
   // Check if user has moderator permissions - only after everything is loaded
-  const hasModerateContent = user?.capabilities?.includes('moderate_content');
+  // In atproto system, permissions are handled via RBAC - for now, assume no permissions
+  const hasModerateContent = false;
   const isModerator = hasModerateContent;
 
   // Debug logging
   console.log('Debug: permission check logged', {
     user: user?.email,
-    capabilities: user?.capabilities,
+    capabilities: 'N/A',
     hasModerateContent,
     isModerator,
     isAuthenticated,
@@ -98,7 +96,7 @@ export default function SubforumModerationPage() {
         <div className="text-center py-12">
           <p className="text-muted-foreground">You do not have permission to access this page.</p>
           <p className="text-sm text-muted-foreground mt-2">
-            Debug: Auth={isAuthenticated}, Mod={isModerator}, Caps={user?.capabilities?.filter(c => c.includes('moderate')).join(', ')}
+            Debug: Auth={isAuthenticated}, Mod={isModerator}, Caps=N/A
           </p>
         </div>
       </div>
