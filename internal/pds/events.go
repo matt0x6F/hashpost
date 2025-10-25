@@ -88,7 +88,7 @@ func NewEventStreamer(natsURL string, logger *slog.Logger) (*EventStreamer, erro
 		js:      js,
 		logger:  logger,
 		stream:  "HASHPOST_EVENTS",
-		subject: "hashpost.events.record.created", // Use exact subject for debugging
+		subject: "hashpost.events.*", // Use wildcard pattern for all event types
 	}
 
 	// Create the stream
@@ -126,9 +126,9 @@ func (es *EventStreamer) createStream() error {
 	// Create stream configuration
 	streamConfig := &nats.StreamConfig{
 		Name:      es.stream,
-		Subjects:  []string{es.subject},
-		Retention: nats.LimitsPolicy, // Keep messages until they expire
-		MaxAge:    24 * time.Hour,    // Keep events for 24 hours
+		Subjects:  []string{es.subject}, // "hashpost.events.*"
+		Retention: nats.LimitsPolicy,    // Keep messages until they expire
+		MaxAge:    24 * time.Hour,       // Keep events for 24 hours
 		Storage:   nats.FileStorage,
 		Replicas:  1,
 	}
@@ -159,7 +159,7 @@ func (es *EventStreamer) recreateStream() error {
 
 	streamConfig := &nats.StreamConfig{
 		Name:      es.stream,
-		Subjects:  []string{es.subject},
+		Subjects:  []string{es.subject}, // "hashpost.events.*"
 		Retention: nats.LimitsPolicy,
 		MaxAge:    24 * time.Hour,
 		Storage:   nats.FileStorage,
@@ -189,6 +189,25 @@ func (es *EventStreamer) PublishRecordEvent(ctx context.Context, eventType Event
 		Timestamp:  time.Now(),
 		Metadata: map[string]interface{}{
 			"source": "hashpost-pds",
+		},
+	}
+
+	return es.publishEvent(ctx, event)
+}
+
+// PublishRecordEventWithHandle publishes a record-related event with user handle
+func (es *EventStreamer) PublishRecordEventWithHandle(ctx context.Context, eventType EventType, repo, collection string, record map[string]interface{}, uri, cid, handle string) error {
+	event := &AtprotoEvent{
+		Type:       eventType,
+		Repo:       repo,
+		Collection: collection,
+		Record:     record,
+		URI:        uri,
+		CID:        cid,
+		Timestamp:  time.Now(),
+		Metadata: map[string]interface{}{
+			"source": "hashpost-pds",
+			"handle": handle,
 		},
 	}
 
@@ -226,6 +245,25 @@ func (es *EventStreamer) PublishSessionEvent(ctx context.Context, eventType Even
 	return es.publishEvent(ctx, event)
 }
 
+// getSubjectForEventType returns the NATS subject for a given event type
+func (es *EventStreamer) getSubjectForEventType(eventType EventType) string {
+	switch eventType {
+	case EventTypeRecordCreated:
+		return "hashpost.events.record.created"
+	case EventTypeRecordUpdated:
+		return "hashpost.events.record.updated"
+	case EventTypeRecordDeleted:
+		return "hashpost.events.record.deleted"
+	case EventTypeIdentityResolved:
+		return "hashpost.events.identity.resolved"
+	case EventTypeSessionCreated:
+		return "hashpost.events.session.created"
+	default:
+		// Fallback to record.created for unknown types
+		return "hashpost.events.record.created"
+	}
+}
+
 // publishEvent publishes an event to NATS JetStream
 func (es *EventStreamer) publishEvent(ctx context.Context, event *AtprotoEvent) error {
 	// Serialize event to JSON
@@ -235,15 +273,7 @@ func (es *EventStreamer) publishEvent(ctx context.Context, event *AtprotoEvent) 
 	}
 
 	// Create subject based on event type
-	// For debugging, let's try publishing to the exact stream subject pattern
-	// The stream is configured for "hashpost.events.*" so let's try that exact pattern
-	subject := "hashpost.events.record.created"
-
-	// Try a different approach - let's try publishing to the exact wildcard pattern
-	// that the stream is configured for
-	if subject == "hashpost.events.record.created" {
-		subject = "hashpost.events.record.created" // Keep the same for now
-	}
+	subject := es.getSubjectForEventType(event.Type)
 
 	es.logger.Debug("Attempting to publish event",
 		"subject", subject,

@@ -134,6 +134,30 @@ func (s *Server) handleCreateAccount(w http.ResponseWriter, r *http.Request) {
 		// Don't fail registration, just log the warning
 	}
 
+	// Publish identity resolved event
+	if err := s.eventStream.PublishIdentityEvent(r.Context(), EventTypeIdentityResolved, user.Handle, user.Did); err != nil {
+		s.logger.Error("Failed to publish identity resolved event", "error", err)
+		// Don't fail the request, just log the error
+	}
+
+	// Create app.bsky.actor.profile record for the new user
+	// This ensures the profile fetcher can find display names
+	profileRecord := map[string]interface{}{
+		"$type":       "app.bsky.actor.profile",
+		"displayName": user.Handle, // Use handle as initial display name
+		"description": "New HashPost user",
+		"createdAt":   time.Now().Format(time.RFC3339),
+	}
+
+	// Create the profile record in PDS
+	profileURI, profileCID, err := s.createRecordInPDS(r.Context(), user.Did, "app.bsky.actor.profile", "self", profileRecord)
+	if err != nil {
+		s.logger.Warn("Failed to create profile record", "error", err, "did", user.Did)
+		// Don't fail registration, just log the warning
+	} else {
+		s.logger.Info("Profile record created", "did", user.Did, "uri", profileURI, "cid", profileCID)
+	}
+
 	// Generate tokens
 	accessToken, refreshToken, err := s.authService.GenerateTokens(session)
 	if err != nil {
@@ -152,4 +176,35 @@ func (s *Server) handleCreateAccount(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)
+}
+
+// createRecordInPDS creates a record in the PDS database
+func (s *Server) createRecordInPDS(ctx context.Context, repo, collection, rkey string, record map[string]interface{}) (uri, cid string, err error) {
+	// Generate record ID and URI
+	uri = fmt.Sprintf("at://%s/%s/%s", repo, collection, rkey)
+
+	// Compute proper content-addressed CID for the record
+	computedCID, err := s.cidService.ComputeRecordCID(ctx, record)
+	if err != nil {
+		s.logger.Error("Failed to compute CID for record", "error", err)
+		return "", "", fmt.Errorf("failed to compute record CID: %w", err)
+	}
+	cid = computedCID
+
+	// Store record in database based on collection type
+	switch collection {
+	case "app.bsky.actor.profile":
+		err = s.createGenericRecord(ctx, repo, collection, rkey, uri, cid, record)
+	default:
+		// For other collections, store as generic record
+		err = s.createGenericRecord(ctx, repo, collection, rkey, uri, cid, record)
+	}
+
+	if err != nil {
+		s.logger.Error("Failed to create record", "error", err, "collection", collection)
+		return "", "", fmt.Errorf("failed to create record: %w", err)
+	}
+
+	s.logger.Debug("Record created in PDS", "uri", uri, "cid", cid)
+	return uri, cid, nil
 }

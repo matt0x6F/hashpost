@@ -97,6 +97,21 @@ type AppViewComment struct {
 	Score        int        `json:"score"`
 }
 
+type AppViewVote struct {
+	ID        uuid.UUID `json:"id"`
+	UserDID   string    `json:"user_did"`
+	Subject   string    `json:"subject"`   // AT-URI of the post or comment being voted on
+	Direction string    `json:"direction"` // "up" or "down"
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type AppViewSubscription struct {
+	ID         uuid.UUID `json:"id"`
+	UserDID    string    `json:"user_did"`
+	SubforumID uuid.UUID `json:"subforum_id"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
 // Database Operations
 
 // CreateUser creates a new user in the AppView database
@@ -256,4 +271,81 @@ func (d *Database) DeleteCommentByURI(atprotoURI string) error {
 
 	d.logger.Info("Comment deleted from AppView", "uri", atprotoURI)
 	return nil
+}
+
+// CreateVote creates a new vote in the AppView database
+func (d *Database) CreateVote(vote *AppViewVote) error {
+	// Parse the subject URI to determine if it's a post or comment
+	// For now, we'll need to look up the post/comment by URI to get the ID
+	// This is a simplified approach - in production you might want to cache this mapping
+
+	// Try to find as a post first
+	post, err := d.queries.GetPostByAtprotoURI(context.Background(), vote.Subject)
+	if err == nil {
+		// It's a post vote
+		_, err = d.queries.CreateVote(context.Background(), &generated.CreateVoteParams{
+			UserDid:   vote.UserDID,
+			PostID:    pgtype.UUID{Bytes: post.ID, Valid: true},
+			CommentID: pgtype.UUID{Valid: false}, // Not a comment
+			VoteType:  vote.Direction,
+		})
+	} else {
+		// Try to find as a comment
+		comment, err := d.queries.GetCommentByURI(context.Background(), vote.Subject)
+		if err != nil {
+			d.logger.Error("Could not find post or comment for vote subject", "error", err, "subject", vote.Subject)
+			return fmt.Errorf("failed to find post or comment for vote: %w", err)
+		}
+
+		// It's a comment vote
+		_, err = d.queries.CreateVote(context.Background(), &generated.CreateVoteParams{
+			UserDid:   vote.UserDID,
+			PostID:    pgtype.UUID{Valid: false}, // Not a post
+			CommentID: pgtype.UUID{Bytes: comment.ID, Valid: true},
+			VoteType:  vote.Direction,
+		})
+	}
+
+	if err != nil {
+		d.logger.Error("Failed to create vote", "error", err, "user_did", vote.UserDID, "subject", vote.Subject)
+		return fmt.Errorf("failed to create vote: %w", err)
+	}
+
+	d.logger.Info("Vote created in AppView", "user_did", vote.UserDID, "subject", vote.Subject)
+	return nil
+}
+
+// CreateSubscription creates a new subscription in the AppView database
+func (d *Database) CreateSubscription(subscription *AppViewSubscription) error {
+	// Get the subforum slug from the subforum ID
+	subforum, err := d.queries.GetSubforumByID(context.Background(), subscription.SubforumID)
+	if err != nil {
+		d.logger.Error("Failed to get subforum", "error", err, "subforum_id", subscription.SubforumID)
+		return fmt.Errorf("failed to get subforum: %w", err)
+	}
+
+	_, err = d.queries.CreateSubscription(context.Background(), &generated.CreateSubscriptionParams{
+		UserDid:      subscription.UserDID,
+		UserHandle:   "unknown", // We'll need to get this from the user context
+		SubforumSlug: subforum.Slug,
+	})
+
+	if err != nil {
+		d.logger.Error("Failed to create subscription", "error", err, "user_did", subscription.UserDID, "subforum_slug", subforum.Slug)
+		return fmt.Errorf("failed to create subscription: %w", err)
+	}
+
+	d.logger.Info("Subscription created in AppView", "user_did", subscription.UserDID, "subforum_slug", subforum.Slug)
+	return nil
+}
+
+// GetSubforumByURI gets a subforum by its atproto URI
+func (d *Database) GetSubforumByURI(uri string) (*generated.AppviewSubforum, error) {
+	subforum, err := d.queries.GetSubforumByURI(context.Background(), &uri)
+	if err != nil {
+		d.logger.Error("Failed to get subforum by URI", "error", err, "uri", uri)
+		return nil, fmt.Errorf("failed to get subforum: %w", err)
+	}
+
+	return subforum, nil
 }

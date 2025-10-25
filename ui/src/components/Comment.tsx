@@ -25,6 +25,7 @@ import { VotingApi, CommentsApi } from '@/generated/api/src/apis';
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 import CommentForm from './CommentForm';
 import { ReportDialog } from './ReportDialog';
+import { useCommentVote } from '@/hooks/useCommentVote';
 
 interface CommentProps {
   comment: CommentType;
@@ -43,6 +44,9 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { user, isAuthenticated } = useAuth();
+  
+  // Get user vote data for this comment
+  const { userVote, updateVote, refetch } = useCommentVote(comment.id);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -366,13 +370,60 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
               )}
 
               <div className="flex items-center gap-4">
-                <VoteButtons
-                  score={(comment.upvotes || 0) - (comment.downvotes || 0)}
-                  userVote={0}
-                  onVote={(voteValue) => onCommentVoted(comment.id, voteValue)}
-                  disabled={isActionDisabled}
-                  size="sm"
-                />
+          <VoteButtons
+            score={userVote?.score || (comment.upvotes || 0) - (comment.downvotes || 0)}
+            userVote={userVote?.vote_type === 'up' ? 1 : userVote?.vote_type === 'down' ? -1 : 0}
+            onVote={async (voteValue) => {
+              // Optimistic update
+              const currentScore = userVote?.score || (comment.upvotes || 0) - (comment.downvotes || 0);
+              const currentUpvotes = userVote?.upvotes || comment.upvotes || 0;
+              const currentDownvotes = userVote?.downvotes || comment.downvotes || 0;
+              
+              let newVoteType: 'up' | 'down' | null = null;
+              let newUpvotes = currentUpvotes;
+              let newDownvotes = currentDownvotes;
+              
+              if (voteValue === 1) {
+                newVoteType = 'up';
+                if (userVote?.vote_type === 'down') {
+                  newDownvotes = Math.max(0, newDownvotes - 1);
+                }
+                if (userVote?.vote_type !== 'up') {
+                  newUpvotes = newUpvotes + 1;
+                }
+              } else if (voteValue === -1) {
+                newVoteType = 'down';
+                if (userVote?.vote_type === 'up') {
+                  newUpvotes = Math.max(0, newUpvotes - 1);
+                }
+                if (userVote?.vote_type !== 'down') {
+                  newDownvotes = newDownvotes + 1;
+                }
+              } else {
+                // Removing vote
+                if (userVote?.vote_type === 'up') {
+                  newUpvotes = Math.max(0, newUpvotes - 1);
+                } else if (userVote?.vote_type === 'down') {
+                  newDownvotes = Math.max(0, newDownvotes - 1);
+                }
+              }
+              
+              const newScore = newUpvotes - newDownvotes;
+              
+              // Update local state optimistically
+              updateVote({
+                vote_type: newVoteType,
+                upvotes: newUpvotes,
+                downvotes: newDownvotes,
+                score: newScore
+              });
+              
+              // Call the parent handler
+              await onCommentVoted(comment.id, voteValue);
+            }}
+            disabled={isActionDisabled}
+            size="sm"
+          />
                 
                 {!isDeletedByUser && (
                   <div className="flex items-center gap-2">

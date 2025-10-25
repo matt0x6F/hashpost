@@ -56,12 +56,11 @@ func TestEventConsumer_HelperMethods_Unit(t *testing.T) {
 
 	// Create a mock consumer for testing helper methods
 	consumer := &EventConsumer{
-		logger:          logger,
-		db:              db,
-		maxRetries:      3,
-		retryDelay:      1 * time.Second,
-		maxRetryDelay:   30 * time.Second,
-		processedEvents: make(map[string]bool),
+		logger:        logger,
+		db:            db,
+		maxRetries:    3,
+		retryDelay:    1 * time.Second,
+		maxRetryDelay: 30 * time.Second,
 	}
 
 	t.Run("generateEventID", func(t *testing.T) {
@@ -89,7 +88,7 @@ func TestEventConsumer_HelperMethods_Unit(t *testing.T) {
 		assert.False(t, consumer.isEventProcessed(eventID))
 
 		// Mark as processed
-		consumer.markEventProcessed(eventID)
+		consumer.markEventProcessed(eventID, "hashpost.events.record.created", 123)
 		assert.True(t, consumer.isEventProcessed(eventID))
 	})
 
@@ -97,11 +96,11 @@ func TestEventConsumer_HelperMethods_Unit(t *testing.T) {
 		eventID := "test-event-456"
 
 		// Mark as processed
-		consumer.markEventProcessed(eventID)
+		consumer.markEventProcessed(eventID, "hashpost.events.record.created", 456)
 		assert.True(t, consumer.isEventProcessed(eventID))
 
 		// Should remain processed
-		consumer.markEventProcessed(eventID)
+		consumer.markEventProcessed(eventID, "hashpost.events.record.created", 456)
 		assert.True(t, consumer.isEventProcessed(eventID))
 	})
 
@@ -127,12 +126,11 @@ func TestEventConsumer_ProcessMessage_Unit(t *testing.T) {
 	db := &Database{logger: logger}
 
 	consumer := &EventConsumer{
-		logger:          logger,
-		db:              db,
-		maxRetries:      3,
-		retryDelay:      1 * time.Second,
-		maxRetryDelay:   30 * time.Second,
-		processedEvents: make(map[string]bool),
+		logger:        logger,
+		db:            db,
+		maxRetries:    3,
+		retryDelay:    1 * time.Second,
+		maxRetryDelay: 30 * time.Second,
 	}
 
 	t.Run("processMessage_InvalidJSON", func(t *testing.T) {
@@ -203,12 +201,11 @@ func TestEventConsumer_ProcessMessageWithRetry_Unit(t *testing.T) {
 	db := &Database{logger: logger}
 
 	consumer := &EventConsumer{
-		logger:          logger,
-		db:              db,
-		maxRetries:      2,
-		retryDelay:      100 * time.Millisecond,
-		maxRetryDelay:   1 * time.Second,
-		processedEvents: make(map[string]bool),
+		logger:        logger,
+		db:            db,
+		maxRetries:    2,
+		retryDelay:    100 * time.Millisecond,
+		maxRetryDelay: 1 * time.Second,
 	}
 
 	t.Run("processMessageWithRetry_Success", func(t *testing.T) {
@@ -292,12 +289,11 @@ func TestEventConsumer_EventHandlers_Unit(t *testing.T) {
 	db := &Database{logger: logger}
 
 	consumer := &EventConsumer{
-		logger:          logger,
-		db:              db,
-		maxRetries:      3,
-		retryDelay:      1 * time.Second,
-		maxRetryDelay:   30 * time.Second,
-		processedEvents: make(map[string]bool),
+		logger:        logger,
+		db:            db,
+		maxRetries:    3,
+		retryDelay:    1 * time.Second,
+		maxRetryDelay: 30 * time.Second,
 	}
 
 	t.Run("handleRecordCreated_UnknownCollection", func(t *testing.T) {
@@ -366,12 +362,11 @@ func TestEventConsumer_Close_Unit(t *testing.T) {
 	db := &Database{logger: logger}
 
 	consumer := &EventConsumer{
-		logger:          logger,
-		db:              db,
-		maxRetries:      3,
-		retryDelay:      1 * time.Second,
-		maxRetryDelay:   30 * time.Second,
-		processedEvents: make(map[string]bool),
+		logger:        logger,
+		db:            db,
+		maxRetries:    3,
+		retryDelay:    1 * time.Second,
+		maxRetryDelay: 30 * time.Second,
 	}
 
 	t.Run("Close_NilConnection", func(t *testing.T) {
@@ -399,7 +394,6 @@ func TestEventConsumer_Integration_DatabaseRequired(t *testing.T) {
 		maxRetries:       3,
 		retryDelay:       1 * time.Second,
 		maxRetryDelay:    30 * time.Second,
-		processedEvents:  make(map[string]bool),
 	}
 
 	t.Run("handlePostCreated_WithDatabase", func(t *testing.T) {

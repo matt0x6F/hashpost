@@ -254,7 +254,8 @@ func (s *Server) isPublicEndpoint(path string, method string) bool {
 	}
 
 	// Check for individual comment endpoints (GET /api/v1/comments/{id})
-	if method == "GET" && len(path) > 18 && strings.HasPrefix(path, "/api/v1/comments/") {
+	// But exclude vote endpoints which require authentication
+	if method == "GET" && len(path) > 18 && strings.HasPrefix(path, "/api/v1/comments/") && !strings.Contains(path, "/vote") {
 		return true // GET /api/v1/comments/{id} is public (view comment)
 	}
 
@@ -374,7 +375,7 @@ func (s *Server) UpdatePost(w http.ResponseWriter, r *http.Request, id openapi_t
 
 // Comment endpoints
 func (s *Server) CreateComment(w http.ResponseWriter, r *http.Request) {
-	s.handlers.CreateComment(w, r)
+	s.handlers.CommentsHandler(w, r)
 }
 
 func (s *Server) GetCommentByID(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {

@@ -11,6 +11,7 @@ import { VotingApi } from '@/generated/api/src/apis/VotingApi';
 import { VoteOnPostRequestVoteTypeEnum } from '@/generated/api/src/models';
 import { toast } from 'sonner';
 import { usePostData } from '@/hooks/usePostData';
+import { CommentsApi } from '@/generated/api/src/apis/CommentsApi';
 import { UserDisplay } from '@/components/UserDisplay';
 import { 
   MessageSquare,
@@ -43,15 +44,41 @@ export default function PostPage() {
   const { user, login } = useAuth();
   const [showDropdown, setShowDropdown] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
+  const [comments, setComments] = useState<any[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
   
   // Use the proper data fetching hooks
   const { post, metrics, userVote, moderation, isLoading, error, refetch } = usePostData(slug);
+
+  // Fetch comments for the post
+  const fetchComments = async () => {
+    if (!post?.id) return;
+    
+    setCommentsLoading(true);
+    try {
+      const commentsApi = getApi(CommentsApi);
+      const response = await commentsApi.listComments(post.id);
+      setComments(response.comments || []);
+    } catch (err) {
+      console.error('Error fetching comments:', err);
+      toast.error('Failed to load comments');
+    } finally {
+      setCommentsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (fullSubforumPath && slug) {
       loadSubforumUserContext();
     }
   }, [fullSubforumPath, slug]);
+
+  // Fetch comments when post is loaded
+  useEffect(() => {
+    if (post?.id) {
+      fetchComments();
+    }
+  }, [post?.id]);
 
   const loadSubforumUserContext = async () => {
     try {
@@ -91,8 +118,7 @@ export default function PostPage() {
         });
       }
       
-      // Refresh the data after successful vote
-      await refetch();
+      // Note: UI updates optimistically, no need to refetch
       
     } catch (err: unknown) {
       console.error('Error voting on post:', err);
@@ -102,12 +128,38 @@ export default function PostPage() {
   };
 
   const handleCommentVote = async (commentId: string, voteValue: number) => {
-    // Comment voting not implemented yet
-    toast.error("Comment voting is not available yet");
+    if (!user) {
+      toast.error('Please log in to vote');
+      return;
+    }
+
+    try {
+      const votingApi = getApi(VotingApi);
+      if (voteValue === 0) {
+        // Remove vote
+        await votingApi.removeVoteFromComment(commentId);
+      } else {
+        // Add vote
+        await votingApi.voteOnComment(commentId, { 
+          voteType: voteValue === 1 ? VoteOnPostRequestVoteTypeEnum.UP : VoteOnPostRequestVoteTypeEnum.DOWN
+        });
+      }
+      
+      // Refresh comments to get updated vote counts
+      await fetchComments();
+      
+    } catch (err: unknown) {
+      console.error('Error voting on comment:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to vote on comment';
+      toast.error('Failed to vote', { description: errorMessage });
+      
+      // Refresh comments on error to revert optimistic updates
+      await fetchComments();
+    }
   };
 
   // In atproto system, user permissions are handled via RBAC
-  const isPostAuthor = user?.did === post?.author;
+  const isPostAuthor = user?.did === post?.author?.did;
   const isModerator = false; // For now, assume no permissions
   
   const handleModeratorAction = async (action: string, value: boolean) => {
@@ -223,7 +275,7 @@ export default function PostPage() {
                   )}
                   
                   {/* Author Actions */}
-                  {user?.did === post.author && (
+                  {isPostAuthor && (
                     <>
                       <Link href={`/${communityType}/${subforum}/posts/${slug}/edit`}>
                         <Button
@@ -240,7 +292,6 @@ export default function PostPage() {
                         className="w-full justify-start text-destructive hover:text-destructive"
                         onClick={async () => {
                           if (confirm('Are you sure you want to delete this post? This action cannot be undone.')) {
-                            setIsLoading(true);
                             try {
                               // Post deletion not available in atproto system
                               toast.error("Post deletion is not available in the atproto system");
@@ -250,7 +301,6 @@ export default function PostPage() {
                               const errorMessage = error instanceof Error ? error.message : 'Failed to delete post';
                               toast.error('Failed to delete post', { description: errorMessage });
                             } finally {
-                              setIsLoading(false);
                               setShowDropdown(false);
                             }
                           }
@@ -312,7 +362,7 @@ export default function PostPage() {
           </div>
           <div className="flex items-center gap-1">
             <Calendar className="w-4 h-4" />
-            <span>{formatDate(post.createdAt)}</span>
+            <span>{formatDate(post.createdAt.toString())}</span>
           </div>
           <div className="flex items-center gap-1">
             <MessageSquare className="w-4 h-4" />
@@ -349,7 +399,14 @@ export default function PostPage() {
           <h2 className="text-xl font-semibold mb-4">Add a Comment</h2>
           <CommentForm
             postId={post.id}
-            onCommentSubmitted={refetch}
+            onCommentSubmitted={async () => {
+              await refetch();
+              // Add a small delay to allow for eventual consistency
+              toast.info('Comment posted! Refreshing comments...');
+              setTimeout(async () => {
+                await fetchComments();
+              }, 1500);
+            }}
           />
         </div>
       )}
@@ -365,11 +422,39 @@ export default function PostPage() {
 
       {/* Comments Section */}
       <div id="comments" className="space-y-4">
-        <h2 className="text-xl font-semibold">Comments ({metrics?.commentCount || 0})</h2>
-        
-        <div className="text-center py-8">
-          <p className="text-muted-foreground">Comments are not implemented yet.</p>
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold">Comments ({metrics?.commentCount || 0})</h2>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchComments}
+            disabled={commentsLoading}
+          >
+            {commentsLoading ? 'Loading...' : 'Refresh'}
+          </Button>
         </div>
+        
+        {commentsLoading ? (
+          <div className="text-center py-8">
+            <p className="text-muted-foreground">Loading comments...</p>
+          </div>
+        ) : comments && comments.length > 0 ? (
+          <div className="space-y-4">
+            {comments.map((comment) => (
+              <Comment
+                key={comment.id}
+                comment={comment}
+                postId={post.id}
+                onCommentUpdated={refetch}
+                onCommentVoted={handleCommentVote}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <p className="text-muted-foreground">No comments yet. Be the first to comment!</p>
+          </div>
+        )}
       </div>
       
       {/* Report Dialog */}
@@ -377,11 +462,11 @@ export default function PostPage() {
         open={showReportDialog}
         onOpenChange={setShowReportDialog}
         contentType="post"
-        contentId={post.id}
-        reportedPseudonymId={post.author}
+        contentId={parseInt(post.id) || 0}
+        reportedPseudonymId={post.author?.did || ''}
         contentTitle={post.title}
         contentPreview={post.content}
-        reportedUserDisplayName={post.author}
+        reportedUserDisplayName={post.author?.handle || ''}
       />
     </div>
   );

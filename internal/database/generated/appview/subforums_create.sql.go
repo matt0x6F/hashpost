@@ -7,6 +7,9 @@ package generated
 
 import (
 	"context"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const CreateAppViewSubforum = `-- name: CreateAppViewSubforum :one
@@ -43,7 +46,22 @@ type CreateAppViewSubforumParams struct {
 	PrefixType      string  `json:"prefix_type"`
 }
 
-func (q *Queries) CreateAppViewSubforum(ctx context.Context, arg *CreateAppViewSubforumParams) (*AppviewSubforum, error) {
+type CreateAppViewSubforumRow struct {
+	ID              uuid.UUID          `json:"id"`
+	Name            string             `json:"name"`
+	Slug            string             `json:"slug"`
+	Description     *string            `json:"description"`
+	CreatedByDid    string             `json:"created_by_did"`
+	CreatedByHandle string             `json:"created_by_handle"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	SubscriberCount *int32             `json:"subscriber_count"`
+	PostCount       *int32             `json:"post_count"`
+	CommentCount    *int32             `json:"comment_count"`
+	PrefixType      string             `json:"prefix_type"`
+}
+
+func (q *Queries) CreateAppViewSubforum(ctx context.Context, arg *CreateAppViewSubforumParams) (*CreateAppViewSubforumRow, error) {
 	row := q.db.QueryRow(ctx, CreateAppViewSubforum,
 		arg.Name,
 		arg.Slug,
@@ -52,7 +70,7 @@ func (q *Queries) CreateAppViewSubforum(ctx context.Context, arg *CreateAppViewS
 		arg.CreatedByHandle,
 		arg.PrefixType,
 	)
-	var i AppviewSubforum
+	var i CreateAppViewSubforumRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,

@@ -23,10 +23,10 @@ This document defines the command structure for the HashPost Go application usin
 
 ### Command Structure
 - **PDS Binary**: `hashpost-pds` - Personal Data Server for atproto protocol compliance
-- **AppView Binary**: `hashpost-appview` - Stateless aggregator for data presentation
+- **AppView Binary**: `hashpost-appview` - Stateful web application for forum functionality
 - **Taskfile Targets**: Shared utilities via Taskfile (migrate, generate, test, dev)
-- **PDS Focus**: PDS handles all data and business logic
-- **AppView Focus**: AppView is stateless aggregator
+- **PDS Focus**: PDS handles atproto protocol compliance and canonical data storage
+- **AppView Focus**: AppView is stateful web application with business logic
 - **Independent Deployment**: Each component can be deployed separately
 - **Development Workflow**: Taskfile manages common development tasks
 

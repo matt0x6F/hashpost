@@ -2,7 +2,7 @@
 
 ## Overview
 
-The AppView consumes atproto events from the PDS via NATS JetStream. This enables the event-driven architecture where the AppView maintains denormalized data synchronized with the PDS canonical records.
+The AppView consumes atproto events from the PDS via NATS JetStream (limited current usage). This enables partial event-driven architecture where the AppView maintains denormalized data synchronized with the PDS canonical records.
 
 ## Implementation
 

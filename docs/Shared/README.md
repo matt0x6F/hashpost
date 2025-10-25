@@ -7,10 +7,10 @@ This directory contains documentation for shared components and patterns used ac
 ## Architecture
 
 The HashPost platform follows a dual-server architecture pattern:
-- **PDS (Personal Data Server)**: Handles atproto protocol compliance and database access
-- **AppView**: Stateless aggregator that processes events from PDS via NATS JetStream
+- **PDS (Personal Data Server)**: Handles atproto protocol compliance and stores canonical data including forum-specific tables
+- **AppView**: Stateful web application with business logic and persistence that provides forum functionality
 - **Database Separation**: PDS uses `hashpost_pds_dev`, AppView uses `hashpost_appview_dev`
-- **Event-Driven Communication**: PDS publishes events → NATS JetStream → AppView consumes
+- **Event-Driven Communication**: PDS publishes events → NATS JetStream → AppView consumes (limited current usage)
 
 ## Documentation Structure
 
@@ -29,14 +29,14 @@ The HashPost platform follows a dual-server architecture pattern:
 ## Key Concepts
 
 ### Database Separation
-- **PDS Database**: Stores canonical atproto records
-- **AppView Database**: Stores denormalized/aggregated data
-- **Event Synchronization**: AppView stays in sync via event processing
+- **PDS Database**: Stores canonical atproto records plus forum-specific tables (posts, comments, votes, subforums)
+- **AppView Database**: Stores denormalized/aggregated data optimized for forum queries
+- **Event Synchronization**: Limited event processing for data sync (primarily direct database access)
 
 ### Event-Driven Architecture
-- **Event Publishing**: PDS publishes events to NATS JetStream
-- **Event Consumption**: AppView consumes events and updates denormalized data
-- **Error Handling**: Retry logic, exponential backoff, dead letter queue
+- **Event Publishing**: PDS publishes events to NATS JetStream (implemented)
+- **Event Consumption**: AppView consumes events and updates denormalized data (limited current usage)
+- **Error Handling**: Retry logic, exponential backoff, dead letter queue (implemented)
 
 ### SQLC Integration
 - **Type Safety**: Generated Go code from SQL queries

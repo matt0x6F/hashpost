@@ -2,7 +2,7 @@
 
 ## Overview
 
-HashPost implements an event-driven data flow architecture where the PDS maintains canonical atproto records and the AppView maintains denormalized data synchronized through NATS JetStream events.
+HashPost implements a hybrid data flow architecture where the PDS maintains canonical data (including forum tables) and the AppView maintains denormalized data with limited event synchronization through NATS JetStream.
 
 ## End-to-End Data Flow
 
@@ -19,11 +19,11 @@ HashPost implements an event-driven data flow architecture where the PDS maintai
 ### Post Creation Flow
 
 ```
-1. User → PDS: POST /xrpc/com.atproto.repo.createRecord
-2. PDS → Database: Store canonical post record
-3. PDS → NATS: Publish record.created event
-4. NATS → AppView: Consume record.created event
-5. AppView → Database: Store denormalized post data
+1. User → AppView: POST /api/v1/posts (with authentication)
+2. AppView → PDS: Proxy to /xrpc/com.atproto.repo.createRecord
+3. PDS → Database: Store canonical post record
+4. PDS → NATS: Publish record.created event (optional)
+5. AppView → Database: Store denormalized post data (direct)
 6. AppView → User: Return success response
 ```
 

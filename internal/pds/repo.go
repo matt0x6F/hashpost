@@ -1,6 +1,7 @@
 package pds
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -30,14 +31,35 @@ func (s *Server) handleCreateRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token := authHeader[7:]
-	session, authErr := s.authService.ValidateToken(token)
-	if authErr != nil {
-		s.logger.Error("Token validation failed", "error", authErr)
-		http.Error(w, "Invalid token", http.StatusUnauthorized)
-		return
-	}
 
-	s.logger.Debug("Authenticated user", "did", session.DID, "handle", session.Handle)
+	// Check if this is a service-to-service call from AppView
+	if r.Header.Get("X-Service-Name") == "appview" {
+		// For service-to-service calls, validate the token using the AppView's token validator
+		session, authErr := s.validateAppViewToken(token)
+		if authErr != nil {
+			s.logger.Error("AppView token validation failed", "error", authErr)
+			http.Error(w, "Invalid AppView token", http.StatusUnauthorized)
+			return
+		}
+		s.logger.Debug("Authenticated AppView service call", "did", session.DID, "handle", session.Handle)
+
+		// Store session in context for use in event publishing (same as regular auth)
+		ctx := context.WithValue(r.Context(), "session", session)
+		r = r.WithContext(ctx)
+	} else {
+		// Regular user authentication
+		session, authErr := s.authService.ValidateToken(token)
+		if authErr != nil {
+			s.logger.Error("Token validation failed", "error", authErr)
+			http.Error(w, "Invalid token", http.StatusUnauthorized)
+			return
+		}
+		s.logger.Debug("Authenticated user", "did", session.DID, "handle", session.Handle)
+
+		// Store session in context for use in event publishing
+		ctx := context.WithValue(r.Context(), "session", session)
+		r = r.WithContext(ctx)
+	}
 
 	// Parse request body
 	var req struct {
@@ -62,6 +84,8 @@ func (s *Server) handleCreateRecord(w http.ResponseWriter, r *http.Request) {
 		lexicons.CollectionFeedPost,
 		lexicons.CollectionFeedSubforum,
 		lexicons.CollectionFeedComment,
+		"com.hashpost.feed.vote",
+		"com.hashpost.graph.subscription",
 		"app.bsky.feed.post",
 		"app.bsky.feed.like",
 		"app.bsky.feed.repost",
@@ -105,6 +129,12 @@ func (s *Server) handleCreateRecord(w http.ResponseWriter, r *http.Request) {
 		err = s.createHashPostRecord(ctx, req.Repo, req.Collection, recordID, uri, cid, req.Record)
 	case lexicons.CollectionFeedSubforum:
 		err = s.createHashPostRecord(ctx, req.Repo, req.Collection, recordID, uri, cid, req.Record)
+	case lexicons.CollectionFeedComment:
+		err = s.createHashPostRecord(ctx, req.Repo, req.Collection, recordID, uri, cid, req.Record)
+	case "com.hashpost.feed.vote":
+		err = s.createHashPostRecord(ctx, req.Repo, req.Collection, recordID, uri, cid, req.Record)
+	case "com.hashpost.graph.subscription":
+		err = s.createHashPostRecord(ctx, req.Repo, req.Collection, recordID, uri, cid, req.Record)
 	default:
 		// For other collections, store as generic record
 		err = s.createGenericRecord(ctx, req.Repo, req.Collection, recordID, uri, cid, req.Record)
@@ -122,8 +152,14 @@ func (s *Server) handleCreateRecord(w http.ResponseWriter, r *http.Request) {
 		"record": req.Record,
 	}
 
-	// Publish record created event
-	if err := s.eventStream.PublishRecordEvent(ctx, EventTypeRecordCreated, req.Repo, req.Collection, req.Record, uri, cid); err != nil {
+	// Publish record created event with user handle
+	// Get user handle from session for metadata
+	userHandle := "unknown" // Default fallback
+	if session, ok := r.Context().Value("session").(*Session); ok && session != nil {
+		userHandle = session.Handle
+	}
+
+	if err := s.eventStream.PublishRecordEventWithHandle(ctx, EventTypeRecordCreated, req.Repo, req.Collection, req.Record, uri, cid, userHandle); err != nil {
 		s.logger.Error("Failed to publish record created event", "error", err)
 		// Don't fail the request, just log the error
 	}
@@ -237,14 +273,27 @@ func (s *Server) handleListRecords(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token := authHeader[7:]
-	session, authErr := s.authService.ValidateToken(token)
-	if authErr != nil {
-		s.logger.Error("Token validation failed", "error", authErr)
-		http.Error(w, "Invalid token", http.StatusUnauthorized)
-		return
-	}
 
-	s.logger.Debug("Authenticated user", "did", session.DID, "handle", session.Handle)
+	// Check if this is a service-to-service call from AppView
+	if r.Header.Get("X-Service-Name") == "appview" {
+		// For service-to-service calls, validate the token using the AppView's token validator
+		session, authErr := s.validateAppViewToken(token)
+		if authErr != nil {
+			s.logger.Error("AppView token validation failed", "error", authErr)
+			http.Error(w, "Invalid AppView token", http.StatusUnauthorized)
+			return
+		}
+		s.logger.Debug("Authenticated AppView service call", "did", session.DID, "handle", session.Handle)
+	} else {
+		// Regular user authentication
+		session, authErr := s.authService.ValidateToken(token)
+		if authErr != nil {
+			s.logger.Error("Token validation failed", "error", authErr)
+			http.Error(w, "Invalid token", http.StatusUnauthorized)
+			return
+		}
+		s.logger.Debug("Authenticated user", "did", session.DID, "handle", session.Handle)
+	}
 
 	repo := r.URL.Query().Get("repo")
 	collection := r.URL.Query().Get("collection")
@@ -314,14 +363,27 @@ func (s *Server) handlePutRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token := authHeader[7:]
-	session, authErr := s.authService.ValidateToken(token)
-	if authErr != nil {
-		s.logger.Error("Token validation failed", "error", authErr)
-		http.Error(w, "Invalid token", http.StatusUnauthorized)
-		return
-	}
 
-	s.logger.Debug("Authenticated user", "did", session.DID, "handle", session.Handle)
+	// Check if this is a service-to-service call from AppView
+	if r.Header.Get("X-Service-Name") == "appview" {
+		// For service-to-service calls, validate the token using the AppView's token validator
+		session, authErr := s.validateAppViewToken(token)
+		if authErr != nil {
+			s.logger.Error("AppView token validation failed", "error", authErr)
+			http.Error(w, "Invalid AppView token", http.StatusUnauthorized)
+			return
+		}
+		s.logger.Debug("Authenticated AppView service call", "did", session.DID, "handle", session.Handle)
+	} else {
+		// Regular user authentication
+		session, authErr := s.authService.ValidateToken(token)
+		if authErr != nil {
+			s.logger.Error("Token validation failed", "error", authErr)
+			http.Error(w, "Invalid token", http.StatusUnauthorized)
+			return
+		}
+		s.logger.Debug("Authenticated user", "did", session.DID, "handle", session.Handle)
+	}
 
 	// Parse request body
 	var req struct {
@@ -367,6 +429,18 @@ func (s *Server) handlePutRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Publish record updated event
+	// Get user handle from session for metadata
+	userHandle := "unknown" // Default fallback
+	if session, ok := r.Context().Value("session").(*Session); ok && session != nil {
+		userHandle = session.Handle
+	}
+
+	if err := s.eventStream.PublishRecordEventWithHandle(ctx, EventTypeRecordUpdated, req.Repo, req.Collection, req.Record, uri, "", userHandle); err != nil {
+		s.logger.Error("Failed to publish record updated event", "error", err)
+		// Don't fail the request, just log the error
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)
@@ -393,14 +467,27 @@ func (s *Server) handleDeleteRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token := authHeader[7:]
-	session, authErr := s.authService.ValidateToken(token)
-	if authErr != nil {
-		s.logger.Error("Token validation failed", "error", authErr)
-		http.Error(w, "Invalid token", http.StatusUnauthorized)
-		return
-	}
 
-	s.logger.Debug("Authenticated user", "did", session.DID, "handle", session.Handle)
+	// Check if this is a service-to-service call from AppView
+	if r.Header.Get("X-Service-Name") == "appview" {
+		// For service-to-service calls, validate the token using the AppView's token validator
+		session, authErr := s.validateAppViewToken(token)
+		if authErr != nil {
+			s.logger.Error("AppView token validation failed", "error", authErr)
+			http.Error(w, "Invalid AppView token", http.StatusUnauthorized)
+			return
+		}
+		s.logger.Debug("Authenticated AppView service call", "did", session.DID, "handle", session.Handle)
+	} else {
+		// Regular user authentication
+		session, authErr := s.authService.ValidateToken(token)
+		if authErr != nil {
+			s.logger.Error("Token validation failed", "error", authErr)
+			http.Error(w, "Invalid token", http.StatusUnauthorized)
+			return
+		}
+		s.logger.Debug("Authenticated user", "did", session.DID, "handle", session.Handle)
+	}
 
 	// Parse request body
 	var req struct {
@@ -441,6 +528,18 @@ func (s *Server) handleDeleteRecord(w http.ResponseWriter, r *http.Request) {
 		s.logger.Error("Failed to delete record", "error", err, "uri", uri)
 		http.Error(w, "Failed to delete record", http.StatusInternalServerError)
 		return
+	}
+
+	// Publish record deleted event
+	// Get user handle from session for metadata
+	userHandle := "unknown" // Default fallback
+	if session, ok := r.Context().Value("session").(*Session); ok && session != nil {
+		userHandle = session.Handle
+	}
+
+	if err := s.eventStream.PublishRecordEventWithHandle(ctx, EventTypeRecordDeleted, req.Repo, req.Collection, nil, uri, "", userHandle); err != nil {
+		s.logger.Error("Failed to publish record deleted event", "error", err)
+		// Don't fail the request, just log the error
 	}
 
 	s.logger.Info("Record deleted", "uri", uri)

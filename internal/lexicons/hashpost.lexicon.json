@@ -107,6 +107,51 @@
           }
         }
       }
+    },
+    {
+      "id": "com.hashpost.feed.vote",
+      "version": "0.0.1",
+      "defs": {
+        "main": {
+          "type": "object",
+          "required": ["subject", "direction", "createdAt"],
+          "properties": {
+            "subject": {
+              "type": "string",
+              "description": "AT-URI of the post or comment being voted on"
+            },
+            "direction": {
+              "type": "string",
+              "enum": ["up", "down"],
+              "description": "Vote direction: up (positive) or down (negative)"
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "com.hashpost.graph.subscription",
+      "version": "0.0.1",
+      "defs": {
+        "main": {
+          "type": "object",
+          "required": ["subject", "createdAt"],
+          "properties": {
+            "subject": {
+              "type": "string",
+              "description": "AT-URI of the subforum being subscribed to"
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        }
+      }
     }
   ]
 }

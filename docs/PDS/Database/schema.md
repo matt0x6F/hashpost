@@ -2,7 +2,7 @@
 
 ## Overview
 
-The PDS database stores canonical atproto records and user information. It follows the atproto specification for data storage, with proper URI storage and relational integrity.
+The PDS database stores canonical atproto records, user information, and forum-specific tables. It follows the atproto specification for data storage with forum extensions, including proper URI storage and relational integrity.
 
 ## Database Configuration
 

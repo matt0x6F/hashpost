@@ -19,6 +19,12 @@ const (
 	BearerAuthScopes = "bearerAuth.Scopes"
 )
 
+// Defines values for CommentUserVote.
+const (
+	CommentUserVoteDown CommentUserVote = "down"
+	CommentUserVoteUp   CommentUserVote = "up"
+)
+
 // Defines values for PermissionResourceType.
 const (
 	PermissionResourceTypeComment  PermissionResourceType = "comment"
@@ -57,8 +63,8 @@ const (
 
 // Defines values for VoteOnPostJSONBodyVoteType.
 const (
-	VoteOnPostJSONBodyVoteTypeDown VoteOnPostJSONBodyVoteType = "down"
-	VoteOnPostJSONBodyVoteTypeUp   VoteOnPostJSONBodyVoteType = "up"
+	Down VoteOnPostJSONBodyVoteType = "down"
+	Up   VoteOnPostJSONBodyVoteType = "up"
 )
 
 // Defines values for CreateSubforumJSONBodyPrefixType.
@@ -113,7 +119,13 @@ type Comment struct {
 
 	// Upvotes Number of upvotes
 	Upvotes *int `json:"upvotes,omitempty"`
+
+	// UserVote User's vote on this comment (null if not voted)
+	UserVote *CommentUserVote `json:"user_vote,omitempty"`
 }
+
+// CommentUserVote User's vote on this comment (null if not voted)
+type CommentUserVote string
 
 // Error defines model for Error.
 type Error struct {

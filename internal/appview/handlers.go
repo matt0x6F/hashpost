@@ -1,7 +1,10 @@
 package appview
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -233,6 +236,13 @@ func (h *Handlers) writeError(w http.ResponseWriter, statusCode int, errorCode, 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	json.NewEncoder(w).Encode(error)
+}
+
+// writeJSONResponse writes a JSON response
+func (h *Handlers) writeJSONResponse(w http.ResponseWriter, statusCode int, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	json.NewEncoder(w).Encode(data)
 }
 
 // CreateSubforum handles POST /api/v1/subforums
@@ -640,4 +650,60 @@ func (h *Handlers) UpdatePassword(w http.ResponseWriter, r *http.Request) {
 	// Success response
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+}
+
+// proxyToPDS proxies a request to the PDS server
+func (h *Handlers) proxyToPDS(r *http.Request, method, path string, body interface{}) ([]byte, error) {
+	// Marshal request body if provided
+	var reqBody []byte
+	var err error
+	if body != nil {
+		reqBody, err = json.Marshal(body)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Create request to PDS
+	pdsURL := h.pdsURL + path
+	req, err := http.NewRequest(method, pdsURL, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return nil, err
+	}
+
+	// Copy headers from original request
+	for key, values := range r.Header {
+		for _, value := range values {
+			req.Header.Add(key, value)
+		}
+	}
+
+	// Set content type for JSON requests
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	// Add service-to-service header
+	req.Header.Set("X-Service-Name", "appview")
+
+	// Make request to PDS
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// Read response body
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check for error status
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("PDS request failed with status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	return respBody, nil
 }

@@ -1,11 +1,15 @@
 package appview
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	generated "github.com/matt0x6f/hashpost/internal/database/generated/appview"
 )
@@ -48,36 +52,51 @@ func (sh *SubscriptionHandlers) SubscribeToSubforum(w http.ResponseWriter, r *ht
 
 	ctx := r.Context()
 
-	// Check if subforum exists
-	_, err := sh.queries.GetSubforumBySlug(ctx, slug)
+	// Check if subforum exists and get its atproto URI
+	subforum, err := sh.queries.GetSubforumBySlug(ctx, slug)
 	if err != nil {
 		sh.logger.Error("Subforum not found", "error", err, "slug", slug)
 		sh.writeError(w, http.StatusNotFound, "SUBFORUM_NOT_FOUND", "Subforum not found")
 		return
 	}
 
-	// Create subscription
-	subscription, err := sh.queries.CreateSubscription(ctx, &generated.CreateSubscriptionParams{
-		UserDid:      userCtx.Did,
-		UserHandle:   userCtx.Handle,
-		SubforumSlug: slug,
+	// Create subscription record in PDS
+	subscriptionRecord := map[string]interface{}{
+		"$type":     "com.hashpost.graph.subscription",
+		"subject":   subforum.AtprotoUri,
+		"createdAt": time.Now().Format(time.RFC3339),
+	}
+
+	// Proxy to PDS to create the subscription record
+	pdsResponse, err := sh.proxyToPDS(r, "POST", "/xrpc/com.atproto.repo.createRecord", map[string]interface{}{
+		"repo":       userCtx.Did,
+		"collection": "com.hashpost.graph.subscription",
+		"record":     subscriptionRecord,
 	})
+
 	if err != nil {
-		sh.logger.Error("Failed to create subscription", "error", err, "user_did", userCtx.Did, "slug", slug)
-		sh.writeError(w, http.StatusInternalServerError, "SUBSCRIPTION_FAILED", "Failed to create subscription")
+		sh.logger.Error("Failed to create subscription in PDS", "error", err)
+		sh.writeError(w, http.StatusInternalServerError, "PDS_ERROR", "Failed to create subscription")
 		return
 	}
 
-	// Update subscriber count
-	err = sh.queries.UpdateSubforumSubscriberCount(ctx, slug)
-	if err != nil {
-		sh.logger.Error("Failed to update subscriber count", "error", err, "slug", slug)
-		// Don't fail the request, just log the error
+	// Parse PDS response to get the created subscription URI
+	var pdsResult struct {
+		URI string `json:"uri"`
+		CID string `json:"cid"`
+	}
+	if err := json.Unmarshal(pdsResponse, &pdsResult); err != nil {
+		sh.logger.Error("Failed to parse PDS response", "error", err)
+		sh.writeError(w, http.StatusInternalServerError, "PDS_ERROR", "Failed to parse PDS response")
+		return
 	}
 
+	// Wait a moment for the event to be processed by AppView
+	time.Sleep(100 * time.Millisecond)
+
 	response := SubscriptionResponse{
-		SubforumSlug: subscription.SubforumSlug,
-		SubscribedAt: subscription.CreatedAt.Time,
+		SubforumSlug: slug,
+		SubscribedAt: time.Now(),
 	}
 
 	sh.writeJSON(w, http.StatusCreated, response)
@@ -431,4 +450,60 @@ func (sh *SubscriptionHandlers) writeJSON(w http.ResponseWriter, status int, dat
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(data)
+}
+
+// proxyToPDS proxies a request to the PDS server
+func (sh *SubscriptionHandlers) proxyToPDS(r *http.Request, method, path string, body interface{}) ([]byte, error) {
+	// Marshal request body if provided
+	var reqBody []byte
+	var err error
+	if body != nil {
+		reqBody, err = json.Marshal(body)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Create request to PDS
+	pdsURL := "http://hashpost-pds:8080" + path
+	req, err := http.NewRequest(method, pdsURL, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return nil, err
+	}
+
+	// Copy headers from original request
+	for key, values := range r.Header {
+		for _, value := range values {
+			req.Header.Add(key, value)
+		}
+	}
+
+	// Set content type for JSON requests
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	// Add service-to-service header
+	req.Header.Set("X-Service-Name", "appview")
+
+	// Make request to PDS
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// Read response body
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check for error status
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("PDS request failed with status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	return respBody, nil
 }

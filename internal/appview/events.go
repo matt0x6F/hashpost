@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	generated "github.com/matt0x6f/hashpost/internal/database/generated/appview"
 	"github.com/matt0x6f/hashpost/internal/lexicons"
 	"github.com/nats-io/nats.go"
@@ -24,10 +26,9 @@ type EventConsumer struct {
 	profileFetcher   *ProfileFetcher
 
 	// Enhanced error handling
-	maxRetries      int
-	retryDelay      time.Duration
-	maxRetryDelay   time.Duration
-	processedEvents map[string]bool // For idempotency
+	maxRetries    int
+	retryDelay    time.Duration
+	maxRetryDelay time.Duration
 }
 
 // NewEventConsumer creates a new event consumer
@@ -60,10 +61,9 @@ func NewEventConsumer(natsURL string, db *Database, logger *slog.Logger) (*Event
 		profileFetcher:   profileFetcher,
 
 		// Enhanced error handling configuration
-		maxRetries:      3,
-		retryDelay:      1 * time.Second,
-		maxRetryDelay:   30 * time.Second,
-		processedEvents: make(map[string]bool),
+		maxRetries:    3,
+		retryDelay:    1 * time.Second,
+		maxRetryDelay: 30 * time.Second,
 	}
 
 	return consumer, nil
@@ -72,7 +72,7 @@ func NewEventConsumer(natsURL string, db *Database, logger *slog.Logger) (*Event
 // StartConsuming starts consuming events from the stream
 func (ec *EventConsumer) StartConsuming(ctx context.Context) error {
 	// Subscribe to all hashpost events
-	subject := "hashpost.events.record.created" // Match the exact subject pattern
+	subject := "hashpost.events.*" // Subscribe to all event types
 	streamName := "HASHPOST_EVENTS"
 
 	ec.logger.Info("Subscribing to atproto events", "subject", subject, "stream", streamName)
@@ -171,7 +171,13 @@ func (ec *EventConsumer) processMessageWithRetry(msg *nats.Msg) error {
 		}
 
 		// Success - mark as processed
-		ec.markEventProcessed(eventID)
+		sequence := int64(0)
+		if seqStr := msg.Header.Get("Nats-Sequence"); seqStr != "" {
+			if seq, err := strconv.ParseInt(seqStr, 10, 64); err == nil {
+				sequence = seq
+			}
+		}
+		ec.markEventProcessed(eventID, msg.Subject, sequence)
 		return nil
 	}
 
@@ -180,22 +186,35 @@ func (ec *EventConsumer) processMessageWithRetry(msg *nats.Msg) error {
 
 // generateEventID creates a unique identifier for an event
 func (ec *EventConsumer) generateEventID(msg *nats.Msg) string {
-	// Use subject + sequence + timestamp for uniqueness
+	// Use subject + sequence for uniqueness
 	sequence := msg.Header.Get("Nats-Sequence")
 	if sequence == "" {
 		sequence = "unknown"
 	}
-	return fmt.Sprintf("%s-%s-%d", msg.Subject, sequence, time.Now().Unix())
+	return fmt.Sprintf("%s-%s", msg.Subject, sequence)
 }
 
 // isEventProcessed checks if an event has already been processed
 func (ec *EventConsumer) isEventProcessed(eventID string) bool {
-	return ec.processedEvents[eventID]
+	exists, err := ec.db.queries.IsEventProcessed(context.Background(), eventID)
+	if err != nil {
+		ec.logger.Error("Failed to check if event is processed", "error", err, "event_id", eventID)
+		return false // Assume not processed if we can't check
+	}
+	return exists
 }
 
 // markEventProcessed marks an event as processed
-func (ec *EventConsumer) markEventProcessed(eventID string) {
-	ec.processedEvents[eventID] = true
+func (ec *EventConsumer) markEventProcessed(eventID string, subject string, sequence int64) {
+	_, err := ec.db.queries.CreateProcessedEvent(context.Background(), &generated.CreateProcessedEventParams{
+		EventID:  eventID,
+		Subject:  subject,
+		Sequence: sequence,
+	})
+	if err != nil {
+		ec.logger.Error("Failed to mark event as processed", "error", err, "event_id", eventID)
+		// Don't fail the event processing, just log the error
+	}
 }
 
 // calculateBackoffDelay calculates exponential backoff delay
@@ -302,6 +321,10 @@ func (ec *EventConsumer) handleRecordCreated(event AtprotoEvent) error {
 		return ec.handleSubforumCreated(event)
 	case lexicons.CollectionFeedComment:
 		return ec.handleCommentCreated(event)
+	case "com.hashpost.feed.vote":
+		return ec.handleVoteCreated(event)
+	case "com.hashpost.graph.subscription":
+		return ec.handleSubscriptionCreated(event)
 	default:
 		ec.logger.Debug("Unknown collection type", "collection", event.Collection)
 	}
@@ -375,7 +398,7 @@ func (ec *EventConsumer) handleIdentityResolved(event AtprotoEvent) error {
 		ID:          uuid.New(),
 		DID:         did,
 		Handle:      handle,
-		DisplayName: handle, // Use handle as display name initially
+		DisplayName: handle, // Use handle as display name initially - will be updated by profile fetcher
 		CreatedAt:   event.Timestamp,
 		UpdatedAt:   event.Timestamp,
 	}
@@ -726,22 +749,22 @@ func (ec *EventConsumer) handleCommentCreated(event AtprotoEvent) error {
 		return fmt.Errorf("invalid post field in comment record")
 	}
 
-	parentURI, _ := event.Record["parent"].(string) // optional
-
 	createdAtStr, ok := event.Record["createdAt"].(string)
 	if !ok {
 		return fmt.Errorf("invalid createdAt field in comment record")
 	}
 
-	// Parse createdAt
+	// Parse timestamp
 	var createdAt time.Time
 	var err error
 	createdAt, err = time.Parse(time.RFC3339, createdAtStr)
 	if err != nil {
-		// Fallback to current time
-		createdAt = time.Now()
-		ec.logger.Warn("Failed to parse createdAt, using current time",
-			"createdAt", createdAtStr, "error", err)
+		createdAt, err = time.Parse(time.RFC3339Nano, createdAtStr)
+		if err != nil {
+			createdAt = time.Now()
+			ec.logger.Warn("Failed to parse createdAt, using current time",
+				"createdAt", createdAtStr, "error", err)
+		}
 	}
 
 	// Resolve author handle from DID
@@ -751,20 +774,17 @@ func (ec *EventConsumer) handleCommentCreated(event AtprotoEvent) error {
 		authorHandle = "unknown"
 	}
 
-	// Get post ID from URI
-	post, err := ec.db.GetPostByURI(postURI)
-	if err != nil {
-		return fmt.Errorf("failed to find post: %w", err)
+	// Get parent comment URI if this is a reply
+	var parentURI *string
+	if parent, ok := event.Record["parent"].(string); ok && parent != "" {
+		parentURI = &parent
 	}
 
-	// Look up parent comment if specified
-	var parentID *uuid.UUID
-	if parentURI != "" {
-		parent, err := ec.db.GetCommentByURI(parentURI)
-		if err == nil {
-			parentUUID := parent.ID
-			parentID = &parentUUID
-		}
+	// Find the post ID by URI
+	post, err := ec.db.GetPostByURI(postURI)
+	if err != nil {
+		ec.logger.Error("Failed to find post for comment", "error", err, "post_uri", postURI)
+		return fmt.Errorf("failed to find post: %w", err)
 	}
 
 	// Create AppView comment data
@@ -774,10 +794,17 @@ func (ec *EventConsumer) handleCommentCreated(event AtprotoEvent) error {
 		AuthorDID:    event.Repo,
 		AuthorHandle: authorHandle,
 		PostID:       post.ID,
-		ParentID:     parentID,
 		Content:      text,
 		CreatedAt:    createdAt,
 		UpdatedAt:    createdAt,
+	}
+
+	// Set parent ID if this is a reply
+	if parentURI != nil {
+		parentComment, err := ec.db.GetCommentByURI(*parentURI)
+		if err == nil {
+			comment.ParentID = &parentComment.ID
+		}
 	}
 
 	// Store in AppView database
@@ -785,12 +812,22 @@ func (ec *EventConsumer) handleCommentCreated(event AtprotoEvent) error {
 		return fmt.Errorf("failed to create comment in AppView: %w", err)
 	}
 
+	// Update post comment count
+	if err := ec.db.queries.UpdatePostCommentCount(context.Background(), pgtype.UUID{Bytes: post.ID, Valid: true}); err != nil {
+		ec.logger.Warn("Failed to update post comment count", "error", err, "post_id", post.ID)
+	}
+
 	// Update user's last seen time
 	if err := ec.db.queries.UpdateUserLastSeen(context.Background(), event.Repo); err != nil {
 		ec.logger.Warn("Failed to update user last seen time", "error", err, "did", event.Repo)
 	}
 
-	ec.logger.Info("Comment created in AppView database", "uri", event.URI)
+	ec.logger.Info("Comment stored in AppView database",
+		"uri", event.URI,
+		"text", text,
+		"created_at", createdAt,
+	)
+
 	return nil
 }
 
@@ -829,6 +866,19 @@ func (ec *EventConsumer) handleCommentDeleted(event AtprotoEvent) error {
 		"repo", event.Repo,
 		"uri", event.URI,
 	)
+
+	// Get comment before deleting to update post count
+	comment, err := ec.db.GetCommentByURI(event.URI)
+	if err != nil {
+		ec.logger.Warn("Failed to get comment before deletion", "error", err, "uri", event.URI)
+	} else {
+		// Update post comment count after deletion
+		postUUID := comment.PostID
+		if err := ec.db.queries.UpdatePostCommentCount(context.Background(), postUUID); err != nil {
+			ec.logger.Warn("Failed to update post comment count after deletion", "error", err, "post_id", comment.PostID)
+			// Don't fail the event processing, just log the error
+		}
+	}
 
 	// Delete comment from AppView database
 	if err := ec.db.DeleteCommentByURI(event.URI); err != nil {
@@ -879,6 +929,131 @@ func (ec *EventConsumer) resolvePDSSource(did string) string {
 	// For now, return a placeholder PDS endpoint
 	// In production, this would resolve the actual PDS endpoint from the DID document
 	return "https://external-pds.example.com"
+}
+
+// handleVoteCreated processes vote creation events
+func (ec *EventConsumer) handleVoteCreated(event AtprotoEvent) error {
+	ec.logger.Info("HashPost vote created",
+		"repo", event.Repo,
+		"uri", event.URI,
+		"subject", event.Record["subject"],
+		"direction", event.Record["direction"],
+	)
+
+	// Extract vote data from the record
+	subject, ok := event.Record["subject"].(string)
+	if !ok {
+		return fmt.Errorf("invalid subject field in vote record")
+	}
+
+	direction, ok := event.Record["direction"].(string)
+	if !ok {
+		return fmt.Errorf("invalid direction field in vote record")
+	}
+
+	if direction != "up" && direction != "down" {
+		return fmt.Errorf("invalid direction value: %s", direction)
+	}
+
+	// Determine if this is a vote on a post or comment
+	var postID uuid.UUID
+	var commentID *uuid.UUID
+
+	// Try to find the subject as a post first
+	post, err := ec.db.GetPostByURI(subject)
+	if err == nil {
+		postID = post.ID
+	} else {
+		// Try to find as a comment
+		comment, err := ec.db.GetCommentByURI(subject)
+		if err != nil {
+			ec.logger.Warn("Could not find post or comment for vote subject", "subject", subject)
+			return nil // Don't fail the event processing
+		}
+		commentID = &comment.ID
+		postID = comment.PostID.Bytes
+	}
+
+	// Create vote record in AppView database
+	vote := &AppViewVote{
+		ID:        uuid.New(),
+		UserDID:   event.Repo,
+		Subject:   subject,
+		Direction: direction,
+		CreatedAt: event.Timestamp,
+	}
+
+	if err := ec.db.CreateVote(vote); err != nil {
+		return fmt.Errorf("failed to create vote in AppView: %w", err)
+	}
+
+	// Update vote counts
+	if commentID != nil {
+		// Update comment vote counts
+		if err := ec.db.queries.UpdateCommentVoteCounts(context.Background(), *commentID); err != nil {
+			ec.logger.Warn("Failed to update comment vote counts", "error", err, "comment_id", *commentID)
+		}
+	} else {
+		// Update post vote counts
+		if err := ec.db.queries.UpdatePostVoteCounts(context.Background(), postID); err != nil {
+			ec.logger.Warn("Failed to update post vote counts", "error", err, "post_id", postID)
+		}
+	}
+
+	ec.logger.Info("Vote stored in AppView database",
+		"uri", event.URI,
+		"subject", subject,
+		"direction", direction,
+	)
+
+	return nil
+}
+
+// handleSubscriptionCreated processes subscription creation events
+func (ec *EventConsumer) handleSubscriptionCreated(event AtprotoEvent) error {
+	ec.logger.Info("HashPost subscription created",
+		"repo", event.Repo,
+		"uri", event.URI,
+		"subject", event.Record["subject"],
+	)
+
+	// Extract subscription data from the record
+	subject, ok := event.Record["subject"].(string)
+	if !ok {
+		return fmt.Errorf("invalid subject field in subscription record")
+	}
+
+	// Find the subforum by URI
+	subforum, err := ec.db.GetSubforumByURI(subject)
+	if err != nil {
+		ec.logger.Warn("Could not find subforum for subscription subject", "subject", subject)
+		return nil // Don't fail the event processing
+	}
+
+	// Create subscription record in AppView database
+	subscription := &AppViewSubscription{
+		ID:         uuid.New(),
+		UserDID:    event.Repo,
+		SubforumID: subforum.ID,
+		CreatedAt:  event.Timestamp,
+	}
+
+	if err := ec.db.CreateSubscription(subscription); err != nil {
+		return fmt.Errorf("failed to create subscription in AppView: %w", err)
+	}
+
+	// Update subforum subscriber count
+	if err := ec.db.queries.UpdateSubforumSubscriberCount(context.Background(), subforum.Slug); err != nil {
+		ec.logger.Warn("Failed to update subforum subscriber count", "error", err, "subforum_slug", subforum.Slug)
+	}
+
+	ec.logger.Info("Subscription stored in AppView database",
+		"uri", event.URI,
+		"subject", subject,
+		"subforum_id", subforum.ID,
+	)
+
+	return nil
 }
 
 // Close closes the NATS connection

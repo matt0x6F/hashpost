@@ -64,6 +64,7 @@ type AppviewSubforum struct {
 	PostCount       *int32             `json:"post_count"`
 	CommentCount    *int32             `json:"comment_count"`
 	PrefixType      string             `json:"prefix_type"`
+	AtprotoUri      *string            `json:"atproto_uri"`
 }
 
 type AppviewSubscription struct {
@@ -110,6 +111,15 @@ type Permission struct {
 	ResourceType string             `json:"resource_type"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ProcessedEvent struct {
+	ID          uuid.UUID          `json:"id"`
+	EventID     string             `json:"event_id"`
+	Subject     string             `json:"subject"`
+	Sequence    int64              `json:"sequence"`
+	ProcessedAt pgtype.Timestamptz `json:"processed_at"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
 type Role struct {

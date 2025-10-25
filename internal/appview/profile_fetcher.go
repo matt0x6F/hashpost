@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	generated "github.com/matt0x6f/hashpost/internal/database/generated/appview"
@@ -73,8 +74,8 @@ func (pf *ProfileFetcher) resolvePDSEndpoint(ctx context.Context, did string) (s
 	// 2. Extract PDS endpoint from DID document
 	// 3. Return the endpoint URL
 
-	// Mock implementation - in production, use proper DID resolution
-	if did == "did:plc:hashpost-local" {
+	// Check if this is a local HashPost user
+	if strings.Contains(did, "hashpost") {
 		return "http://hashpost-pds:8080", nil
 	}
 

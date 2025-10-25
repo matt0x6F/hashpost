@@ -7,6 +7,9 @@ package generated
 
 import (
 	"context"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const GetAppViewSubforumBySlug = `-- name: GetAppViewSubforumBySlug :one
@@ -27,9 +30,24 @@ FROM appview_subforums
 WHERE slug = $1
 `
 
-func (q *Queries) GetAppViewSubforumBySlug(ctx context.Context, slug string) (*AppviewSubforum, error) {
+type GetAppViewSubforumBySlugRow struct {
+	ID              uuid.UUID          `json:"id"`
+	Name            string             `json:"name"`
+	Slug            string             `json:"slug"`
+	Description     *string            `json:"description"`
+	CreatedByDid    string             `json:"created_by_did"`
+	CreatedByHandle string             `json:"created_by_handle"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	SubscriberCount *int32             `json:"subscriber_count"`
+	PostCount       *int32             `json:"post_count"`
+	CommentCount    *int32             `json:"comment_count"`
+	PrefixType      string             `json:"prefix_type"`
+}
+
+func (q *Queries) GetAppViewSubforumBySlug(ctx context.Context, slug string) (*GetAppViewSubforumBySlugRow, error) {
 	row := q.db.QueryRow(ctx, GetAppViewSubforumBySlug, slug)
-	var i AppviewSubforum
+	var i GetAppViewSubforumBySlugRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -71,15 +89,30 @@ type ListAppViewSubforumsParams struct {
 	Offset int32 `json:"offset"`
 }
 
-func (q *Queries) ListAppViewSubforums(ctx context.Context, arg *ListAppViewSubforumsParams) ([]*AppviewSubforum, error) {
+type ListAppViewSubforumsRow struct {
+	ID              uuid.UUID          `json:"id"`
+	Name            string             `json:"name"`
+	Slug            string             `json:"slug"`
+	Description     *string            `json:"description"`
+	CreatedByDid    string             `json:"created_by_did"`
+	CreatedByHandle string             `json:"created_by_handle"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	SubscriberCount *int32             `json:"subscriber_count"`
+	PostCount       *int32             `json:"post_count"`
+	CommentCount    *int32             `json:"comment_count"`
+	PrefixType      string             `json:"prefix_type"`
+}
+
+func (q *Queries) ListAppViewSubforums(ctx context.Context, arg *ListAppViewSubforumsParams) ([]*ListAppViewSubforumsRow, error) {
 	rows, err := q.db.Query(ctx, ListAppViewSubforums, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*AppviewSubforum{}
+	items := []*ListAppViewSubforumsRow{}
 	for rows.Next() {
-		var i AppviewSubforum
+		var i ListAppViewSubforumsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,

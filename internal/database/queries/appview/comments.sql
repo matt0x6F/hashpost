@@ -31,6 +31,22 @@ WHERE c.post_id = $1
 ORDER BY c.created_at ASC
 LIMIT $2 OFFSET $3;
 
+-- name: ListCommentsByPostWithUserVotes :many
+SELECT 
+    c.*,
+    p.title as post_title,
+    p.subforum_slug,
+    u.display_name as author_display_name,
+    u.avatar_url as author_avatar_url,
+    v.vote_type as user_vote_type
+FROM appview_comments c
+JOIN appview_posts p ON c.post_id = p.id
+LEFT JOIN appview_users u ON c.author_did = u.did
+LEFT JOIN appview_votes v ON c.id = v.comment_id AND v.user_did = $4
+WHERE c.post_id = $1
+ORDER BY c.created_at ASC
+LIMIT $2 OFFSET $3;
+
 -- name: CountCommentsByPost :one
 SELECT COUNT(*) as total
 FROM appview_comments 

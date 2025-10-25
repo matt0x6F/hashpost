@@ -7,6 +7,9 @@ package generated
 
 import (
 	"context"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const GetModeratedSubforums = `-- name: GetModeratedSubforums :many
@@ -33,15 +36,30 @@ WHERE ur.user_did = $1
 ORDER BY sf.name ASC
 `
 
-func (q *Queries) GetModeratedSubforums(ctx context.Context, userDid string) ([]*AppviewSubforum, error) {
+type GetModeratedSubforumsRow struct {
+	ID              uuid.UUID          `json:"id"`
+	Name            string             `json:"name"`
+	Slug            string             `json:"slug"`
+	Description     *string            `json:"description"`
+	CreatedByDid    string             `json:"created_by_did"`
+	CreatedByHandle string             `json:"created_by_handle"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	SubscriberCount *int32             `json:"subscriber_count"`
+	PostCount       *int32             `json:"post_count"`
+	CommentCount    *int32             `json:"comment_count"`
+	PrefixType      string             `json:"prefix_type"`
+}
+
+func (q *Queries) GetModeratedSubforums(ctx context.Context, userDid string) ([]*GetModeratedSubforumsRow, error) {
 	rows, err := q.db.Query(ctx, GetModeratedSubforums, userDid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*AppviewSubforum{}
+	items := []*GetModeratedSubforumsRow{}
 	for rows.Next() {
-		var i AppviewSubforum
+		var i GetModeratedSubforumsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,

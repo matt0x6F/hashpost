@@ -2,16 +2,16 @@
 
 ## Overview
 
-The HashPost PDS is a fully compliant atproto Personal Data Server implementation using the Bluesky Indigo Go libraries. It provides core data storage and authentication services for the HashPost platform, handling all atproto protocol compliance.
+The HashPost PDS is a fully compliant atproto Personal Data Server implementation using the Bluesky Indigo Go libraries. It provides core data storage and authentication services for the HashPost platform, handling atproto protocol compliance plus forum-specific data storage.
 
 ## Architecture
 
-The PDS follows the atproto specification for Personal Data Servers:
-- **Purpose**: Pure atproto protocol compliance only
-- **API**: Standard atproto endpoints (`/xrpc/com.atproto.*`) only
-- **Authentication**: DID-based authentication system using Indigo packages
-- **Data Storage**: Canonical atproto records in separate database (`hashpost_pds_dev`)
-- **Business Logic**: None - pure protocol compliance
+The PDS follows the atproto specification for Personal Data Servers with forum extensions:
+- **Purpose**: Atproto protocol compliance plus forum-specific data storage
+- **API**: Standard atproto endpoints (`/xrpc/com.atproto.*`) plus OAuth/DPoP endpoints
+- **Authentication**: DID-based authentication system using Indigo packages with external PDS support
+- **Data Storage**: Canonical atproto records plus forum tables in separate database (`hashpost_pds_dev`)
+- **Business Logic**: Minimal - primarily protocol compliance with forum data storage
 
 ## Key Components
 
@@ -22,7 +22,7 @@ The PDS follows the atproto specification for Personal Data Servers:
 - **Environment Switching**: Mock directory for development, real directory for production
 
 ### Database Layer
-- **Schema**: Canonical atproto records with proper URI storage
+- **Schema**: Canonical atproto records plus forum tables (posts, comments, votes, subforums)
 - **Queries**: SQLC-generated type-safe database operations
 - **Migrations**: Automated schema management
 
@@ -46,9 +46,17 @@ The PDS follows the atproto specification for Personal Data Servers:
 - `com.atproto.server.refreshSession` - Refresh access tokens
 - `com.atproto.server.deleteSession` - End session
 - `com.atproto.server.createAccount` - User registration
+- `com.atproto.server.updatePassword` - Update user password
+- `com.atproto.server.describeServer` - Get server information
 
 ### Identity Endpoints
 - `com.atproto.identity.resolveHandle` - Resolve handle to DID
+
+### OAuth Endpoints
+- `GET /oauth/client-metadata` - Get OAuth client metadata
+- `POST /oauth/authorize` - OAuth authorization endpoint
+- `POST /oauth/token` - OAuth token endpoint
+- `GET /oauth/dpop-nonce` - Get DPoP nonce
 
 ## Documentation Structure
 

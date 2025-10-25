@@ -10,11 +10,11 @@ HashPost implements a database separation strategy where the PDS and AppView mai
 
 **Database Name**: `hashpost_pds_dev` (development) / `hashpost_pds` (production)
 
-**Purpose**: Store canonical atproto records
+**Purpose**: Store canonical atproto records plus forum-specific tables
 
 **Characteristics**:
-- **Canonical Data**: Source of truth for all atproto records
-- **Protocol Compliance**: Follows atproto data model
+- **Canonical Data**: Source of truth for all atproto records and forum content
+- **Protocol Compliance**: Follows atproto data model plus forum extensions
 - **Write-Heavy**: Optimized for record creation and updates
 - **Data Integrity**: Ensures protocol compliance and consistency
 
@@ -31,16 +31,35 @@ CREATE TABLE users (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Canonical post records
+-- Forum-specific tables in PDS
+CREATE TABLE subforums (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(255) NOT NULL,
+    slug VARCHAR(255) UNIQUE NOT NULL,
+    description TEXT,
+    created_by UUID REFERENCES users(id),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE TABLE posts (
-    id UUID PRIMARY KEY,
-    user_id UUID REFERENCES users(id),
-    subforum_id UUID REFERENCES subforums(id),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    subforum_id UUID REFERENCES subforums(id) ON DELETE CASCADE,
     title VARCHAR(500) NOT NULL,
     content TEXT NOT NULL,
     atproto_uri VARCHAR(500) UNIQUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE votes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
+    comment_id UUID REFERENCES comments(id) ON DELETE CASCADE,
+    vote_type VARCHAR(10) NOT NULL CHECK (vote_type IN ('up', 'down')),
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 

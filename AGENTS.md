@@ -58,17 +58,17 @@ The `docs/designs/` directory contains design documents that track progress towa
 ## Architecture Patterns
 
 ### Dual-Server Architecture
-- **PDS (Personal Data Server)**: Handles atproto protocol compliance and database access
-- **AppView**: Stateless aggregator that processes events from PDS via NATS JetStream
+- **PDS (Personal Data Server)**: Handles atproto protocol compliance and stores canonical data including forum tables
+- **AppView**: Stateful web application with business logic and persistence that provides forum functionality
 - **Database Separation**: PDS uses `hashpost_pds_dev`, AppView uses `hashpost_appview_dev`
-- **Event-Driven Communication**: PDS publishes events → NATS JetStream → AppView consumes
+- **Event-Driven Communication**: PDS publishes events → NATS JetStream → AppView consumes (limited current usage)
 - **Reference**: See `docs/designs/hashpost-architecture.md` for detailed architecture
 
 ### Database Access Patterns
 - **sqlc Only**: Never write raw SQL queries - always use sqlc for type-safe database access
 - **Generated Code**: Use `task generate:sqlc` when modifying database schemas or queries
 - **Two Databases**: PDS uses `hashpost_pds_dev`, AppView uses `hashpost_appview_dev`
-- **Data Flow**: PDS stores canonical records → AppView stores denormalized data via events
+- **Data Flow**: PDS stores canonical records including forum tables → AppView stores denormalized data via direct access and limited events
 - **Reference**: See `docs/development/sqlc-patterns.md` for detailed patterns
 
 ## Development Workflows

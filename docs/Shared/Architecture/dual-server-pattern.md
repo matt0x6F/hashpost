@@ -8,17 +8,17 @@ HashPost implements a dual-server architecture following the atproto specificati
 
 ### PDS (Personal Data Server)
 
-**Purpose**: Pure atproto protocol compliance only
+**Purpose**: Atproto protocol compliance plus forum-specific data storage
 
 **Responsibilities**:
 - **Protocol Compliance**: Implements all atproto endpoints (`/xrpc/com.atproto.*`)
-- **Data Storage**: Stores canonical atproto records
+- **Data Storage**: Stores canonical atproto records plus forum-specific tables
 - **Authentication**: DID-based authentication using Bluesky Indigo libraries
 - **Event Publishing**: Publishes events to NATS JetStream for AppView consumption
 
 **Database**: `hashpost_pds_dev`
-- **Schema**: Canonical atproto records with proper URI storage
-- **Purpose**: Source of truth for all atproto data
+- **Schema**: Canonical atproto records plus forum tables (posts, comments, votes, subforums)
+- **Purpose**: Source of truth for all data including forum content
 - **Access Pattern**: Direct database access using SQLC queries
 
 ### AppView (Application View)
@@ -34,7 +34,7 @@ HashPost implements a dual-server architecture following the atproto specificati
 **Database**: `hashpost_appview_dev`
 - **Schema**: Denormalized tables with statistics and aggregated data
 - **Purpose**: Optimized for read-heavy operations and user-facing queries
-- **Access Pattern**: Event-driven updates from PDS events
+- **Access Pattern**: Primarily direct database access with limited event processing
 
 ## Separation Rationale
 
@@ -190,19 +190,45 @@ internal/appview/
 
 **PDS Database**:
 ```sql
--- Canonical atproto records
+-- Users table (atproto accounts)
 CREATE TABLE users (
-    id UUID PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     did VARCHAR(255) UNIQUE NOT NULL,
     handle VARCHAR(255) UNIQUE NOT NULL,
-    -- ... other fields
+    email VARCHAR(255) UNIQUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Forum-specific tables in PDS
+CREATE TABLE subforums (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(255) NOT NULL,
+    slug VARCHAR(255) UNIQUE NOT NULL,
+    description TEXT,
+    created_by UUID REFERENCES users(id),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE posts (
-    id UUID PRIMARY KEY,
-    user_id UUID REFERENCES users(id),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    subforum_id UUID REFERENCES subforums(id) ON DELETE CASCADE,
+    title VARCHAR(500) NOT NULL,
+    content TEXT NOT NULL,
     atproto_uri VARCHAR(500) UNIQUE,
-    -- ... other fields
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE votes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
+    comment_id UUID REFERENCES comments(id) ON DELETE CASCADE,
+    vote_type VARCHAR(10) NOT NULL CHECK (vote_type IN ('up', 'down')),
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 

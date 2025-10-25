@@ -10,7 +10,7 @@ import (
 )
 
 const GetSubforumBySlug = `-- name: GetSubforumBySlug :one
-SELECT id, name, slug, description, created_by_did, created_by_handle, created_at, updated_at, subscriber_count, post_count, comment_count, prefix_type FROM appview_subforums 
+SELECT id, name, slug, description, created_by_did, created_by_handle, created_at, updated_at, subscriber_count, post_count, comment_count, prefix_type, atproto_uri FROM appview_subforums 
 WHERE slug = $1
 `
 
@@ -30,6 +30,7 @@ func (q *Queries) GetSubforumBySlug(ctx context.Context, slug string) (*AppviewS
 		&i.PostCount,
 		&i.CommentCount,
 		&i.PrefixType,
+		&i.AtprotoUri,
 	)
 	return &i, err
 }

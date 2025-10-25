@@ -498,6 +498,93 @@ func (q *Queries) ListCommentsByPostWithReplies(ctx context.Context, arg *ListCo
 	return items, nil
 }
 
+const ListCommentsByPostWithUserVotes = `-- name: ListCommentsByPostWithUserVotes :many
+SELECT 
+    c.id, c.atproto_uri, c.author_did, c.author_handle, c.post_id, c.parent_id, c.content, c.created_at, c.updated_at, c.upvotes, c.downvotes, c.score,
+    p.title as post_title,
+    p.subforum_slug,
+    u.display_name as author_display_name,
+    u.avatar_url as author_avatar_url,
+    v.vote_type as user_vote_type
+FROM appview_comments c
+JOIN appview_posts p ON c.post_id = p.id
+LEFT JOIN appview_users u ON c.author_did = u.did
+LEFT JOIN appview_votes v ON c.id = v.comment_id AND v.user_did = $4
+WHERE c.post_id = $1
+ORDER BY c.created_at ASC
+LIMIT $2 OFFSET $3
+`
+
+type ListCommentsByPostWithUserVotesParams struct {
+	PostID  pgtype.UUID `json:"post_id"`
+	Limit   int32       `json:"limit"`
+	Offset  int32       `json:"offset"`
+	UserDid string      `json:"user_did"`
+}
+
+type ListCommentsByPostWithUserVotesRow struct {
+	ID                uuid.UUID          `json:"id"`
+	AtprotoUri        string             `json:"atproto_uri"`
+	AuthorDid         string             `json:"author_did"`
+	AuthorHandle      string             `json:"author_handle"`
+	PostID            pgtype.UUID        `json:"post_id"`
+	ParentID          pgtype.UUID        `json:"parent_id"`
+	Content           string             `json:"content"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	Upvotes           *int32             `json:"upvotes"`
+	Downvotes         *int32             `json:"downvotes"`
+	Score             *int32             `json:"score"`
+	PostTitle         string             `json:"post_title"`
+	SubforumSlug      string             `json:"subforum_slug"`
+	AuthorDisplayName *string            `json:"author_display_name"`
+	AuthorAvatarUrl   *string            `json:"author_avatar_url"`
+	UserVoteType      *string            `json:"user_vote_type"`
+}
+
+func (q *Queries) ListCommentsByPostWithUserVotes(ctx context.Context, arg *ListCommentsByPostWithUserVotesParams) ([]*ListCommentsByPostWithUserVotesRow, error) {
+	rows, err := q.db.Query(ctx, ListCommentsByPostWithUserVotes,
+		arg.PostID,
+		arg.Limit,
+		arg.Offset,
+		arg.UserDid,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*ListCommentsByPostWithUserVotesRow{}
+	for rows.Next() {
+		var i ListCommentsByPostWithUserVotesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AtprotoUri,
+			&i.AuthorDid,
+			&i.AuthorHandle,
+			&i.PostID,
+			&i.ParentID,
+			&i.Content,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Upvotes,
+			&i.Downvotes,
+			&i.Score,
+			&i.PostTitle,
+			&i.SubforumSlug,
+			&i.AuthorDisplayName,
+			&i.AuthorAvatarUrl,
+			&i.UserVoteType,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const UpdateComment = `-- name: UpdateComment :one
 WITH updated AS (
     UPDATE appview_comments 

@@ -1,10 +1,14 @@
 package appview
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -69,24 +73,48 @@ func (vh *VoteHandlers) VoteOnPost(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Create or update vote
-		_, err = vh.queries.CreateVote(ctx, &generated.CreateVoteParams{
-			UserDid:  userCtx.Did,
-			PostID:   pgtype.UUID{Bytes: postID, Valid: true},
-			VoteType: req.VoteType,
-		})
+		// Get the post to find its atproto URI
+		post, err := vh.queries.GetAppViewPostByID(ctx, postID)
 		if err != nil {
-			vh.logger.Error("Failed to create vote", "error", err, "user_did", userCtx.Did, "post_id", postID)
-			vh.writeError(w, http.StatusInternalServerError, "VOTE_FAILED", "Failed to create vote")
+			vh.logger.Error("Failed to get post", "error", err, "post_id", postID)
+			vh.writeError(w, http.StatusNotFound, "POST_NOT_FOUND", "Post not found")
 			return
 		}
 
-		// Update vote counts
-		err = vh.queries.UpdatePostVoteCounts(ctx, postID)
-		if err != nil {
-			vh.logger.Error("Failed to update vote counts", "error", err, "post_id", postID)
-			// Don't fail the request, just log the error
+		// Create vote record in PDS
+		voteRecord := map[string]interface{}{
+			"$type":     "com.hashpost.feed.vote",
+			"subject":   post.AtprotoUri,
+			"direction": req.VoteType,
+			"createdAt": time.Now().Format(time.RFC3339),
 		}
+
+		// Proxy to PDS to create the vote record
+		pdsResponse, err := vh.proxyToPDS(r, "POST", "/xrpc/com.atproto.repo.createRecord", map[string]interface{}{
+			"repo":       userCtx.Did,
+			"collection": "com.hashpost.feed.vote",
+			"record":     voteRecord,
+		})
+
+		if err != nil {
+			vh.logger.Error("Failed to create vote in PDS", "error", err)
+			vh.writeError(w, http.StatusInternalServerError, "PDS_ERROR", "Failed to create vote")
+			return
+		}
+
+		// Parse PDS response to get the created vote URI
+		var pdsResult struct {
+			URI string `json:"uri"`
+			CID string `json:"cid"`
+		}
+		if err := json.Unmarshal(pdsResponse, &pdsResult); err != nil {
+			vh.logger.Error("Failed to parse PDS response", "error", err)
+			vh.writeError(w, http.StatusInternalServerError, "PDS_ERROR", "Failed to parse PDS response")
+			return
+		}
+
+		// Wait a moment for the event to be processed by AppView
+		time.Sleep(100 * time.Millisecond)
 
 		// Get updated vote counts
 		counts, err := vh.queries.GetPostVoteCounts(ctx, postID)
@@ -441,4 +469,60 @@ func (vh *VoteHandlers) writeJSON(w http.ResponseWriter, status int, data interf
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(data)
+}
+
+// proxyToPDS proxies a request to the PDS server
+func (vh *VoteHandlers) proxyToPDS(r *http.Request, method, path string, body interface{}) ([]byte, error) {
+	// Marshal request body if provided
+	var reqBody []byte
+	var err error
+	if body != nil {
+		reqBody, err = json.Marshal(body)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Create request to PDS
+	pdsURL := "http://hashpost-pds:8080" + path
+	req, err := http.NewRequest(method, pdsURL, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return nil, err
+	}
+
+	// Copy headers from original request
+	for key, values := range r.Header {
+		for _, value := range values {
+			req.Header.Add(key, value)
+		}
+	}
+
+	// Set content type for JSON requests
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	// Add service-to-service header
+	req.Header.Set("X-Service-Name", "appview")
+
+	// Make request to PDS
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// Read response body
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check for error status
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("PDS request failed with status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	return respBody, nil
 }

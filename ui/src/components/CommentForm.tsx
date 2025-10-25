@@ -50,8 +50,19 @@ export default function CommentForm({
     setIsSubmitting(true);
     
     try {
-      // Comment creation not available in atproto system
-      toast.error('Comment creation is not available in the atproto system');
+      const commentsApi = getApi(CommentsApi);
+      
+      const requestBody = {
+        content: content.trim(),
+        postId: postId,
+        ...(parentCommentId && { parentId: parentCommentId })
+      };
+      
+      await commentsApi.createComment(requestBody);
+      
+      toast.success('Comment posted successfully');
+      setContent('');
+      onCommentSubmitted();
     } catch (error: unknown) {
       console.error('Error posting comment:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to post comment';

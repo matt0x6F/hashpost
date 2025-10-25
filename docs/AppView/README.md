@@ -27,7 +27,7 @@ The AppView follows the atproto AppView pattern:
 - **Migrations**: Automated schema management
 
 ### Event Processing
-- **Event Consumption**: Consumes atproto events from PDS via NATS JetStream
+- **Event Consumption**: Consumes atproto events from PDS via NATS JetStream (limited current usage)
 - **Data Denormalization**: Stores denormalized data from events
 - **Error Handling**: Retry logic, exponential backoff, idempotency, dead letter queue
 
@@ -39,6 +39,38 @@ The AppView follows the atproto AppView pattern:
 - `GET /api/v1/auth/me` - Get current user session
 - `POST /api/v1/auth/logout` - User logout
 
+### Content Endpoints
+- `GET /api/v1/posts` - List posts
+- `POST /api/v1/posts` - Create post
+- `GET /api/v1/posts/{id}` - Get post by ID
+- `PUT /api/v1/posts/{id}` - Update post
+- `DELETE /api/v1/posts/{id}` - Delete post
+- `GET /api/v1/posts/{id}/vote` - Vote on post
+- `GET /api/v1/posts/{id}/user-vote` - Get user's vote on post
+- `GET /api/v1/posts/{id}/metrics` - Get post metrics
+- `GET /api/v1/posts/{id}/moderation` - Get post moderation state
+- `GET /api/v1/comments` - List comments
+- `POST /api/v1/comments` - Create comment
+- `GET /api/v1/comments/{id}` - Get comment by ID
+- `PUT /api/v1/comments/{id}` - Update comment
+- `DELETE /api/v1/comments/{id}` - Delete comment
+- `GET /api/v1/comments/{id}/vote` - Vote on comment
+- `GET /api/v1/subforums` - List subforums
+- `POST /api/v1/subforums` - Create subforum
+- `GET /api/v1/subforums/{slug}` - Get subforum by slug
+
+### User Management Endpoints
+- `GET /api/v1/me/roles` - Get my roles
+- `GET /api/v1/me/permissions` - Get my permissions
+- `GET /api/v1/me/subscriptions` - Get my subscriptions
+- `GET /api/v1/me/moderated-subforums` - Get subforums I moderate
+
+### Subscription Endpoints
+- `POST /api/v1/subforums/{slug}/subscribe` - Subscribe to subforum
+- `DELETE /api/v1/subforums/{slug}/subscribe` - Unsubscribe from subforum
+- `GET /api/v1/subforums/{slug}/subscribe` - Get subscription status
+- `GET /api/v1/subforums/{slug}/subscribers` - List subforum subscribers
+
 ### RBAC Management Endpoints
 - `POST /api/v1/admin/assign-role` - Assign role to user
 - `GET /api/v1/admin/roles` - List available roles
@@ -46,20 +78,14 @@ The AppView follows the atproto AppView pattern:
 - `POST /api/v1/admin/revoke-role` - Revoke role from user
 - `GET /api/v1/admin/permissions` - List permissions
 - `GET /api/v1/admin/users` - List all users
+- `GET /api/v1/subforums/{slug}/members` - List subforum members
+- `POST /api/v1/subforums/{slug}/members/{user_did}/roles` - Assign subforum role
+- `DELETE /api/v1/subforums/{slug}/members/{user_did}/roles` - Revoke subforum role
 
-### Content Endpoints
-- `GET /api/v1/posts` - List posts
-- `POST /api/v1/posts` - Create post
-- `GET /api/v1/posts/{id}` - Get post by ID
-- `PUT /api/v1/posts/{id}` - Update post
-- `DELETE /api/v1/posts/{id}` - Delete post
-- `GET /api/v1/comments` - List comments
-- `GET /api/v1/subforums` - List subforums
-- `GET /api/v1/subforums/{slug}` - Get subforum by slug
-
-### User Management Endpoints
-- `GET /api/v1/me/roles` - Get my roles
-- `GET /api/v1/me/permissions` - Get my permissions
+### PDS Management Endpoints
+- `GET /api/v1/admin/pds/servers` - List PDS servers
+- `GET /api/v1/admin/pds/{endpoint}` - Get PDS server details
+- `GET /api/v1/admin/pds/{endpoint}/users` - List PDS server users
 
 ## Documentation Structure
 

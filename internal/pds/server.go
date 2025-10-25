@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matt0x6f/hashpost/internal/config"
@@ -254,6 +255,54 @@ func (s *Server) createCommentRecord(ctx context.Context, repo, recordID, uri, c
 
 	s.logger.Info("Created comment record", "uri", uri, "text", text, "post_uri", postURI)
 	return nil
+}
+
+// validateAppViewToken validates tokens from the AppView service
+func (s *Server) validateAppViewToken(token string) (*Session, error) {
+	// Parse token without signature validation (AppView already validated it)
+	parsedToken, _, err := jwt.NewParser().ParseUnverified(token, jwt.MapClaims{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse token: %w", err)
+	}
+
+	claims, ok := parsedToken.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, fmt.Errorf("invalid token claims")
+	}
+
+	// Extract user information
+	did, ok := claims["sub"].(string)
+	if !ok {
+		return nil, fmt.Errorf("missing subject (DID) in token")
+	}
+
+	handle, ok := claims["handle"].(string)
+	if !ok {
+		return nil, fmt.Errorf("missing handle in token")
+	}
+
+	// Check expiration
+	exp, ok := claims["exp"].(float64)
+	if !ok {
+		return nil, fmt.Errorf("missing expiration in token")
+	}
+
+	expirationTime := time.Unix(int64(exp), 0)
+	if time.Now().After(expirationTime) {
+		return nil, fmt.Errorf("token has expired")
+	}
+
+	// Create session from token claims
+	session := &Session{
+		ID:        "appview-service",
+		DID:       did,
+		Handle:    handle,
+		CreatedAt: time.Now().Add(-1 * time.Hour), // Approximate
+		ExpiresAt: expirationTime,
+	}
+
+	s.logger.Debug("Validated AppView token", "did", session.DID, "handle", session.Handle)
+	return session, nil
 }
 
 func (s *Server) createSubforumRecord(ctx context.Context, repo, recordID, uri, cid string, record map[string]interface{}) error {

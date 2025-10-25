@@ -1,8 +1,11 @@
 package appview
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -11,7 +14,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	generated "github.com/matt0x6f/hashpost/internal/database/generated/appview"
-	"github.com/matt0x6f/hashpost/internal/lexicons"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
@@ -76,13 +78,67 @@ func (h *Handlers) ListComments(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	// Get comments from database
-	var comments []*generated.ListCommentsByPostRow
-	comments, err = h.queries.ListCommentsByPost(ctx, &generated.ListCommentsByPostParams{
-		PostID: pgtype.UUID{Bytes: postID, Valid: true},
-		Limit:  int32(limit),
-		Offset: int32(offset),
-	})
+	// Get comments from database with user votes if authenticated
+	var comments []*generated.ListCommentsByPostWithUserVotesRow
+	userCtx := GetUserContext(r)
+
+	if userCtx != nil {
+		// User is authenticated, get comments with vote information
+		comments, err = h.queries.ListCommentsByPostWithUserVotes(ctx, &generated.ListCommentsByPostWithUserVotesParams{
+			PostID:  pgtype.UUID{Bytes: postID, Valid: true},
+			Limit:   int32(limit),
+			Offset:  int32(offset),
+			UserDid: userCtx.Did,
+		})
+	} else {
+		// User not authenticated, get comments with aggregate vote counts but no user vote
+		oldComments, err := h.queries.ListCommentsByPost(ctx, &generated.ListCommentsByPostParams{
+			PostID: pgtype.UUID{Bytes: postID, Valid: true},
+			Limit:  int32(limit),
+			Offset: int32(offset),
+		})
+		if err != nil {
+			h.logger.Error("Failed to list comments", "error", err, "post_id", postID)
+			h.writeError(w, http.StatusInternalServerError, "COMMENT_LIST_FAILED", "Failed to list comments")
+			return
+		}
+
+		// Convert old format to new format and fetch vote counts for each comment
+		comments = make([]*generated.ListCommentsByPostWithUserVotesRow, len(oldComments))
+		for i, comment := range oldComments {
+			// Fetch vote counts for this comment
+			voteCounts, err := h.queries.GetCommentVoteCounts(ctx, comment.ID)
+			if err != nil {
+				h.logger.Error("Failed to get comment vote counts", "error", err, "comment_id", comment.ID)
+				// Continue with zero counts if vote count fetch fails
+				voteCounts = &generated.GetCommentVoteCountsRow{
+					Upvotes:   &[]int32{0}[0],
+					Downvotes: &[]int32{0}[0],
+					Score:     &[]int32{0}[0],
+				}
+			}
+
+			comments[i] = &generated.ListCommentsByPostWithUserVotesRow{
+				ID:                comment.ID,
+				AtprotoUri:        comment.AtprotoUri,
+				AuthorDid:         comment.AuthorDid,
+				AuthorHandle:      comment.AuthorHandle,
+				PostID:            comment.PostID,
+				ParentID:          comment.ParentID,
+				Content:           comment.Content,
+				CreatedAt:         comment.CreatedAt,
+				UpdatedAt:         comment.UpdatedAt,
+				PostTitle:         comment.PostTitle,
+				SubforumSlug:      comment.SubforumSlug,
+				AuthorDisplayName: comment.AuthorDisplayName,
+				AuthorAvatarUrl:   comment.AuthorAvatarUrl,
+				UserVoteType:      nil, // No vote for unauthenticated users
+				Upvotes:           voteCounts.Upvotes,
+				Downvotes:         voteCounts.Downvotes,
+				Score:             voteCounts.Score,
+			}
+		}
+	}
 	if err != nil {
 		h.logger.Error("Failed to list comments", "error", err, "post_id", postID)
 		h.writeError(w, http.StatusInternalServerError, "COMMENT_LIST_FAILED", "Failed to list comments")
@@ -131,6 +187,14 @@ func (h *Handlers) ListComments(w http.ResponseWriter, r *http.Request) {
 			Downvotes: func() *int {
 				if comment.Downvotes != nil {
 					v := int(*comment.Downvotes)
+					return &v
+				} else {
+					return nil
+				}
+			}(),
+			UserVote: func() *CommentUserVote {
+				if comment.UserVoteType != nil {
+					v := CommentUserVote(*comment.UserVoteType)
 					return &v
 				} else {
 					return nil
@@ -188,97 +252,109 @@ func (h *Handlers) CreateComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get post to construct AT-URI
+	// Get user profile from AppView database (same as posts)
+	userProfile, err := h.queries.GetUserByDID(r.Context(), userCtx.Did)
+	if err != nil {
+		h.logger.Error("Failed to get user profile", "error", err, "did", userCtx.Did)
+		h.writeError(w, http.StatusInternalServerError, "USER_NOT_FOUND", "User profile not found")
+		return
+	}
+
+	// Get the post to find its atproto URI
 	post, err := h.queries.GetAppViewPostByID(r.Context(), postID)
 	if err != nil {
+		h.logger.Error("Failed to get post", "error", err, "post_id", postID)
 		h.writeError(w, http.StatusNotFound, "POST_NOT_FOUND", "Post not found")
 		return
 	}
 
-	// Construct comment record
-	record := map[string]interface{}{
-		"$type":     lexicons.CollectionFeedComment,
-		"text":      req.Content,
-		"post":      post.AtprotoUri,
-		"createdAt": time.Now().Format(time.RFC3339),
-	}
-
-	// Add parent if specified
+	// Parse parent ID if specified and get parent comment URI
+	var parentCommentURI *string
 	if req.ParentID != "" {
 		parentID, err := uuid.Parse(req.ParentID)
 		if err != nil {
 			h.writeError(w, http.StatusBadRequest, "INVALID_PARENT_ID", "Invalid parent_id format")
 			return
 		}
-		parent, err := h.queries.GetCommentByID(r.Context(), parentID)
-		if err == nil {
-			record["parent"] = parent.AtprotoUri
+		parentComment, err := h.queries.GetCommentWithPost(r.Context(), parentID)
+		if err != nil {
+			h.writeError(w, http.StatusNotFound, "PARENT_NOT_FOUND", "Parent comment not found")
+			return
 		}
+		parentCommentURI = &parentComment.AtprotoUri
 	}
 
-	// Create record in PDS via com.atproto.repo.createRecord
-	pdsURL := h.getPDSURL(userCtx.Did)
-	uri, cid, err := h.createRecordInPDS(r.Context(), pdsURL, "", userCtx.Did, lexicons.CollectionFeedComment, record)
+	// Create comment record in PDS
+	commentRecord := map[string]interface{}{
+		"$type":     "com.hashpost.feed.comment",
+		"text":      req.Content,
+		"post":      post.AtprotoUri,
+		"createdAt": time.Now().Format(time.RFC3339),
+	}
+
+	if parentCommentURI != nil {
+		commentRecord["parent"] = *parentCommentURI
+	}
+
+	// Proxy to PDS to create the comment record
+	pdsResponse, err := h.proxyToPDS(r, "POST", "/xrpc/com.atproto.repo.createRecord", map[string]interface{}{
+		"repo":       userCtx.Did,
+		"collection": "com.hashpost.feed.comment",
+		"record":     commentRecord,
+	})
+
 	if err != nil {
 		h.logger.Error("Failed to create comment in PDS", "error", err)
-		h.writeError(w, http.StatusInternalServerError, "COMMENT_CREATE_FAILED", "Failed to create comment")
+		h.writeError(w, http.StatusInternalServerError, "PDS_ERROR", "Failed to create comment")
 		return
 	}
 
-	// Wait for event to sync to AppView (with timeout)
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
+	// Parse PDS response to get the created comment URI
+	var pdsResult struct {
+		URI string `json:"uri"`
+		CID string `json:"cid"`
+	}
+	if err := json.Unmarshal(pdsResponse, &pdsResult); err != nil {
+		h.logger.Error("Failed to parse PDS response", "error", err)
+		h.writeError(w, http.StatusInternalServerError, "PDS_ERROR", "Failed to parse PDS response")
+		return
+	}
 
-	comment, err := h.waitForCommentSync(ctx, uri)
+	// Wait a moment for the event to be processed by AppView
+	// In a production system, you might want to poll or use a more sophisticated approach
+	time.Sleep(100 * time.Millisecond)
+
+	// Get the created comment from AppView database
+	createdComment, err := h.queries.GetCommentByURI(r.Context(), pdsResult.URI)
 	if err != nil {
-		h.logger.Warn("Comment created in PDS but sync timed out", "uri", uri)
-		// Return success anyway - eventual consistency
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"uri": uri,
-			"cid": cid,
-		})
+		h.logger.Error("Failed to get created comment from AppView", "error", err, "uri", pdsResult.URI)
+		h.writeError(w, http.StatusInternalServerError, "SYNC_ERROR", "Comment created but not yet available")
 		return
 	}
 
-	// Return synced comment
+	// Return created comment with user profile data (same as posts)
 	response := Comment{
-		Id: openapi_types.UUID(comment.ID),
+		Id: openapi_types.UUID(createdComment.ID),
 		Author: Author{
-			Did:         comment.AuthorDid,
-			Handle:      comment.AuthorHandle,
-			DisplayName: nil, // Will be fetched async via profile fetcher
-			AvatarUrl:   nil,
+			Did:         userProfile.Did,
+			Handle:      userProfile.Handle,
+			DisplayName: userProfile.DisplayName, // Use display name from user profile
+			AvatarUrl:   userProfile.AvatarUrl,
 		},
-		Post: openapi_types.UUID(comment.PostID.Bytes),
+		Post: openapi_types.UUID(postID),
 		Parent: func() *openapi_types.UUID {
-			if comment.ParentID.Valid {
-				u := openapi_types.UUID(comment.ParentID.Bytes)
+			if createdComment.ParentID.Valid {
+				u := openapi_types.UUID(createdComment.ParentID.Bytes)
 				return &u
 			} else {
 				return nil
 			}
 		}(),
-		Content:   comment.Content,
-		CreatedAt: comment.CreatedAt.Time,
-		UpdatedAt: &comment.UpdatedAt.Time,
-		Upvotes: func() *int {
-			if comment.Upvotes != nil {
-				v := int(*comment.Upvotes)
-				return &v
-			} else {
-				return nil
-			}
-		}(),
-		Downvotes: func() *int {
-			if comment.Downvotes != nil {
-				v := int(*comment.Downvotes)
-				return &v
-			} else {
-				return nil
-			}
-		}(),
+		Content:   req.Content,
+		CreatedAt: createdComment.CreatedAt.Time,
+		UpdatedAt: &createdComment.UpdatedAt.Time,
+		Upvotes:   func() *int { v := 0; return &v }(),
+		Downvotes: func() *int { v := 0; return &v }(),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -462,15 +538,65 @@ func (h *Handlers) DeleteComment(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) getPDSURL(did string) string {
 	// TODO: Implement proper PDS discovery
-	// For now, return a placeholder PDS URL
-	return "http://localhost:8080" // HashPost PDS URL
+	// For now, return the HashPost PDS URL
+	// In Docker environment, use service name; in local dev, use localhost
+	return "http://hashpost-pds:8080" // HashPost PDS URL
 }
 
 func (h *Handlers) createRecordInPDS(ctx context.Context, pdsURL, accessToken, repo, collection string, record map[string]interface{}) (uri, cid string, err error) {
-	// TODO: Implement PDS API call to com.atproto.repo.createRecord
-	// This would make an HTTP request to the PDS server
-	// For now, return placeholder values
-	return "at://placeholder.uri", "placeholder.cid", nil
+	// Make HTTP request to PDS com.atproto.repo.createRecord endpoint
+	url := fmt.Sprintf("%s/xrpc/com.atproto.repo.createRecord", pdsURL)
+
+	// Prepare request body
+	requestBody := map[string]interface{}{
+		"repo":       repo,
+		"collection": collection,
+		"record":     record,
+	}
+
+	jsonBody, err := json.Marshal(requestBody)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	// Create HTTP request
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return "", "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set headers
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Service-Name", "appview") // Mark this as a service-to-service call
+	if accessToken != "" {
+		req.Header.Set("Authorization", "Bearer "+accessToken)
+	}
+
+	// Make the request
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to make request to PDS: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", "", fmt.Errorf("PDS returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Parse response
+	var response struct {
+		URI string `json:"uri"`
+		CID string `json:"cid"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return "", "", fmt.Errorf("failed to decode PDS response: %w", err)
+	}
+
+	return response.URI, response.CID, nil
 }
 
 func (h *Handlers) waitForCommentSync(ctx context.Context, uri string) (*generated.AppviewComment, error) {

@@ -2,7 +2,9 @@
 
 ## Overview
 
-HashPost implements a federated architecture that supports both hosted and external Personal Data Servers (PDS), following the AT Protocol specification. This enables true decentralization while maintaining HashPost's forum functionality.
+HashPost implements a partially federated architecture that supports both hosted and external Personal Data Servers (PDS), following the AT Protocol specification. This enables true decentralization while maintaining HashPost's forum functionality.
+
+**Status**: Partial Implementation - Basic external PDS authentication is implemented, but full federation features are still in development.
 
 ## Architecture Components
 

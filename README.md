@@ -11,8 +11,8 @@ A decentralized forum platform built on the AT Protocol, supporting both hosted 
 - **User Management**: Profiles, roles, and permissions
 - **Moderation Tools**: Content moderation and user management
 
-### Federation Support
-- **Bring Your Own PDS**: Support for external PDS servers
+### Federation Support (Partial Implementation)
+- **Bring Your Own PDS**: Basic support for external PDS servers
 - **Hosted PDS**: Easy onboarding with HashPost's PDS
 - **Cross-PDS Authentication**: JWT token validation from any atproto PDS
 - **Data Sovereignty**: Users control their primary data
@@ -23,13 +23,13 @@ A decentralized forum platform built on the AT Protocol, supporting both hosted 
 HashPost follows a dual-server architecture:
 
 ### PDS (Personal Data Server)
-- **Purpose**: AT Protocol compliance and canonical data storage
+- **Purpose**: AT Protocol compliance and canonical data storage including forum tables
 - **Authentication**: DID-based authentication with external PDS support
-- **Data Storage**: Canonical atproto records
-- **API**: Standard atproto endpoints (`/xrpc/com.atproto.*`)
+- **Data Storage**: Canonical atproto records plus forum-specific tables (posts, comments, votes, subforums)
+- **API**: Standard atproto endpoints (`/xrpc/com.atproto.*`) plus OAuth/DPoP endpoints
 
 ### AppView (Application View)
-- **Purpose**: Forum functionality and business logic
+- **Purpose**: Stateful web application providing forum functionality and business logic
 - **Authentication**: Multi-PDS token validation
 - **Data Storage**: Denormalized data optimized for forum queries
 - **API**: Custom forum endpoints (`/api/v1/*`)
