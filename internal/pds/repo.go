@@ -86,7 +86,6 @@ func (s *Server) handleCreateRecord(w http.ResponseWriter, r *http.Request) {
 		lexicons.CollectionFeedComment,
 		"com.hashpost.feed.vote",
 		"com.hashpost.graph.subscription",
-		"app.bsky.feed.post",
 		"app.bsky.feed.like",
 		"app.bsky.feed.repost",
 		"app.bsky.graph.follow",

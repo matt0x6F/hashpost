@@ -34,6 +34,13 @@ const (
 	PermissionResourceTypeVote     PermissionResourceType = "vote"
 )
 
+// Defines values for ProfileVisibility.
+const (
+	Authenticated ProfileVisibility = "authenticated"
+	Private       ProfileVisibility = "private"
+	Public        ProfileVisibility = "public"
+)
+
 // Defines values for SubforumPrefixType.
 const (
 	SubforumPrefixTypeH SubforumPrefixType = "h"
@@ -249,6 +256,15 @@ type PostMetrics struct {
 	Upvotes int `json:"upvotes"`
 }
 
+// ProfileVisibility Profile visibility setting
+type ProfileVisibility string
+
+// ProfileVisibilityUpdate defines model for ProfileVisibilityUpdate.
+type ProfileVisibilityUpdate struct {
+	// Visibility Profile visibility setting
+	Visibility ProfileVisibility `json:"visibility"`
+}
+
 // Role defines model for Role.
 type Role struct {
 	// CreatedAt When the role was created
@@ -353,6 +369,75 @@ type SubscriptionResponse struct {
 	SubscribedAt time.Time `json:"subscribed_at"`
 }
 
+// UserComment defines model for UserComment.
+type UserComment struct {
+	// AtprotoUri AT Protocol URI for the comment
+	AtprotoUri *string `json:"atprotoUri,omitempty"`
+
+	// AuthorAvatarUrl URL to author's avatar image
+	AuthorAvatarUrl *string `json:"authorAvatarUrl"`
+
+	// AuthorDid Author's DID
+	AuthorDid string `json:"authorDid"`
+
+	// AuthorDisplayName Author's display name
+	AuthorDisplayName *string `json:"authorDisplayName"`
+
+	// AuthorHandle Author's handle
+	AuthorHandle string `json:"authorHandle"`
+
+	// Content Comment content
+	Content string `json:"content"`
+
+	// CreatedAt When the comment was created
+	CreatedAt time.Time `json:"createdAt"`
+
+	// Downvotes Number of downvotes
+	Downvotes int `json:"downvotes"`
+
+	// Id Comment ID
+	Id openapi_types.UUID `json:"id"`
+
+	// ParentId ID of parent comment if this is a reply
+	ParentId *openapi_types.UUID `json:"parentId"`
+
+	// PostId ID of the post this comment belongs to
+	PostId openapi_types.UUID `json:"postId"`
+
+	// PostTitle Title of the post this comment belongs to
+	PostTitle *string `json:"postTitle"`
+
+	// Score Calculated score (upvotes - downvotes)
+	Score int `json:"score"`
+
+	// SubforumName Subforum name
+	SubforumName *string `json:"subforumName"`
+
+	// SubforumSlug Subforum slug
+	SubforumSlug *string `json:"subforumSlug"`
+
+	// UpdatedAt When the comment was last updated
+	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
+
+	// Upvotes Number of upvotes
+	Upvotes int `json:"upvotes"`
+}
+
+// UserCommentsResponse defines model for UserCommentsResponse.
+type UserCommentsResponse struct {
+	// Comments List of user's comments
+	Comments []UserComment `json:"comments"`
+
+	// Limit Number of comments per page
+	Limit int `json:"limit"`
+
+	// Offset Number of comments skipped
+	Offset int `json:"offset"`
+
+	// Total Total number of comments
+	Total int `json:"total"`
+}
+
 // UserLoginResponse defines model for UserLoginResponse.
 type UserLoginResponse struct {
 	// AccessToken JWT access token
@@ -369,6 +454,108 @@ type UserLoginResponse struct {
 
 	// RefreshToken JWT refresh token
 	RefreshToken string `json:"refreshToken"`
+}
+
+// UserPost defines model for UserPost.
+type UserPost struct {
+	// AtprotoUri AT Protocol URI for the post
+	AtprotoUri *string `json:"atprotoUri,omitempty"`
+
+	// AuthorDid Author's DID
+	AuthorDid string `json:"authorDid"`
+
+	// AuthorHandle Author's handle
+	AuthorHandle string `json:"authorHandle"`
+
+	// CommentCount Number of comments
+	CommentCount int `json:"commentCount"`
+
+	// Content Post content
+	Content string `json:"content"`
+
+	// CreatedAt When the post was created
+	CreatedAt time.Time `json:"createdAt"`
+
+	// Downvotes Number of downvotes
+	Downvotes int `json:"downvotes"`
+
+	// Id Post ID
+	Id openapi_types.UUID `json:"id"`
+
+	// Score Calculated score (upvotes - downvotes)
+	Score int `json:"score"`
+
+	// SubforumName Subforum name
+	SubforumName string `json:"subforumName"`
+
+	// SubforumSlug Subforum slug
+	SubforumSlug string `json:"subforumSlug"`
+
+	// Title Post title
+	Title string `json:"title"`
+
+	// UpdatedAt When the post was last updated
+	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
+
+	// Upvotes Number of upvotes
+	Upvotes int `json:"upvotes"`
+}
+
+// UserPostsResponse defines model for UserPostsResponse.
+type UserPostsResponse struct {
+	// Limit Number of posts per page
+	Limit int `json:"limit"`
+
+	// Offset Number of posts skipped
+	Offset int `json:"offset"`
+
+	// Posts List of user's posts
+	Posts []UserPost `json:"posts"`
+
+	// Total Total number of posts
+	Total int `json:"total"`
+}
+
+// UserProfile defines model for UserProfile.
+type UserProfile struct {
+	// AvatarUrl User's avatar URL
+	AvatarUrl *string `json:"avatarUrl"`
+
+	// Bio User's bio
+	Bio *string `json:"bio"`
+
+	// CommentCount Number of comments created
+	CommentCount int `json:"commentCount"`
+
+	// CreatedAt When the user was created
+	CreatedAt time.Time `json:"createdAt"`
+
+	// Did User's DID
+	Did string `json:"did"`
+
+	// DisplayName User's display name
+	DisplayName *string `json:"displayName"`
+
+	// Handle User's handle
+	Handle string `json:"handle"`
+
+	// LastSeenAt When the user was last seen
+	LastSeenAt *time.Time `json:"lastSeenAt"`
+
+	// PdsSource PDS server endpoint where user data is stored
+	PdsSource *string `json:"pdsSource"`
+
+	// PostCount Number of posts created
+	PostCount int `json:"postCount"`
+
+	// ProfileVisibility Profile visibility setting
+	ProfileVisibility ProfileVisibility `json:"profileVisibility"`
+
+	// Reputation User's reputation score
+	Reputation int `json:"reputation"`
+
+	// UpdatedAt When the user was last updated
+	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
 }
 
 // UserRegistrationResponse defines model for UserRegistrationResponse.
@@ -414,6 +601,9 @@ type UserRole struct {
 type UserSession struct {
 	// Did User's DID
 	Did string `json:"did"`
+
+	// DisplayName User's display name
+	DisplayName *string `json:"displayName"`
 
 	// Email User's email address
 	Email openapi_types.Email `json:"email"`
@@ -653,6 +843,24 @@ type VoteOnPostJSONBody struct {
 // VoteOnPostJSONBodyVoteType defines parameters for VoteOnPost.
 type VoteOnPostJSONBodyVoteType string
 
+// GetUserCommentsParams defines parameters for GetUserComments.
+type GetUserCommentsParams struct {
+	// Limit Maximum number of comments to return
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of comments to skip
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// GetUserPostsParams defines parameters for GetUserPosts.
+type GetUserPostsParams struct {
+	// Limit Maximum number of posts to return
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of posts to skip
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
 // ListSubforumsParams defines parameters for ListSubforums.
 type ListSubforumsParams struct {
 	// Limit Maximum number of subforums to return
@@ -743,6 +951,9 @@ type UpdatePostJSONRequestBody UpdatePostJSONBody
 // VoteOnPostJSONRequestBody defines body for VoteOnPost for application/json ContentType.
 type VoteOnPostJSONRequestBody VoteOnPostJSONBody
 
+// UpdateProfileVisibilityJSONRequestBody defines body for UpdateProfileVisibility for application/json ContentType.
+type UpdateProfileVisibilityJSONRequestBody = ProfileVisibilityUpdate
+
 // CreateSubforumJSONRequestBody defines body for CreateSubforum for application/json ContentType.
 type CreateSubforumJSONRequestBody CreateSubforumJSONBody
 
@@ -787,6 +998,9 @@ type ServerInterface interface {
 	// Get current user session
 	// (GET /api/v1/auth/me)
 	GetCurrentUserSession(w http.ResponseWriter, r *http.Request)
+	// Refresh access token
+	// (POST /api/v1/auth/refresh)
+	RefreshToken(w http.ResponseWriter, r *http.Request)
 	// Register user
 	// (POST /api/v1/auth/register)
 	RegisterUser(w http.ResponseWriter, r *http.Request)
@@ -859,6 +1073,18 @@ type ServerInterface interface {
 	// Vote on post
 	// (POST /api/v1/posts/{id}/vote)
 	VoteOnPost(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Update profile visibility
+	// (PATCH /api/v1/profiles/me/visibility)
+	UpdateProfileVisibility(w http.ResponseWriter, r *http.Request)
+	// Get user profile
+	// (GET /api/v1/profiles/{handle})
+	GetUserProfile(w http.ResponseWriter, r *http.Request, handle string)
+	// Get user's comments
+	// (GET /api/v1/profiles/{handle}/comments)
+	GetUserComments(w http.ResponseWriter, r *http.Request, handle string, params GetUserCommentsParams)
+	// Get user's posts
+	// (GET /api/v1/profiles/{handle}/posts)
+	GetUserPosts(w http.ResponseWriter, r *http.Request, handle string, params GetUserPostsParams)
 	// List subforums
 	// (GET /api/v1/subforums)
 	ListSubforums(w http.ResponseWriter, r *http.Request, params ListSubforumsParams)
@@ -1215,6 +1441,26 @@ func (siw *ServerInterfaceWrapper) GetCurrentUserSession(w http.ResponseWriter, 
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetCurrentUserSession(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RefreshToken operation middleware
+func (siw *ServerInterfaceWrapper) RefreshToken(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RefreshToken(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1742,6 +1988,12 @@ func (siw *ServerInterfaceWrapper) UpdatePost(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UpdatePost(w, r, id)
 	}))
@@ -1918,6 +2170,139 @@ func (siw *ServerInterfaceWrapper) VoteOnPost(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.VoteOnPost(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateProfileVisibility operation middleware
+func (siw *ServerInterfaceWrapper) UpdateProfileVisibility(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateProfileVisibility(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetUserProfile operation middleware
+func (siw *ServerInterfaceWrapper) GetUserProfile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "handle" -------------
+	var handle string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "handle", r.PathValue("handle"), &handle, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "handle", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetUserProfile(w, r, handle)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetUserComments operation middleware
+func (siw *ServerInterfaceWrapper) GetUserComments(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "handle" -------------
+	var handle string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "handle", r.PathValue("handle"), &handle, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "handle", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetUserCommentsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "offset", r.URL.Query(), &params.Offset)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "offset", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetUserComments(w, r, handle, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetUserPosts operation middleware
+func (siw *ServerInterfaceWrapper) GetUserPosts(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "handle" -------------
+	var handle string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "handle", r.PathValue("handle"), &handle, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "handle", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetUserPostsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "offset", r.URL.Query(), &params.Offset)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "offset", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetUserPosts(w, r, handle, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2424,6 +2809,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("POST "+options.BaseURL+"/api/v1/auth/login", wrapper.LoginUser)
 	m.HandleFunc("POST "+options.BaseURL+"/api/v1/auth/logout", wrapper.LogoutUser)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/auth/me", wrapper.GetCurrentUserSession)
+	m.HandleFunc("POST "+options.BaseURL+"/api/v1/auth/refresh", wrapper.RefreshToken)
 	m.HandleFunc("POST "+options.BaseURL+"/api/v1/auth/register", wrapper.RegisterUser)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/comments", wrapper.ListComments)
 	m.HandleFunc("POST "+options.BaseURL+"/api/v1/comments", wrapper.CreateComment)
@@ -2448,6 +2834,10 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("DELETE "+options.BaseURL+"/api/v1/posts/{id}/vote", wrapper.RemoveVoteFromPost)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/posts/{id}/vote", wrapper.GetUserVoteOnPost)
 	m.HandleFunc("POST "+options.BaseURL+"/api/v1/posts/{id}/vote", wrapper.VoteOnPost)
+	m.HandleFunc("PATCH "+options.BaseURL+"/api/v1/profiles/me/visibility", wrapper.UpdateProfileVisibility)
+	m.HandleFunc("GET "+options.BaseURL+"/api/v1/profiles/{handle}", wrapper.GetUserProfile)
+	m.HandleFunc("GET "+options.BaseURL+"/api/v1/profiles/{handle}/comments", wrapper.GetUserComments)
+	m.HandleFunc("GET "+options.BaseURL+"/api/v1/profiles/{handle}/posts", wrapper.GetUserPosts)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/subforums", wrapper.ListSubforums)
 	m.HandleFunc("POST "+options.BaseURL+"/api/v1/subforums", wrapper.CreateSubforum)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/subforums/{slug}", wrapper.GetSubforumBySlug)

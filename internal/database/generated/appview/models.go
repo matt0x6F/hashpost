@@ -5,11 +5,74 @@
 package generated
 
 import (
+	"database/sql/driver"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+type ProfileVisibility string
+
+const (
+	ProfileVisibilityPublic        ProfileVisibility = "public"
+	ProfileVisibilityAuthenticated ProfileVisibility = "authenticated"
+	ProfileVisibilityPrivate       ProfileVisibility = "private"
+)
+
+func (e *ProfileVisibility) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ProfileVisibility(s)
+	case string:
+		*e = ProfileVisibility(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ProfileVisibility: %T", src)
+	}
+	return nil
+}
+
+type NullProfileVisibility struct {
+	ProfileVisibility ProfileVisibility `json:"profile_visibility"`
+	Valid             bool              `json:"valid"` // Valid is true if ProfileVisibility is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullProfileVisibility) Scan(value interface{}) error {
+	if value == nil {
+		ns.ProfileVisibility, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ProfileVisibility.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullProfileVisibility) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ProfileVisibility), nil
+}
+
+func (e ProfileVisibility) Valid() bool {
+	switch e {
+	case ProfileVisibilityPublic,
+		ProfileVisibilityAuthenticated,
+		ProfileVisibilityPrivate:
+		return true
+	}
+	return false
+}
+
+func AllProfileVisibilityValues() []ProfileVisibility {
+	return []ProfileVisibility{
+		ProfileVisibilityPublic,
+		ProfileVisibilityAuthenticated,
+		ProfileVisibilityPrivate,
+	}
+}
 
 type AppviewComment struct {
 	ID           uuid.UUID          `json:"id"`
@@ -89,8 +152,12 @@ type AppviewUser struct {
 	Reputation   *int32             `json:"reputation"`
 	// PDS endpoint where user data is stored (NULL for local users)
 	PdsSource *string `json:"pds_source"`
+	// Whether user is stored on HashPost PDS (true) or external PDS (false)
+	IsLocal *bool `json:"is_local"`
 	// Last time user authenticated (for external users)
 	LastSeenAt pgtype.Timestamptz `json:"last_seen_at"`
+	// Controls who can view this user's profile: public (anyone), authenticated (logged in users), private (only the user themselves)
+	ProfileVisibility ProfileVisibility `json:"profile_visibility"`
 }
 
 type AppviewVote struct {

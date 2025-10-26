@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -619,6 +618,11 @@ func (ec *EventConsumer) handlePostUpdated(event AtprotoEvent) error {
 	)
 
 	// Extract post data from the record
+	title, ok := event.Record["title"].(string)
+	if !ok {
+		return fmt.Errorf("invalid title field in post record")
+	}
+
 	text, ok := event.Record["text"].(string)
 	if !ok {
 		return fmt.Errorf("invalid text field in post record")
@@ -633,7 +637,7 @@ func (ec *EventConsumer) handlePostUpdated(event AtprotoEvent) error {
 
 	// Extract subforum slug from record context or use default
 	subforumSlug := "general" // Default subforum
-	if subforum, ok := event.Record["subforum"].(string); ok && subforum != "" {
+	if subforum, ok := event.Record["subforumSlug"].(string); ok && subforum != "" {
 		subforumSlug = subforum
 	}
 
@@ -643,8 +647,8 @@ func (ec *EventConsumer) handlePostUpdated(event AtprotoEvent) error {
 		AuthorDID:    event.Repo,
 		AuthorHandle: authorHandle,
 		SubforumSlug: subforumSlug,
-		Title:        text, // For now, use text as title
-		Content:      text,
+		Title:        title, // Use the actual title field
+		Content:      text,  // Use the text field for content
 		UpdatedAt:    event.Timestamp,
 	}
 
@@ -653,7 +657,7 @@ func (ec *EventConsumer) handlePostUpdated(event AtprotoEvent) error {
 		return fmt.Errorf("failed to update post in AppView: %w", err)
 	}
 
-	ec.logger.Info("Post updated in AppView database", "uri", event.URI)
+	ec.logger.Info("Post updated in AppView database", "uri", event.URI, "title", title)
 	return nil
 }
 
@@ -896,46 +900,6 @@ func (ec *EventConsumer) handleCommentDeleted(event AtprotoEvent) error {
 }
 
 // isLocalUser determines if a user is local to HashPost PDS
-func (ec *EventConsumer) isLocalUser(did string) bool {
-	// For now, we'll use a simple heuristic based on DID format
-	// In production, this would check against our PDS server DID
-	// or query our local database to see if the user exists there
-
-	// Simple check: if DID contains our server identifier, it's local
-	// This is a placeholder - in production, we'd have proper PDS identification
-	return !ec.isExternalDID(did)
-}
-
-// isExternalDID checks if a DID belongs to an external PDS
-func (ec *EventConsumer) isExternalDID(did string) bool {
-	// For development, we'll consider DIDs that don't contain our local identifiers as external
-	// In production, this would be more sophisticated
-	return !ec.containsLocalIdentifier(did)
-}
-
-// containsLocalIdentifier checks if a DID contains local identifiers
-func (ec *EventConsumer) containsLocalIdentifier(did string) bool {
-	// Check for local development identifiers
-	localIdentifiers := []string{
-		"hashpost",
-		"localhost",
-		"127.0.0.1",
-	}
-
-	for _, identifier := range localIdentifiers {
-		if strings.Contains(did, identifier) {
-			return true
-		}
-	}
-	return false
-}
-
-// resolvePDSSource resolves the PDS endpoint for a given DID
-func (ec *EventConsumer) resolvePDSSource(did string) string {
-	// For now, return a placeholder PDS endpoint
-	// In production, this would resolve the actual PDS endpoint from the DID document
-	return "https://external-pds.example.com"
-}
 
 // handleVoteCreated processes vote creation events
 func (ec *EventConsumer) handleVoteCreated(event AtprotoEvent) error {

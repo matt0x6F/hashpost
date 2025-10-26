@@ -598,6 +598,24 @@ func (m *MockAppViewQueries) GetCommentByID(ctx context.Context, id uuid.UUID) (
 func (m *MockAppViewQueries) GetCommentByURI(ctx context.Context, atprotoUri string) (*appview.AppviewComment, error) {
 	return nil, nil
 }
+func (m *MockAppViewQueries) GetCommentsByAuthorDID(ctx context.Context, arg *appview.GetCommentsByAuthorDIDParams) ([]*appview.GetCommentsByAuthorDIDRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetPostsByAuthorDID(ctx context.Context, arg *appview.GetPostsByAuthorDIDParams) ([]*appview.GetPostsByAuthorDIDRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetUserByHandle(ctx context.Context, handle string) (*appview.GetUserByHandleRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) IncrementUserCommentCount(ctx context.Context, userDid string) error {
+	return nil
+}
+func (m *MockAppViewQueries) IncrementUserPostCount(ctx context.Context, userDid string) error {
+	return nil
+}
+func (m *MockAppViewQueries) UpdateUserProfileVisibility(ctx context.Context, arg *appview.UpdateUserProfileVisibilityParams) (*appview.UpdateUserProfileVisibilityRow, error) {
+	return nil, nil
+}
 func (m *MockAppViewQueries) GetCommentVoteCounts(ctx context.Context, id uuid.UUID) (*appview.GetCommentVoteCountsRow, error) {
 	return nil, nil
 }

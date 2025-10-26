@@ -288,8 +288,19 @@ func (es *EventStreamer) publishEvent(ctx context.Context, event *AtprotoEvent) 
 	// Check if stream exists before publishing
 	streamInfo, err := es.js.StreamInfo(es.stream)
 	if err != nil {
-		es.logger.Error("Stream does not exist", "error", err, "stream", es.stream)
-		return fmt.Errorf("stream does not exist: %w", err)
+		es.logger.Warn("Stream does not exist, recreating", "error", err, "stream", es.stream)
+		// Try to recreate the stream
+		if recreateErr := es.createStream(); recreateErr != nil {
+			es.logger.Error("Failed to recreate stream", "error", recreateErr, "stream", es.stream)
+			return fmt.Errorf("failed to recreate stream: %w", recreateErr)
+		}
+		es.logger.Info("Stream recreated successfully", "stream", es.stream)
+		// Get stream info again after recreation
+		streamInfo, err = es.js.StreamInfo(es.stream)
+		if err != nil {
+			es.logger.Error("Failed to get stream info after recreation", "error", err, "stream", es.stream)
+			return fmt.Errorf("failed to get stream info after recreation: %w", err)
+		}
 	}
 
 	es.logger.Debug("Stream exists",
@@ -299,8 +310,11 @@ func (es *EventStreamer) publishEvent(ctx context.Context, event *AtprotoEvent) 
 		"consumers", streamInfo.State.Consumers,
 	)
 
-	// Publish the event
-	_, publishErr := es.js.Publish(subject, data)
+	// Publish the event with timeout context
+	publishCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	_, publishErr := es.js.Publish(subject, data, nats.Context(publishCtx))
 	if publishErr != nil {
 		es.logger.Error("Failed to publish event to NATS",
 			"error", publishErr,

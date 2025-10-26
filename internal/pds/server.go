@@ -658,6 +658,7 @@ func (s *Server) listSubforumRecords(ctx context.Context, repo string, limit int
 
 func (s *Server) updatePostRecord(ctx context.Context, uri string, record map[string]interface{}) (map[string]interface{}, error) {
 	// Extract data from the record
+	title, _ := record["title"].(string)
 	text, _ := record[lexicons.FieldText].(string)
 
 	if text == "" {
@@ -667,8 +668,8 @@ func (s *Server) updatePostRecord(ctx context.Context, uri string, record map[st
 	// Update the post in database
 	updatedPost, err := s.db.UpdatePostByAtprotoURI(ctx, &generated.UpdatePostByAtprotoURIParams{
 		AtprotoUri: &uri,
-		Title:      text, // Using text as title for now
-		Content:    text,
+		Title:      title, // Use the title field for title
+		Content:    text,  // Use the text field for content
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update post: %w", err)

@@ -5,7 +5,8 @@ import { useRouter, useParams } from "next/navigation";
 import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
 import { Label } from "@/components/shadcn/label";
-import { getApi } from "@/lib/api-client";
+import { getApi, getApiWithRefresh } from "@/lib/api-client";
+import { PostsApi } from "@/generated/api/src/apis/PostsApi";
 // Removed PostDetailsResponseBody - not available in atproto system
 import { toast } from "sonner";
 import { Eye, EyeOff, ArrowLeft } from "lucide-react";
@@ -22,7 +23,7 @@ export default function EditPostPage() {
   const subforum = params.subforum as string;
   const slug = params.slug as string;
   const fullSubforumPath = `${communityType}/${subforum}`;
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -36,7 +37,7 @@ export default function EditPostPage() {
       loadPostDetails();
       loadSubforumUserContext();
     }
-  }, [fullSubforumPath, slug]);
+  }, [fullSubforumPath, slug, authLoading]); // Add authLoading as dependency
 
   const loadSubforumUserContext = async () => {
     try {
@@ -53,9 +54,31 @@ export default function EditPostPage() {
     setError(null);
     
     try {
-      // Post editing not available in atproto system
-      setPostDetails(null);
-      toast.error("Post editing is not available in the atproto system");
+      // Wait for auth to finish loading
+      if (authLoading) {
+        return; // Will retry when auth loading completes
+      }
+
+      if (!user) {
+        setError("You must be logged in to edit posts");
+        return;
+      }
+
+      // Fetch post details using the API
+      const postsApi = getApi(PostsApi);
+      const post = await postsApi.getPostByID(slug);
+      
+      // Check if current user is the author
+      if (post.author.did !== user.did) {
+        setError("You can only edit your own posts");
+        return;
+      }
+
+      // Load post data into state
+      setPostDetails(post);
+      setTitle(post.title);
+      setContent(post.content);
+      
     } catch (err: unknown) {
       console.error('Error loading post details:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to load post';
@@ -82,16 +105,29 @@ export default function EditPostPage() {
         return;
       }
       
-      // Post editing not available in atproto system
-      toast.error("Post editing is not available in the atproto system");
-    } catch {
-      toast.error("Failed to update post");
+      // Call API to update the post
+      const postsApi = getApiWithRefresh(PostsApi);
+      await postsApi.updatePost(postDetails.id, {
+        title: title.trim(),
+        content: content.trim()
+      });
+      
+      // Show success message and navigate back to post
+      toast.success("Post updated successfully");
+      router.push(`/${communityType}/${subforum}/posts/${slug}`);
+      
+    } catch (err: unknown) {
+      console.error('Error updating post:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update post';
+      toast.error("Failed to update post", {
+        description: errorMessage,
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  if (isLoading) {
+  if (isLoading || authLoading) {
     return (
       <div className="max-w-7xl mx-auto p-2 sm:p-4">
         <div className="flex items-center gap-4 mb-8">

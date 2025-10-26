@@ -304,11 +304,10 @@ func (d *Database) CreateVote(vote *AppViewVote) error {
 			CommentID: pgtype.UUID{Bytes: comment.ID, Valid: true},
 			VoteType:  vote.Direction,
 		})
-	}
-
-	if err != nil {
-		d.logger.Error("Failed to create vote", "error", err, "user_did", vote.UserDID, "subject", vote.Subject)
-		return fmt.Errorf("failed to create vote: %w", err)
+		if err != nil {
+			d.logger.Error("Failed to create comment vote", "error", err, "user_did", vote.UserDID, "subject", vote.Subject)
+			return fmt.Errorf("failed to create comment vote: %w", err)
+		}
 	}
 
 	d.logger.Info("Vote created in AppView", "user_did", vote.UserDID, "subject", vote.Subject)

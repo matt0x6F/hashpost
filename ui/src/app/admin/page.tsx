@@ -1,11 +1,11 @@
 "use client";
 
-import { useAuth } from "@/lib/auth-context";
-import { redirect } from "next/navigation";
+import { useRequireAuth } from "@/lib/route-guards";
+import { UnauthorizedPage } from "@/components/UnauthorizedPage";
 import { PlatformAdminDashboard } from "@/components/PlatformAdminDashboard";
 
 export default function AdminPage() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { authorized, isLoading, error } = useRequireAuth();
 
   // Show loading state while auth is loading
   if (isLoading) {
@@ -16,9 +16,15 @@ export default function AdminPage() {
     );
   }
 
-  // Redirect if not authenticated
-  if (!isAuthenticated) {
-    redirect("/");
+  // Show unauthorized page if not authenticated
+  if (!authorized) {
+    return (
+      <UnauthorizedPage
+        title="Admin Access Required"
+        message={error || "You must be logged in to access the admin panel."}
+        icon="lock"
+      />
+    );
   }
 
   return (

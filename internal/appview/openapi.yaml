@@ -178,6 +178,53 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /api/v1/auth/refresh:
+    post:
+      summary: Refresh access token
+      description: Refresh the access token using a valid refresh token
+      operationId: refreshToken
+      tags:
+        - Authentication
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Token refresh successful
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - accessToken
+                  - refreshToken
+                  - handle
+                  - did
+                properties:
+                  accessToken:
+                    type: string
+                    description: New JWT access token
+                  refreshToken:
+                    type: string
+                    description: New JWT refresh token
+                  handle:
+                    type: string
+                    description: User's handle
+                  did:
+                    type: string
+                    description: User's DID
+        '401':
+          description: Unauthorized - invalid refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /api/v1/subforums:
     get:
       summary: List subforums
@@ -475,6 +522,8 @@ paths:
       operationId: updatePost
       tags:
         - Posts
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -2088,6 +2137,223 @@ paths:
         '500':
           description: Internal server error
 
+  # Profile endpoints
+  /api/v1/profiles/{handle}:
+    get:
+      summary: Get user profile
+      description: Get user profile information by handle
+      operationId: getUserProfile
+      tags:
+        - Profiles
+      parameters:
+        - name: handle
+          in: path
+          required: true
+          description: User handle (without @ prefix)
+          schema:
+            type: string
+            example: "alice.hashpost.local"
+      responses:
+        '200':
+          description: User profile information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          description: Authentication required for this profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Profile is private
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/profiles/{handle}/posts:
+    get:
+      summary: Get user's posts
+      description: Get posts created by a specific user
+      operationId: getUserPosts
+      tags:
+        - Profiles
+      parameters:
+        - name: handle
+          in: path
+          required: true
+          description: User handle (without @ prefix)
+          schema:
+            type: string
+            example: "alice.hashpost.local"
+        - name: limit
+          in: query
+          description: Maximum number of posts to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          description: Number of posts to skip
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: User's posts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPostsResponse'
+        '401':
+          description: Authentication required for this profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Profile is private
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/profiles/{handle}/comments:
+    get:
+      summary: Get user's comments
+      description: Get comments created by a specific user
+      operationId: getUserComments
+      tags:
+        - Profiles
+      parameters:
+        - name: handle
+          in: path
+          required: true
+          description: User handle (without @ prefix)
+          schema:
+            type: string
+            example: "alice.hashpost.local"
+        - name: limit
+          in: query
+          description: Maximum number of comments to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          description: Number of comments to skip
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: User's comments
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserCommentsResponse'
+        '401':
+          description: Authentication required for this profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Profile is private
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/profiles/me/visibility:
+    patch:
+      summary: Update profile visibility
+      description: Update the visibility setting for the current user's profile
+      operationId: updateProfileVisibility
+      tags:
+        - Profiles
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileVisibilityUpdate'
+      responses:
+        '200':
+          description: Profile visibility updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '400':
+          description: Invalid visibility setting
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
 
 components:
   schemas:
@@ -2161,6 +2427,10 @@ components:
           type: string
           format: email
           description: User's email address
+        displayName:
+          type: string
+          nullable: true
+          description: User's display name
 
     Subforum:
       type: object
@@ -2719,6 +2989,267 @@ components:
           type: boolean
           description: Whether the user is active
 
+    # Profile schemas
+    UserProfile:
+      type: object
+      required:
+        - did
+        - handle
+        - displayName
+        - postCount
+        - commentCount
+        - reputation
+        - profileVisibility
+        - createdAt
+      properties:
+        did:
+          type: string
+          description: User's DID
+        handle:
+          type: string
+          description: User's handle
+        displayName:
+          type: string
+          nullable: true
+          description: User's display name
+        bio:
+          type: string
+          nullable: true
+          description: User's bio
+        avatarUrl:
+          type: string
+          nullable: true
+          description: User's avatar URL
+        postCount:
+          type: integer
+          description: Number of posts created
+        commentCount:
+          type: integer
+          description: Number of comments created
+        reputation:
+          type: integer
+          description: User's reputation score
+        profileVisibility:
+          $ref: '#/components/schemas/ProfileVisibility'
+        pdsSource:
+          type: string
+          nullable: true
+          description: PDS server endpoint where user data is stored
+        createdAt:
+          type: string
+          format: date-time
+          description: When the user was created
+        updatedAt:
+          type: string
+          format: date-time
+          description: When the user was last updated
+        lastSeenAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the user was last seen
+
+    ProfileVisibility:
+      type: string
+      enum:
+        - public
+        - authenticated
+        - private
+      description: Profile visibility setting
+      example: "public"
+
+    ProfileVisibilityUpdate:
+      type: object
+      required:
+        - visibility
+      properties:
+        visibility:
+          $ref: '#/components/schemas/ProfileVisibility'
+
+    UserPost:
+      type: object
+      required:
+        - id
+        - title
+        - content
+        - authorDid
+        - authorHandle
+        - subforumSlug
+        - subforumName
+        - createdAt
+        - upvotes
+        - downvotes
+        - commentCount
+        - score
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Post ID
+        atprotoUri:
+          type: string
+          description: AT Protocol URI for the post
+        title:
+          type: string
+          description: Post title
+        content:
+          type: string
+          description: Post content
+        authorDid:
+          type: string
+          description: Author's DID
+        authorHandle:
+          type: string
+          description: Author's handle
+        subforumSlug:
+          type: string
+          description: Subforum slug
+        subforumName:
+          type: string
+          description: Subforum name
+        createdAt:
+          type: string
+          format: date-time
+          description: When the post was created
+        updatedAt:
+          type: string
+          format: date-time
+          description: When the post was last updated
+        upvotes:
+          type: integer
+          description: Number of upvotes
+        downvotes:
+          type: integer
+          description: Number of downvotes
+        commentCount:
+          type: integer
+          description: Number of comments
+        score:
+          type: integer
+          description: Calculated score (upvotes - downvotes)
+
+    UserComment:
+      type: object
+      required:
+        - id
+        - content
+        - authorDid
+        - authorHandle
+        - postId
+        - createdAt
+        - upvotes
+        - downvotes
+        - score
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Comment ID
+        atprotoUri:
+          type: string
+          description: AT Protocol URI for the comment
+        content:
+          type: string
+          description: Comment content
+        authorDid:
+          type: string
+          description: Author's DID
+        authorHandle:
+          type: string
+          description: Author's handle
+        postId:
+          type: string
+          format: uuid
+          description: ID of the post this comment belongs to
+        postTitle:
+          type: string
+          nullable: true
+          description: Title of the post this comment belongs to
+        subforumSlug:
+          type: string
+          nullable: true
+          description: Subforum slug
+        subforumName:
+          type: string
+          nullable: true
+          description: Subforum name
+        parentId:
+          type: string
+          format: uuid
+          nullable: true
+          description: ID of parent comment if this is a reply
+        createdAt:
+          type: string
+          format: date-time
+          description: When the comment was created
+        updatedAt:
+          type: string
+          format: date-time
+          description: When the comment was last updated
+        upvotes:
+          type: integer
+          description: Number of upvotes
+        downvotes:
+          type: integer
+          description: Number of downvotes
+        score:
+          type: integer
+          description: Calculated score (upvotes - downvotes)
+        authorDisplayName:
+          type: string
+          nullable: true
+          description: Author's display name
+        authorAvatarUrl:
+          type: string
+          nullable: true
+          description: URL to author's avatar image
+
+    UserPostsResponse:
+      type: object
+      required:
+        - posts
+        - total
+        - limit
+        - offset
+      properties:
+        posts:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserPost'
+          description: List of user's posts
+        total:
+          type: integer
+          description: Total number of posts
+        limit:
+          type: integer
+          description: Number of posts per page
+        offset:
+          type: integer
+          description: Number of posts skipped
+
+    UserCommentsResponse:
+      type: object
+      required:
+        - comments
+        - total
+        - limit
+        - offset
+      properties:
+        comments:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserComment'
+          description: List of user's comments
+        total:
+          type: integer
+          description: Total number of comments
+        limit:
+          type: integer
+          description: Number of comments per page
+        offset:
+          type: integer
+          description: Number of comments skipped
+
   securitySchemes:
     bearerAuth:
       type: http
@@ -2743,3 +3274,5 @@ tags:
     description: Platform-wide administration (global admin only)
   - name: PDS Management
     description: PDS server management and monitoring
+  - name: Profiles
+    description: User profile management and viewing

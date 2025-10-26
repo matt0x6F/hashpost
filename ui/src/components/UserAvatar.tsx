@@ -21,8 +21,9 @@ export function UserAvatar() {
     return null;
   }
 
-  // Generate initials from handle
-  const initials = user.handle
+  // Generate initials from displayName (fallback to handle)
+  const nameForInitials = user.displayName || user.handle;
+  const initials = nameForInitials
     .split(" ")
     .map(name => name.charAt(0))
     .join("")
@@ -41,7 +42,7 @@ export function UserAvatar() {
             {initials}
           </div>
           <span className="hidden sm:block text-sm font-medium">
-            {user.handle}
+            {user.displayName || user.handle}
           </span>
           <ChevronDown className="h-4 w-4" />
         </Button>
@@ -52,13 +53,13 @@ export function UserAvatar() {
               {/* User info */}
               <div className="px-4 py-2 border-b border-border">
                 <div className="text-sm font-medium text-foreground">
-                  {user.handle}
+                  {user.displayName || user.handle}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  @{user.handle}
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {user.email}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  DID: {user.did}
                 </div>
               </div>
 
@@ -68,8 +69,7 @@ export function UserAvatar() {
                   className="flex items-center w-full px-4 py-2 text-sm text-foreground hover:bg-foreground/10 dark:hover:bg-foreground/10 transition-colors"
                   onClick={() => {
                     setShowDropdown(false);
-                    // Profile viewing not available in atproto system
-                    toast.error('Profile viewing is not available in the atproto system');
+                    router.push(`/u/${user.handle}`);
                   }}
                 >
                   <User className="w-4 h-4 mr-2" />

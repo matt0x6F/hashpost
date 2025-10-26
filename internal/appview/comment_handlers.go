@@ -1,11 +1,7 @@
 package appview
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
-	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -398,6 +394,13 @@ func (h *Handlers) CreateComment(w http.ResponseWriter, r *http.Request) {
 		h.logger.Info("Comment created via fallback mechanism", "uri", pdsResult.URI)
 	}
 
+	// Update user comment count
+	err = h.queries.IncrementUserCommentCount(r.Context(), userCtx.Did)
+	if err != nil {
+		h.logger.Error("Failed to update user comment count", "error", err, "author_did", userCtx.Did)
+		// Don't fail the request, just log the error
+	}
+
 	// Return created comment with user profile data (same as posts)
 	response := Comment{
 		Id: openapi_types.UUID(createdComment.ID),
@@ -636,84 +639,3 @@ func (h *Handlers) DeleteComment(w http.ResponseWriter, r *http.Request) {
 }
 
 // Helper methods for PDS integration
-
-func (h *Handlers) getPDSURL(did string) string {
-	// TODO: Implement proper PDS discovery
-	// For now, return the HashPost PDS URL
-	// In Docker environment, use service name; in local dev, use localhost
-	return "http://hashpost-pds:8080" // HashPost PDS URL
-}
-
-func (h *Handlers) createRecordInPDS(ctx context.Context, pdsURL, accessToken, repo, collection string, record map[string]interface{}) (uri, cid string, err error) {
-	// Make HTTP request to PDS com.atproto.repo.createRecord endpoint
-	url := fmt.Sprintf("%s/xrpc/com.atproto.repo.createRecord", pdsURL)
-
-	// Prepare request body
-	requestBody := map[string]interface{}{
-		"repo":       repo,
-		"collection": collection,
-		"record":     record,
-	}
-
-	jsonBody, err := json.Marshal(requestBody)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to marshal request body: %w", err)
-	}
-
-	// Create HTTP request
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonBody))
-	if err != nil {
-		return "", "", fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// Set headers
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Service-Name", "appview") // Mark this as a service-to-service call
-	if accessToken != "" {
-		req.Header.Set("Authorization", "Bearer "+accessToken)
-	}
-
-	// Make the request
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to make request to PDS: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// Check response status
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return "", "", fmt.Errorf("PDS returned status %d: %s", resp.StatusCode, string(body))
-	}
-
-	// Parse response
-	var response struct {
-		URI string `json:"uri"`
-		CID string `json:"cid"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		return "", "", fmt.Errorf("failed to decode PDS response: %w", err)
-	}
-
-	return response.URI, response.CID, nil
-}
-
-func (h *Handlers) waitForCommentSync(ctx context.Context, uri string) (*generated.AppviewComment, error) {
-	// Poll for comment to appear in AppView database
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-ticker.C:
-			comment, err := h.queries.GetCommentByURI(ctx, uri)
-			if err == nil {
-				return comment, nil
-			}
-		}
-	}
-}

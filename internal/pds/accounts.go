@@ -166,11 +166,18 @@ func (s *Server) handleCreateAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// For now, use handle as displayName (TODO: fetch from profile records)
+	displayName := user.Handle
+	// TODO: Fetch displayName from app.bsky.actor.profile record
+	// For now, just use handle
+
 	response := map[string]interface{}{
-		"accessJwt":  accessToken,
-		"refreshJwt": refreshToken,
-		"handle":     user.Handle,
-		"did":        user.Did,
+		"accessJwt":   accessToken,
+		"refreshJwt":  refreshToken,
+		"handle":      user.Handle,
+		"did":         user.Did,
+		"email":       user.Email,
+		"displayName": displayName,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

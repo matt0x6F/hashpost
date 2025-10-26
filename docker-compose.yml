@@ -59,8 +59,6 @@ services:
       - ./scripts/init-pds-database.sql:/docker-entrypoint-initdb.d/init-pds-database.sql
       - ./scripts/init-appview-database.sql:/docker-entrypoint-initdb.d/init-appview-database.sql
       - ./scripts/grant-permissions.sql:/docker-entrypoint-initdb.d/grant-permissions.sql
-      - ./scripts/001_initial_schema.sql:/docker-entrypoint-initdb.d/001_initial_schema.sql
-      - ./scripts/001_appview_schema.sql:/docker-entrypoint-initdb.d/001_appview_schema.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s

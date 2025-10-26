@@ -240,11 +240,6 @@ func (h *Handlers) writeError(w http.ResponseWriter, statusCode int, errorCode, 
 }
 
 // writeJSONResponse writes a JSON response
-func (h *Handlers) writeJSONResponse(w http.ResponseWriter, statusCode int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(data)
-}
 
 // CreateSubforum handles POST /api/v1/subforums
 func (h *Handlers) CreateSubforum(w http.ResponseWriter, r *http.Request) {

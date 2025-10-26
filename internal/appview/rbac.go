@@ -84,6 +84,13 @@ func (r *RBACService) ValidateToken(ctx context.Context, tokenString string) (*U
 		return nil, fmt.Errorf("failed to ensure user exists: %w", err)
 	}
 
+	// Update last seen time for this user (both new and existing users)
+	err = r.queries.UpdateUserLastSeen(ctx, validationResult.DID)
+	if err != nil {
+		r.logger.Warn("Failed to update user last seen time", "error", err, "did", validationResult.DID)
+		// Don't fail authentication for this error
+	}
+
 	// Get user roles from database
 	roles, err := r.getUserRoles(ctx, validationResult.DID)
 	if err != nil {
@@ -417,11 +424,28 @@ func (r *RBACService) ensureUserExists(ctx context.Context, did, handle, issuer 
 	// Check if user already exists
 	existingUser, err := r.queries.GetUserByDID(ctx, did)
 	if err == nil && existingUser != nil {
-		// User exists, update last seen time if external
-		if existingUser.PdsSource != nil && *existingUser.PdsSource != "http://hashpost-pds:8080" {
-			// For now, just log that we would update last seen time
-			// In production, we'd need to add this method to SQLC
-			r.logger.Debug("Would update last seen time for external user", "did", did)
+		// User exists, check if we need to update PDS source
+		pdsSource := r.determinePDSSource(issuer)
+		needsUpdate := false
+
+		// Update PDS source if it's not set or has changed
+		if existingUser.PdsSource == nil || (pdsSource != nil && *existingUser.PdsSource != *pdsSource) {
+			needsUpdate = true
+		}
+
+		if needsUpdate {
+			// Update user with new PDS source
+			_, err = r.queries.CreateOrUpdateUserFromDID(ctx, &appview.CreateOrUpdateUserFromDIDParams{
+				Did:         existingUser.Did,
+				Handle:      existingUser.Handle,
+				DisplayName: existingUser.DisplayName,
+				AvatarUrl:   existingUser.AvatarUrl,
+				PdsSource:   pdsSource,
+				LastSeenAt:  pgtype.Timestamptz{Time: time.Now(), Valid: true},
+			})
+			if err != nil {
+				r.logger.Warn("Failed to update user PDS source", "error", err, "did", did)
+			}
 		}
 
 		// Convert to AppViewUser type
@@ -444,11 +468,7 @@ func (r *RBACService) ensureUserExists(ctx context.Context, did, handle, issuer 
 	// Determine PDS source
 	pdsSource := r.determinePDSSource(issuer)
 
-	// For now, we'll use a simplified approach since the SQLC methods might not exist yet
-	// In production, we'd need to add the proper SQLC queries for user creation
-	r.logger.Info("User creation not yet implemented in SQLC", "did", did, "handle", handle, "pds_source", pdsSource)
-
-	// Return a mock user for now
+	// Create user in AppView database
 	user := &AppViewUser{
 		ID:          uuid.New(),
 		DID:         did,
@@ -465,6 +485,22 @@ func (r *RBACService) ensureUserExists(ctx context.Context, did, handle, issuer 
 		user.LastSeenAt = &now
 	}
 
+	// Actually create the user in the database
+	_, err = r.queries.CreateOrUpdateUserFromDID(context.Background(), &appview.CreateOrUpdateUserFromDIDParams{
+		Did:         user.DID,
+		Handle:      user.Handle,
+		DisplayName: &user.DisplayName,
+		AvatarUrl:   &user.AvatarURL,
+		PdsSource:   user.PDSSource,
+		LastSeenAt:  pgtype.Timestamptz{Time: time.Now(), Valid: true},
+	})
+	if err != nil {
+		r.logger.Error("Failed to create user in AppView database", "error", err, "did", did)
+		// Return the user anyway to avoid breaking the auth flow
+		return user, nil
+	}
+
+	r.logger.Info("User created in AppView database", "did", did, "handle", handle)
 	return user, nil
 }
 

@@ -85,6 +85,7 @@ func (h *Handlers) handleLogin(w http.ResponseWriter, r *http.Request) {
 		"handle":       pdsData["handle"],
 		"did":          pdsData["did"],
 		"email":        pdsData["email"],
+		"displayName":  pdsData["displayName"],
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -165,6 +166,7 @@ func (h *Handlers) handleRegister(w http.ResponseWriter, r *http.Request) {
 		"handle":       pdsData["handle"],
 		"did":          pdsData["did"],
 		"email":        pdsData["email"],
+		"displayName":  pdsData["displayName"],
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -307,12 +309,21 @@ func (h *Handlers) handleGetCurrentUser(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Query the users table to get displayName
+	user, err := h.queries.GetUserByDID(r.Context(), userCtx.Did)
+	if err != nil {
+		h.logger.Error("Failed to get user from database", "error", err, "did", userCtx.Did)
+		http.Error(w, "Failed to get user information", http.StatusInternalServerError)
+		return
+	}
+
 	// Return user session info
 	response := map[string]interface{}{
-		"did":    userCtx.Did,
-		"handle": userCtx.Handle,
-		"email":  "", // Email not available in AppView
-		"active": userCtx.IsActive,
+		"did":         userCtx.Did,
+		"handle":      userCtx.Handle,
+		"email":       "", // Email not available in AppView
+		"displayName": user.DisplayName,
+		"active":      userCtx.IsActive,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -346,6 +357,61 @@ func (h *Handlers) handleLogout(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(pdsResponse)
+}
+
+// handleRefresh handles POST /api/v1/auth/refresh
+func (h *Handlers) handleRefresh(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get refresh token from Authorization header
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		http.Error(w, "Authorization header required", http.StatusUnauthorized)
+		return
+	}
+
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		http.Error(w, "Invalid authorization format", http.StatusUnauthorized)
+		return
+	}
+
+	refreshToken := strings.TrimPrefix(authHeader, "Bearer ")
+
+	h.logger.Debug("Handling token refresh", "refreshTokenLength", len(refreshToken))
+
+	// Proxy to PDS for token refresh
+	pdsResponse, err := h.makePDSRequest("POST", "com.atproto.server.refreshSession", map[string]string{
+		"refreshJwt": refreshToken,
+	})
+
+	if err != nil {
+		h.logger.Error("PDS refresh failed", "error", err)
+		http.Error(w, "Token refresh failed", http.StatusUnauthorized)
+		return
+	}
+
+	// Parse PDS response and map to frontend format
+	var pdsData map[string]interface{}
+	if err := json.Unmarshal(pdsResponse, &pdsData); err != nil {
+		h.logger.Error("Failed to parse PDS refresh response", "error", err)
+		http.Error(w, "Token refresh failed", http.StatusInternalServerError)
+		return
+	}
+
+	// Map PDS response to frontend format
+	response := map[string]interface{}{
+		"accessToken":  pdsData["accessJwt"],
+		"refreshToken": pdsData["refreshJwt"],
+		"handle":       pdsData["handle"],
+		"did":          pdsData["did"],
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
 }
 
 // makePDSRequest makes a request to the PDS server

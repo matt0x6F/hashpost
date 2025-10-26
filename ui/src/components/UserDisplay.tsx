@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 
 interface Author {
   did: string;
@@ -9,6 +10,7 @@ interface Author {
 
 interface UserDisplayProps {
   author: Author;
+  linkToProfile?: boolean;
 }
 
 function truncateDID(did: string): string {
@@ -18,11 +20,11 @@ function truncateDID(did: string): string {
   return `${did.substring(0, 8)}...${did.substring(did.length - 8)}`;
 }
 
-export function UserDisplay({ author }: UserDisplayProps) {
+export function UserDisplay({ author, linkToProfile = true }: UserDisplayProps) {
   const displayText = author.displayName || author.handle || truncateDID(author.did);
   const secondaryText = author.displayName ? `@${author.handle}` : null;
   
-  return (
+  const content = (
     <div className="inline-flex items-center gap-1">
       <span className="font-medium">{displayText}</span>
       {secondaryText && (
@@ -30,5 +32,18 @@ export function UserDisplay({ author }: UserDisplayProps) {
       )}
     </div>
   );
+
+  if (linkToProfile && author.handle) {
+    return (
+      <Link 
+        href={`/u/${author.handle}`}
+        className="hover:underline transition-colors"
+      >
+        {content}
+      </Link>
+    );
+  }
+
+  return content;
 }
 

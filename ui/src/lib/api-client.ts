@@ -150,7 +150,7 @@ export function getApiWithRefresh<T extends { new(config: Configuration): Instan
       console.log('[api-client] getApiWithRefresh - providing access token:', !!accessToken);
       return accessToken || '';
     },
-    // Add middleware to inject Authorization header
+    // Add middleware to inject Authorization header and handle token refresh
     middleware: [
       {
         pre: async (context) => {
@@ -163,6 +163,64 @@ export function getApiWithRefresh<T extends { new(config: Configuration): Instan
             console.log('[api-client] Added Authorization header to request (with refresh)');
           }
           return context;
+        },
+        post: async (context) => {
+          // Check if response is 401 Unauthorized
+          if (context.response.status === 401) {
+            console.log('[api-client] Received 401, attempting token refresh');
+            
+            try {
+              // Attempt to refresh the token
+              const refreshToken = getRefreshToken();
+              if (!refreshToken) {
+                console.log('[api-client] No refresh token available');
+                return;
+              }
+
+              // Call refresh endpoint
+              const refreshResponse = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${refreshToken}`
+                }
+              });
+
+              if (refreshResponse.ok) {
+                const refreshData = await refreshResponse.json();
+                console.log('[api-client] Token refresh successful');
+                
+                // Update tokens
+                setAccessToken(refreshData.accessToken);
+                if (refreshData.refreshToken) {
+                  setRefreshToken(refreshData.refreshToken);
+                }
+
+                // Retry the original request with new token
+                const originalRequest = context.init;
+                originalRequest.headers = {
+                  ...originalRequest.headers,
+                  'Authorization': `Bearer ${refreshData.accessToken}`
+                };
+
+                console.log('[api-client] Retrying original request with new token');
+                const retryResponse = await fetch(context.url, originalRequest);
+                
+                // Return the retry response
+                return retryResponse;
+              } else {
+                console.log('[api-client] Token refresh failed:', refreshResponse.status);
+                // Clear tokens on refresh failure
+                setAccessToken(null);
+                setRefreshToken(null);
+              }
+            } catch (error) {
+              console.error('[api-client] Token refresh error:', error);
+              // Clear tokens on error
+              setAccessToken(null);
+              setRefreshToken(null);
+            }
+          }
         }
       }
     ]

@@ -14,6 +14,7 @@ export interface User {
   handle: string;
   did: string;
   email: string;
+  displayName?: string | null;
   accessToken?: string;
   refreshToken?: string;
 }
@@ -87,6 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             handle: authResult.handle,
             did: authResult.did,
             email: authResult.email,
+            displayName: authResult.displayName,
             accessToken: undefined, // Tokens are handled by the API client
             refreshToken: undefined,
           };
@@ -97,6 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             handle: authResult.handle,
             did: authResult.did,
             email: authResult.email,
+            displayName: authResult.displayName,
             accessToken: '',
             refreshToken: ''
           });
@@ -146,6 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         handle: loginResponse.handle,
         did: loginResponse.did,
         email: loginResponse.email,
+        displayName: loginResponse.displayName,
         accessToken: loginResponse.accessToken,
         refreshToken: loginResponse.refreshToken,
       };
@@ -169,6 +173,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         handle: registerResponse.handle,
         did: registerResponse.did,
         email: registerResponse.email,
+        displayName: registerResponse.displayName,
         accessToken: registerResponse.accessToken,
         refreshToken: registerResponse.refreshToken,
       };
@@ -210,6 +215,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           handle: authResult.handle,
           did: authResult.did,
           email: authResult.email,
+          displayName: authResult.displayName,
           accessToken: undefined, // Tokens are handled by the API client
           refreshToken: undefined,
         };
@@ -220,6 +226,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           handle: authResult.handle,
           did: authResult.did,
           email: authResult.email,
+          displayName: authResult.displayName,
           accessToken: '',
           refreshToken: ''
         });

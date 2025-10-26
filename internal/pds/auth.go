@@ -629,12 +629,28 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get user to fetch displayName
+	user, err := s.db.GetUserByDID(r.Context(), session.DID)
+	if err != nil {
+		s.logger.Error("Failed to get user by DID", "error", err, "did", session.DID)
+		// Continue with handle as displayName rather than failing the request
+	}
+
+	// For now, use handle as displayName (TODO: fetch from profile records)
+	displayName := session.Handle
+	if user != nil {
+		// TODO: Fetch displayName from app.bsky.actor.profile record
+		// For now, just use handle
+		displayName = user.Handle
+	}
+
 	response := map[string]interface{}{
-		"accessJwt":  accessToken,
-		"refreshJwt": refreshToken,
-		"handle":     session.Handle,
-		"did":        session.DID,
-		"email":      s.getUserEmailFromDID(r.Context(), session.DID),
+		"accessJwt":   accessToken,
+		"refreshJwt":  refreshToken,
+		"handle":      session.Handle,
+		"did":         session.DID,
+		"email":       s.getUserEmailFromDID(r.Context(), session.DID),
+		"displayName": displayName,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

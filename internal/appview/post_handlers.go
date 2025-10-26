@@ -382,6 +382,13 @@ func (h *Handlers) CreatePost(w http.ResponseWriter, r *http.Request) {
 		// Don't fail the request, just log the error
 	}
 
+	// Update user post count
+	err = h.queries.IncrementUserPostCount(r.Context(), authorDID)
+	if err != nil {
+		h.logger.Error("Failed to update user post count", "error", err, "author_did", authorDID)
+		// Don't fail the request, just log the error
+	}
+
 	// Return the created post
 	post := map[string]interface{}{
 		"id":            createdPost.ID.String(),
@@ -409,42 +416,154 @@ func (h *Handlers) UpdatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get authenticated user from context
+	userCtx := GetUserContext(r)
+	if userCtx == nil {
+		h.writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+		return
+	}
+
 	// Extract post ID from URL path
 	pathParts := strings.Split(r.URL.Path, "/")
-	if len(pathParts) < 4 {
+	h.logger.Debug("UpdatePost path analysis", "path", r.URL.Path, "pathParts", pathParts, "pathPartsLength", len(pathParts))
+	if len(pathParts) < 5 {
+		h.logger.Error("Invalid post ID path", "path", r.URL.Path, "pathParts", pathParts)
 		h.writeError(w, http.StatusBadRequest, "INVALID_POST_ID", "Invalid post ID")
 		return
 	}
-	postID := pathParts[3]
+	postIDStr := pathParts[4]
+	h.logger.Debug("Extracted post ID string", "postIDStr", postIDStr)
+
+	// Parse post ID as UUID
+	postID, err := uuid.Parse(postIDStr)
+	if err != nil {
+		h.logger.Error("Failed to parse post ID as UUID", "postIDStr", postIDStr, "error", err)
+		h.writeError(w, http.StatusBadRequest, "INVALID_POST_ID", "Invalid post ID format")
+		return
+	}
+	h.logger.Debug("Successfully parsed post ID", "postID", postID)
 
 	// Parse request body
 	var req UpdatePostJSONBody
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.logger.Error("Failed to decode request body", "error", err)
 		h.writeError(w, http.StatusBadRequest, "INVALID_JSON", "Invalid JSON")
 		return
 	}
+	h.logger.Debug("Successfully decoded request body", "title", req.Title, "contentLength", len(req.Content))
 
 	// Validate required fields
 	if req.Title == "" || req.Content == "" {
+		h.logger.Error("Missing required fields", "titleEmpty", req.Title == "", "contentEmpty", req.Content == "", "title", req.Title, "contentLength", len(req.Content))
 		h.writeError(w, http.StatusBadRequest, "MISSING_FIELDS", "title and content are required")
 		return
 	}
 
-	// For now, return a mock response
-	// In a real implementation, this would update the database
-	post := map[string]interface{}{
-		"id":            postID,
-		"title":         req.Title,
-		"content":       req.Content,
-		"updated_at":    time.Now().Format(time.RFC3339),
-		"upvotes":       0,
-		"downvotes":     0,
-		"comment_count": 0,
+	ctx := r.Context()
+
+	// Check if post exists and user is the author
+	post, err := h.queries.GetAppViewPostByID(ctx, postID)
+	if err != nil {
+		h.logger.Error("Post not found", "error", err, "post_id", postID)
+		h.writeError(w, http.StatusNotFound, "POST_NOT_FOUND", "Post not found")
+		return
+	}
+
+	if post.AuthorDid != userCtx.Did {
+		h.writeError(w, http.StatusForbidden, "FORBIDDEN", "You can only edit your own posts")
+		return
+	}
+
+	// Extract the collection and rkey from the atproto URI
+	// URI format: at://did:plc:user123/collection/rkey
+	uriParts := strings.Split(post.AtprotoUri, "/")
+	if len(uriParts) < 4 {
+		h.logger.Error("Invalid atproto URI format", "uri", post.AtprotoUri)
+		h.writeError(w, http.StatusInternalServerError, "INVALID_URI", "Invalid post URI format")
+		return
+	}
+	// The collection is the second-to-last part, rkey is the last part
+	collection := uriParts[len(uriParts)-2]
+	rkey := uriParts[len(uriParts)-1]
+
+	h.logger.Debug("Extracted collection and rkey", "collection", collection, "rkey", rkey, "uri", post.AtprotoUri)
+
+	// Create updated post record for PDS
+	postRecord := map[string]interface{}{
+		"$type":        collection, // Use the actual collection from the URI
+		"title":        req.Title,
+		"text":         req.Content,  // PDS expects "text" field, not "content"
+		"subforumSlug": post.SubforumSlug,
+		"createdAt":    post.CreatedAt.Time.Format(time.RFC3339),
+	}
+
+	// Proxy to PDS to update the post record
+	pdsResponse, err := h.proxyToPDS(r, "POST", "/xrpc/com.atproto.repo.putRecord", map[string]interface{}{
+		"repo":       userCtx.Did,
+		"collection": collection, // Use the actual collection from the URI
+		"rkey":       rkey,
+		"record":     postRecord,
+	})
+
+	if err != nil {
+		h.logger.Error("Failed to update post in PDS", "error", err, "post_id", postID)
+		h.writeError(w, http.StatusInternalServerError, "PDS_ERROR", "Failed to update post")
+		return
+	}
+
+	// Parse PDS response
+	var pdsResult struct {
+		URI string `json:"uri"`
+		CID string `json:"cid"`
+	}
+	if err := json.Unmarshal(pdsResponse, &pdsResult); err != nil {
+		h.logger.Error("Failed to parse PDS response", "error", err)
+		h.writeError(w, http.StatusInternalServerError, "PDS_ERROR", "Failed to parse PDS response")
+		return
+	}
+
+	// Directly update the AppView database since event processing is not working
+	// TODO: Remove this direct update once NATS event processing is fixed
+	h.logger.Info("Directly updating AppView database due to event processing issues", "post_id", postID)
+	
+	_, err = h.queries.UpdatePostByAtprotoURI(r.Context(), &generated.UpdatePostByAtprotoURIParams{
+		AtprotoUri: post.AtprotoUri,
+		Title:      req.Title,
+		Content:    req.Content,
+	})
+	if err != nil {
+		h.logger.Error("Failed to update post in AppView database", "error", err, "post_id", postID)
+		h.writeError(w, http.StatusInternalServerError, "UPDATE_FAILED", "Failed to update post in AppView")
+		return
+	}
+
+	// Get the updated post from AppView database
+	updatedPost, err := h.queries.GetAppViewPostByID(r.Context(), postID)
+	if err != nil {
+		h.logger.Error("Failed to get updated post from AppView", "error", err, "post_id", postID)
+		h.writeError(w, http.StatusInternalServerError, "POST_NOT_FOUND", "Post updated but not found in AppView")
+		return
+	}
+
+	// Return the updated post
+	response := Post{
+		Id: openapi_types.UUID(updatedPost.ID),
+		Author: Author{
+			Did:         updatedPost.AuthorDid,
+			Handle:      updatedPost.AuthorHandle,
+			DisplayName: updatedPost.AuthorDisplayName,
+			AvatarUrl:   updatedPost.AuthorAvatarUrl,
+		},
+		Subforum:  updatedPost.SubforumSlug,
+		Title:     updatedPost.Title,
+		Content:   updatedPost.Content,
+		CreatedAt: updatedPost.CreatedAt.Time,
+		UpdatedAt: &updatedPost.UpdatedAt.Time,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(post)
+	json.NewEncoder(w).Encode(response)
 }
 
 // DeletePost handles DELETE /api/v1/posts/{id}

@@ -54,12 +54,14 @@ type Querier interface {
 	GetCommentByURI(ctx context.Context, atprotoUri string) (*AppviewComment, error)
 	GetCommentVoteCounts(ctx context.Context, id uuid.UUID) (*GetCommentVoteCountsRow, error)
 	GetCommentWithPost(ctx context.Context, id uuid.UUID) (*GetCommentWithPostRow, error)
+	GetCommentsByAuthorDID(ctx context.Context, arg *GetCommentsByAuthorDIDParams) ([]*GetCommentsByAuthorDIDRow, error)
 	GetModeratedSubforums(ctx context.Context, userDid string) ([]*GetModeratedSubforumsRow, error)
 	GetPDSServerDetails(ctx context.Context, pdsSource *string) (*GetPDSServerDetailsRow, error)
 	GetPDSServerStats(ctx context.Context) ([]*GetPDSServerStatsRow, error)
 	GetPostByAtprotoURI(ctx context.Context, atprotoUri string) (*AppviewPost, error)
 	GetPostCommentCount(ctx context.Context, id uuid.UUID) (*int32, error)
 	GetPostVoteCounts(ctx context.Context, id uuid.UUID) (*GetPostVoteCountsRow, error)
+	GetPostsByAuthorDID(ctx context.Context, arg *GetPostsByAuthorDIDParams) ([]*GetPostsByAuthorDIDRow, error)
 	GetProcessedEvent(ctx context.Context, eventID string) (*ProcessedEvent, error)
 	GetProcessedEventsCount(ctx context.Context) (int64, error)
 	GetSubforumByID(ctx context.Context, id uuid.UUID) (*AppviewSubforum, error)
@@ -69,6 +71,7 @@ type Querier interface {
 	GetSubforumStats(ctx context.Context, slug string) (*GetSubforumStatsRow, error)
 	GetSubforumSubscriberCount(ctx context.Context, slug string) (*int32, error)
 	GetUserByDID(ctx context.Context, did string) (*GetUserByDIDRow, error)
+	GetUserByHandle(ctx context.Context, handle string) (*GetUserByHandleRow, error)
 	GetUserPermissions(ctx context.Context, arg *GetUserPermissionsParams) ([]string, error)
 	GetUserRoles(ctx context.Context, userDid string) ([]*GetUserRolesRow, error)
 	GetUserSubscription(ctx context.Context, arg *GetUserSubscriptionParams) (*AppviewSubscription, error)
@@ -78,6 +81,8 @@ type Querier interface {
 	GetUsersByPDSSource(ctx context.Context, arg *GetUsersByPDSSourceParams) ([]*GetUsersByPDSSourceRow, error)
 	GetUsersWithRoles(ctx context.Context, arg *GetUsersWithRolesParams) ([]*GetUsersWithRolesRow, error)
 	HasUserRole(ctx context.Context, arg *HasUserRoleParams) (bool, error)
+	IncrementUserCommentCount(ctx context.Context, did string) error
+	IncrementUserPostCount(ctx context.Context, did string) error
 	IsEventProcessed(ctx context.Context, eventID string) (bool, error)
 	ListAppViewPosts(ctx context.Context, arg *ListAppViewPostsParams) ([]*ListAppViewPostsRow, error)
 	ListAppViewPostsBySubforum(ctx context.Context, arg *ListAppViewPostsBySubforumParams) ([]*ListAppViewPostsBySubforumRow, error)
@@ -104,6 +109,7 @@ type Querier interface {
 	UpdateSubforumSubscriberCount(ctx context.Context, subforumSlug string) error
 	UpdateUserLastSeen(ctx context.Context, did string) error
 	UpdateUserProfile(ctx context.Context, arg *UpdateUserProfileParams) (*UpdateUserProfileRow, error)
+	UpdateUserProfileVisibility(ctx context.Context, arg *UpdateUserProfileVisibilityParams) (*UpdateUserProfileVisibilityRow, error)
 }
 
 var _ Querier = (*Queries)(nil)

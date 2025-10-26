@@ -252,6 +252,28 @@ export default function AccountSettingsPage() {
           </form>
         </CardContent>
       </Card>
+
+      {/* Profile Visibility Section */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Profile Visibility</CardTitle>
+          <CardDescription>
+            Control who can view your profile and posts
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Manage your profile visibility settings to control who can see your profile and posts.
+            </p>
+            <Button asChild variant="outline">
+              <a href={`/u/${user?.handle}/edit`}>
+                Manage Profile Visibility
+              </a>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -31,6 +31,7 @@ type Server struct {
 	voteHandlers         *VoteHandlers
 	subscriptionHandlers *SubscriptionHandlers
 	pdsHandlers          *PDSHandlers
+	profileHandlers      *ProfileHandlers
 	logger               *slog.Logger
 }
 
@@ -77,6 +78,9 @@ func NewServer(cfg *config.Config) (*Server, error) {
 	// Create PDS handlers
 	pdsHandlers := NewPDSHandlers(queries, logger)
 
+	// Create profile handlers
+	profileHandlers := NewProfileHandlers(queries, logger)
+
 	// Get NATS URL from environment
 	natsURL := os.Getenv("NATS_URL")
 	if natsURL == "" {
@@ -107,6 +111,7 @@ func NewServer(cfg *config.Config) (*Server, error) {
 	server.voteHandlers = voteHandlers
 	server.subscriptionHandlers = subscriptionHandlers
 	server.pdsHandlers = pdsHandlers
+	server.profileHandlers = profileHandlers
 
 	return server, nil
 }
@@ -123,7 +128,7 @@ func (s *Server) Start() error {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Set CORS headers
 			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Max-Age", "86400")
@@ -259,6 +264,10 @@ func (s *Server) isPublicEndpoint(path string, method string) bool {
 		return true // GET /api/v1/comments/{id} is public (view comment)
 	}
 
+	// Profile endpoints require authentication middleware to be applied
+	// so that GetUserContext can work for visibility checks
+	// The handlers will determine access based on profile visibility settings
+
 	return false
 }
 
@@ -278,6 +287,10 @@ func (s *Server) GetCurrentUserSession(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) LogoutUser(w http.ResponseWriter, r *http.Request) {
+	s.handlers.AuthHandler(w, r)
+}
+
+func (s *Server) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	s.handlers.AuthHandler(w, r)
 }
 
@@ -815,4 +828,26 @@ func (s *Server) GetPDSServerDetails(w http.ResponseWriter, r *http.Request, end
 // ListPDSServerUsers handles GET /api/v1/admin/pds/{endpoint}/users
 func (s *Server) ListPDSServerUsers(w http.ResponseWriter, r *http.Request, endpoint string, params ListPDSServerUsersParams) {
 	s.pdsHandlers.ListPDSServerUsers(w, r, endpoint, params)
+}
+
+// Profile Endpoints
+
+// GetUserProfile handles GET /api/v1/profiles/@{handle}
+func (s *Server) GetUserProfile(w http.ResponseWriter, r *http.Request, handle string) {
+	s.profileHandlers.GetUserProfile(w, r, handle)
+}
+
+// GetUserPosts handles GET /api/v1/profiles/@{handle}/posts
+func (s *Server) GetUserPosts(w http.ResponseWriter, r *http.Request, handle string, params GetUserPostsParams) {
+	s.profileHandlers.GetUserPosts(w, r, handle)
+}
+
+// GetUserComments handles GET /api/v1/profiles/@{handle}/comments
+func (s *Server) GetUserComments(w http.ResponseWriter, r *http.Request, handle string, params GetUserCommentsParams) {
+	s.profileHandlers.GetUserComments(w, r, handle)
+}
+
+// UpdateProfileVisibility handles PATCH /api/v1/profiles/me/visibility
+func (s *Server) UpdateProfileVisibility(w http.ResponseWriter, r *http.Request) {
+	s.profileHandlers.UpdateProfileVisibility(w, r)
 }
