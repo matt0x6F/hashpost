@@ -33,8 +33,14 @@ type EventConsumer struct {
 
 // NewEventConsumer creates a new event consumer
 func NewEventConsumer(natsURL string, db *Database, logger *slog.Logger) (*EventConsumer, error) {
-	// Connect to NATS
-	nc, err := nats.Connect(natsURL)
+	// Connect to NATS with proper timeout configuration
+	nc, err := nats.Connect(natsURL,
+		nats.Timeout(10*time.Second),
+		nats.ReconnectWait(2*time.Second),
+		nats.MaxReconnects(-1), // Infinite reconnects
+		nats.PingInterval(20*time.Second),
+		nats.MaxPingsOutstanding(3),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to NATS: %w", err)
 	}
@@ -78,9 +84,9 @@ func (ec *EventConsumer) StartConsuming(ctx context.Context) error {
 	ec.logger.Info("Subscribing to atproto events", "subject", subject, "stream", streamName)
 
 	// Create pull subscription with explicit stream binding
-	sub, err := ec.js.PullSubscribe(subject, "hashpost-appview",
-		nats.BindStream(streamName),
-	)
+	// Use a consistent consumer name
+	consumerName := "hashpost-appview"
+	sub, err := ec.js.PullSubscribe(subject, consumerName, nats.BindStream(streamName))
 	if err != nil {
 		ec.logger.Error("Failed to create subscription", "error", err)
 		return fmt.Errorf("failed to create subscription: %w", err)

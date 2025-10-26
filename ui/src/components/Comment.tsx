@@ -30,11 +30,13 @@ import { useCommentVote } from '@/hooks/useCommentVote';
 interface CommentProps {
   comment: CommentType;
   postId: string;
-  onCommentUpdated: () => void;
+  onCommentUpdated: (commentId: string, updatedComment: CommentType | null) => void;
   onCommentVoted: (commentId: string, voteValue: number) => void;
+  replies?: CommentType[];
+  isReply?: boolean;
 }
 
-export default function Comment({ comment, postId, onCommentUpdated, onCommentVoted }: CommentProps) {
+export default function Comment({ comment, postId, onCommentUpdated, onCommentVoted, replies = [], isReply = false }: CommentProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(comment.content);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -81,7 +83,7 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
 
   // Check if current user is the comment author
   const isCommentAuthor = user?.did && comment.author && 
-                         (user.did === comment.author);
+                         (user.did === comment.author.did);
   
   // Check if user is a moderator (not available in atproto system)
   const isModerator = false;
@@ -102,6 +104,8 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
     try {
       // Comment editing not available in atproto system
       toast.error('Comment editing is not available in the atproto system');
+      // TODO: When comment editing is implemented, call onCommentUpdated here
+      // onCommentUpdated(comment.id, { ...comment, content: editContent });
     } catch (error: unknown) {
       console.error('Error editing comment:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to edit comment';
@@ -118,8 +122,13 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
 
     setIsDeleting(true);
     try {
-      // Comment deletion not available in atproto system
-      toast.error('Comment deletion is not available in the atproto system');
+      const commentsApi = getApi(CommentsApi);
+      await commentsApi.deleteComment(comment.id);
+      toast.success('Comment deleted successfully');
+      // Call the parent callback to refresh the comment list
+      if (onCommentUpdated) {
+        onCommentUpdated(comment.id, null); // Pass null to indicate deletion
+      }
     } catch (error: unknown) {
       console.error('Error deleting comment:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to delete comment';
@@ -211,9 +220,11 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
   }
 
   return (
-    <div className="relative">
+    <div className={`relative ${isReply ? 'ml-8 border-l-2 border-l-primary/20 pl-4' : ''}`}>
       {/* Thread line */}
-      <div className="absolute left-4 top-8 bottom-0 w-px bg-border" />
+      {!isReply && (
+        <div className="absolute left-4 top-8 bottom-0 w-px bg-border" />
+      )}
       
       <div className="flex items-start space-x-3 mb-4">
         {/* Collapse/expand button */}
@@ -452,8 +463,12 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
                     postId={postId}
                     parentCommentId={comment.id}
                     onCommentSubmitted={() => {
-                      onCommentUpdated();
+                      // When a reply is submitted, we need to refresh the comment list
+                      // Since we don't have the new comment ID yet, we'll trigger a refresh
+                      // by calling the parent's refresh function
                       setShowReplyForm(false);
+                      // Note: The parent component should handle refreshing the comment list
+                      // when new comments are added
                     }}
                     onCancel={() => setShowReplyForm(false)}
                     placeholder="Write a reply..."
@@ -467,12 +482,18 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
       </div>
 
       {/* Nested replies */}
-      {comment.replyCount && comment.replyCount > 0 && !isCollapsed && (
-        <div className="ml-8 space-y-4">
-          {/* Replies not available in atproto system */}
-          <div className="text-sm text-muted-foreground italic">
-            Replies are not available in the atproto system
-          </div>
+      {replies && replies.length > 0 && !isCollapsed && (
+        <div className="ml-8 space-y-4 mt-4">
+          {replies.map((reply) => (
+            <Comment
+              key={reply.id}
+              comment={reply}
+              postId={postId}
+              onCommentUpdated={onCommentUpdated}
+              onCommentVoted={onCommentVoted}
+              isReply={true}
+            />
+          ))}
         </div>
       )}
       
@@ -482,9 +503,9 @@ export default function Comment({ comment, postId, onCommentUpdated, onCommentVo
         onOpenChange={setShowReportDialog}
         contentType="comment"
         contentId={parseInt(comment.id)}
-        reportedPseudonymId={comment.author}
+        reportedPseudonymId={comment.author.did}
         contentPreview={comment.content}
-        reportedUserDisplayName={comment.author}
+        reportedUserDisplayName={comment.author.displayName || comment.author.handle}
       />
     </div>
   );

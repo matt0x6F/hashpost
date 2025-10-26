@@ -117,8 +117,9 @@ func TestAtprotoRepoCreateRecord_Integration(t *testing.T) {
 			"repo":       did,
 			"collection": "com.hashpost.feed.post",
 			"record": map[string]interface{}{
-				"text":      "Hello, world!",
-				"createdAt": time.Now().Format(time.RFC3339),
+				"text":         "Hello, world!",
+				"createdAt":    time.Now().Format(time.RFC3339),
+				"subforumSlug": "general",
 			},
 		}
 		jsonBody, err := json.Marshal(requestBody)

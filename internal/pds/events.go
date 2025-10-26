@@ -67,8 +67,16 @@ type EventStreamer struct {
 
 // NewEventStreamer creates a new event streamer
 func NewEventStreamer(natsURL string, logger *slog.Logger) (*EventStreamer, error) {
-	// Connect to NATS
-	nc, err := nats.Connect(natsURL)
+	// Connect to NATS with proper timeout configuration
+	nc, err := nats.Connect(natsURL,
+		nats.Timeout(30*time.Second),
+		nats.ReconnectWait(2*time.Second),
+		nats.MaxReconnects(-1), // Infinite reconnects
+		nats.PingInterval(20*time.Second),
+		nats.MaxPingsOutstanding(3),
+		nats.RetryOnFailedConnect(true),
+		nats.MaxReconnects(10),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to NATS: %w", err)
 	}
@@ -98,11 +106,7 @@ func NewEventStreamer(natsURL string, logger *slog.Logger) (*EventStreamer, erro
 		return nil, fmt.Errorf("failed to create stream: %w", err)
 	}
 
-	// For debugging, let's force recreate the stream to ensure it's properly configured
-	if err := streamer.recreateStream(); err != nil {
-		logger.Warn("Failed to recreate stream", "error", err)
-		// Don't fail here, just log the warning
-	}
+	// Stream is already created above, no need to recreate
 
 	return streamer, nil
 }
@@ -129,7 +133,7 @@ func (es *EventStreamer) createStream() error {
 		Subjects:  []string{es.subject}, // "hashpost.events.*"
 		Retention: nats.LimitsPolicy,    // Keep messages until they expire
 		MaxAge:    24 * time.Hour,       // Keep events for 24 hours
-		Storage:   nats.FileStorage,
+		Storage:   nats.MemoryStorage,   // Use memory storage for development
 		Replicas:  1,
 	}
 
@@ -162,7 +166,7 @@ func (es *EventStreamer) recreateStream() error {
 		Subjects:  []string{es.subject}, // "hashpost.events.*"
 		Retention: nats.LimitsPolicy,
 		MaxAge:    24 * time.Hour,
-		Storage:   nats.FileStorage,
+		Storage:   nats.MemoryStorage, // Use memory storage for development
 		Replicas:  1,
 	}
 
@@ -292,24 +296,21 @@ func (es *EventStreamer) publishEvent(ctx context.Context, event *AtprotoEvent) 
 		"stream", streamInfo.Config.Name,
 		"subjects", streamInfo.Config.Subjects,
 		"state", streamInfo.State,
+		"consumers", streamInfo.State.Consumers,
 	)
 
-	// Try publishing synchronously first
-	ack, err := es.js.Publish(subject, data)
-	if err != nil {
+	// Publish the event
+	_, publishErr := es.js.Publish(subject, data)
+	if publishErr != nil {
 		es.logger.Error("Failed to publish event to NATS",
-			"error", err,
+			"error", publishErr,
 			"subject", subject,
 			"stream", es.stream,
 		)
-		return fmt.Errorf("failed to publish event: %w", err)
+		return fmt.Errorf("failed to publish event: %w", publishErr)
 	}
 
-	es.logger.Debug("Event published successfully",
-		"stream", ack.Stream,
-		"sequence", ack.Sequence,
-		"subject", subject,
-	)
+	es.logger.Debug("Event published successfully", "subject", subject)
 
 	es.logger.Debug("Published atproto event",
 		"type", event.Type,

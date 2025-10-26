@@ -3,8 +3,8 @@ import React from 'react';
 interface Author {
   did: string;
   handle: string;
-  display_name?: string | null;
-  avatar_url?: string | null;
+  displayName?: string | null;
+  avatarUrl?: string | null;
 }
 
 interface UserDisplayProps {
@@ -19,8 +19,8 @@ function truncateDID(did: string): string {
 }
 
 export function UserDisplay({ author }: UserDisplayProps) {
-  const displayText = author.display_name || author.handle || truncateDID(author.did);
-  const secondaryText = author.display_name ? `@${author.handle}` : null;
+  const displayText = author.displayName || author.handle || truncateDID(author.did);
+  const secondaryText = author.displayName ? `@${author.handle}` : null;
   
   return (
     <div className="inline-flex items-center gap-1">

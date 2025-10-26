@@ -2,6 +2,7 @@ package appview
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -706,4 +707,60 @@ func (h *Handlers) proxyToPDS(r *http.Request, method, path string, body interfa
 	}
 
 	return respBody, nil
+}
+
+// waitForEventProcessing polls the AppView database with exponential backoff
+// to wait for event processing to complete. This handles the asynchronous
+// nature of PDS → Event → AppView data flow.
+func (h *Handlers) waitForEventProcessing(ctx context.Context, checkFunc func() error, operation string, identifier string) error {
+	const (
+		maxRetries = 5
+		baseDelay  = 100 * time.Millisecond
+		maxDelay   = 1600 * time.Millisecond
+	)
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		// Try the check function
+		if err := checkFunc(); err == nil {
+			// Success - return immediately
+			if attempt > 0 {
+				h.logger.Debug("Event processing completed after retry",
+					"operation", operation,
+					"identifier", identifier,
+					"attempt", attempt+1)
+			}
+			return nil
+		}
+
+		// If this was the last attempt, return the error
+		if attempt == maxRetries-1 {
+			h.logger.Error("Event processing timeout",
+				"operation", operation,
+				"identifier", identifier,
+				"attempts", maxRetries)
+			return fmt.Errorf("timeout waiting for %s %s after %d attempts", operation, identifier, maxRetries)
+		}
+
+		// Calculate delay with exponential backoff
+		delay := baseDelay * time.Duration(1<<uint(attempt)) // 100ms, 200ms, 400ms, 800ms, 1600ms
+		if delay > maxDelay {
+			delay = maxDelay
+		}
+
+		h.logger.Debug("Event processing not ready, retrying",
+			"operation", operation,
+			"identifier", identifier,
+			"attempt", attempt+1,
+			"delay_ms", delay.Milliseconds())
+
+		// Wait before next attempt
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+			// Continue to next attempt
+		}
+	}
+
+	return fmt.Errorf("unexpected end of retry loop")
 }

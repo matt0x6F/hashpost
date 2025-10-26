@@ -7,13 +7,16 @@ package generated
 
 import (
 	"context"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const UpdateUserProfile = `-- name: UpdateUserProfile :one
 UPDATE appview_users 
 SET display_name = $2, bio = $3, avatar_url = $4, updated_at = NOW()
 WHERE did = $1
-RETURNING id, did, handle, display_name, bio, avatar_url, created_at, updated_at, post_count, comment_count, reputation, pds_source, is_local, last_seen_at
+RETURNING id, did, handle, display_name, bio, avatar_url, created_at, updated_at, post_count, comment_count, reputation, pds_source, last_seen_at
 `
 
 type UpdateUserProfileParams struct {
@@ -23,14 +26,30 @@ type UpdateUserProfileParams struct {
 	AvatarUrl   *string `json:"avatar_url"`
 }
 
-func (q *Queries) UpdateUserProfile(ctx context.Context, arg *UpdateUserProfileParams) (*AppviewUser, error) {
+type UpdateUserProfileRow struct {
+	ID           uuid.UUID          `json:"id"`
+	Did          string             `json:"did"`
+	Handle       string             `json:"handle"`
+	DisplayName  *string            `json:"display_name"`
+	Bio          *string            `json:"bio"`
+	AvatarUrl    *string            `json:"avatar_url"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	PostCount    *int32             `json:"post_count"`
+	CommentCount *int32             `json:"comment_count"`
+	Reputation   *int32             `json:"reputation"`
+	PdsSource    *string            `json:"pds_source"`
+	LastSeenAt   pgtype.Timestamptz `json:"last_seen_at"`
+}
+
+func (q *Queries) UpdateUserProfile(ctx context.Context, arg *UpdateUserProfileParams) (*UpdateUserProfileRow, error) {
 	row := q.db.QueryRow(ctx, UpdateUserProfile,
 		arg.Did,
 		arg.DisplayName,
 		arg.Bio,
 		arg.AvatarUrl,
 	)
-	var i AppviewUser
+	var i UpdateUserProfileRow
 	err := row.Scan(
 		&i.ID,
 		&i.Did,
@@ -44,7 +63,6 @@ func (q *Queries) UpdateUserProfile(ctx context.Context, arg *UpdateUserProfileP
 		&i.CommentCount,
 		&i.Reputation,
 		&i.PdsSource,
-		&i.IsLocal,
 		&i.LastSeenAt,
 	)
 	return &i, err

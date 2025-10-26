@@ -19,7 +19,7 @@ import {
 import { useAuth } from '@/lib/auth-context';
 import { getApi } from '@/lib/api-client';
 import { UserDisplay } from '@/components/UserDisplay';
-import { VotingApi } from '@/generated/api/src/apis';
+import { VotingApi, PostsApi } from '@/generated/api/src/apis';
 import { VoteOnPostRequestVoteTypeEnum } from '@/generated/api/src/models';
 import { toast } from 'sonner';
 import { MarkdownRenderer } from './MarkdownRenderer';
@@ -209,15 +209,43 @@ export function PostCard({ postId, subforumName }: PostCardProps) {
             <div className="absolute right-0 top-full mt-1 bg-popover border border-border rounded-md shadow-lg z-50 min-w-48 dropdown-menu">
               <div className="p-2 space-y-1">
                 {isAuthor && (
-                  <Link href={`/${subforumName || `h/${post.subforum}`}/posts/${post.id}/edit`}>
+                  <>
+                    <Link href={`/${subforumName || `h/${post.subforum}`}/posts/${post.id}/edit`}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start"
+                      >
+                        Edit
+                      </Button>
+                    </Link>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="w-full justify-start"
+                      className="w-full justify-start text-destructive hover:text-destructive"
+                      onClick={async () => {
+                        if (confirm('Are you sure you want to delete this post? This action cannot be undone.')) {
+                          try {
+                            const postsApi = getApi(PostsApi);
+                            await postsApi.deletePost(post.id);
+                            toast.success('Post deleted successfully');
+                            // Refresh the page or redirect
+                            window.location.reload();
+                          } catch (error: unknown) {
+                            console.error('Error deleting post:', error);
+                            const errorMessage = error instanceof Error ? error.message : 'Failed to delete post';
+                            toast.error('Failed to delete post', { description: errorMessage });
+                          } finally {
+                            setShowModeratorControls(false);
+                          }
+                        }
+                      }}
+                      disabled={dataLoading}
                     >
-                      Edit
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete
                     </Button>
-                  </Link>
+                  </>
                 )}
                 {isAuthor && <hr className="my-2 border-border" />}
                 

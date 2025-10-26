@@ -44,7 +44,7 @@ export default function PostPage() {
   const { user, login } = useAuth();
   const [showDropdown, setShowDropdown] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
-  const [comments, setComments] = useState<any[]>([]);
+  const [comments, setComments] = useState<CommentType[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   
   // Use the proper data fetching hooks
@@ -79,6 +79,19 @@ export default function PostPage() {
       fetchComments();
     }
   }, [post?.id]);
+
+  // Handle comment updates (including deletions)
+  const handleCommentUpdated = (commentId: string, updatedComment: CommentType | null) => {
+    if (updatedComment === null) {
+      // Comment was deleted, remove it from the list
+      setComments(prev => prev.filter(comment => comment.id !== commentId));
+    } else {
+      // Comment was updated, replace it in the list
+      setComments(prev => prev.map(comment => 
+        comment.id === commentId ? updatedComment : comment
+      ));
+    }
+  };
 
   const loadSubforumUserContext = async () => {
     try {
@@ -145,17 +158,44 @@ export default function PostPage() {
         });
       }
       
-      // Refresh comments to get updated vote counts
-      await fetchComments();
+      // No need to refresh comments - optimistic updates handle the UI
+      // The Comment component already updates vote counts locally
       
     } catch (err: unknown) {
       console.error('Error voting on comment:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to vote on comment';
       toast.error('Failed to vote', { description: errorMessage });
       
-      // Refresh comments on error to revert optimistic updates
+      // On error, refresh comments to revert optimistic updates
       await fetchComments();
     }
+  };
+
+  // Group comments by parent-child relationships
+  const groupCommentsByParent = (comments: CommentType[]) => {
+    const commentMap = new Map<string, CommentType>();
+    const childrenMap = new Map<string, CommentType[]>();
+    
+    // First pass: create maps
+    comments.forEach(comment => {
+      commentMap.set(comment.id, comment);
+      if (comment.parent) {
+        if (!childrenMap.has(comment.parent)) {
+          childrenMap.set(comment.parent, []);
+        }
+        childrenMap.get(comment.parent)!.push(comment);
+      }
+    });
+    
+    // Second pass: build tree structure
+    const topLevelComments: CommentType[] = [];
+    comments.forEach(comment => {
+      if (!comment.parent) {
+        topLevelComments.push(comment);
+      }
+    });
+    
+    return { topLevelComments, childrenMap };
   };
 
   // In atproto system, user permissions are handled via RBAC
@@ -293,8 +333,9 @@ export default function PostPage() {
                         onClick={async () => {
                           if (confirm('Are you sure you want to delete this post? This action cannot be undone.')) {
                             try {
-                              // Post deletion not available in atproto system
-                              toast.error("Post deletion is not available in the atproto system");
+                              const postsApi = getApi(PostsApi);
+                              await postsApi.deletePost(post.id);
+                              toast.success('Post deleted successfully');
                               window.location.href = `/${communityType}/${subforum}`;
                             } catch (error: unknown) {
                               console.error('Error deleting post:', error);
@@ -440,15 +481,19 @@ export default function PostPage() {
           </div>
         ) : comments && comments.length > 0 ? (
           <div className="space-y-4">
-            {comments.map((comment) => (
-              <Comment
-                key={comment.id}
-                comment={comment}
-                postId={post.id}
-                onCommentUpdated={refetch}
-                onCommentVoted={handleCommentVote}
-              />
-            ))}
+            {(() => {
+              const { topLevelComments, childrenMap } = groupCommentsByParent(comments);
+              return topLevelComments.map((comment) => (
+                <Comment
+                  key={comment.id}
+                  comment={comment}
+                  postId={post.id}
+                  onCommentUpdated={handleCommentUpdated}
+                  onCommentVoted={handleCommentVote}
+                  replies={childrenMap.get(comment.id) || []}
+                />
+              ));
+            })()}
           </div>
         ) : (
           <div className="text-center py-8">

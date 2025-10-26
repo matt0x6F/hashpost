@@ -519,6 +519,8 @@ func (s *Server) handleDeleteRecord(w http.ResponseWriter, r *http.Request) {
 		err = s.deletePostRecord(ctx, uri)
 	case lexicons.CollectionFeedSubforum:
 		err = s.deleteSubforumRecord(ctx, req.Rkey)
+	case lexicons.CollectionFeedComment:
+		err = s.deleteCommentRecord(ctx, uri)
 	default:
 		http.Error(w, "Unsupported collection", http.StatusBadRequest)
 		return

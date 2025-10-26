@@ -7,6 +7,9 @@ package generated
 
 import (
 	"context"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const CreateOrUpdateUserFromDID = `-- name: CreateOrUpdateUserFromDID :one
@@ -26,7 +29,7 @@ DO UPDATE SET
     display_name = EXCLUDED.display_name,
     avatar_url = EXCLUDED.avatar_url,
     updated_at = NOW()
-RETURNING id, did, handle, display_name, bio, avatar_url, created_at, updated_at, post_count, comment_count, reputation, pds_source, is_local, last_seen_at
+RETURNING id, did, handle, display_name, bio, avatar_url, created_at, updated_at, post_count, comment_count, reputation, pds_source, last_seen_at
 `
 
 type CreateOrUpdateUserFromDIDParams struct {
@@ -36,14 +39,30 @@ type CreateOrUpdateUserFromDIDParams struct {
 	AvatarUrl   *string `json:"avatar_url"`
 }
 
-func (q *Queries) CreateOrUpdateUserFromDID(ctx context.Context, arg *CreateOrUpdateUserFromDIDParams) (*AppviewUser, error) {
+type CreateOrUpdateUserFromDIDRow struct {
+	ID           uuid.UUID          `json:"id"`
+	Did          string             `json:"did"`
+	Handle       string             `json:"handle"`
+	DisplayName  *string            `json:"display_name"`
+	Bio          *string            `json:"bio"`
+	AvatarUrl    *string            `json:"avatar_url"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	PostCount    *int32             `json:"post_count"`
+	CommentCount *int32             `json:"comment_count"`
+	Reputation   *int32             `json:"reputation"`
+	PdsSource    *string            `json:"pds_source"`
+	LastSeenAt   pgtype.Timestamptz `json:"last_seen_at"`
+}
+
+func (q *Queries) CreateOrUpdateUserFromDID(ctx context.Context, arg *CreateOrUpdateUserFromDIDParams) (*CreateOrUpdateUserFromDIDRow, error) {
 	row := q.db.QueryRow(ctx, CreateOrUpdateUserFromDID,
 		arg.Did,
 		arg.Handle,
 		arg.DisplayName,
 		arg.AvatarUrl,
 	)
-	var i AppviewUser
+	var i CreateOrUpdateUserFromDIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.Did,
@@ -57,7 +76,6 @@ func (q *Queries) CreateOrUpdateUserFromDID(ctx context.Context, arg *CreateOrUp
 		&i.CommentCount,
 		&i.Reputation,
 		&i.PdsSource,
-		&i.IsLocal,
 		&i.LastSeenAt,
 	)
 	return &i, err

@@ -27,7 +27,7 @@ type Querier interface {
 	// These queries handle CRUD operations for comments with proper denormalized counts
 	CreateComment(ctx context.Context, arg *CreateCommentParams) (*AppviewComment, error)
 	CreateOrUpdateSession(ctx context.Context, arg *CreateOrUpdateSessionParams) (*AppviewSession, error)
-	CreateOrUpdateUserFromDID(ctx context.Context, arg *CreateOrUpdateUserFromDIDParams) (*AppviewUser, error)
+	CreateOrUpdateUserFromDID(ctx context.Context, arg *CreateOrUpdateUserFromDIDParams) (*CreateOrUpdateUserFromDIDRow, error)
 	CreateProcessedEvent(ctx context.Context, arg *CreateProcessedEventParams) (*ProcessedEvent, error)
 	// Subscription operations for HashPost AppView
 	// These queries handle user subscriptions to subforums
@@ -68,13 +68,13 @@ type Querier interface {
 	GetSubforumMembers(ctx context.Context, arg *GetSubforumMembersParams) ([]*GetSubforumMembersRow, error)
 	GetSubforumStats(ctx context.Context, slug string) (*GetSubforumStatsRow, error)
 	GetSubforumSubscriberCount(ctx context.Context, slug string) (*int32, error)
-	GetUserByDID(ctx context.Context, did string) (*AppviewUser, error)
+	GetUserByDID(ctx context.Context, did string) (*GetUserByDIDRow, error)
 	GetUserPermissions(ctx context.Context, arg *GetUserPermissionsParams) ([]string, error)
 	GetUserRoles(ctx context.Context, userDid string) ([]*GetUserRolesRow, error)
 	GetUserSubscription(ctx context.Context, arg *GetUserSubscriptionParams) (*AppviewSubscription, error)
 	GetUserVoteOnComment(ctx context.Context, arg *GetUserVoteOnCommentParams) (*AppviewVote, error)
 	GetUserVoteOnPost(ctx context.Context, arg *GetUserVoteOnPostParams) (*AppviewVote, error)
-	GetUsersByDIDs(ctx context.Context, dollar_1 []string) ([]*AppviewUser, error)
+	GetUsersByDIDs(ctx context.Context, dollar_1 []string) ([]*GetUsersByDIDsRow, error)
 	GetUsersByPDSSource(ctx context.Context, arg *GetUsersByPDSSourceParams) ([]*GetUsersByPDSSourceRow, error)
 	GetUsersWithRoles(ctx context.Context, arg *GetUsersWithRolesParams) ([]*GetUsersWithRolesRow, error)
 	HasUserRole(ctx context.Context, arg *HasUserRoleParams) (bool, error)
@@ -103,7 +103,7 @@ type Querier interface {
 	UpdateSubforumPostCount(ctx context.Context, arg *UpdateSubforumPostCountParams) error
 	UpdateSubforumSubscriberCount(ctx context.Context, subforumSlug string) error
 	UpdateUserLastSeen(ctx context.Context, did string) error
-	UpdateUserProfile(ctx context.Context, arg *UpdateUserProfileParams) (*AppviewUser, error)
+	UpdateUserProfile(ctx context.Context, arg *UpdateUserProfileParams) (*UpdateUserProfileRow, error)
 }
 
 var _ Querier = (*Queries)(nil)

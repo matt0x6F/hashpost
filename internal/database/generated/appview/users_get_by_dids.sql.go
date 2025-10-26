@@ -7,21 +7,40 @@ package generated
 
 import (
 	"context"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const GetUsersByDIDs = `-- name: GetUsersByDIDs :many
-SELECT id, did, handle, display_name, bio, avatar_url, created_at, updated_at, post_count, comment_count, reputation, pds_source, is_local, last_seen_at FROM appview_users WHERE did = ANY($1::text[])
+SELECT id, did, handle, display_name, bio, avatar_url, created_at, updated_at, post_count, comment_count, reputation, pds_source, last_seen_at FROM appview_users WHERE did = ANY($1::text[])
 `
 
-func (q *Queries) GetUsersByDIDs(ctx context.Context, dollar_1 []string) ([]*AppviewUser, error) {
+type GetUsersByDIDsRow struct {
+	ID           uuid.UUID          `json:"id"`
+	Did          string             `json:"did"`
+	Handle       string             `json:"handle"`
+	DisplayName  *string            `json:"display_name"`
+	Bio          *string            `json:"bio"`
+	AvatarUrl    *string            `json:"avatar_url"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	PostCount    *int32             `json:"post_count"`
+	CommentCount *int32             `json:"comment_count"`
+	Reputation   *int32             `json:"reputation"`
+	PdsSource    *string            `json:"pds_source"`
+	LastSeenAt   pgtype.Timestamptz `json:"last_seen_at"`
+}
+
+func (q *Queries) GetUsersByDIDs(ctx context.Context, dollar_1 []string) ([]*GetUsersByDIDsRow, error) {
 	rows, err := q.db.Query(ctx, GetUsersByDIDs, dollar_1)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*AppviewUser{}
+	items := []*GetUsersByDIDsRow{}
 	for rows.Next() {
-		var i AppviewUser
+		var i GetUsersByDIDsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Did,
@@ -35,7 +54,6 @@ func (q *Queries) GetUsersByDIDs(ctx context.Context, dollar_1 []string) ([]*App
 			&i.CommentCount,
 			&i.Reputation,
 			&i.PdsSource,
-			&i.IsLocal,
 			&i.LastSeenAt,
 		); err != nil {
 			return nil, err

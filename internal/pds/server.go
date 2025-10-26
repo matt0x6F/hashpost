@@ -163,6 +163,10 @@ func (s *Server) createHashPostRecord(ctx context.Context, repo, collection, rec
 		return s.createSubforumRecord(ctx, repo, recordID, uri, cid, record)
 	case lexicons.CollectionFeedComment:
 		return s.createCommentRecord(ctx, repo, recordID, uri, cid, record)
+	case "com.hashpost.feed.vote":
+		return s.createVoteRecord(ctx, repo, recordID, uri, cid, record)
+	case "com.hashpost.graph.subscription":
+		return s.createSubscriptionRecord(ctx, repo, recordID, uri, cid, record)
 	default:
 		return fmt.Errorf("unsupported HashPost collection: %s", collection)
 	}
@@ -170,7 +174,9 @@ func (s *Server) createHashPostRecord(ctx context.Context, repo, collection, rec
 
 func (s *Server) createPostRecord(ctx context.Context, repo, recordID, uri, cid string, record map[string]interface{}) error {
 	// Extract data from the record
-	text, _ := record[lexicons.FieldText].(string)
+	title, _ := record["title"].(string)
+	content, _ := record["content"].(string)
+	subforumSlug, _ := record["subforumSlug"].(string)
 
 	// Look up the user by DID (repo)
 	user, err := s.db.GetUserByDID(ctx, repo)
@@ -179,11 +185,10 @@ func (s *Server) createPostRecord(ctx context.Context, repo, recordID, uri, cid 
 		return fmt.Errorf("failed to find user: %w", err)
 	}
 
-	// For now, use a default subforum (general)
-	// In a real implementation, we'd resolve this from the record or context
-	subforum, err := s.db.GetSubforumBySlug(ctx, "general")
+	// Get the subforum by slug
+	subforum, err := s.db.GetSubforumBySlug(ctx, subforumSlug)
 	if err != nil {
-		s.logger.Error("Failed to find default subforum", "error", err)
+		s.logger.Error("Failed to find subforum", "error", err, "subforum_slug", subforumSlug)
 		return fmt.Errorf("failed to find subforum: %w", err)
 	}
 
@@ -194,8 +199,8 @@ func (s *Server) createPostRecord(ctx context.Context, repo, recordID, uri, cid 
 	_, err = s.db.CreatePost(ctx, &generated.CreatePostParams{
 		UserID:     userIDPg,
 		SubforumID: subforumIDPg,
-		Title:      text, // Using text as title for now
-		Content:    text,
+		Title:      title,
+		Content:    content,
 		AtprotoUri: &uri,
 	})
 
@@ -204,7 +209,7 @@ func (s *Server) createPostRecord(ctx context.Context, repo, recordID, uri, cid 
 		return fmt.Errorf("failed to create post: %w", err)
 	}
 
-	s.logger.Info("Created post record", "uri", uri, "text", text)
+	s.logger.Info("Created post record", "uri", uri, "title", title, "content", content)
 	return nil
 }
 
@@ -349,6 +354,94 @@ func (s *Server) createSubforumRecord(ctx context.Context, repo, recordID, uri, 
 	}
 
 	s.logger.Info("Created subforum record", "uri", uri, "name", name, "slug", slug)
+	return nil
+}
+
+func (s *Server) createVoteRecord(ctx context.Context, repo, recordID, uri, cid string, record map[string]interface{}) error {
+	// Extract data from the record
+	subject, _ := record["subject"].(string)
+	direction, _ := record["direction"].(string)
+
+	if subject == "" || direction == "" {
+		return fmt.Errorf("subject and direction are required for vote")
+	}
+
+	if direction != "up" && direction != "down" {
+		return fmt.Errorf("invalid direction: must be 'up' or 'down'")
+	}
+
+	// Look up the user by DID (repo)
+	user, err := s.db.GetUserByDID(ctx, repo)
+	if err != nil {
+		s.logger.Error("Failed to find user by DID", "error", err, "did", repo)
+		return fmt.Errorf("failed to find user: %w", err)
+	}
+
+	userIDPg := pgtype.UUID{Bytes: user.ID, Valid: true}
+
+	// Try to find the subject as a post first
+	post, err := s.db.GetPostByAtprotoURI(ctx, &subject)
+	if err == nil {
+		// Vote on post
+		postIDPg := pgtype.UUID{Bytes: post.ID, Valid: true}
+
+		// Check if user already voted on this post
+		existingVote, err := s.db.GetVoteByUserAndPost(ctx, &generated.GetVoteByUserAndPostParams{
+			UserID: userIDPg,
+			PostID: postIDPg,
+		})
+		if err == nil && existingVote != nil {
+			// User already voted, delete the existing vote first
+			err = s.db.DeleteVote(ctx, existingVote.ID)
+			if err != nil {
+				s.logger.Error("Failed to delete existing vote", "error", err, "vote_id", existingVote.ID)
+				return fmt.Errorf("failed to delete existing vote: %w", err)
+			}
+			s.logger.Info("Deleted existing vote", "vote_id", existingVote.ID, "post_id", post.ID)
+		}
+
+		_, err = s.db.CreateVote(ctx, &generated.CreateVoteParams{
+			UserID:    userIDPg,
+			PostID:    postIDPg,
+			CommentID: pgtype.UUID{Valid: false}, // NULL for post votes
+			VoteType:  direction,
+		})
+		if err != nil {
+			s.logger.Error("Failed to create vote on post in database", "error", err, "uri", uri, "post_id", post.ID)
+			return fmt.Errorf("failed to create vote on post: %w", err)
+		}
+		s.logger.Info("Created vote on post record", "uri", uri, "post_id", post.ID, "direction", direction)
+		return nil
+	}
+
+	// Try to find as a comment
+	comment, err := s.db.GetCommentByAtprotoURI(ctx, &subject)
+	if err != nil {
+		s.logger.Warn("Could not find post or comment for vote subject", "subject", subject)
+		return fmt.Errorf("subject not found: %s", subject)
+	}
+
+	// Vote on comment
+	commentIDPg := pgtype.UUID{Bytes: comment.ID, Valid: true}
+	_, err = s.db.CreateVote(ctx, &generated.CreateVoteParams{
+		UserID:    userIDPg,
+		PostID:    pgtype.UUID{Valid: false}, // NULL for comment votes
+		CommentID: commentIDPg,
+		VoteType:  direction,
+	})
+	if err != nil {
+		s.logger.Error("Failed to create vote on comment in database", "error", err, "uri", uri, "comment_id", comment.ID)
+		return fmt.Errorf("failed to create vote on comment: %w", err)
+	}
+
+	s.logger.Info("Created vote on comment record", "uri", uri, "comment_id", comment.ID, "direction", direction)
+	return nil
+}
+
+func (s *Server) createSubscriptionRecord(ctx context.Context, repo, recordID, uri, cid string, record map[string]interface{}) error {
+	// For now, just log that we received the subscription record
+	// In a real implementation, we'd store subscription data
+	s.logger.Info("Received subscription record", "uri", uri)
 	return nil
 }
 
@@ -690,6 +783,17 @@ func (s *Server) deleteSubforumRecord(ctx context.Context, rkey string) error {
 	}
 
 	s.logger.Info("Deleted subforum record", "rkey", rkey)
+	return nil
+}
+
+func (s *Server) deleteCommentRecord(ctx context.Context, uri string) error {
+	// Delete the comment from database
+	err := s.db.DeleteCommentByAtprotoURI(ctx, &uri)
+	if err != nil {
+		return fmt.Errorf("failed to delete comment: %w", err)
+	}
+
+	s.logger.Info("Deleted comment record", "uri", uri)
 	return nil
 }
 

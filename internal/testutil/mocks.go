@@ -538,7 +538,7 @@ func (m *MockAppViewQueries) CreateComment(ctx context.Context, arg *appview.Cre
 func (m *MockAppViewQueries) CreateOrUpdateSession(ctx context.Context, arg *appview.CreateOrUpdateSessionParams) (*appview.AppviewSession, error) {
 	return nil, nil
 }
-func (m *MockAppViewQueries) CreateOrUpdateUserFromDID(ctx context.Context, arg *appview.CreateOrUpdateUserFromDIDParams) (*appview.AppviewUser, error) {
+func (m *MockAppViewQueries) CreateOrUpdateUserFromDID(ctx context.Context, arg *appview.CreateOrUpdateUserFromDIDParams) (*appview.CreateOrUpdateUserFromDIDRow, error) {
 	return nil, nil
 }
 func (m *MockAppViewQueries) CreateSubscription(ctx context.Context, arg *appview.CreateSubscriptionParams) (*appview.AppviewSubscription, error) {
@@ -646,7 +646,7 @@ func (m *MockAppViewQueries) GetSubforumStats(ctx context.Context, slug string) 
 func (m *MockAppViewQueries) GetSubforumSubscriberCount(ctx context.Context, slug string) (*int32, error) {
 	return nil, nil
 }
-func (m *MockAppViewQueries) GetUserByDID(ctx context.Context, did string) (*appview.AppviewUser, error) {
+func (m *MockAppViewQueries) GetUserByDID(ctx context.Context, did string) (*appview.GetUserByDIDRow, error) {
 	return nil, nil
 }
 func (m *MockAppViewQueries) GetUserPermissions(ctx context.Context, arg *appview.GetUserPermissionsParams) ([]string, error) {
@@ -664,7 +664,7 @@ func (m *MockAppViewQueries) GetUserVoteOnComment(ctx context.Context, arg *appv
 func (m *MockAppViewQueries) GetUserVoteOnPost(ctx context.Context, arg *appview.GetUserVoteOnPostParams) (*appview.AppviewVote, error) {
 	return nil, nil
 }
-func (m *MockAppViewQueries) GetUsersByDIDs(ctx context.Context, dollar_1 []string) ([]*appview.AppviewUser, error) {
+func (m *MockAppViewQueries) GetUsersByDIDs(ctx context.Context, dollar_1 []string) ([]*appview.GetUsersByDIDsRow, error) {
 	return nil, nil
 }
 func (m *MockAppViewQueries) GetUsersByPDSSource(ctx context.Context, arg *appview.GetUsersByPDSSourceParams) ([]*appview.GetUsersByPDSSourceRow, error) {
@@ -748,7 +748,7 @@ func (m *MockAppViewQueries) UpdateSubforumSubscriberCount(ctx context.Context, 
 func (m *MockAppViewQueries) UpdateUserLastSeen(ctx context.Context, did string) error {
 	return nil
 }
-func (m *MockAppViewQueries) UpdateUserProfile(ctx context.Context, arg *appview.UpdateUserProfileParams) (*appview.AppviewUser, error) {
+func (m *MockAppViewQueries) UpdateUserProfile(ctx context.Context, arg *appview.UpdateUserProfileParams) (*appview.UpdateUserProfileRow, error) {
 	return nil, nil
 }
 

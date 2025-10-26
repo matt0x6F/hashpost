@@ -320,27 +320,55 @@ func (h *Handlers) CreatePost(w http.ResponseWriter, r *http.Request) {
 
 	// Use authenticated user's DID as author
 	authorDID := userCtx.Did
-	authorHandle := userCtx.Handle
 
 	// Generate a new UUID for the post
 	postID := uuid.New()
 
-	// Create atproto URI for the post
-	atprotoURI := fmt.Sprintf("at://%s/app.bsky.feed.post/%s", authorDID, postID.String())
+	// Create post record for PDS
+	postRecord := map[string]interface{}{
+		"$type":        "com.hashpost.feed.post",
+		"title":        req.Title,
+		"content":      req.Content,
+		"subforumSlug": req.SubforumSlug,
+		"createdAt":    time.Now().Format(time.RFC3339),
+	}
 
-	// Create post in database
-	createdPost, err := h.queries.CreateAppViewPost(r.Context(), &generated.CreateAppViewPostParams{
-		AtprotoUri:   atprotoURI,
-		AuthorDid:    authorDID,
-		AuthorHandle: authorHandle,
-		SubforumSlug: req.SubforumSlug,
-		Title:        req.Title,
-		Content:      req.Content,
+	// Proxy to PDS to create the post record
+	pdsResponse, err := h.proxyToPDS(r, "POST", "/xrpc/com.atproto.repo.createRecord", map[string]interface{}{
+		"repo":       authorDID,
+		"collection": "com.hashpost.feed.post",
+		"record":     postRecord,
+		"rkey":       postID.String(),
 	})
 
 	if err != nil {
-		h.logger.Error("Failed to create post", "error", err, "title", req.Title)
-		h.writeError(w, http.StatusInternalServerError, "CREATE_FAILED", "Failed to create post")
+		h.logger.Error("Failed to create post in PDS", "error", err, "title", req.Title)
+		h.writeError(w, http.StatusInternalServerError, "PDS_ERROR", "Failed to create post")
+		return
+	}
+
+	// Parse PDS response to get the created post URI
+	var pdsResult struct {
+		URI string `json:"uri"`
+		CID string `json:"cid"`
+	}
+	if err := json.Unmarshal(pdsResponse, &pdsResult); err != nil {
+		h.logger.Error("Failed to parse PDS response", "error", err)
+		h.writeError(w, http.StatusInternalServerError, "PDS_ERROR", "Failed to parse PDS response")
+		return
+	}
+
+	// Wait for event processing to complete and get the created post from AppView database
+	var createdPost *generated.GetAppViewPostByIDRow
+	err = h.waitForEventProcessing(r.Context(), func() error {
+		var err error
+		createdPost, err = h.queries.GetAppViewPostByID(r.Context(), postID)
+		return err
+	}, "post creation", postID.String())
+
+	if err != nil {
+		h.logger.Error("Failed to get created post from AppView", "error", err, "post_id", postID)
+		h.writeError(w, http.StatusInternalServerError, "POST_NOT_FOUND", "Post created but not found in AppView")
 		return
 	}
 
@@ -426,17 +454,78 @@ func (h *Handlers) DeletePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get authenticated user from context
+	userCtx := GetUserContext(r)
+	if userCtx == nil {
+		h.writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+		return
+	}
+
 	// Extract post ID from URL path
 	pathParts := strings.Split(r.URL.Path, "/")
-	if len(pathParts) < 4 {
+	if len(pathParts) < 5 {
 		h.writeError(w, http.StatusBadRequest, "INVALID_POST_ID", "Invalid post ID")
 		return
 	}
-	postID := pathParts[3]
+	postIDStr := pathParts[4]
+	postID, err := uuid.Parse(postIDStr)
+	if err != nil {
+		h.writeError(w, http.StatusBadRequest, "INVALID_POST_ID", "Invalid post ID format")
+		return
+	}
 
-	// For now, just return success
-	// In a real implementation, this would delete from the database
-	h.logger.Info("Post deleted", "post_id", postID)
+	ctx := r.Context()
 
+	// Check if post exists and user is the author
+	post, err := h.queries.GetAppViewPostByID(ctx, postID)
+	if err != nil {
+		h.logger.Error("Post not found", "error", err, "post_id", postID)
+		h.writeError(w, http.StatusNotFound, "POST_NOT_FOUND", "Post not found")
+		return
+	}
+
+	if post.AuthorDid != userCtx.Did {
+		h.writeError(w, http.StatusForbidden, "FORBIDDEN", "You can only delete your own posts")
+		return
+	}
+
+	// Delete post from PDS (canonical record)
+	// Extract the rkey from the atproto URI
+	// URI format: at://did:plc:user123/com.hashpost.feed.post/uuid-here
+	// We need to find the last part after the collection name
+	uriParts := strings.Split(post.AtprotoUri, "/")
+	if len(uriParts) < 4 {
+		h.logger.Error("Invalid atproto URI format", "uri", post.AtprotoUri)
+		h.writeError(w, http.StatusInternalServerError, "INVALID_URI", "Invalid post URI format")
+		return
+	}
+	// The rkey is the last part after the collection
+	rkey := uriParts[len(uriParts)-1]
+
+	// Call PDS to delete the record
+	pdsResponse, err := h.proxyToPDS(r, "POST", "/xrpc/com.atproto.repo.deleteRecord", map[string]interface{}{
+		"repo":       userCtx.Did,
+		"collection": "com.hashpost.feed.post",
+		"rkey":       rkey,
+	})
+
+	if err != nil {
+		h.logger.Error("Failed to delete post from PDS", "error", err, "post_id", postID)
+		h.writeError(w, http.StatusInternalServerError, "PDS_ERROR", "Failed to delete post")
+		return
+	}
+
+	// Log PDS response for debugging
+	h.logger.Info("PDS delete response", "response", string(pdsResponse))
+
+	// PDS deletion succeeded, now delete from AppView database directly
+	// This ensures the UI updates immediately even if NATS events fail
+	err = h.queries.DeleteAppViewPost(ctx, postID)
+	if err != nil {
+		h.logger.Error("Failed to delete post from AppView", "error", err, "post_id", postID)
+		// Don't fail the request since PDS deletion succeeded
+	}
+
+	h.logger.Info("Post deleted", "post_id", postID, "user_did", userCtx.Did)
 	w.WriteHeader(http.StatusNoContent)
 }

@@ -276,9 +276,18 @@ func (h *Handlers) CreateComment(w http.ResponseWriter, r *http.Request) {
 			h.writeError(w, http.StatusBadRequest, "INVALID_PARENT_ID", "Invalid parent_id format")
 			return
 		}
-		parentComment, err := h.queries.GetCommentWithPost(r.Context(), parentID)
+
+		// Wait for parent comment to exist in AppView database (handles race condition)
+		var parentComment *generated.GetCommentWithPostRow
+		err = h.waitForEventProcessing(r.Context(), func() error {
+			var err error
+			parentComment, err = h.queries.GetCommentWithPost(r.Context(), parentID)
+			return err
+		}, "parent comment lookup", parentID.String())
+
 		if err != nil {
-			h.writeError(w, http.StatusNotFound, "PARENT_NOT_FOUND", "Parent comment not found")
+			h.logger.Error("Failed to find parent comment", "error", err, "parent_id", parentID)
+			h.writeError(w, http.StatusNotFound, "PARENT_NOT_FOUND", "Parent comment not found or not yet available")
 			return
 		}
 		parentCommentURI = &parentComment.AtprotoUri
@@ -297,11 +306,15 @@ func (h *Handlers) CreateComment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Proxy to PDS to create the comment record
+	h.logger.Debug("Creating comment in PDS", "repo", userCtx.Did, "collection", "com.hashpost.feed.comment")
+	startTime := time.Now()
 	pdsResponse, err := h.proxyToPDS(r, "POST", "/xrpc/com.atproto.repo.createRecord", map[string]interface{}{
 		"repo":       userCtx.Did,
 		"collection": "com.hashpost.feed.comment",
 		"record":     commentRecord,
 	})
+	pdsDuration := time.Since(startTime)
+	h.logger.Debug("PDS comment creation completed", "duration_ms", pdsDuration.Milliseconds())
 
 	if err != nil {
 		h.logger.Error("Failed to create comment in PDS", "error", err)
@@ -320,16 +333,69 @@ func (h *Handlers) CreateComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Wait a moment for the event to be processed by AppView
-	// In a production system, you might want to poll or use a more sophisticated approach
-	time.Sleep(100 * time.Millisecond)
+	// Wait for event processing to complete and get the created comment from AppView database
+	var createdComment *generated.AppviewComment
+	err = h.waitForEventProcessing(r.Context(), func() error {
+		var err error
+		createdComment, err = h.queries.GetCommentByURI(r.Context(), pdsResult.URI)
+		return err
+	}, "comment creation", pdsResult.URI)
 
-	// Get the created comment from AppView database
-	createdComment, err := h.queries.GetCommentByURI(r.Context(), pdsResult.URI)
 	if err != nil {
-		h.logger.Error("Failed to get created comment from AppView", "error", err, "uri", pdsResult.URI)
-		h.writeError(w, http.StatusInternalServerError, "SYNC_ERROR", "Comment created but not yet available")
-		return
+		h.logger.Warn("Event processing failed, creating comment directly in AppView", "error", err, "uri", pdsResult.URI)
+
+		// Fallback: Create comment directly in AppView database
+		// This handles cases where the event system is not working properly
+		commentData := &AppViewComment{
+			ID:           uuid.New(),
+			AtprotoURI:   pdsResult.URI,
+			AuthorDID:    userCtx.Did,
+			AuthorHandle: userProfile.Handle,
+			PostID:       post.ID,
+			Content:      req.Content,
+			CreatedAt:    time.Now(),
+			UpdatedAt:    time.Now(),
+		}
+
+		// Set parent ID if this is a reply
+		// We already looked up the parent comment earlier, so we can use that data
+		if req.ParentID != "" {
+			parentID, err := uuid.Parse(req.ParentID)
+			if err == nil {
+				commentData.ParentID = &parentID
+			}
+		}
+
+		// Create comment in AppView database
+		_, err = h.queries.CreateComment(r.Context(), &generated.CreateCommentParams{
+			AtprotoUri:   commentData.AtprotoURI,
+			AuthorDid:    commentData.AuthorDID,
+			AuthorHandle: commentData.AuthorHandle,
+			PostID:       pgtype.UUID{Bytes: commentData.PostID, Valid: true},
+			ParentID: func() pgtype.UUID {
+				if commentData.ParentID != nil {
+					return pgtype.UUID{Bytes: *commentData.ParentID, Valid: true}
+				}
+				return pgtype.UUID{Valid: false}
+			}(),
+			Content: commentData.Content,
+		})
+
+		if err != nil {
+			h.logger.Error("Failed to create comment in AppView fallback", "error", err, "uri", pdsResult.URI)
+			h.writeError(w, http.StatusInternalServerError, "SYNC_ERROR", "Comment created but failed to sync to AppView")
+			return
+		}
+
+		// Get the created comment
+		createdComment, err = h.queries.GetCommentByURI(r.Context(), pdsResult.URI)
+		if err != nil {
+			h.logger.Error("Failed to get created comment after fallback", "error", err, "uri", pdsResult.URI)
+			h.writeError(w, http.StatusInternalServerError, "SYNC_ERROR", "Comment created but not found in AppView")
+			return
+		}
+
+		h.logger.Info("Comment created via fallback mechanism", "uri", pdsResult.URI)
 	}
 
 	// Return created comment with user profile data (same as posts)
@@ -378,11 +444,11 @@ func (h *Handlers) UpdateComment(w http.ResponseWriter, r *http.Request) {
 
 	// Extract comment ID from URL path
 	pathParts := strings.Split(r.URL.Path, "/")
-	if len(pathParts) < 4 {
+	if len(pathParts) < 5 {
 		h.writeError(w, http.StatusBadRequest, "INVALID_COMMENT_ID", "Invalid comment ID")
 		return
 	}
-	commentIDStr := pathParts[3]
+	commentIDStr := pathParts[4]
 	commentID, err := uuid.Parse(commentIDStr)
 	if err != nil {
 		h.writeError(w, http.StatusBadRequest, "INVALID_COMMENT_ID", "Invalid comment ID format")
@@ -489,18 +555,21 @@ func (h *Handlers) DeleteComment(w http.ResponseWriter, r *http.Request) {
 
 	// Extract comment ID from URL path
 	pathParts := strings.Split(r.URL.Path, "/")
-	if len(pathParts) < 4 {
+	if len(pathParts) < 5 {
 		h.writeError(w, http.StatusBadRequest, "INVALID_COMMENT_ID", "Invalid comment ID")
 		return
 	}
-	commentIDStr := pathParts[3]
+	commentIDStr := pathParts[4]
 	commentID, err := uuid.Parse(commentIDStr)
 	if err != nil {
+		h.logger.Error("Invalid comment ID format", "error", err, "comment_id_str", commentIDStr)
 		h.writeError(w, http.StatusBadRequest, "INVALID_COMMENT_ID", "Invalid comment ID format")
 		return
 	}
 
 	ctx := r.Context()
+
+	h.logger.Info("Attempting to delete comment", "comment_id", commentID, "user_did", userCtx.Did)
 
 	// Check if comment exists and user is the author
 	comment, err := h.queries.GetCommentByID(ctx, commentID)
@@ -510,24 +579,56 @@ func (h *Handlers) DeleteComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.logger.Info("Comment found", "comment_id", commentID, "author_did", comment.AuthorDid, "atproto_uri", comment.AtprotoUri)
+
 	if comment.AuthorDid != userCtx.Did {
 		h.writeError(w, http.StatusForbidden, "FORBIDDEN", "You can only delete your own comments")
 		return
 	}
 
-	// Delete comment from database
-	err = h.queries.DeleteComment(ctx, commentID)
+	// Delete comment from PDS (canonical record)
+	// Extract the rkey from the atproto URI
+	// URI format: at://did:plc:user123/com.hashpost.feed.comment/uuid-here
+	// We need to find the last part after the collection name
+	uriParts := strings.Split(comment.AtprotoUri, "/")
+	h.logger.Info("Parsing atproto URI", "uri", comment.AtprotoUri, "parts", uriParts)
+	if len(uriParts) < 4 {
+		h.logger.Error("Invalid atproto URI format", "uri", comment.AtprotoUri, "parts", uriParts)
+		h.writeError(w, http.StatusInternalServerError, "INVALID_URI", "Invalid comment URI format")
+		return
+	}
+	// The rkey is the last part after the collection
+	rkey := uriParts[len(uriParts)-1]
+	h.logger.Info("Extracted rkey", "rkey", rkey)
+
+	// Call PDS to delete the record
+	pdsResponse, err := h.proxyToPDS(r, "POST", "/xrpc/com.atproto.repo.deleteRecord", map[string]interface{}{
+		"repo":       userCtx.Did,
+		"collection": "com.hashpost.feed.comment",
+		"rkey":       rkey,
+	})
+
 	if err != nil {
-		h.logger.Error("Failed to delete comment", "error", err, "comment_id", commentID)
-		h.writeError(w, http.StatusInternalServerError, "COMMENT_DELETE_FAILED", "Failed to delete comment")
+		h.logger.Error("Failed to delete comment from PDS", "error", err, "comment_id", commentID)
+		h.writeError(w, http.StatusInternalServerError, "PDS_ERROR", "Failed to delete comment")
 		return
 	}
 
-	// Update post comment count
-	err = h.queries.UpdatePostCommentCount(ctx, comment.PostID)
+	// Log PDS response for debugging
+	h.logger.Info("PDS delete response", "response", string(pdsResponse))
+
+	// PDS deletion succeeded, now delete from AppView database directly
+	// This ensures the UI updates immediately even if NATS events fail
+	err = h.queries.DeleteAppViewComment(ctx, commentID)
 	if err != nil {
-		h.logger.Error("Failed to update comment count", "error", err, "post_id", comment.PostID)
-		// Don't fail the request, just log the error
+		h.logger.Error("Failed to delete comment from AppView", "error", err, "comment_id", commentID)
+		// Don't fail the request since PDS deletion succeeded
+	}
+
+	// Update post comment count
+	if err := h.queries.UpdatePostCommentCount(ctx, comment.PostID); err != nil {
+		h.logger.Warn("Failed to update post comment count after deletion", "error", err, "post_id", comment.PostID)
+		// Don't fail the request, just log the warning
 	}
 
 	h.logger.Info("Comment deleted", "comment_id", commentID, "user_did", userCtx.Did)

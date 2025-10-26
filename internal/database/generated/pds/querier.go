@@ -27,11 +27,14 @@ type Querier interface {
 	CreateUserSession(ctx context.Context, arg *CreateUserSessionParams) (*UserSession, error)
 	CreateUserWithPassword(ctx context.Context, arg *CreateUserWithPasswordParams) (*User, error)
 	CreateVote(ctx context.Context, arg *CreateVoteParams) (*Vote, error)
+	DeleteCommentByAtprotoURI(ctx context.Context, atprotoUri *string) error
 	DeletePostByAtprotoURI(ctx context.Context, atprotoUri *string) error
 	DeleteSubforumByID(ctx context.Context, id uuid.UUID) error
 	DeleteUserSession(ctx context.Context, sessionID string) error
+	DeleteVote(ctx context.Context, id uuid.UUID) error
 	GetAccessToken(ctx context.Context, accessToken string) (*OauthAccessToken, error)
 	GetAuthorizationCode(ctx context.Context, code string) (*OauthAuthorizationCode, error)
+	GetCommentByAtprotoURI(ctx context.Context, atprotoUri *string) (*Comment, error)
 	GetCommentByID(ctx context.Context, id uuid.UUID) (*GetCommentByIDRow, error)
 	GetCommentByURI(ctx context.Context, atprotoUri *string) (*Comment, error)
 	GetDPoPNonce(ctx context.Context, nonce string) (*DpopNonce, error)
@@ -45,6 +48,7 @@ type Querier interface {
 	GetUserByHandle(ctx context.Context, handle string) (*User, error)
 	GetUserPasswordHash(ctx context.Context, id uuid.UUID) (*string, error)
 	GetUserSession(ctx context.Context, sessionID string) (*UserSession, error)
+	GetVoteByUserAndPost(ctx context.Context, arg *GetVoteByUserAndPostParams) (*Vote, error)
 	ListComments(ctx context.Context, arg *ListCommentsParams) ([]*ListCommentsRow, error)
 	ListPosts(ctx context.Context, arg *ListPostsParams) ([]*ListPostsRow, error)
 	ListPostsBySubforum(ctx context.Context, arg *ListPostsBySubforumParams) ([]*ListPostsBySubforumRow, error)
