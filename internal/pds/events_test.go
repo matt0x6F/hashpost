@@ -104,11 +104,11 @@ func TestEventStreamer_PublishIdentityEvent(t *testing.T) {
 	}, nil).AnyTimes()
 
 	// Expect Publish to be called
-	mockJetStream.EXPECT().Publish("hashpost.events.record.created", gomock.Any(), gomock.Any()).Return(&nats.PubAck{
+	mockJetStream.EXPECT().Publish("hashpost.events.identity.resolved", gomock.Any(), gomock.Any()).Return(&nats.PubAck{
 		Stream:   "HASHPOST_EVENTS",
 		Sequence: 1,
 	}, nil).Do(func(subject string, data []byte, opts ...nats.PubOpt) {
-		assert.Equal(t, "hashpost.events.record.created", subject)
+		assert.Equal(t, "hashpost.events.identity.resolved", subject)
 		var publishedEvent AtprotoEvent
 		err := json.Unmarshal(data, &publishedEvent)
 		require.NoError(t, err)
@@ -156,11 +156,11 @@ func TestEventStreamer_PublishSessionEvent(t *testing.T) {
 	}, nil).AnyTimes()
 
 	// Expect Publish to be called
-	mockJetStream.EXPECT().Publish("hashpost.events.record.created", gomock.Any(), gomock.Any()).Return(&nats.PubAck{
+	mockJetStream.EXPECT().Publish("hashpost.events.session.created", gomock.Any(), gomock.Any()).Return(&nats.PubAck{
 		Stream:   "HASHPOST_EVENTS",
 		Sequence: 1,
 	}, nil).Do(func(subject string, data []byte, opts ...nats.PubOpt) {
-		assert.Equal(t, "hashpost.events.record.created", subject)
+		assert.Equal(t, "hashpost.events.session.created", subject)
 		var publishedEvent AtprotoEvent
 		err := json.Unmarshal(data, &publishedEvent)
 		require.NoError(t, err)

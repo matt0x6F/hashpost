@@ -2,18 +2,67 @@ package pds
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	generated "github.com/matt0x6f/hashpost/internal/database/generated/pds"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func TestPasswordUpdateIntegration(t *testing.T) {
 	suite := SetupIntegrationTestSuite(t)
 	defer suite.Cleanup()
+
+	// Create test user with password hash
+	timestamp := time.Now().UnixNano()
+	handle := fmt.Sprintf("testuser%d.hashpost.local", timestamp)
+	did := fmt.Sprintf("did:plc:testuser%d", timestamp)
+
+	// Hash the test password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte("testpassword123"), bcrypt.DefaultCost)
+	require.NoError(t, err)
+	passwordHash := string(hashedPassword)
+
+	// Create user with password
+	_, err = suite.db.CreateUserWithPassword(context.Background(), &generated.CreateUserWithPasswordParams{
+		Handle:       handle,
+		Did:          did,
+		Email:        nil,
+		PasswordHash: &passwordHash,
+	})
+	require.NoError(t, err)
+
+	// Set user info in suite
+	suite.userDID = did
+	suite.userHandle = handle
+
+	// Create session manually
+	sessionID := fmt.Sprintf("session-%d", time.Now().Unix())
+	_, err = suite.db.CreateUserSession(context.Background(), &generated.CreateUserSessionParams{
+		SessionID: sessionID,
+		UserDid:   did,
+		Handle:    handle,
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+	require.NoError(t, err)
+
+	// Generate auth token
+	session := &Session{
+		ID:        sessionID,
+		DID:       did,
+		Handle:    handle,
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+	}
+	authToken, _, err := suite.server.authService.GenerateTokens(session)
+	require.NoError(t, err)
+	suite.authToken = authToken
 
 	t.Run("successful_password_update", func(t *testing.T) {
 		// Create request to update password
@@ -64,8 +113,8 @@ func TestPasswordUpdateIntegration(t *testing.T) {
 	t.Run("weak_new_password", func(t *testing.T) {
 		// Create request with weak new password
 		requestBody := map[string]interface{}{
-			"currentPassword": "testpassword123",
-			"newPassword":     "123", // Too short
+			"currentPassword": "newpassword123", // Use the updated password from previous test
+			"newPassword":     "123",            // Too short
 		}
 		jsonBody, err := json.Marshal(requestBody)
 		require.NoError(t, err)
@@ -106,4 +155,3 @@ func TestPasswordUpdateIntegration(t *testing.T) {
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 }
-

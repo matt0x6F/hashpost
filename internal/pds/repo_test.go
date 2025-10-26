@@ -85,6 +85,7 @@ func TestAtprotoRepoCreateRecord_Integration(t *testing.T) {
 		Slug:        "general",
 		Description: &description,
 		CreatedBy:   pgtype.UUID{Bytes: user.ID, Valid: true},
+		PrefixType:  "t", // topical subforum
 	})
 	require.NoError(t, err)
 
@@ -411,6 +412,7 @@ func TestAtprotoRepoListRecords_Integration(t *testing.T) {
 		Slug:        "general",
 		Description: &description,
 		CreatedBy:   pgtype.UUID{Bytes: user.ID, Valid: true},
+		PrefixType:  "t", // topical subforum
 	})
 	require.NoError(t, err)
 

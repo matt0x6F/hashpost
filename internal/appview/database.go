@@ -14,7 +14,7 @@ import (
 
 // Database represents the AppView database connection
 type Database struct {
-	queries *generated.Queries
+	queries generated.Querier
 	logger  *slog.Logger
 }
 

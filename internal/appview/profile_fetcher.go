@@ -24,13 +24,13 @@ type ProfileData struct {
 
 // ProfileFetcher handles fetching user profiles from external PDS servers
 type ProfileFetcher struct {
-	queries *generated.Queries
+	queries generated.Querier
 	logger  *slog.Logger
 	client  *http.Client
 }
 
 // NewProfileFetcher creates a new profile fetcher
-func NewProfileFetcher(queries *generated.Queries, logger *slog.Logger) *ProfileFetcher {
+func NewProfileFetcher(queries generated.Querier, logger *slog.Logger) *ProfileFetcher {
 	return &ProfileFetcher{
 		queries: queries,
 		logger:  logger,

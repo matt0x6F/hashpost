@@ -10,6 +10,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	appview "github.com/matt0x6f/hashpost/internal/database/generated/appview"
 	generated "github.com/matt0x6f/hashpost/internal/database/generated/pds"
 )
 
@@ -58,6 +59,10 @@ type MockQueries struct {
 	DeleteSubforumByIDFunc      func(ctx context.Context, id uuid.UUID) error
 	ListSubforumsFunc           func(ctx context.Context, arg *generated.ListSubforumsParams) ([]generated.ListSubforumsRow, error)
 	ListSubforumsWithCursorFunc func(ctx context.Context, arg *generated.ListSubforumsWithCursorParams) ([]*generated.Subforum, error)
+
+	// Processed events mocks
+	IsEventProcessedFunc     func(ctx context.Context, eventID string) (bool, error)
+	CreateProcessedEventFunc func(ctx context.Context, arg *appview.CreateProcessedEventParams) (*appview.ProcessedEvent, error)
 }
 
 // Implement the generated.Queries interface methods
@@ -426,6 +431,325 @@ func (m *MockQueries) ListSubforumsWithCursor(ctx context.Context, arg *generate
 		return m.ListSubforumsWithCursorFunc(ctx, arg)
 	}
 	return []*generated.Subforum{}, nil
+}
+
+// Processed events methods
+func (m *MockQueries) IsEventProcessed(ctx context.Context, eventID string) (bool, error) {
+	if m.IsEventProcessedFunc != nil {
+		return m.IsEventProcessedFunc(ctx, eventID)
+	}
+	return false, nil
+}
+
+func (m *MockQueries) CreateProcessedEvent(ctx context.Context, arg *appview.CreateProcessedEventParams) (*appview.ProcessedEvent, error) {
+	if m.CreateProcessedEventFunc != nil {
+		return m.CreateProcessedEventFunc(ctx, arg)
+	}
+	now := time.Now()
+	return &appview.ProcessedEvent{
+		EventID:     arg.EventID,
+		Subject:     arg.Subject,
+		Sequence:    arg.Sequence,
+		ProcessedAt: pgtype.Timestamptz{Time: now, Valid: true},
+		CreatedAt:   pgtype.Timestamptz{Time: now, Valid: true},
+	}, nil
+}
+
+// MockAppViewQueries is a mock implementation of the AppView generated.Queries interface
+type MockAppViewQueries struct {
+	// Processed events mocks
+	IsEventProcessedFunc     func(ctx context.Context, eventID string) (bool, error)
+	CreateProcessedEventFunc func(ctx context.Context, arg *appview.CreateProcessedEventParams) (*appview.ProcessedEvent, error)
+
+	// Internal state to track processed events
+	processedEvents map[string]bool
+}
+
+// NewMockAppViewQueries creates a new mock AppView queries instance
+func NewMockAppViewQueries() *MockAppViewQueries {
+	return &MockAppViewQueries{
+		processedEvents: make(map[string]bool),
+	}
+}
+
+// Implement the AppView generated.Querier interface methods
+func (m *MockAppViewQueries) IsEventProcessed(ctx context.Context, eventID string) (bool, error) {
+	if m.IsEventProcessedFunc != nil {
+		return m.IsEventProcessedFunc(ctx, eventID)
+	}
+	// Check internal state
+	return m.processedEvents[eventID], nil
+}
+
+func (m *MockAppViewQueries) CreateProcessedEvent(ctx context.Context, arg *appview.CreateProcessedEventParams) (*appview.ProcessedEvent, error) {
+	if m.CreateProcessedEventFunc != nil {
+		return m.CreateProcessedEventFunc(ctx, arg)
+	}
+	// Update internal state
+	m.processedEvents[arg.EventID] = true
+	now := time.Now()
+	return &appview.ProcessedEvent{
+		EventID:     arg.EventID,
+		Subject:     arg.Subject,
+		Sequence:    arg.Sequence,
+		ProcessedAt: pgtype.Timestamptz{Time: now, Valid: true},
+		CreatedAt:   pgtype.Timestamptz{Time: now, Valid: true},
+	}, nil
+}
+
+// Stub implementations for all other Querier interface methods
+// These are not used in the tests but required by the interface
+func (m *MockAppViewQueries) AssignSubforumRole(ctx context.Context, arg *appview.AssignSubforumRoleParams) (*appview.AssignSubforumRoleRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) AssignUserRole(ctx context.Context, arg *appview.AssignUserRoleParams) (*appview.AssignUserRoleRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) CheckUserPermission(ctx context.Context, arg *appview.CheckUserPermissionParams) (bool, error) {
+	return false, nil
+}
+func (m *MockAppViewQueries) CleanupOldProcessedEvents(ctx context.Context) error {
+	return nil
+}
+func (m *MockAppViewQueries) CountCommentsByAuthor(ctx context.Context, authorDid string) (int64, error) {
+	return 0, nil
+}
+func (m *MockAppViewQueries) CountCommentsByPost(ctx context.Context, postID pgtype.UUID) (int64, error) {
+	return 0, nil
+}
+func (m *MockAppViewQueries) CountSubforumSubscribers(ctx context.Context, subforumSlug string) (int64, error) {
+	return 0, nil
+}
+func (m *MockAppViewQueries) CountUserSubscriptions(ctx context.Context, userDid string) (int64, error) {
+	return 0, nil
+}
+func (m *MockAppViewQueries) CreateAppViewComment(ctx context.Context, arg *appview.CreateAppViewCommentParams) (*appview.AppviewComment, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) CreateAppViewPost(ctx context.Context, arg *appview.CreateAppViewPostParams) (*appview.AppviewPost, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) CreateAppViewSubforum(ctx context.Context, arg *appview.CreateAppViewSubforumParams) (*appview.CreateAppViewSubforumRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) CreateComment(ctx context.Context, arg *appview.CreateCommentParams) (*appview.AppviewComment, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) CreateOrUpdateSession(ctx context.Context, arg *appview.CreateOrUpdateSessionParams) (*appview.AppviewSession, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) CreateOrUpdateUserFromDID(ctx context.Context, arg *appview.CreateOrUpdateUserFromDIDParams) (*appview.AppviewUser, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) CreateSubscription(ctx context.Context, arg *appview.CreateSubscriptionParams) (*appview.AppviewSubscription, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) CreateVote(ctx context.Context, arg *appview.CreateVoteParams) (*appview.AppviewVote, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) CreateVoteOnComment(ctx context.Context, arg *appview.CreateVoteOnCommentParams) (*appview.AppviewVote, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) DeleteAppViewComment(ctx context.Context, id uuid.UUID) error {
+	return nil
+}
+func (m *MockAppViewQueries) DeleteAppViewPost(ctx context.Context, id uuid.UUID) error {
+	return nil
+}
+func (m *MockAppViewQueries) DeleteAppViewSubforum(ctx context.Context, slug string) error {
+	return nil
+}
+func (m *MockAppViewQueries) DeleteComment(ctx context.Context, id uuid.UUID) error {
+	return nil
+}
+func (m *MockAppViewQueries) DeleteCommentByURI(ctx context.Context, atprotoUri string) error {
+	return nil
+}
+func (m *MockAppViewQueries) DeletePostByAtprotoURI(ctx context.Context, atprotoUri string) error {
+	return nil
+}
+func (m *MockAppViewQueries) DeleteSubscription(ctx context.Context, arg *appview.DeleteSubscriptionParams) error {
+	return nil
+}
+func (m *MockAppViewQueries) DeleteVote(ctx context.Context, arg *appview.DeleteVoteParams) error {
+	return nil
+}
+func (m *MockAppViewQueries) DeleteVoteOnComment(ctx context.Context, arg *appview.DeleteVoteOnCommentParams) error {
+	return nil
+}
+func (m *MockAppViewQueries) GetAllPermissions(ctx context.Context) ([]*appview.GetAllPermissionsRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetAllRoles(ctx context.Context) ([]*appview.GetAllRolesRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetAppViewPostByID(ctx context.Context, id uuid.UUID) (*appview.GetAppViewPostByIDRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetAppViewPostByURI(ctx context.Context, atprotoUri string) (*appview.GetAppViewPostByURIRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetAppViewSubforumBySlug(ctx context.Context, slug string) (*appview.GetAppViewSubforumBySlugRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetCommentByID(ctx context.Context, id uuid.UUID) (*appview.AppviewComment, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetCommentByURI(ctx context.Context, atprotoUri string) (*appview.AppviewComment, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetCommentVoteCounts(ctx context.Context, id uuid.UUID) (*appview.GetCommentVoteCountsRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetCommentWithPost(ctx context.Context, id uuid.UUID) (*appview.GetCommentWithPostRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetModeratedSubforums(ctx context.Context, userDid string) ([]*appview.GetModeratedSubforumsRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetPDSServerDetails(ctx context.Context, pdsSource *string) (*appview.GetPDSServerDetailsRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetPDSServerStats(ctx context.Context) ([]*appview.GetPDSServerStatsRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetPostByAtprotoURI(ctx context.Context, atprotoUri string) (*appview.AppviewPost, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetPostCommentCount(ctx context.Context, id uuid.UUID) (*int32, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetPostVoteCounts(ctx context.Context, id uuid.UUID) (*appview.GetPostVoteCountsRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetProcessedEvent(ctx context.Context, eventID string) (*appview.ProcessedEvent, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetProcessedEventsCount(ctx context.Context) (int64, error) {
+	return 0, nil
+}
+func (m *MockAppViewQueries) GetSubforumByID(ctx context.Context, id uuid.UUID) (*appview.AppviewSubforum, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetSubforumBySlug(ctx context.Context, slug string) (*appview.AppviewSubforum, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetSubforumByURI(ctx context.Context, atprotoUri *string) (*appview.AppviewSubforum, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetSubforumMembers(ctx context.Context, arg *appview.GetSubforumMembersParams) ([]*appview.GetSubforumMembersRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetSubforumStats(ctx context.Context, slug string) (*appview.GetSubforumStatsRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetSubforumSubscriberCount(ctx context.Context, slug string) (*int32, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetUserByDID(ctx context.Context, did string) (*appview.AppviewUser, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetUserPermissions(ctx context.Context, arg *appview.GetUserPermissionsParams) ([]string, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetUserRoles(ctx context.Context, userDid string) ([]*appview.GetUserRolesRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetUserSubscription(ctx context.Context, arg *appview.GetUserSubscriptionParams) (*appview.AppviewSubscription, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetUserVoteOnComment(ctx context.Context, arg *appview.GetUserVoteOnCommentParams) (*appview.AppviewVote, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetUserVoteOnPost(ctx context.Context, arg *appview.GetUserVoteOnPostParams) (*appview.AppviewVote, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetUsersByDIDs(ctx context.Context, dollar_1 []string) ([]*appview.AppviewUser, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetUsersByPDSSource(ctx context.Context, arg *appview.GetUsersByPDSSourceParams) ([]*appview.GetUsersByPDSSourceRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) GetUsersWithRoles(ctx context.Context, arg *appview.GetUsersWithRolesParams) ([]*appview.GetUsersWithRolesRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) HasUserRole(ctx context.Context, arg *appview.HasUserRoleParams) (bool, error) {
+	return false, nil
+}
+func (m *MockAppViewQueries) ListAppViewPosts(ctx context.Context, arg *appview.ListAppViewPostsParams) ([]*appview.ListAppViewPostsRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) ListAppViewPostsBySubforum(ctx context.Context, arg *appview.ListAppViewPostsBySubforumParams) ([]*appview.ListAppViewPostsBySubforumRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) ListAppViewSubforums(ctx context.Context, arg *appview.ListAppViewSubforumsParams) ([]*appview.ListAppViewSubforumsRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) ListCommentsByAuthor(ctx context.Context, arg *appview.ListCommentsByAuthorParams) ([]*appview.ListCommentsByAuthorRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) ListCommentsByPost(ctx context.Context, arg *appview.ListCommentsByPostParams) ([]*appview.ListCommentsByPostRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) ListCommentsByPostWithReplies(ctx context.Context, arg *appview.ListCommentsByPostWithRepliesParams) ([]*appview.ListCommentsByPostWithRepliesRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) ListCommentsByPostWithUserVotes(ctx context.Context, arg *appview.ListCommentsByPostWithUserVotesParams) ([]*appview.ListCommentsByPostWithUserVotesRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) ListSubforumSubscribers(ctx context.Context, arg *appview.ListSubforumSubscribersParams) ([]*appview.ListSubforumSubscribersRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) ListUserSubscriptions(ctx context.Context, arg *appview.ListUserSubscriptionsParams) ([]*appview.ListUserSubscriptionsRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) RevokeSubforumRole(ctx context.Context, arg *appview.RevokeSubforumRoleParams) error {
+	return nil
+}
+func (m *MockAppViewQueries) RevokeUserRole(ctx context.Context, arg *appview.RevokeUserRoleParams) error {
+	return nil
+}
+func (m *MockAppViewQueries) UpdateAppViewComment(ctx context.Context, arg *appview.UpdateAppViewCommentParams) (*appview.AppviewComment, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) UpdateAppViewPost(ctx context.Context, arg *appview.UpdateAppViewPostParams) (*appview.AppviewPost, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) UpdateAppViewSubforum(ctx context.Context, arg *appview.UpdateAppViewSubforumParams) (*appview.UpdateAppViewSubforumRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) UpdateComment(ctx context.Context, arg *appview.UpdateCommentParams) (*appview.UpdateCommentRow, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) UpdateCommentByURI(ctx context.Context, arg *appview.UpdateCommentByURIParams) (*appview.AppviewComment, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) UpdateCommentVoteCounts(ctx context.Context, id uuid.UUID) error {
+	return nil
+}
+func (m *MockAppViewQueries) UpdatePostByAtprotoURI(ctx context.Context, arg *appview.UpdatePostByAtprotoURIParams) (*appview.AppviewPost, error) {
+	return nil, nil
+}
+func (m *MockAppViewQueries) UpdatePostCommentCount(ctx context.Context, postID pgtype.UUID) error {
+	return nil
+}
+func (m *MockAppViewQueries) UpdatePostVoteCounts(ctx context.Context, id uuid.UUID) error {
+	return nil
+}
+func (m *MockAppViewQueries) UpdateSubforumCommentCount(ctx context.Context, arg *appview.UpdateSubforumCommentCountParams) error {
+	return nil
+}
+func (m *MockAppViewQueries) UpdateSubforumPostCount(ctx context.Context, arg *appview.UpdateSubforumPostCountParams) error {
+	return nil
+}
+func (m *MockAppViewQueries) UpdateSubforumSubscriberCount(ctx context.Context, subforumSlug string) error {
+	return nil
+}
+func (m *MockAppViewQueries) UpdateUserLastSeen(ctx context.Context, did string) error {
+	return nil
+}
+func (m *MockAppViewQueries) UpdateUserProfile(ctx context.Context, arg *appview.UpdateUserProfileParams) (*appview.AppviewUser, error) {
+	return nil, nil
 }
 
 // MockIdentityDirectory is a mock implementation of identity.Directory

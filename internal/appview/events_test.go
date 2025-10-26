@@ -14,7 +14,8 @@ import (
 
 func TestEventConsumer_NewEventConsumer(t *testing.T) {
 	logger := testutil.CreateMockLogger()
-	db := &Database{logger: logger}
+	mockQueries := testutil.NewMockAppViewQueries()
+	db := &Database{logger: logger, queries: mockQueries}
 
 	// This will fail due to NATS connection, but we can test the constructor logic
 	consumer, err := NewEventConsumer("nats://invalid:4222", db, logger)
@@ -52,7 +53,13 @@ func TestEventConsumer_AtprotoEvent_StructValidation(t *testing.T) {
 
 func TestEventConsumer_HelperMethods_Unit(t *testing.T) {
 	logger := testutil.CreateMockLogger()
-	db := &Database{logger: logger}
+
+	// Create a mock database with mock queries
+	mockQueries := testutil.NewMockAppViewQueries()
+	db := &Database{
+		logger:  logger,
+		queries: mockQueries, // This will work since MockAppViewQueries implements the needed methods
+	}
 
 	// Create a mock consumer for testing helper methods
 	consumer := &EventConsumer{
@@ -123,7 +130,8 @@ func TestEventConsumer_HelperMethods_Unit(t *testing.T) {
 
 func TestEventConsumer_ProcessMessage_Unit(t *testing.T) {
 	logger := testutil.CreateMockLogger()
-	db := &Database{logger: logger}
+	mockQueries := testutil.NewMockAppViewQueries()
+	db := &Database{logger: logger, queries: mockQueries}
 
 	consumer := &EventConsumer{
 		logger:        logger,
@@ -198,7 +206,8 @@ func TestEventConsumer_ProcessMessage_Unit(t *testing.T) {
 
 func TestEventConsumer_ProcessMessageWithRetry_Unit(t *testing.T) {
 	logger := testutil.CreateMockLogger()
-	db := &Database{logger: logger}
+	mockQueries := testutil.NewMockAppViewQueries()
+	db := &Database{logger: logger, queries: mockQueries}
 
 	consumer := &EventConsumer{
 		logger:        logger,
@@ -286,7 +295,8 @@ func TestEventConsumer_SendToDeadLetterQueue_Unit(t *testing.T) {
 
 func TestEventConsumer_EventHandlers_Unit(t *testing.T) {
 	logger := testutil.CreateMockLogger()
-	db := &Database{logger: logger}
+	mockQueries := testutil.NewMockAppViewQueries()
+	db := &Database{logger: logger, queries: mockQueries}
 
 	consumer := &EventConsumer{
 		logger:        logger,
@@ -359,7 +369,8 @@ func TestEventConsumer_EventHandlers_Unit(t *testing.T) {
 
 func TestEventConsumer_Close_Unit(t *testing.T) {
 	logger := testutil.CreateMockLogger()
-	db := &Database{logger: logger}
+	mockQueries := testutil.NewMockAppViewQueries()
+	db := &Database{logger: logger, queries: mockQueries}
 
 	consumer := &EventConsumer{
 		logger:        logger,
